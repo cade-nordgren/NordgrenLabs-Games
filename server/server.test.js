@@ -161,9 +161,17 @@ for (const path of ['/server/index.js', '/SERVER/index.js', '//server/index.js',
   test(`static refuses ${path}`, async () => assert.equal((await get(path)).status, 404));
 }
 
-const good = { CLERK_PUBLISHABLE_KEY: 'pk', CLERK_JWT_KEY: 'jwk', CLERK_ISSUER: ISSUER };
+const good = { CLERK_PUBLISHABLE_KEY: 'pk', CLERK_JWT_KEY: jwtKey, CLERK_ISSUER: ISSUER };
 test('config check accepts exactly the three public names', () => {
   assert.deepEqual(checkEnv({ ...good, PATH: '/bin' }), []);
+});
+test('config check accepts the key on one line and refuses one that is not a public key', async () => {
+  const oneLine = jwtKey.replace(/\n/g, '');
+  assert.deepEqual(checkEnv({ ...good, CLERK_JWT_KEY: oneLine }), []);
+  assert.equal((await verify(`Bearer ${sign(claims())}`, { ...config, jwtKey: oneLine })).ok, true);
+  for (const bad of ['jwk', jwtKey.replace(/\n/g, '\\n'), privateKey.export({ type: 'pkcs8', format: 'pem' })]) {
+    assert.deepEqual(checkEnv({ ...good, CLERK_JWT_KEY: bad }), ['refusing to start: CLERK_JWT_KEY is not a public key']);
+  }
 });
 test('config check refuses a secret or unknown CLERK_ name without printing its value', () => {
   for (const name of ['CLERK_SECRET_KEY', 'CLERK_API_URL', 'CLERK_']) {

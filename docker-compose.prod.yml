@@ -1,0 +1,31 @@
+# NordgrenLabs Games, Production. Its own Compose project, volume and config directory; it shares nothing with
+# RideLab or the Control Center (docs/decisions/0001 decision 11). See docs/runbooks/deploy.md.
+#
+# No `build:` key: the image is built on the guest from a reviewed commit and named by an explicit tag.
+# The env file holds three public Clerk values and no secret. This app has no secret at all.
+name: nordgrenlabs-games-prod
+
+services:
+  web:
+    image: nordgrenlabs-games-web:${GAMES_IMAGE_TAG:?Set GAMES_IMAGE_TAG to the reviewed Git commit SHA. There is no default.}
+    restart: unless-stopped
+    env_file:
+      - /etc/nordgren-labs/games/games.env
+    # Loopback only; the host-level Cloudflare Tunnel is the public route. RideLab owns 127.0.0.1:3000 and the
+    # Control Center 127.0.0.1:3001 on this guest. Confirm 3002 is free before the first start.
+    ports:
+      - "127.0.0.1:3002:3000"
+    volumes:
+      - games_data:/data
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    # /config.js touches neither the database nor Clerk, so it shows only that the process is alive.
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/config.js').then(r => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  games_data:

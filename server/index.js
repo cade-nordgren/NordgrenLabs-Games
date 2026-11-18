@@ -1,5 +1,6 @@
 // One process: the static site from the repo root, /config.js and /api, on one origin (docs/decisions/0001).
 import http from 'node:http';
+import { createPublicKey } from 'node:crypto';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +24,13 @@ export function checkEnv(env) {
     .filter(name => name.startsWith('CLERK_') && !REQUIRED.includes(name))
     .map(name => `refusing to start: ${name} is not allowed`);
   for (const name of REQUIRED) if (!env[name]) problems.push(`refusing to start: ${name} is missing`);
+  // A key the verifier cannot use would refuse every token silently. The PEM may be on one line, as an env file needs.
+  try {
+    const der = Buffer.from((env.CLERK_JWT_KEY || '').replace(/-----.*?-----|\s/g, ''), 'base64');
+    if (env.CLERK_JWT_KEY) createPublicKey({ key: der, format: 'der', type: 'spki' });
+  } catch {
+    problems.push('refusing to start: CLERK_JWT_KEY is not a public key');
+  }
   return problems;
 }
 

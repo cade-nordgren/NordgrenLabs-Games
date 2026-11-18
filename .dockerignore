@@ -1,0 +1,10 @@
+.git
+.gitignore
+.gitattributes
+.dockerignore
+Dockerfile
+docker-compose.prod.yml
+docs
+server/node_modules
+server/data
+server/*.test.js
