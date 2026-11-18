@@ -90,8 +90,8 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
 
 #dice { display: flex; justify-content: center; gap: 30px; padding: 18px 0 14px; perspective: 700px; }
 .die { --h: 32px; width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2, .8, .25, 1); }
-.face { position: absolute; inset: 0; border-radius: 12px; background: linear-gradient(145deg, #fff, #e6e6eb); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .07); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 9px; place-items: center; }
-.face i.pip { width: 10px; height: 10px; border-radius: 50%; background: #1d1d1f; }
+.face { position: absolute; inset: 0; border-radius: 12px; background: var(--die); box-shadow: inset 0 0 0 1px var(--die-edge); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 9px; place-items: center; }
+.face i.pip { width: 10px; height: 10px; border-radius: 50%; background: var(--pip); }
 .face:nth-child(1) { transform: translateZ(var(--h)); }
 .face:nth-child(2) { transform: rotateY(180deg) translateZ(var(--h)); }
 .face:nth-child(3) { transform: rotateY(90deg) translateZ(var(--h)); }
