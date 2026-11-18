@@ -146,30 +146,28 @@
   dark.addEventListener('change', apply);
   apply();
 
-  // ---- Top bar highlight: follows mouse hover and keyboard focus, jumps to the pressed item on touch, hidden otherwise.
-  const topbar = nav => {
-    const hl = nav.querySelector('.hl');
-    let shown = false, timer;
-    const hide = () => { clearTimeout(timer); hl.classList.remove('on'); shown = false; };
-    const show = item => {
-      clearTimeout(timer);
-      if (!item || item.disabled) return hide();
-      if (!shown) hl.classList.add('jump'); // appear in place rather than sliding in from the last item
-      hl.style.setProperty('--x', item.offsetLeft + 'px');
-      hl.style.setProperty('--w', item.offsetWidth + 'px');
-      if (!shown) { void hl.offsetWidth; hl.classList.remove('jump'); }
-      hl.classList.add('on');
-      shown = true;
+  // ---- Menu: the trigger opens and closes the items; Esc, a tap outside or choosing an item closes it,
+  // except items marked data-keep-open (Undo, so several steps can be undone in a row).
+  const menu = nav => {
+    const trigger = nav.querySelector('.menu-trigger'), list = nav.querySelector('.menu-items');
+    const isOpen = () => nav.classList.contains('open');
+    const set = open => {
+      nav.classList.toggle('open', open);
+      trigger.setAttribute('aria-expanded', open);
+      trigger.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+      list.inert = !open;
+      if (open) [...list.children].filter(i => !i.hidden).forEach((item, k) => item.style.setProperty('--i', k + 1));
     };
-    const focused = () => nav.querySelector('.item:focus-visible');
-    nav.addEventListener('pointerover', e => { if (e.pointerType === 'mouse') show(e.target.closest('.item')); });
-    nav.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') focused() ? show(focused()) : hide(); });
-    nav.addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse') show(e.target.closest('.item')); });
-    nav.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse') timer = setTimeout(hide, 250); });
-    nav.addEventListener('pointercancel', hide);
-    nav.addEventListener('focusin', e => { if (e.target.matches(':focus-visible')) show(e.target); });
-    nav.addEventListener('focusout', e => { if (!nav.contains(e.relatedTarget)) hide(); });
-    return hide;
+    trigger.onclick = () => set(!isOpen());
+    // Capture runs before the item's own handler, so a sheet it opens hands focus back to the trigger on close.
+    list.addEventListener('click', e => {
+      if (!e.target.closest('.item:not([data-keep-open])')) return;
+      trigger.focus();
+      set(false);
+    }, true);
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && isOpen()) { set(false); trigger.focus(); } });
+    document.addEventListener('pointerdown', e => { if (isOpen() && !nav.contains(e.target)) set(false); });
+    set(false);
   };
 
   // ---- Segmented control: wires the buttons once, returns a function that shows the chosen value.
@@ -183,5 +181,5 @@
     });
   };
 
-  window.NL = { saves, identity, ready, account, theme: { get, set }, topbar, segmented };
+  window.NL = { saves, identity, ready, account, theme: { get, set }, menu, segmented };
 })();

@@ -7,6 +7,10 @@
 <script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
 <link rel="stylesheet" href="../style.css">
 <style>
+/* The menu trigger floats top right, so content starts at its top edge and the first line is centred on it. */
+.app { padding-top: max(10px, env(safe-area-inset-top)); }
+#setup > h1 { margin-top: 2px; }
+
 /* Setup */
 .group { padding: 16px; margin-bottom: 14px; }
 .group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
@@ -49,7 +53,7 @@ details li + li { margin-top: 6px; }
 /* Game */
 #game { flex: 1; display: flex; flex-direction: column; }
 .hero { text-align: center; padding: 0 0 18px; }
-#roundLabel { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink2); }
+#roundLabel { margin: 0; line-height: 48px; font-size: 15px; font-weight: 600; color: var(--ink2); }
 #pot { margin: 0; font: 700 clamp(64px, min(30vw, 16dvh), 128px)/1 var(--num); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 #pot.pop { animation: pop .28s ease-out; }
 #pot.bust { animation: shake .4s; color: var(--danger); }
@@ -112,40 +116,53 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
   #dice { padding: 12px 0 8px; }
 }
 
-/* Phone in landscape: the board scrolls on the left, the dock stays whole on the right. */
+/* Phone in landscape: the board scrolls on the left, the dock stays whole at the bottom right.
+   The hero becomes one compact block (number left, round, phase and message beside it) so the standings show. */
 @media (orientation: landscape) and (max-height: 540px) {
-  .app { max-width: 960px; }
+  .app { max-width: 960px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   #setup { columns: 2; column-gap: 14px; }
   #setup > h1, #setup > .lede { column-span: all; }
   #setup > * { break-inside: avoid; }
   #setup > details { margin-top: 0; }
   #game { flex-direction: row; align-items: flex-start; gap: 16px; }
   .board { flex: 1; min-width: 0; }
-  #pot { font-size: clamp(56px, 20dvh, 96px); }
-  .dock { flex: 0 0 min(340px, 48%); position: sticky; top: calc(max(6px, env(safe-area-inset-top)) + 60px); bottom: auto; margin-top: 0; }
+  .spacer { display: none; }
+  .hero { display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 16px; align-items: center; text-align: left; padding: 4px 0 10px; }
+  #pot { grid-area: 1 / 1 / 4 / 2; font-size: clamp(48px, 16dvh, 72px); }
+  #roundLabel, #phase, #msg { grid-column: 2; line-height: 1.4; }
+  .hero:has(.final) { display: block; }
+  #pot.final { padding: 4px 0; font-size: clamp(28px, 9dvh, 40px); }
+  #phase { justify-self: start; margin: 4px 0 0; }
+  #msg { margin-top: 4px; }
+  .dock { flex: 0 0 min(340px, 48%); align-self: flex-end; bottom: max(12px, env(safe-area-inset-bottom)); }
 }
 </style>
 </head>
 <body>
 <div class="app">
-  <nav class="topbar glass" id="bar" aria-label="Bank">
-    <i class="hl" aria-hidden="true"></i>
-    <a class="item" id="gamesLink" href="../index.html">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
-      <span>Games</span>
-    </a>
-    <button class="item" id="endBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
-      <span>End game</span>
+  <nav class="menu" id="menu" aria-label="Bank">
+    <button class="menu-trigger glass" aria-controls="menuItems">
+      <svg class="bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
-    <button class="item" id="undo">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 4 9l4 4"/><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H10"/></svg>
-      <span>Undo</span>
-    </button>
-    <button class="item" id="settingsBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
-      <span>Settings</span>
-    </button>
+    <div class="menu-items" id="menuItems">
+      <a class="item glass" id="gamesLink" href="../index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+        <span class="glass">Games</span>
+      </a>
+      <button class="item glass" id="endBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
+        <span class="glass">End game</span>
+      </button>
+      <button class="item glass" id="undo" data-keep-open>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 4 9l4 4"/><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H10"/></svg>
+        <span class="glass">Undo</span>
+      </button>
+      <button class="item glass" id="settingsBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+        <span class="glass">Settings</span>
+      </button>
+    </div>
   </nav>
 
   <main id="setup">
@@ -514,7 +531,7 @@ function rollDice() {
 const showMode = NL.segmented($('modeSeg'), v => { S.mode = v; render(); });
 const showSort = NL.segmented($('sortSeg'), v => { S.sort = v; render(); });
 const showTheme = NL.segmented($('themeSeg'), v => { NL.theme.set(v); showTheme(v); });
-const hideHighlight = NL.topbar($('bar'));
+NL.menu($('menu'));
 
 function gateStart() {
   const ready = S.names.filter(n => n.trim()).length >= 2; // Bank needs two players
@@ -618,12 +635,9 @@ function renderGame() {
   $('next').textContent = g.round >= S.rounds ? 'See final scores' : 'Next round';
 }
 
-let wasPlaying;
 function render() {
   save();
   const playing = !!S.g;
-  if (playing !== wasPlaying) hideHighlight(); // the bar's items change between screens
-  wasPlaying = playing;
   $('setup').hidden = playing;
   $('game').hidden = !playing;
   $('gamesLink').hidden = playing;

@@ -10,8 +10,8 @@ A small static site of original tabletop helpers (scorekeepers, dice) from Nordg
 
 ```
 index.html          games list
-style.css           shared: tokens, backdrop, glass, buttons, top bar, sheets, segmented control, theme icon
-platform.js         shared: window.NL (saves, identity, sign-in, theme, top bar highlight, segmented control)
+style.css           shared: tokens, backdrop, glass, buttons, menu, sheets, segmented control, theme icon
+platform.js         shared: window.NL (saves, identity, sign-in, theme, menu, segmented control)
 config.js           placeholder for the server's /config.js (Clerk publishable key); keeps the static preview signed out
 bank/index.html     one game: its own CSS and JS inline
 docs/BUILD-GUIDE.md this file
@@ -27,12 +27,12 @@ Apple-style minimalism: system fonts, frosted glass, light and dark, quiet motio
 - **Tokens** (`style.css`, `:root`): `--canvas --solid --ink --ink2 --accent --danger --good --primary --glass --glass-strong --edge --hair --fill --thumb --shadow`, fonts `--text` and `--num` (rounded, for numbers), and the spring `--spring` / `--spring-dur` (stiffness 400, damping 30, about 0.45s). Use tokens; do not hard-code colours.
 - **Glass**: add `class="glass"` to a panel. Falls back to solid under `prefers-reduced-transparency`.
 - **Buttons**: `.btn`, `.btn.primary` (full width, 54px), `.btn.danger`.
-- **Top bar**: `<nav class="topbar glass">` with an `<i class="hl">` first, then `.item` buttons or links, each an inline 22px SVG (`stroke="currentColor"`) plus a `<span>` label. Call `NL.topbar(nav)` once; it returns a `hide()` to call when the items change. Items are actions, not tabs: the highlight follows hover and keyboard focus and is hidden otherwise.
+- **Menu**: `<nav class="menu">` fixed top right, holding a `.menu-trigger.glass` button (hamburger `.bars` and `.x` SVGs) and a `.menu-items` div of `.item.glass` buttons or links, each an inline 22px SVG (`stroke="currentColor"`) plus a `<span class="glass">` label chip. Call `NL.menu(nav)` once: it handles `aria-expanded`, `inert`, Esc, outside taps and closing on a choice; mark an item `data-keep-open` (Bank's Undo) to keep the menu open after it.
 - **Sheets**: `<dialog class="sheet glass">` with a single inner `<div>`; open with `showModal()`. Close on backdrop click with `d.onclick = e => { if (e.target === d) d.close(); }`; Esc is native. Never use `alert()`, `confirm()` or `prompt()`: they are suppressed in some hosts.
 - **Segmented control**: `<div class="segmented" role="group" aria-labelledby=...>` of `<button value=...>`. `const show = NL.segmented(group, value => ...)` wires it; call `show(value)` to mark the chosen one (sets `aria-pressed`, the thumb springs).
 - **Theme**: `<html data-theme="light|dark">` holds the resolved theme; dark tokens apply under `:root[data-theme="dark"]` (with a `prefers-color-scheme` fallback when the attribute is missing). The preference `system|light|dark` is in localStorage `nl-games-theme`; `NL.theme.get()` and `NL.theme.set(p)` read and change it, and system follows the OS live. Every page needs the one-line no-flash script in `<head>` (copy it from `bank/index.html`) before the stylesheet. The Appearance control and its sun/moon icon markup are in Bank's settings sheet; the icon's CSS is `.theme-icon` in `style.css`.
 
-Quality floor for every screen: visible keyboard focus, 44px touch targets, `prefers-reduced-motion` (global rule in `style.css`; also check it before any `element.animate()`), `prefers-reduced-transparency`, 375px wide with no horizontal scroll, light and dark both checked. Game pieces need at least 3:1 contrast against the panel they sit on in both themes, measured rather than eyeballed: Bank's white dice were about 1.1:1 on the light glass, so dice now use the `--die`, `--die-edge` and `--pip` tokens in `style.css` (dark dice with white pips in light, white dice with dark pips in dark). Check phones in landscape too (667x375): `style.css` gives `(orientation: landscape) and (max-height: 540px)` an icon-only top bar and scrolling sheets, layouts respect `env(safe-area-inset-*)` on all four sides, and text inputs stay at 16px or larger so iOS does not zoom on focus. Copy is plain sentence case, no all-caps labels, no em dashes, no arrows on labels. User input (player names) goes in with `textContent`, never `innerHTML`.
+Quality floor for every screen: visible keyboard focus, 44px touch targets, `prefers-reduced-motion` (global rule in `style.css`; also check it before any `element.animate()`), `prefers-reduced-transparency`, 375px wide with no horizontal scroll, light and dark both checked. Game pieces need at least 3:1 contrast against the panel they sit on in both themes, measured rather than eyeballed: Bank's white dice were about 1.1:1 on the light glass, so dice now use the `--die`, `--die-edge` and `--pip` tokens in `style.css` (dark dice with white pips in light, white dice with dark pips in dark). Check phones in landscape too (667x375), under `(orientation: landscape) and (max-height: 540px)`: keep content clear of the menu circle, sheets scroll, layouts respect `env(safe-area-inset-*)` on all four sides, and text inputs stay at 16px or larger so iOS does not zoom on focus. Copy is plain sentence case, no all-caps labels, no em dashes, no arrows on labels. User input (player names) goes in with `textContent`, never `innerHTML`.
 
 ## Per-game contract
 
@@ -54,10 +54,10 @@ Quality floor for every screen: visible keyboard focus, 44px touch targets, `pre
 
 ## Adding a game
 
-1. Create `<game>/index.html`. Copy Bank's `<head>` (meta, no-flash script, `../style.css`) and its top bar and settings sheet markup as a starting point.
+1. Create `<game>/index.html`. Copy Bank's `<head>` (meta, no-flash script, `../style.css`) and its menu and settings sheet markup as a starting point.
 2. Write the rules as pure functions with asserts. Design the rules yourself; games here must be original.
 3. Hold state in one object, route actions through `change()`, autosave under `nl-<game>-v1`.
-4. Wire `NL.topbar`, sheets, `NL.segmented` and saves as above. Load `<script src="../config.js"></script>` then `<script src="../platform.js"></script>` before the game script.
+4. Wire `NL.menu`, sheets, `NL.segmented` and saves as above. Load `<script src="../config.js"></script>` then `<script src="../platform.js"></script>` before the game script.
 5. Add a `.glass.tile` link to `index.html`.
 6. Preview and run the checks below.
 
