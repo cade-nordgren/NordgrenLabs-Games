@@ -1,21 +1,20 @@
-// Hermetic: a throwaway key pair, hand-signed tokens, and fetch replaced so any outbound call fails the test.
+// Hermetic: a throwaway key pair, hand-signed tokens, the real Worker handler against a real local D1 (miniflare,
+// through wrangler's getPlatformProxy), and fetch replaced so any outbound call from the Worker fails the test.
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
-import http from 'node:http';
 import { spawnSync } from 'node:child_process';
-import { verify, AUTHORIZED_PARTY } from './seam.js';
-import { checkEnv, createServer } from './index.js';
-import { openDb, MAX_BYTES, MAX_SAVES } from './saves.js';
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-
-globalThis.fetch = () => { throw new Error('network call attempted'); };
+import { getPlatformProxy } from 'wrangler';
+import { verify, AUTHORIZED_PARTY } from './seam.js';
+import worker from './worker.js';
+import { MAX_BYTES, MAX_SAVES } from './saves.js';
 
 const ISSUER = 'https://clerk.nordgrenlabs.com';
 const PROD = 'https://games.nordgrenlabs.com';
-const DEV = 'http://localhost:8765';
+const DEV = 'http://localhost:8787';
 const PERSON = '0b6f1c2e-3d4a-4b5c-8d9e-0f1a2b3c4d5e';
 const rsa = () => crypto.generateKeyPairSync('rsa', { modulusLength: 2048, publicExponent: 0x10001 });
 const { publicKey, privateKey } = rsa();
@@ -43,11 +42,11 @@ test('seam accepts a valid token, with and without nl_person_id', async () => {
   assert.deepEqual(await verify(bearer(sign(without('nl_person_id'))), config), { ok: true, personPublicId: null });
 });
 
-test('authorized party is production unless NODE_ENV is development', () => {
+test('authorized party is production unless the build defines development', () => {
   assert.equal(AUTHORIZED_PARTY, PROD);
   const r = spawnSync(process.execPath, ['--input-type=module', '-e',
-    'import { AUTHORIZED_PARTY } from "./seam.js"; console.log(AUTHORIZED_PARTY)'],
-    { cwd: import.meta.dirname, env: { ...process.env, NODE_ENV: 'development' }, encoding: 'utf8' });
+    'globalThis.__GAMES_BUILD_MODE__ = "development"; const { AUTHORIZED_PARTY } = await import("./seam.js"); console.log(AUTHORIZED_PARTY)'],
+    { cwd: import.meta.dirname, encoding: 'utf8' });
   assert.equal(r.stdout.trim(), DEV);
 });
 
@@ -89,23 +88,33 @@ test('seam refuses everything without a key or issuer configured', async () => {
   assert.deepEqual(await verify(bearer(valid), { ...config, issuer: undefined }), { ok: false });
 });
 
-let server, port;
-const db = openDb(':memory:');
-const listen = async srv => { await new Promise(r => srv.listen(0, '127.0.0.1', r)); return srv.address().port; };
-before(async () => {
-  server = createServer({ publishableKey: 'pk_test_games', jwtKey, issuer: ISSUER, db });
-  port = await listen(server);
-});
-after(() => server.close());
+// ---- The Worker against a local D1 that has had the migration applied, persisted in a throwaway directory.
+const MIGRATION = readFileSync(new URL('../migrations/0001_saves.sql', import.meta.url), 'utf8');
+const dirs = [];
+async function openEnv({ dir = path.join(os.tmpdir(), `games-test-${crypto.randomUUID()}`), migrate = true } = {}) {
+  dirs.push(dir);
+  const proxy = await getPlatformProxy({ configPath: '../wrangler.jsonc', environment: 'dev', persist: { path: dir } });
+  if (migrate) {
+    const db = proxy.env.DB;
+    await db.batch(MIGRATION.split(';').map(sql => sql.trim()).filter(Boolean).map(sql => db.prepare(sql)));
+  }
+  return { proxy, dir, env: { ...proxy.env, CLERK_PUBLISHABLE_KEY: 'pk_test_games', CLERK_JWT_KEY: jwtKey, CLERK_ISSUER: ISSUER } };
+}
 
-// http.get, not fetch: fetch is disabled, and it would normalise "/%2e%2e/" before sending.
-const get = (path, headers = {}, method = 'GET', body, p = port) => new Promise((resolve, reject) => {
-  http.request({ host: '127.0.0.1', port: p, path, headers, method }, res => {
-    let body = '';
-    res.on('data', c => (body += c));
-    res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body }));
-  }).on('error', reject).end(body);
+let main;
+before(async () => {
+  main = await openEnv();
+  globalThis.fetch = () => { throw new Error('network call attempted'); };
 });
+after(async () => {
+  await main.proxy.dispose();
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+});
+
+const get = async (url, headers = {}, method = 'GET', body, env = main.env) => {
+  const res = await worker.fetch(new Request(`https://games.nordgrenlabs.com${url}`, { method, headers, body }), env);
+  return { status: res.status, headers: Object.fromEntries(res.headers), body: await res.text() };
+};
 
 test('/api/me answers 200, 401 and 403 with no-store', async () => {
   const cases = [
@@ -124,11 +133,14 @@ test('/api/me answers 200, 401 and 403 with no-store', async () => {
 });
 
 test('/api unknown path is 404 and wrong method is 405, both JSON', async () => {
-  const a = await get('/api/nope');
-  assert.equal(a.status, 404);
-  assert.equal(a.headers['cache-control'], 'no-store');
+  for (const url of ['/api/nope', '/api']) {
+    const a = await get(url);
+    assert.equal(a.status, 404);
+    assert.equal(a.headers['cache-control'], 'no-store');
+    assert.deepEqual(JSON.parse(a.body), { error: 'not_found' });
+  }
   assert.equal((await get('/api/me', {}, 'POST')).status, 405);
-  assert.equal((await get('/', {}, 'POST')).status, 405);
+  assert.equal((await get('/api/me', {}, 'HEAD')).status, 405);
 });
 
 test('/config.js carries the publishable key', async () => {
@@ -137,67 +149,76 @@ test('/config.js carries the publishable key', async () => {
   assert.equal(r.body.trim(), 'window.NL_CONFIG = {"clerkPublishableKey":"pk_test_games"};');
   assert.match(r.headers['content-type'], /^text\/javascript/);
   assert.equal(r.headers['cache-control'], 'no-store');
-});
-
-test('static files: index, game page redirect, HEAD, nosniff', async () => {
-  const r = await get('/');
-  assert.equal(r.status, 200);
-  assert.match(r.body, /<html/i);
   assert.equal(r.headers['x-content-type-options'], 'nosniff');
-  const redirect = await get('/bank');
-  assert.equal(redirect.status, 301);
-  assert.equal(redirect.headers.location, '/bank/');
-  assert.equal((await get('/bank/')).status, 200);
-  assert.match((await get('/style.css')).headers['content-type'], /^text\/css/);
-  const head = await get('/platform.js', {}, 'HEAD');
+  const head = await get('/config.js', {}, 'HEAD');
   assert.equal(head.status, 200);
   assert.equal(head.body, '');
 });
 
-for (const path of ['/server/index.js', '/SERVER/index.js', '//server/index.js', '/server./index.js',
+test('a request no asset matched: 404 text for GET and HEAD, 405 with Allow for other methods', async () => {
+  const r = await get('/nope.html');
+  assert.equal(r.status, 404);
+  assert.match(r.headers['content-type'], /^text\/plain/);
+  assert.equal(r.headers['x-content-type-options'], 'nosniff');
+  assert.equal((await get('/nope.html', {}, 'HEAD')).body, '');
+  const post = await get('/', {}, 'POST');
+  assert.equal(post.status, 405);
+  assert.equal(post.headers.allow, 'GET, HEAD');
+});
+
+// Static files come only from site/ (config.test.js); the Worker itself never serves a file from anywhere.
+for (const p of ['/server/worker.js', '/SERVER/worker.js', '//server/worker.js', '/server./worker.js',
   '/docs/BUILD-GUIDE.md', '/server/node_modules/@clerk/backend/package.json', '/.git/config', '/.gitattributes',
-  '/%2e%2e/', '/..%2f..%2f', '/bank/..%5c..%5cserver/index.js', '/bank/%2e%2e/server/index.js', '/%E0%A4%A',
-  '/nope.html']) {
-  test(`static refuses ${path}`, async () => assert.equal((await get(path)).status, 404));
+  '/wrangler.jsonc', '/migrations/0001_saves.sql', '/%2e%2e/', '/..%2f..%2f', '/bank/..%5c..%5cserver/worker.js',
+  '/bank/%2e%2e/server/worker.js', '/%E0%A4%A', '/nope.html']) {
+  test(`worker refuses ${p}`, async () => assert.equal((await get(p)).status, 404));
 }
 
-const good = { CLERK_PUBLISHABLE_KEY: 'pk', CLERK_JWT_KEY: jwtKey, CLERK_ISSUER: ISSUER };
-test('config check accepts exactly the three public names', () => {
-  assert.deepEqual(checkEnv({ ...good, PATH: '/bin' }), []);
+// ---- The refuse-to-serve tripwire: names only, never values, on every route the Worker answers.
+const clerk = { CLERK_PUBLISHABLE_KEY: 'pk', CLERK_JWT_KEY: jwtKey, CLERK_ISSUER: ISSUER };
+const logged = async fn => {
+  const lines = [], original = console.error;
+  console.error = (...a) => lines.push(a.join(' '));
+  try { return { result: await fn(), log: lines.join('\n') }; } finally { console.error = original; }
+};
+test('tripwire accepts exactly the three public names next to other bindings', async () => {
+  assert.equal((await get('/config.js', {}, 'GET', undefined, { ...main.env, ...clerk, OTHER: 'x' })).status, 200);
 });
-test('config check accepts the key on one line and refuses one that is not a public key', async () => {
-  const oneLine = jwtKey.replace(/\n/g, '');
-  assert.deepEqual(checkEnv({ ...good, CLERK_JWT_KEY: oneLine }), []);
-  assert.equal((await verify(`Bearer ${sign(claims())}`, { ...config, jwtKey: oneLine })).ok, true);
-  for (const bad of ['jwk', jwtKey.replace(/\n/g, '\\n'), privateKey.export({ type: 'pkcs8', format: 'pem' })]) {
-    assert.deepEqual(checkEnv({ ...good, CLERK_JWT_KEY: bad }), ['refusing to start: CLERK_JWT_KEY is not a public key']);
-  }
-});
-test('config check refuses a secret or unknown CLERK_ name without printing its value', () => {
+test('tripwire refuses a secret or unknown CLERK_ name with 503 and without its value', async () => {
   for (const name of ['CLERK_SECRET_KEY', 'CLERK_API_URL', 'CLERK_']) {
-    const problems = checkEnv({ ...good, [name]: 'sk_live_VALUE' });
-    assert.equal(problems.length, 1);
-    assert.match(problems[0], new RegExp(name));
-    assert.doesNotMatch(problems.join(), /VALUE/);
+    const env = { ...main.env, ...clerk, [name]: 'sk_live_VALUE' };
+    for (const url of ['/api/me', '/config.js', '/nope']) {
+      const { result: r, log } = await logged(() => get(url, { authorization: bearer(sign(claims())) }, 'GET', undefined, env));
+      assert.equal(r.status, 503);
+      assert.deepEqual(JSON.parse(r.body), { error: 'misconfigured' });
+      assert.equal(r.headers['cache-control'], 'no-store');
+      assert.match(log, new RegExp(`${name} is not allowed`));
+      assert.doesNotMatch(log + r.body, /VALUE|pk_test|BEGIN/);
+    }
   }
 });
-test('config check refuses a missing or empty required name', () => {
-  for (const name of Object.keys(good)) {
-    assert.equal(checkEnv({ ...good, [name]: '' }).length, 1);
-    const env = { ...good };
+test('tripwire refuses a missing name, or one of the three left empty', async () => {
+  for (const name of Object.keys(clerk)) {
+    const env = { ...main.env, ...clerk };
     delete env[name];
-    assert.equal(checkEnv(env).length, 1);
+    assert.equal((await logged(() => get('/api/me', {}, 'GET', undefined, env))).result.status, 503);
+    assert.equal((await logged(() => get('/api/me', {}, 'GET', undefined, { ...main.env, ...clerk, [name]: '' }))).result.status, 503);
   }
 });
-test('the server process refuses to start on a Clerk secret key', () => {
-  const r = spawnSync(process.execPath, ['index.js'],
-    { cwd: import.meta.dirname, env: { ...good, CLERK_SECRET_KEY: 'sk_live_VALUE', PORT: '0' }, encoding: 'utf8', timeout: 10000 });
-  assert.notEqual(r.status, 0);
-  assert.match(r.stderr, /CLERK_SECRET_KEY/);
-  assert.doesNotMatch(r.stderr + r.stdout, /VALUE/);
+test('all three empty is the signed-out dev environment: null config, every API call 401', async () => {
+  const env = { ...main.env, CLERK_PUBLISHABLE_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '' };
+  assert.equal((await get('/config.js', {}, 'GET', undefined, env)).body, 'window.NL_CONFIG = null;\n');
+  assert.equal((await get('/api/me', { authorization: bearer(sign(claims())) }, 'GET', undefined, env)).status, 401);
+});
+test('the key works on one line, and one that is not a public key refuses every token', async () => {
+  const oneLine = jwtKey.replace(/\n/g, '');
+  assert.equal((await verify(bearer(sign(claims())), { ...config, jwtKey: oneLine })).ok, true);
+  for (const bad of ['jwk', jwtKey.replace(/\n/g, '\\n'), privateKey.export({ type: 'pkcs8', format: 'pem' })]) {
+    assert.equal((await verify(bearer(sign(claims())), { ...config, jwtKey: bad })).ok, false);
+  }
 });
 
-// ---- Saves API: people A and B, over real HTTP against the in-memory database.
+// ---- Saves API: people A and B, through the Worker against the local D1.
 const A = PERSON;
 const B = '1c2d3e4f-5a6b-4c7d-8e9f-a0b1c2d3e4f5';
 const authA = { authorization: bearer(sign(claims())) };
@@ -206,7 +227,7 @@ const record = extra => ({
   schemaVersion: 1, id: crypto.randomUUID(), game: 'bank', personPublicId: null, title: 'Game',
   status: 'in_progress', createdAt: '2026-11-18T10:00:00Z', updatedAt: '2026-11-18T10:00:00Z', state: { round: 1 }, ...extra,
 });
-const put = (rec, auth = authA, id = rec.id, p = port) => get(`/api/saves/${id}`, auth, 'PUT', JSON.stringify(rec), p);
+const put = (rec, auth = authA, id = rec.id, env = main.env) => get(`/api/saves/${id}`, auth, 'PUT', JSON.stringify(rec), env);
 const body = r => (r.body ? JSON.parse(r.body) : undefined);
 
 test('saves: put, get, replace, list newest first and filtered by game', async () => {
@@ -308,13 +329,11 @@ test('saves: 413 over 256 KB, 200 at exactly 256 KB', async () => {
 test('saves: 200 per person, updates still work at the limit, B unaffected', async () => {
   const C = '2d3e4f5a-6b7c-4d8e-9fa0-b1c2d3e4f5a6';
   const authC = { authorization: bearer(sign(claims({ nl_person_id: C }))) };
-  const insert = db.prepare('INSERT INTO saves VALUES (?, ?, ?, ?, ?)');
-  const ids = [];
-  for (let i = 0; i < MAX_SAVES; i++) {
-    const r = record({ personPublicId: C });
-    ids.push(r.id);
-    insert.run(r.id, C, r.game, r.updatedAt, JSON.stringify(r));
-  }
+  const db = main.env.DB;
+  const rows = Array.from({ length: MAX_SAVES }, () => record({ personPublicId: C }));
+  await db.batch(rows.map(r => db.prepare('INSERT INTO saves VALUES (?, ?, ?, ?, ?)')
+    .bind(r.id, C, r.game, r.updatedAt, JSON.stringify(r))));
+  const ids = rows.map(r => r.id);
   const full = await put(record(), authC);
   assert.equal(full.status, 409);
   assert.deepEqual(body(full), { error: 'save_limit' });
@@ -358,41 +377,32 @@ test('saves: 405 with Allow for other methods', async () => {
   assert.equal(b.headers.allow, 'GET, PUT, DELETE');
 });
 
-test('saves: a closed database answers 503 without database text', async () => {
-  const broken = openDb(':memory:');
-  broken.close();
-  const srv = createServer({ publishableKey: 'pk', jwtKey, issuer: ISSUER, db: broken });
-  const p = await listen(srv);
+test('saves: a database without the schema answers 503 without database text', async () => {
+  const broken = await openEnv({ migrate: false });
   try {
-    for (const res of [await get('/api/saves?game=bank', authA, 'GET', undefined, p), await put(record(), authA, undefined, p)]) {
+    for (const res of [await get('/api/saves?game=bank', authA, 'GET', undefined, broken.env),
+      await put(record(), authA, undefined, broken.env), await get(`/api/saves/${crypto.randomUUID()}`, authA, 'DELETE', undefined, broken.env)]) {
       assert.equal(res.status, 503);
       assert.deepEqual(body(res), { error: 'unavailable' });
     }
   } finally {
-    srv.close();
+    await broken.proxy.dispose();
   }
 });
 
-test('saves: a file database keeps records across close and reopen', async () => {
-  const dir = path.join(os.tmpdir(), `games-test-${crypto.randomUUID()}`);
-  const file = path.join(dir, 'games.db');
+test('saves: the local database keeps records across dispose and reopen', async () => {
   const r = record();
-  const withServer = async fn => {
-    const fileDb = openDb(file);
-    const srv = createServer({ publishableKey: 'pk', jwtKey, issuer: ISSUER, db: fileDb });
-    try {
-      return await fn(await listen(srv));
-    } finally {
-      srv.close();
-      fileDb.close();
-    }
-  };
+  const first = await openEnv();
   try {
-    assert.equal((await withServer(p => put(r, authA, r.id, p))).status, 200);
-    const res = await withServer(p => get(`/api/saves/${r.id}`, authA, 'GET', undefined, p));
-    assert.deepEqual(body(res), { ...r, personPublicId: A });
+    assert.equal((await put(r, authA, r.id, first.env)).status, 200);
   } finally {
-    rmSync(dir, { recursive: true, force: true });
+    await first.proxy.dispose();
+  }
+  const again = await openEnv({ dir: first.dir, migrate: false });
+  try {
+    assert.deepEqual(body(await get(`/api/saves/${r.id}`, authA, 'GET', undefined, again.env)), { ...r, personPublicId: A });
+  } finally {
+    await again.proxy.dispose();
   }
 });
 

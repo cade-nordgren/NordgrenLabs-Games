@@ -1,5 +1,7 @@
 # Platform integration plan
 
+Hosting was changed by `docs/decisions/0002-cloudflare-hosting.md`: Games now runs as a Cloudflare Worker with D1, not a container on the home VM. This plan is otherwise kept as the historical record.
+
 Status: accepted 2026-11-18. The owner accepted all seven recommended answers below; they are recorded in `docs/decisions/0001-platform-adoption.md` (step 1, done). Steps 2 to 8 are not built.
 
 Goal: Games becomes a real NordgrenLabs platform app. Players start with the signed-in person's name, saved games follow the person across devices, and Games is launchable from the Control Center.

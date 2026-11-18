@@ -5,15 +5,17 @@
 import { verifyJwt } from '@clerk/backend/jwt';
 
 const PRODUCTION_AUTHORIZED_PARTY = 'https://games.nordgrenlabs.com';
-const DEVELOPMENT_AUTHORIZED_PARTY = 'http://localhost:8765';
-export const AUTHORIZED_PARTY =
-  process.env.NODE_ENV === 'development' ? DEVELOPMENT_AUTHORIZED_PARTY : PRODUCTION_AUTHORIZED_PARTY;
+const DEVELOPMENT_AUTHORIZED_PARTY = 'http://localhost:8787';
+// __GAMES_BUILD_MODE__ is a wrangler `define`, replaced at build time (wrangler.jsonc); never a runtime variable.
+export const AUTHORIZED_PARTY = typeof __GAMES_BUILD_MODE__ !== 'undefined' && __GAMES_BUILD_MODE__ === 'development'
+  ? DEVELOPMENT_AUTHORIZED_PARTY : PRODUCTION_AUTHORIZED_PARTY;
 
 const SKEW_S = 5;
 const MAX_TOKEN_LENGTH = 4096;
 const BEARER = /^Bearer ([A-Za-z0-9_.-]+)$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const filled = v => typeof v === 'string' && v.length > 0;
+const base64url = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
 
 export async function verify(authorization, { jwtKey, issuer, authorizedParty, now = Date.now() }) {
   try {
@@ -21,7 +23,7 @@ export async function verify(authorization, { jwtKey, issuer, authorizedParty, n
     if (!token || token.length > MAX_TOKEN_LENGTH) return { ok: false };
     if (!filled(jwtKey) || !filled(issuer) || !filled(authorizedParty)) return { ok: false };
     const p = await verifyJwt(token, { key: jwtKey, authorizedParties: [authorizedParty], clockSkewInMs: SKEW_S * 1000 });
-    const header = JSON.parse(Buffer.from(token.split('.')[0], 'base64url').toString());
+    const header = JSON.parse(base64url(token.split('.')[0]));
     const t = now / 1000;
     if (header.alg !== 'RS256' || p.iss !== issuer || p.azp !== authorizedParty || 'aud' in p) return { ok: false };
     if (!filled(p.sid) || !filled(p.sub)) return { ok: false };

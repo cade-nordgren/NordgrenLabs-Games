@@ -9,18 +9,23 @@ A small static site of original tabletop helpers (scorekeepers, dice) from Nordg
 ## Layout
 
 ```
-index.html          games list
-style.css           shared: tokens, backdrop, glass, buttons, menu, sheets, segmented control, theme icon
-platform.js         shared: window.NL (saves, identity, sign-in, theme, menu, segmented control)
-config.js           placeholder for the server's /config.js (Clerk publishable key); keeps the static preview signed out
-bank/index.html     one game: its own CSS and JS inline
-tidevault/index.html solo dive game: its own CSS and JS inline
-dungeon/index.html  table companion for an owned dungeon board game: its own CSS and JS inline
-docs/BUILD-GUIDE.md this file
-docs/decisions/     decision records (0001: platform adoption)
+site/                    the published site, and nothing else
+  index.html             games list
+  style.css              shared: tokens, backdrop, glass, buttons, menu, sheets, segmented control, theme icon
+  platform.js            shared: window.NL (saves, identity, sign-in, theme, menu, segmented control)
+  config.js              placeholder for the Worker's /config.js (Clerk publishable key); keeps the static preview signed out
+  _headers               response headers for the static files on Cloudflare (nosniff)
+  bank/index.html        one game: its own CSS and JS inline
+  tidevault/index.html   solo dive game: its own CSS and JS inline
+  dungeon/index.html     table companion for an owned dungeon board game: its own CSS and JS inline
+server/                  the Worker (/api and /config.js) and its tests
+migrations/              D1 schema, forward only
+wrangler.jsonc           Cloudflare Worker configuration
+docs/BUILD-GUIDE.md      this file
+docs/decisions/          decision records (0001: platform adoption, 0002: Cloudflare hosting)
 ```
 
-Shared code lives only in `style.css` and `platform.js`. Everything game-specific (rules, screens, layout) stays inline in that game's `index.html`. Do not add a third shared file without a strong reason.
+Only `site/` is ever published. Shared code lives only in `style.css` and `platform.js`. Everything game-specific (rules, screens, layout) stays inline in that game's `index.html`. Do not add a third shared file without a strong reason.
 
 ## Design system
 
@@ -56,16 +61,16 @@ Quality floor for every screen: visible keyboard focus, 44px touch targets, `pre
 
 ## Adding a game
 
-1. Create `<game>/index.html`. Copy Bank's `<head>` (meta, no-flash script, `../style.css`) and its menu and settings sheet markup as a starting point.
+1. Create `site/<game>/index.html`. Copy Bank's `<head>` (meta, no-flash script, `../style.css`) and its menu and settings sheet markup as a starting point.
 2. Write the rules as pure functions with asserts. Design the rules yourself; games here must be original.
 3. Hold state in one object, route actions through `change()`, autosave under `nl-<game>-v1`.
 4. Wire `NL.menu`, sheets, `NL.segmented` and saves as above. Load `<script src="../config.js"></script>` then `<script src="../platform.js"></script>` before the game script.
-5. Add a `.glass.tile` link to `index.html`.
+5. Add a `.glass.tile` link to `site/index.html`.
 6. Preview and run the checks below.
 
 ## Preview and checks
 
-From the repo root: `python -m http.server 8765`, then open http://localhost:8765/. (The owner's Claude launch config already serves this repo on port 8765.)
+From the repo root: `python -m http.server 8765 --directory site`, then open http://localhost:8765/. It runs signed out. To run the Worker and the site together, with a local D1 and still signed out, use `cd server && npm run dev` and open http://localhost:8787/.
 
 Before calling it done:
 
@@ -76,18 +81,21 @@ Before calling it done:
 
 ## Server
 
-`server/` is the one Node process for production: it serves the same static files from the repo root plus `/config.js` and `/api` on one origin, and verifies Clerk session tokens offline in `server/seam.js` (decision 6 of the adoption record). Its only dependency is `@clerk/backend`, pinned exactly. Run its tests with `cd server && npm install && npm test`; they need no network and no real keys. It refuses to start unless `CLERK_PUBLISHABLE_KEY`, `CLERK_JWT_KEY` and `CLERK_ISSUER` are set, and on any other `CLERK_` variable. The plain `python -m http.server` preview still works and runs signed-out.
+Production is one Cloudflare Worker on the free plan (decision 0002). Workers static assets serve `site/` directly; the Worker in `server/worker.js` runs first only for `/api/*` and `/config.js`, and also answers any request no file matched. It verifies Clerk session tokens offline in `server/seam.js` (decision 6 of the adoption record). Plain JavaScript modules, no build step of our own: wrangler bundles the Worker. Its only runtime dependency is `@clerk/backend`, and its only dev dependency is `wrangler`, both pinned exactly. `wrangler.jsonc` holds the three public Clerk values and nothing secret. The Worker answers 503 `misconfigured` if any other `CLERK_` variable is present or if only some of the three are set; all three empty is the signed-out `dev` environment.
 
-The saves API in `server/saves.js` backs the four `NL.saves` methods: `GET /api/saves?game=<game>` is `list`, `GET /api/saves/<id>` is `get`, `PUT /api/saves/<id>` is `put` and `DELETE /api/saves/<id>` is `remove`. Every save is keyed on the verified `nl_person_id`, so another person's save always answers 404, and the `personPublicId` a client sends is replaced with the verified one. The SQLite file is `server/data/games.db` unless `GAMES_DB` names another path, and each person may keep 200 saves of at most 256 KB each.
+Run the tests with `cd server && npm install && npm test`. They call the real Worker handler against a real local D1 from wrangler's `getPlatformProxy()`, with a throwaway key pair; they need no network, no Cloudflare login and no real keys. `npm run check` adds a `wrangler deploy --dry-run`.
 
-Production runs one container built from `Dockerfile` and started by `docker-compose.prod.yml`; `docs/runbooks/deploy.md` has the steps. The image copies the whole repo except what `.dockerignore` lists, and the server serves it as the site, so a new game folder ships without any change here, and any new root file that must not be public belongs in `.dockerignore`.
+The saves API in `server/saves.js` backs the four `NL.saves` methods: `GET /api/saves?game=<game>` is `list`, `GET /api/saves/<id>` is `get`, `PUT /api/saves/<id>` is `put` and `DELETE /api/saves/<id>` is `remove`. Every save is keyed on the verified `nl_person_id`, so another person's save always answers 404, and the `personPublicId` a client sends is replaced with the verified one. Saves live in the D1 database `games` (schema in `migrations/`), and each person may keep 200 saves of at most 256 KB each. D1 has no interactive transactions, so every ownership or cap check sits in the same statement as the read or write it guards.
+
+A new game folder under `site/` ships without any change to the Worker. Anything that must not be public stays outside `site/`. `docs/runbooks/deploy.md` has the release steps.
 
 ## Decisions log
 
 - **Static, vanilla, no build.** Nothing to install or maintain; any static host works.
 - **Storage behind an async adapter (`NL.saves`).** localStorage when signed out, the games server when signed in, with no change to game code.
 - **Control Center compatibility.** The Control Center (`C:\Projects\NordgrenLabs-Control-Center`) is Next.js 16, React 19, TypeScript and Tailwind 4 with Clerk. Platform rules live in `C:\Projects\NordgrenLabs-Platform` (NL-ADR-0002 to 0005, `docs/architecture/app-access-architecture.md`). Per those records: each app owns its own data and authorization; the Control Center never reads an app's database; apps are keyed on the `nl_person_id` claim (a UUID, `personPublicId` here), never the Clerk subject or email; apps must not hold a Clerk secret key; app hostnames follow `<app>.nordgrenlabs.com`.
-- **Platform integration is built in this repo, not yet live.** `docs/decisions/0001-platform-adoption.md` (accepted 2026-11-18) records it: sign-in with ClerkJS on `games.nordgrenlabs.com`, a small backend in `server/` that verifies the session and implements the same `NL.saves` interface keyed on `nl_person_id`, anonymous play kept, and a Control Center catalog entry. `docs/PLATFORM-INTEGRATION-PLAN.md` has the step list; deployment and the catalog entry are still to do, and real sign-in has not been exercised. Under the plain static preview everything runs signed-out and `NL.identity()` reads `window.NL_IDENTITY`. The client stays static with no build step throughout.
+- **Platform integration is built in this repo, not yet live.** `docs/decisions/0001-platform-adoption.md` (accepted 2026-11-18) records it: sign-in with ClerkJS on `games.nordgrenlabs.com`, a small backend in `server/` (now a Cloudflare Worker with D1, decision 0002) that verifies the session and implements the same `NL.saves` interface keyed on `nl_person_id`, anonymous play kept, and a Control Center catalog entry. `docs/PLATFORM-INTEGRATION-PLAN.md` has the step list; deployment and the catalog entry are still to do, and real sign-in has not been exercised. Under the plain static preview everything runs signed-out and `NL.identity()` reads `window.NL_IDENTITY`. The client stays static with no build step throughout.
+- **Hosted on Cloudflare, free plan only.** `docs/decisions/0002-cloudflare-hosting.md` (2026-11-18) moved Games from a container on the home VM to one Worker with static assets and D1, so the site stays up when the home connection drops. Any paid plan or any other Cloudflare product is a stop-and-ask for the owner.
 - **Original designs only.** Bank shares only folk rules with other Bank scorekeepers; no copied layouts, art or text.
 - **Bank specifics.** Standings are always sorted (banked points, or "if banked now" as a setting); rank and gap always use banked points. Rows are keyed per player and slide into place (FLIP). In the live phase the 2 and 12 keys are disabled with the label "doubles" so players learn the Doubles key.
 - **Tidevault specifics.** A solo push-your-luck dive on a 7x7 map revealed room by room from a weighted bag, driven by a seeded PRNG kept in the run (`g.rng`) so runs replay and undo restores the dice too. Every finished run (surfaced, drowned or caught by the tide) saves itself once as a finished record titled with its relic value, and Best runs ranks those; Undo is off once a run is over.

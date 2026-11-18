@@ -1,68 +1,53 @@
 # Deploy runbook
 
-How NordgrenLabs Games goes onto the Production VM. Written 2026-11-18; not yet run.
+How NordgrenLabs Games goes onto Cloudflare Workers (`docs/decisions/0002-cloudflare-hosting.md`). Written 2026-11-18; not yet run.
 
-**This runbook authorizes nothing.** Deploying, changing DNS or the Cloudflare Tunnel, and changing the Clerk Dashboard are separate operator acts. Each needs the owner's explicit go-ahead at the time, and one go-ahead never covers the next act (`docs/decisions/0001-platform-adoption.md`; NL-ADR-0007 §3.6).
-
-Where things live on the guest (`nordgren-labs`):
+**This runbook authorizes nothing.** Creating a Cloudflare resource, applying a migration, deploying, rolling back, changing DNS and changing the Clerk Dashboard are separate operator acts. Each needs the owner's explicit go-ahead at the time, and one go-ahead never covers the next act (`docs/decisions/0001-platform-adoption.md`; NL-ADR-0007 §3.6). Free plan only: if any step asks for a paid plan or another Cloudflare product, stop and ask the owner.
 
 | What | Where |
 |---|---|
-| Compose project | `nordgrenlabs-games-prod` (`docker-compose.prod.yml` in this repo) |
-| Config | `/etc/nordgren-labs/games/games.env` |
-| Saves database | Docker volume `nordgrenlabs-games-prod_games_data`, file `/data/games.db` in the container |
-| Listener | `127.0.0.1:3002` (RideLab has 3000, the Control Center 3001) |
-| Public route | `games.nordgrenlabs.com` through the host-level Cloudflare Tunnel |
+| Worker | `nordgrenlabs-games` (`wrangler.jsonc` in this repo) |
+| Static site | the `site/` directory, uploaded with each deploy |
+| Saves database | D1 database `games`, bound as `DB`, schema in `migrations/` |
+| Public route | custom domain `games.nordgrenlabs.com`, created by the route on deploy |
+| Configuration | three public Clerk values in `wrangler.jsonc`; no secret anywhere |
 
-Nothing here is shared with RideLab or the Control Center, and none of it is a secret.
+All commands run from `server/` on the operator's PC, after `npm ci`. `wrangler` there means `node node_modules/wrangler/bin/wrangler.js`, the exact version pinned in `package.json`.
 
 ## Once, before the first deploy
 
-1. **Get the repository onto the guest.** This repo has no remote yet. Either push it to a private GitHub repository, the way the other apps are deployed, or carry it over as a `git bundle`. Creating a remote is its own decision.
-2. **Check the port.** `ss -ltn | grep ':3002 '` must print nothing. If 3002 is taken, change the one port line in `docker-compose.prod.yml` in a reviewed commit; `server/deploy.test.js` still requires a loopback binding.
-3. **Write the config file** `/etc/nordgren-labs/games/games.env`, owned by root, mode 0644, with exactly these three lines. The values come from the Clerk Dashboard's API keys page for the shared Production instance and are all public:
+1. **Log in.** The operator runs `node node_modules/wrangler/bin/wrangler.js login` themselves and signs in to the NordgrenLabs Cloudflare account. No API token is created for Games.
+2. **Create the database.** `node node_modules/wrangler/bin/wrangler.js d1 create games`. Choose no location hint unless the owner asks for one.
+3. **Paste the id.** Copy the `database_id` it prints into the top-level `d1_databases` entry in `wrangler.jsonc`, replacing `00000000-0000-0000-0000-000000000000`. Leave the `dev` environment's dummy id alone. The id is not a secret.
+4. **Commit** that one-line change, reviewed like any other.
 
-   ```
-   CLERK_PUBLISHABLE_KEY=<the pk_live_ publishable key>
-   CLERK_JWT_KEY=<the JWT public key, PEM>
-   CLERK_ISSUER=https://clerk.nordgrenlabs.com
-   ```
+Never add a Clerk secret key, or any other `CLERK_` variable, as a var or a secret. The Worker answers 503 `misconfigured` if one is present.
 
-   Put the PEM on one line: join its lines with nothing between them, keep the BEGIN and END markers, and add no quotes and no `\n` escapes. The server refuses to start if the key is unusable, if any of the three is missing, or if any other variable whose name begins `CLERK_` is present. Never put a Clerk secret key on this guest for Games.
+## Each release
 
-## Each deploy
+1. Check out the reviewed commit: `git checkout --detach <sha>`, then `cd server && npm ci`.
+2. `npm run check`: all tests pass, and the dry run lists only the three Clerk vars and `env.DB (games)`.
+3. **Migrations before the deploy, never the reverse.** If the release adds a file under `migrations/`, run `npm run db:migrate` and confirm. A migration must keep the previous Worker version working, because the new code is not live yet and a rollback does not undo it. With no new migration this step prints that there is nothing to apply.
+4. `npm run deploy`. Record the version id it prints.
+5. Check:
+   - `curl -s -o /dev/null -w '%{http_code}\n' https://games.nordgrenlabs.com/` prints 200.
+   - `curl -s https://games.nordgrenlabs.com/config.js` prints `window.NL_CONFIG = {"clerkPublishableKey":"pk_live_..."};` with the key from `wrangler.jsonc`.
+   - `curl -s -o /dev/null -w '%{http_code}\n' https://games.nordgrenlabs.com/api/me` prints 401. A 503 means the Worker refused its configuration; look at Workers Logs for the variable name.
 
-1. Check out the reviewed commit, detached: `git checkout --detach <sha>`.
-2. Run the tests where Node is available: `cd server && npm ci && npm test`.
-3. Build: `docker build -t nordgrenlabs-games-web:<sha> .`
-4. Start: `GAMES_IMAGE_TAG=<sha> docker compose -f docker-compose.prod.yml up -d`. There is no default tag.
-5. Check on the guest:
-   - `docker compose -f docker-compose.prod.yml ps` shows `web` healthy.
-   - `curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3002/` prints 200.
-   - `curl -s -o /dev/null -w '%{http_code}\n' http://127.0.0.1:3002/api/me` prints 401.
-   - `docker compose -f docker-compose.prod.yml logs web` shows the one start-up line and no refusal.
+## Roll back
 
-**Roll back** by starting the previous tag: `GAMES_IMAGE_TAG=<previous sha> docker compose -f docker-compose.prod.yml up -d`. The database is not rolled back; it is one table whose shape has not changed.
+`node node_modules/wrangler/bin/wrangler.js deployments list`, then `node node_modules/wrangler/bin/wrangler.js rollback <previous version id>`. A rollback does not undo a migration; that is why migrations stay compatible with the previous version.
 
 ## Once, to make it public
 
-Each of these is its own operator act.
-
-1. **Clerk.** If the shared instance requires origins to be admitted, add `https://games.nordgrenlabs.com` in the Dashboard. Change nothing else there: no cookie domain change, no satellite domain, no new key (NL-ADR-0007 §3.7).
-2. **Tunnel.** In the host-level `cloudflared` config, add an ingress rule above the final catch-all, then restart `cloudflared`:
-
-   ```yaml
-     - hostname: games.nordgrenlabs.com
-       service: http://127.0.0.1:3002
-   ```
-
-   The catch-all `http_status:404` rule must stay last. Follow RideLab's `docs/runbooks/ridelab-guest-production-runtime.md` §K.5 for the mechanics. Not verified from here: whether `admin` and `ridelab` are rules on one tunnel or two; look at the config on the guest first.
-3. **DNS.** Route `games.nordgrenlabs.com` to the tunnel as a proxied record. Clerk's own records stay DNS-only.
+1. **Custom domain.** The first `npm run deploy` creates `games.nordgrenlabs.com` from the route in `wrangler.jsonc`. If it reports an existing DNS record for that name, stop and ask the owner; do not delete records by hand.
+2. **Clerk, only if sign-in is refused.** If the shared instance refuses sign-in from the new origin, add `https://games.nordgrenlabs.com` as an allowed origin in the Dashboard. Change nothing else there: no cookie domain change, no satellite domain, no new key (NL-ADR-0007 §3.7).
 
 ## Acceptance, before telling anyone it is live
 
-Do these on the real origin and record the date and result as an addendum to `docs/decisions/0001-platform-adoption.md` (section 3 there). Repeat after any change to the `@clerk/backend` version or the ClerkJS version pinned in `platform.js`.
+Do these on the real origin and record the date and result as an addendum to `docs/decisions/0001-platform-adoption.md` (section 3 there). Repeat after any change to the `@clerk/backend` version or the ClerkJS version pinned in `site/platform.js`.
 
+- Before anyone signs in: send a few unauthenticated requests with a made-up `Authorization` header and a cookie, then look at Workers Logs and `wrangler tail`. Record whether either shows request headers or cookies (decision 0002 section 6). If they do, stop and ask the owner before any real sign-in.
 - Signed out: the site loads, Bank plays, a save stays in the browser.
 - Fresh sign-in from the account control. Note whether the sign-in window shows a sign-up link and what sign-in methods it offers.
 - The signed-in first name pre-fills an empty roster.
@@ -74,18 +59,28 @@ Do these on the real origin and record the date and result as an addendum to `do
 - Sign out, then sign in again.
 - A signed-in person with no linked Person sees the line pointing to the Control Center and keeps local saves.
 - In the browser's developer tools: session cookies are scoped to `games.nordgrenlabs.com` only, and no token appears in any URL.
-- `docker compose logs web` contains no token.
+- Workers Logs contain no token and no person id.
 - Owner attestation, dated: no deploy tool, preview or backup of Games holds a Clerk secret key.
 
 ## Backup
 
-The VM backup covers the volume. For a copy on demand, stop the service briefly so the file is at rest:
+D1 Time Travel covers the free plan's window. For a copy on demand: `node node_modules/wrangler/bin/wrangler.js d1 export games --remote --output games-<date>.sql`. Keep it off the repo; it holds people's saves.
+
+## Retire the VM container
+
+The container started on the Production VM `nordgren-labs` on 2026-11-18 from commit `226b9b7` was never public. Remove it, as its own operator act with the owner's go-ahead. On the guest:
 
 ```
-docker compose -f docker-compose.prod.yml stop web
-docker run --rm -v nordgrenlabs-games-prod_games_data:/data -v "$PWD":/out alpine cp /data/games.db /out/games-$(date +%F).db
-GAMES_IMAGE_TAG=<sha> docker compose -f docker-compose.prod.yml start web
+cd /srv/nordgren-labs/games
+GAMES_IMAGE_TAG=$(git rev-parse HEAD) docker compose -f docker-compose.prod.yml down --volumes
+docker volume rm nordgrenlabs-games-prod_games_data 2>/dev/null || true
+docker image ls nordgrenlabs-games-web
+docker image rm $(docker image ls -q nordgrenlabs-games-web)
+sudo rm -rf /etc/nordgren-labs/games
+cd / && sudo rm -rf /srv/nordgren-labs/games
 ```
+
+`down --volumes` already removes the volume; the second command only confirms it is gone. Then remove the deploy key: delete it under the GitHub repository's Settings, Deploy keys, and delete its private key file on the guest (look in the deploying user's `~/.ssh/` and `~/.ssh/config` for the entry that names this repository). Leave RideLab and the Control Center untouched. Games was never made public, so the Tunnel config should have no `games.nordgrenlabs.com` rule; look, and if one is there, stop and ask the owner before changing it.
 
 ## Afterwards
 

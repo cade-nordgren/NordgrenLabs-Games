@@ -1,0 +1,65 @@
+// NordgrenLabs Games on Cloudflare Workers, free plan only (docs/decisions/0002).
+//
+// No secrets. Every value here is public. Any other CLERK_ variable makes the Worker answer 503 misconfigured
+// (server/worker.js), and server/config.test.js fails on a secret-looking name or a binding beyond DB.
+// The authorized party is not a var: the `define` below selects it at build time. Top level is production;
+// `env.dev` is local development, signed out.
+{
+  "$schema": "server/node_modules/wrangler/config-schema.json",
+  "name": "nordgrenlabs-games",
+  "main": "server/worker.js",
+  "compatibility_date": "2026-08-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [
+    {
+      "pattern": "games.nordgrenlabs.com",
+      "custom_domain": true
+    }
+  ],
+  "observability": { "enabled": true },
+  "send_metrics": false,
+  "assets": {
+    "directory": "./site",
+    "run_worker_first": ["/api/*", "/config.js"]
+  },
+  "define": {
+    "__GAMES_BUILD_MODE__": "\"production\""
+  },
+  "vars": {
+    "CLERK_PUBLISHABLE_KEY": "pk_live_Y2xlcmsubm9yZGdyZW5sYWJzLmNvbSQ",
+    "CLERK_JWT_KEY": "-----BEGIN PUBLIC KEY-----\nMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAq7vffrU3pRjpALRf67CG\ndJzbstHoq9DvD8oJwZgV/UYKb1AK490PHr/+sPJWT5o0nKYYYYaXi4pgGXXSzqwK\nsNeYGjVM1T4Ym1wq8pFCvGEVT7ItS06stVAjLucdvYdDT96SxPpS7/Twzrs3ivIg\nNBh+PJlw5qe3kRi4GeR/oAObDHF9XOaBlxZjC0p8Ovz3fYZtLZM6ew4N7UzWQ9pW\n/puH028obFRfty6YxUPOESaYU2QHvHB0AQ2VbKH1mT/UOcOo/Fx6TAaoFIBfNzQ/\n/8WwALSmoqxNpYdcJ6Vib2PUVjHjnkpgm9r52/VqZITIfUqTmrA+TPFkn+zBxLo4\nyQIDAQAB\n-----END PUBLIC KEY-----",
+    "CLERK_ISSUER": "https://clerk.nordgrenlabs.com"
+  },
+  "d1_databases": [
+    {
+      // Replace with the id `wrangler d1 create games` prints (docs/runbooks/deploy.md).
+      "binding": "DB",
+      "database_name": "games",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "env": {
+    "dev": {
+      // Never inherit the production custom domain.
+      "routes": [],
+      "define": {
+        "__GAMES_BUILD_MODE__": "\"development\""
+      },
+      "vars": {
+        "CLERK_PUBLISHABLE_KEY": "",
+        "CLERK_JWT_KEY": "",
+        "CLERK_ISSUER": ""
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "games-dev",
+          "database_id": "00000000-0000-0000-0000-000000000001",
+          "migrations_dir": "migrations"
+        }
+      ]
+    }
+  }
+}

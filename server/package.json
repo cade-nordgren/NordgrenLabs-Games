@@ -3,10 +3,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "test": "node --test"
+    "dev": "node node_modules/wrangler/bin/wrangler.js d1 migrations apply games-dev --local --env dev -c ../wrangler.jsonc && node node_modules/wrangler/bin/wrangler.js dev --env dev -c ../wrangler.jsonc",
+    "test": "node --test",
+    "check": "node --test && node node_modules/wrangler/bin/wrangler.js deploy --dry-run --env \"\" -c ../wrangler.jsonc",
+    "db:migrate": "node node_modules/wrangler/bin/wrangler.js d1 migrations apply games --remote --env \"\" -c ../wrangler.jsonc",
+    "deploy": "node node_modules/wrangler/bin/wrangler.js deploy --env \"\" -c ../wrangler.jsonc"
   },
   "dependencies": {
     "@clerk/backend": "2.33.8"
+  },
+  "devDependencies": {
+    "wrangler": "4.152.0"
   }
 }
