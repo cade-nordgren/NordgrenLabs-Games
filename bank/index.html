@@ -416,7 +416,7 @@ async function saveGame() {
 }
 
 async function resume(id) {
-  const r = await NL.saves.get(id);
+  const r = await NL.saves.get(id).catch(() => null); // a signed-in save can fail to load when the server is unreachable
   if (!r || !okGame(r.state)) return renderSaves();
   const { names, rounds, mode, g, hist } = r.state;
   Object.assign(S, { names, rounds, mode, g, hist, saveId: r.id });
@@ -430,7 +430,7 @@ function saveStatus({ names, rounds, g }) {
 }
 
 async function renderSaves() {
-  const recs = (await NL.saves.list('bank')).filter(r => okGame(r.state));
+  const recs = (await NL.saves.list('bank').catch(() => [])).filter(r => okGame(r.state));
   $('savedGroup').hidden = !recs.length;
   $('saves').replaceChildren(...recs.map(r => {
     const li = el('li'), open = el('button', 'resume'), del = el('button');

@@ -1,5 +1,5 @@
 // Shared platform layer for every game: saves, identity, theme, and the small UI behaviours behind style.css.
-// Saves are async on purpose: a server API can replace localStorage here without touching game code.
+// Saves are async on purpose: signed out they live in localStorage, signed in on the games server, same four methods.
 (() => {
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
@@ -18,7 +18,7 @@
   };
   const write = all => localStorage.setItem(SAVES, JSON.stringify(all)); // throws when storage is full or blocked; callers reject
 
-  const saves = {
+  const local = {
     list: async game => read().filter(r => r.game === game).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
     get: async id => read().find(r => r.id === id) || null,
     put: async record => {
@@ -33,7 +33,7 @@
   // without one, a host page may define window.NL_IDENTITY (the local test path).
   const key = window.NL_CONFIG?.clerkPublishableKey;
   let clerk = null, me = null, unlinked = false;
-  const token = async () => { try { return (await clerk?.session?.getToken()) || null; } catch { return null; } }; // for server saves (step 5)
+  const token = async () => { try { return (await clerk?.session?.getToken()) || null; } catch { return null; } };
   const signedIn = async () => {
     if (!window.Clerk) await new Promise((ok, fail) => {
       const s = document.createElement('script');
@@ -66,6 +66,39 @@
   // Always resolves, never rejects: any failure or a 10 second wait counts as signed out.
   const ready = typeof key !== 'string' ? Promise.resolve(identity())
     : Promise.race([signedIn().catch(() => null), new Promise(ok => setTimeout(ok, 10000, null))]).then(i => { me = i; return identity(); });
+
+  // ---- Server saves, for a signed-in person the server knows. A failure rejects; it never falls back to this
+  // browser, which would split one person's saves in two.
+  const api = async (path, init) => {
+    const t = await token();
+    if (!t) throw new Error('Not signed in');
+    const r = await fetch('/api/saves' + path, { ...init, headers: { Authorization: `Bearer ${t}` } });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error(`Saves request failed (${r.status})`);
+    return r.status === 204 ? null : r.json();
+  };
+  const remote = {
+    list: async game => (await api('?game=' + encodeURIComponent(game))).filter(valid),
+    get: async id => { const r = UUID.test(id) ? await api('/' + id) : null; return valid(r) ? r : null; },
+    put: async record => {
+      if (!valid(record)) throw new Error('Invalid save record');
+      const r = await api('/' + record.id, { method: 'PUT', body: JSON.stringify(record) });
+      if (!valid(r)) throw new Error('Save was not stored');
+      return r;
+    },
+    remove: async id => { if (UUID.test(id)) await api('/' + id, { method: 'DELETE' }); },
+  };
+  // On sign-in, saves made in this browser while signed out move to the account. One that fails stays here for next time.
+  const moved = ready.then(async i => {
+    if (!i?.personPublicId) return false;
+    for (const r of read()) try {
+      const kept = await remote.get(r.id);
+      if (!kept || kept.updatedAt < r.updatedAt) await remote.put(r); // never overwrite a newer copy on the server
+      write(read().filter(x => x.id !== r.id));
+    } catch {}
+    return true;
+  });
+  const saves = Object.fromEntries(Object.keys(local).map(m => [m, async (...a) => ((await moved) ? remote : local)[m](...a)]));
 
   // Shared account control: renders nothing without a key, so the plain static preview stays as it was.
   const account = async box => {
