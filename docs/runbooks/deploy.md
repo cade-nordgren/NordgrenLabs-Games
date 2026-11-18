@@ -66,21 +66,6 @@ Do these on the real origin and record the date and result as an addendum to `do
 
 D1 Time Travel covers the free plan's window. For a copy on demand: `node node_modules/wrangler/bin/wrangler.js d1 export games --remote --output games-<date>.sql`. Keep it off the repo; it holds people's saves.
 
-## Retire the VM container
-
-The container started on the Production VM `nordgren-labs` on 2026-11-18 from commit `226b9b7` was never public. Remove it, as its own operator act with the owner's go-ahead. The checkout is at `/srv/nordgren-labs/games/repo`, detached at that commit, so it still has the Compose file. On the guest:
-
-```
-cd /srv/nordgren-labs/games/repo
-sudo GAMES_IMAGE_TAG=226b9b7af22e7a65300e96d2bd8b1d013d5e0f49 docker compose -f docker-compose.prod.yml down --volumes
-sudo docker image rm nordgrenlabs-games-web:226b9b7af22e7a65300e96d2bd8b1d013d5e0f49
-sudo rm -rf /etc/nordgren-labs/games
-cd / && sudo rm -rf /srv/nordgren-labs/games
-sudo rm -f /root/.ssh/games_deploy_ed25519 /root/.ssh/games_deploy_ed25519.pub
-```
-
-`down --volumes` removes the container, its network and the saves volume. The last line deletes the read-only deploy key made for the clone; also delete its entry under the GitHub repository's Settings, Deploy keys. Leave RideLab and the Control Center untouched. Games was never routed through the Tunnel, so its config should have no `games.nordgrenlabs.com` rule; look, and if one is there, stop and ask the owner before changing it.
-
 ## Afterwards
 
 The Control Center catalog entry is a separate milestone in the Control Center repository, under its own decision record and authorization (`docs/PLATFORM-INTEGRATION-PLAN.md` section 3).
