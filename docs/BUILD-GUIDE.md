@@ -14,6 +14,7 @@ style.css           shared: tokens, backdrop, glass, buttons, top bar, sheets, s
 platform.js         shared: window.NL (saves, identity, theme, top bar highlight, segmented control)
 bank/index.html     one game: its own CSS and JS inline
 docs/BUILD-GUIDE.md this file
+docs/decisions/     decision records (0001: platform adoption)
 ```
 
 Shared code lives only in `style.css` and `platform.js`. Everything game-specific (rules, screens, layout) stays inline in that game's `index.html`. Do not add a third shared file without a strong reason.
@@ -73,6 +74,6 @@ Before calling it done:
 - **Static, vanilla, no build.** Nothing to install or maintain; any static host works.
 - **Storage behind an async adapter (`NL.saves`).** localStorage for now; a server can replace it without touching game code.
 - **Control Center compatibility.** The Control Center (`C:\Projects\NordgrenLabs-Control-Center`) is Next.js 16, React 19, TypeScript and Tailwind 4 with Clerk. Platform rules live in `C:\Projects\NordgrenLabs-Platform` (NL-ADR-0002 to 0005, `docs/architecture/app-access-architecture.md`). Per those records: each app owns its own data and authorization; the Control Center never reads an app's database; apps are keyed on the `nl_person_id` claim (a UUID, `personPublicId` here), never the Clerk subject or email; apps must not hold a Clerk secret key; app hostnames follow `<app>.nordgrenlabs.com`.
-- **So this site stays static for now** and saves are local to the browser. Making saves visible across devices or in the Control Center needs a small games backend that verifies the session and implements the same `NL.saves` interface, plus a Control Center catalog entry. That is deferred; the record shape and the adapter are the seam for it. `NL.identity()` reads `window.NL_IDENTITY` in this prototype and will be wired to the signed-in user then.
+- **Platform integration is decided, not yet built.** `docs/decisions/0001-platform-adoption.md` (accepted 2026-11-18) records it: sign-in with ClerkJS on `games.nordgrenlabs.com`, a small backend in `server/` that verifies the session and implements the same `NL.saves` interface keyed on `nl_person_id`, anonymous play kept, and a Control Center catalog entry. `docs/PLATFORM-INTEGRATION-PLAN.md` has the step list. Until those steps land, saves are local to the browser and `NL.identity()` reads `window.NL_IDENTITY`. The client stays static with no build step throughout.
 - **Original designs only.** Bank shares only folk rules with other Bank scorekeepers; no copied layouts, art or text.
 - **Bank specifics.** Standings are always sorted (banked points, or "if banked now" as a setting); rank and gap always use banked points. Rows are keyed per player and slide into place (FLIP). In the live phase the 2 and 12 keys are disabled with the label "doubles" so players learn the Doubles key.
