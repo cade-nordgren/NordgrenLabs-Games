@@ -49,7 +49,7 @@ test('T01 validation errors name the exact id (SP 11, plan 4.7)', () => {
     { cite: 'plan 4.7: entry side must not be a wall', content: tile({ id: 'BAD_T1', entrySide: 'N', sides: { N: 'wall', E: 'open', S: 'open', W: 'open' } }), match: /^BAD_T1: entrySide/ },
     { cite: 'RB 6.2: dark room has 2 or 3 exits', content: tile({ id: 'BAD_T2', mark: 'blue' }), match: /^BAD_T2: blue/ },
     { cite: 'plan 4.7: enum values only', content: tile({ id: 'BAD_T3', mark: 'green' }), match: /^BAD_T3: mark green/ },
-    { cite: 'RB 2: 88 tiles exist', content: tile({ copies: 21 }), match: /Maze tiles: 89 defined, only 88 exist/ },
+    { cite: 'RB 2: 88 tiles exist', content: tile({ copies: 13 }), match: /Maze tiles: 89 defined, only 88 exist/ },
     { cite: 'RB 3: stats 1..12', content: { ...FX, heroes: [{ ...FX.heroes[0], id: 'BAD_H', stats: { STR: 13, AGI: 4, ARM: 9, LCK: 4 } }, ...FX.heroes.slice(1)] }, match: /^BAD_H: stats/ },
     { cite: 'plan 4.7: duplicate ids', content: { ...FX, rings: [FX.rings[0], FX.rings[0]] }, match: /FX_RING_1: duplicate id/ },
     { cite: 'RB 4: towers on the corners', content: { ...FX, board: { ...FX.board, towers: [{ ...FX.board.towers[0], x: 1 }, ...FX.board.towers.slice(1)] } }, match: /FX_BOARD: towers must be the four corners/ },
@@ -76,8 +76,16 @@ function approvedContent() {
   c.board = { ...A, id: 'BOARD_01', width: 9, height: 9, towers: [[0, 0], [8, 0], [0, 8], [8, 8]].map(([x, y]) => ({ x, y, sides: all })), center: [{ x: 4, y: 4 }, { x: 5, y: 4 }] };
   c.chamber = { ...A, id: 'CHAMBER_01', sides: { a: all, b: all } };
   c.tiles = [{ ...A, id: 'TILE_001', copies: 88, sides: all, entrySide: 'S', mark: 'black', special: 'none' }];
-  c.heroes = c.heroes.map(h => ({ ...h, class: 'x', stats: { STR: 5, AGI: 5, ARM: 5, LCK: 5 }, hp: 10 }));
+  c.heroes = c.heroes.map((h, i) => ({ ...h, class: 'x', stats: { STR: 5, AGI: 5, ARM: 5, LCK: 5 }, hp: 10, combatSetId: `S0${i + 1}`, specialWeaponId: null }));
   c.dragon = c.dragon.map((d, i) => ({ ...d, kind: i === 0 ? 'awake' : 'sleeping' }));
+  // Combat ids COMBAT_Snn_L: S01-S08 hero sets, S09-S12 monster groups (D24).
+  c.combat = c.combat.map(x => { const [, set, letter] = x.id.split('_'); return { ...x, setId: set, letter, owner: Number(set.slice(1)) <= 8 ? 'hero' : 'monster-group', doubleAgainst: [] }; });
+  c.specialWeapons = c.specialWeapons.map(x => ({ ...x, heroIds: ['HERO_1'], effects: [], uses: null }));
+  c.rings = c.rings.map(x => ({ ...x, effects: [], trigger: 'passive' }));
+  const deck = { room: 'ROOM', search: 'SEARCH', roomSearch: 'ROOM_SEARCH', chest: 'CHEST', door: 'DOOR', treasury: 'TREASURY' };
+  for (const [k, d] of Object.entries(deck)) c[k] = c[k].map(x => ({ ...x, deck: d, kind: d === 'DOOR' ? 'opens' : 'empty', effects: [] }));
+  const r = { type: 'combat', damage: null, effects: [] };
+  c.monster = c.monster.map(x => ({ ...x, deck: 'MONSTER', hp: 3, groupId: 'S09', reactions: { attack: r, wait: r, flee: r } }));
   return c;
 }
 

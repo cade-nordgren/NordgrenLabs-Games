@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, reduce, serialize, restore } from '../../site/keep/engine/reducer.js';
 import { legalActions } from '../../site/keep/engine/phases.js';
-import { FX } from './helpers.js';
+import { FX, assertCensus } from './helpers.js';
 
 // A deterministic chooser that varies its pick, so games wander the board.
 const choose = (acts, i) => acts[(i * 7) % acts.length];
@@ -59,4 +59,21 @@ test('every die roll and draw is in the event log (plan 4.3, SP 11)', () => {
   assert.equal(g.board.tileBag.length, 88 - reveals);
   assert.ok(g.log.filter(e => e.kind === 'roll').length >= 3, 'first-player rolls logged');
   assert.deepEqual(g.log.map(e => e.seq), g.log.map((_, i) => i + 1));
+});
+
+test('random full games: every card copy stays accounted for, no action ever throws, games end, saves stay small (RB 7.4, SP 11, plan 4.8)', () => {
+  for (let seed = 1; seed <= 12; seed++) {
+    const players = 1 + (seed % 4);
+    let g = createGame({ players: Array.from({ length: players }, (_, i) => `P${i}`), seed, content: FX, rules: seed % 3 ? {} : { soloCombat: 'abc-digital-variant', darkRoomOnReentry: false } });
+    let steps = 0;
+    while (g.status !== 'over') {
+      const legal = legalActions(g, FX);
+      assert.ok(legal.length, `seed ${seed}: a playing game always has a legal action (${g.phase})`);
+      g = reduce(g, legal[(steps * 7 + seed) % legal.length], FX);
+      if (g.status === 'playing') assertCensus(assert, g);
+      assert.ok(++steps < 20000, `seed ${seed}: the game ends`);
+    }
+    assert.ok(g.sun <= 27);
+    assert.ok(serialize(g).length < 200 * 1024, `seed ${seed}: ${serialize(g).length} bytes, under the 200 KB budget`);
+  }
 });

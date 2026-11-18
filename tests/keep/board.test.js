@@ -34,7 +34,7 @@ test('T06 revealing a tile orients it to all four approaches (RB 5 step 3, SP 4 
     assert.equal(inst.entrySide, c.entry, c.cite);
     assert.equal(inst.rotation, c.rotation, c.cite);
     assert.deepEqual(SIDES.filter(s => sideOnBoard(def('FX_CORNER'), inst.rotation, s) === 'open').sort(), [...c.open].sort(), c.cite);
-    assert.equal(g.log.filter(e => e.kind === 'draw').length, 1);
+    assert.equal(g.log.filter(e => e.kind === 'draw' && e.deck === 'TILE').length, 1);
   }
 });
 
@@ -45,7 +45,7 @@ test('T06 a revealed tile keeps its instance and rotation on re-entry; no new dr
   const first = structuredClone(g.board.tiles['1,0']);
   g = run(g, [move(g, 'E'), move(g, 'W')]); // (2,0), then back into (1,0)
   assert.deepEqual(g.board.tiles['1,0'], first);
-  assert.equal(g.log.filter(e => e.kind === 'draw').length, 2);
+  assert.equal(g.log.filter(e => e.kind === 'draw' && e.deck === 'TILE').length, 2);
   assert.deepEqual(g.board.tileBag, order.slice(2));
   assert.deepEqual(g.heroes[0].coord, { x: 1, y: 0 });
 });
@@ -96,7 +96,7 @@ test('T07b an empty tile bag makes unexplored squares impassable (D27, house rul
   assert.equal(g.board.tileBag.length, 0);
   const ex = exits(g, FX, 0);
   for (const dir of ['E', 'S']) assert.equal(ex.find(e => e.dir === dir).reason, 'no-tiles-left', dir);
-  assert.deepEqual(legalActions(g, FX).map(a => a.dir), ['W'], 'only back to the tower');
+  assert.deepEqual(legalActions(g, FX).filter(a => a.type === 'MOVE').map(a => a.dir), ['W'], 'only back to the tower');
 });
 
 test('T07c no voluntary pass; forced skip only when no legal action exists (D20)', () => {
@@ -112,8 +112,8 @@ test('T07c no voluntary pass; forced skip only when no legal action exists (D20)
   assert.equal(after.log.filter(e => e.kind === 'forced-skip').length, 1);
 });
 
-test('doors and gates are not crossable until M2 (RB 6.6, RB 6.7 hooks)', () => {
+test('doors and gates are tries, not free passages; walls stay blocked (RB 6.6, RB 6.7)', () => {
   const content = { ...FX, board: { ...FX.board, towers: FX.board.towers.map((t, i) => (i === 0 ? { ...t, sides: { ...t.sides, E: 'door', S: 'gate' } } : t)) } };
   const g = setup({ content });
-  assert.deepEqual(exits(g, content, 0).map(e => [e.dir, e.edge, e.reason]), [['E', 'door', 'M2'], ['S', 'gate', 'M2']]);
+  assert.deepEqual(exits(g, content, 0).map(e => [e.dir, e.edge, e.legal]), [['E', 'door', true], ['S', 'gate', true]]);
 });

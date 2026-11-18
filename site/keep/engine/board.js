@@ -31,14 +31,19 @@ export function sideAt(game, content, c, side) {
   return sideOnBoard(contentIndex(content).tiles.get(inst.defId), inst.rotation, side);
 }
 
-// RB 6.1, SP 5: a free passage is open on both sides. A wall on either side wins,
-// then a gate, then a door (doors and gates resolve in M2).
+// One key per shared edge, whichever side it is seen from.
+export const edgeKey = (c, dir) => (dir === 'N' || dir === 'W' ? `${key(neighbour(c, dir))}|${OPPOSITE[dir]}` : `${key(c)}|${dir}`);
+
+// RB 6.1, SP 5: a free passage is open on both sides. A wall on either side wins, then a gate
+// (printed, or one that fell behind a red-dot entrant, RB 6.7), then a door.
 export function edgeKind(game, content, a, dir) {
   const b = neighbour(a, dir);
   const walls = content.board.walls || [];
   if (walls.includes(`${key(a)}|${dir}`) || walls.includes(`${key(b)}|${OPPOSITE[dir]}`)) return 'wall';
   const pair = [sideAt(game, content, a, dir), sideAt(game, content, b, OPPOSITE[dir])];
-  for (const k of ['wall', 'gate', 'door']) if (pair.includes(k)) return k;
+  if (pair.includes('wall')) return 'wall';
+  if (game.board.edges?.[edgeKey(a, dir)] === 'gate') return 'gate';
+  for (const k of ['gate', 'door']) if (pair.includes(k)) return k;
   return pair[1] === 'unknown' ? 'unexplored' : 'open';
 }
 
@@ -47,18 +52,24 @@ export function occupiedBy(game, c) {
   return game.heroes.find(h => h && h.status === 'inside' && same(h.coord, c)) || null;
 }
 
+// Sides the hero could try this turn. Doors (door card) and gates (STR test) are tries, not free
+// passages; a door that stayed closed this turn is not offered again (RB 6.6). A secret passage
+// found this turn (D11) may cross a printed wall.
 export function exits(game, content, seat) {
   const hero = game.heroes[seat];
+  const turn = game.turn && game.turn.seat === seat ? game.turn : null;
   const out = [];
   for (const dir of SIDES) {
     const to = neighbour(hero.coord, dir);
     const kind = squareKind(content.board, to);
     if (kind === 'off') continue;
-    const edge = edgeKind(game, content, hero.coord, dir);
+    let edge = edgeKind(game, content, hero.coord, dir);
+    if (edge === 'wall' && turn?.secret && (turn.secret === 'any-orthogonal' || turn.secret === dir)) edge = 'secret';
+    const unrevealed = kind === 'maze' && !game.board.tiles[key(to)];
     let reason = null;
     if (edge === 'wall') reason = 'wall';
-    else if (edge === 'door' || edge === 'gate') reason = 'M2'; // door card / STR test arrive in M2
-    else if (edge === 'unexplored' && !game.board.tileBag.length) reason = 'no-tiles-left'; // D27
+    else if (edge === 'door' && turn?.triedDoors.includes(edgeKey(hero.coord, dir))) reason = 'door-closed';
+    else if (unrevealed && !game.board.tileBag.length) reason = 'no-tiles-left'; // D27
     else if (kind === 'maze' && occupiedBy(game, to)) reason = 'occupied';
     out.push({ dir, to, edge, legal: !reason, reason });
   }

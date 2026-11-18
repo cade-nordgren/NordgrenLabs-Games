@@ -1,17 +1,17 @@
 // Sun clock, turn order, escape and winning (system 9; RB 1, RB 5, RB 12, SP 4, SP 10).
 import { logEvent } from './dice.js';
-import { contentIndex } from '../content/schema.js';
+import { heroGold } from './heroes.js';
+import { beginTurn } from './movement.js';
 
 export const SUNSET = 27; // sun 1..26 are playable rounds: 26 turns per hero (RB 1, SP 4)
 
 const inside = h => h && h.status === 'inside';
 
-export function startTurn(game, seat) {
+export function startTurn(game, seat, content) {
   game.activeSeat = seat;
   game.phase = 'TURN_START';
   logEvent(game, { kind: 'turn', round: game.round, sun: game.sun, seat });
-  // M2 hook: carry-over conditions (well edge, rubble, dark room, card effects) resolve here (RB 5, SP 4 step 2).
-  game.phase = 'CHOOSE_ACTION';
+  beginTurn(game, content); // carry-over effects first (RB 5 step 1, SP 4 step 2)
 }
 
 // Next living, unescaped hero clockwise. Passing the first seat starts a new round:
@@ -24,7 +24,7 @@ export function endTurn(game, content) {
   const pos = (game.activeSeat - game.firstSeat + n) % n;
   for (let k = pos + 1; k < n; k++) {
     const seat = (game.firstSeat + k) % n;
-    if (inside(game.heroes[seat])) return startTurn(game, seat);
+    if (inside(game.heroes[seat])) return startTurn(game, seat, content);
   }
   game.round += 1;
   game.sun += 1;
@@ -35,18 +35,8 @@ export function endTurn(game, content) {
   }
   for (let k = 0; k < n; k++) {
     const seat = (game.firstSeat + k) % n;
-    if (inside(game.heroes[seat])) return startTurn(game, seat);
+    if (inside(game.heroes[seat])) return startTurn(game, seat, content);
   }
-}
-
-// Gold of held room loot plus treasury cards (RB 1, SP 10). Cards are M2; an unknown id throws.
-export function heroGold(hero, content) {
-  const cards = contentIndex(content).cards;
-  return [...hero.held, ...hero.treasury].reduce((sum, ref) => {
-    const card = cards.get(ref.cardId);
-    if (!card) throw new Error(`Unknown card ${ref.cardId}`);
-    return sum + (card.gold || 0);
-  }, 0);
 }
 
 // RB 1, SP 10: only escapees are compared, highest gold wins, none means the castle wins.
@@ -60,8 +50,12 @@ export function ranking(entries) {
 
 function finish(game, content, phase) {
   game.phase = phase;
+  game.stack = [];
+  game.pending = null;
   game.status = 'over';
   game.activeSeat = null;
   game.result = ranking(game.heroes.map(h => ({ seat: h.seat, heroId: h.heroId, status: h.status, gold: heroGold(h, content) })));
   logEvent(game, { kind: 'game-over', phase, winners: game.result.winners });
 }
+
+export { heroGold };

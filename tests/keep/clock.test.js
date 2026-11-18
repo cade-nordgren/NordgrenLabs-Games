@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { reduce } from '../../site/keep/engine/reducer.js';
 import { legalActions } from '../../site/keep/engine/phases.js';
 import { ranking, SUNSET } from '../../site/keep/engine/clock.js';
-import { FX, setup, move, run, slotsOf, withWalledTowers } from './helpers.js';
+import { FX, setup, move, stop, run, slotsOf, withWalledTowers } from './helpers.js';
 
 // Play until over, always taking the first legal action; returns the final game.
 function playOut(g, content) {
@@ -62,9 +62,9 @@ test('T05b the sun still advances per round after the first player escapes (D30)
 });
 
 test('T27 escape through any tower ends the game when nobody is left inside (RB 1, RB 12, SP 10, SP 12 #27)', () => {
-  // From tower (0,0) south through three straights to tower (0,4).
+  // From tower (0,0) south through three straights (yellow corridors, M2) to tower (0,4), stopping each turn.
   let g = setup({ tileOrder: slotsOf('FX_STRAIGHT').slice(0, 3) });
-  g = run(g, [move(g, 'S'), move(g, 'S'), move(g, 'S')]);
+  g = run(g, [move(g, 'S'), stop(g), move(g, 'S'), stop(g), move(g, 'S'), stop(g)]);
   assert.equal(g.heroes[0].status, 'inside');
   assert.equal(g.sun, 4);
   g = run(g, [move(g, 'S')]);

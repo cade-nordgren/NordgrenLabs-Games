@@ -6,9 +6,11 @@ export const DIE_SIDES = { D6: 6, D12: 12 };
 
 // script: null for seeded dice, or an array of predetermined dice values (tests).
 // A scripted game never falls back to the PRNG for dice: an empty script throws.
-export function newRng(seed, script = null) {
+// orders: optional scripted deck orders, { DECK: [order, order, ...] }, one consumed per shuffle
+// of that deck (tests and replays). An order may list only the top cards; the rest follow.
+export function newRng(seed, script = null, orders = null) {
   const s = seed >>> 0;
-  return { seed: s, state: s, script: script ? [...script] : null };
+  return { seed: s, state: s, script: script ? [...script] : null, orders: orders ? structuredClone(orders) : null };
 }
 
 // mulberry32, as Tidevault. Returns a float in [0, 1) and advances rng.state.
@@ -49,14 +51,29 @@ export function testStat(game, statName, stat, reason, modifier = 0) {
   return { roll: d12, pass };
 }
 
-// Fisher-Yates on a copy. Shuffles always use the seeded PRNG (scripted games
-// give deck and tile orders explicitly instead).
+// Fisher-Yates on a copy with the seeded PRNG, unless a scripted order is queued for this deck.
 export function shuffle(game, items, deck) {
-  const a = [...items];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(next(game.rng) * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
+  const scripted = game.rng.orders?.[deck]?.shift();
+  let a;
+  if (scripted) a = scriptedOrder(items, scripted, deck);
+  else {
+    a = [...items];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(next(game.rng) * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
   }
-  logEvent(game, { kind: 'shuffle', deck, count: a.length });
+  logEvent(game, { kind: 'shuffle', deck, count: a.length, scripted: !!scripted });
   return a;
+}
+
+// A scripted order lists items (or card ids, matching their next unused copy "id#n") from the top.
+function scriptedOrder(items, prefix, deck) {
+  const rest = [...items];
+  const top = prefix.map(want => {
+    const i = rest.findIndex(x => x === want || x.startsWith(want + '#'));
+    if (i < 0) throw new Error(`Scripted ${deck} order: ${want} is not in the deck`);
+    return rest.splice(i, 1)[0];
+  });
+  return [...top, ...rest];
 }
