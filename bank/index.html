@@ -2,211 +2,483 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bank · NordgrenLabs Games</title>
 <link rel="stylesheet" href="../style.css">
+<style>
+.top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 52px; font-size: 16px; }
+.top > :last-child { justify-self: end; }
+#roundLabel { font-weight: 600; }
+#undo { color: var(--accent); font-weight: 600; min-height: 44px; padding: 0 4px; }
+
+/* Setup */
+.group { padding: 16px; margin-bottom: 14px; }
+.group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.note { margin: 10px 0 0; font-size: 14px; color: var(--ink2); }
+#roster { list-style: none; margin: 8px 0 0; padding: 0; }
+#roster li, #add { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; }
+#roster input, #add input { flex: 1; min-width: 0; border: 0; background: none; padding: 12px 0; outline: none; }
+#roster input:focus-visible, #add input:focus-visible { box-shadow: inset 0 -2px 0 var(--accent); }
+.circle { width: 30px; height: 30px; border-radius: 50%; font-size: 20px; line-height: 1; flex: none; display: grid; place-items: center; }
+.circle.remove { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.circle.add { background: var(--accent); color: #fff; }
+
+.stepper { display: flex; align-items: center; background: var(--fill); border-radius: 12px; }
+.stepper button { width: 46px; height: 42px; font-size: 24px; line-height: 1; }
+.stepper input { width: 48px; border: 0; background: none; text-align: center; font: 700 21px var(--num); padding: 0; appearance: textfield; -moz-appearance: textfield; }
+.stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; }
+.presets { display: flex; gap: 8px; margin-top: 12px; }
+.presets button { flex: 1; min-height: 38px; border-radius: 999px; background: var(--fill); font: 600 16px var(--num); }
+.presets button[aria-pressed=true] { background: var(--accent); color: #fff; }
+
+.segmented { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: var(--fill); border-radius: 12px; padding: 3px; margin-top: 12px; }
+.segmented::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 9px; background: var(--thumb); box-shadow: 0 1px 4px rgba(0, 0, 0, .14); transition: transform .28s cubic-bezier(.3, .7, .3, 1); }
+.segmented:has(label:last-child input:checked)::before { transform: translateX(100%); }
+.segmented label { position: relative; text-align: center; padding: 9px 6px; font-size: 15px; font-weight: 600; cursor: pointer; border-radius: 9px; }
+.segmented input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+.segmented label:has(:focus-visible) { outline: 3px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+
+details summary { font-weight: 600; cursor: pointer; }
+details ul { margin: 10px 0 0; padding-left: 20px; color: var(--ink2); font-size: 15px; }
+details li + li { margin-top: 6px; }
+#start { margin: 6px 0 14px; }
+
+/* Game */
+#game { flex: 1; display: flex; flex-direction: column; }
+.hero { text-align: center; padding: 6px 0 18px; }
+#pot { margin: 0; font: 700 clamp(84px, 30vw, 128px)/1 var(--num); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+#pot.pop { animation: pop .28s ease-out; }
+#pot.bust { animation: shake .4s; color: var(--danger); }
+#pot.final { font-size: clamp(34px, 11vw, 48px); letter-spacing: -.02em; padding: 26px 0 10px; }
+@keyframes pop { 30% { transform: scale(1.07); } }
+@keyframes shake { 20%, 60% { transform: translateX(-9px); } 40%, 80% { transform: translateX(9px); } }
+#phase { display: inline-block; margin: 6px 0 0; padding: 5px 13px; border-radius: 999px; background: var(--fill); font-size: 14px; font-weight: 600; }
+body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent); color: var(--danger); }
+#msg { min-height: 1.4em; margin: 10px 0 0; color: var(--ink2); font-size: 15px; }
+
+#players { list-style: none; margin: 0; padding: 2px 0; overflow: hidden; }
+.row { position: relative; display: grid; grid-template-columns: 26px minmax(0, 1fr) auto 78px; align-items: center; gap: 12px; padding: 11px 16px 13px; min-height: 66px; }
+.rank { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--ink2); font: 700 14px var(--num); }
+.row.lead .rank { background: var(--accent); color: #fff; }
+.rank:empty { visibility: hidden; }
+.name { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gap { display: block; font-size: 13px; color: var(--ink2); min-height: 18px; }
+.row.lead .gap { color: var(--accent); }
+.pts { text-align: right; font-variant-numeric: tabular-nums; }
+.score { display: block; font: 700 23px/1.15 var(--num); }
+.proj { display: block; font: 600 14px var(--num); color: var(--ink2); min-height: 20px; }
+.bank { min-height: 40px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); font-weight: 600; font-size: 16px; }
+.took { text-align: center; color: var(--good); font: 700 16px var(--num); }
+/* The divider under each row is also its score bar: solid is banked, faint is what banking now would add. */
+.bar { position: absolute; left: 16px; right: 16px; bottom: 0; height: 2px; border-radius: 2px;
+  background: linear-gradient(to right, var(--accent) 0 var(--w), color-mix(in srgb, var(--accent) 32%, transparent) var(--w) var(--p), var(--hair) var(--p)); }
+#legend { margin: 8px 16px 0; font-size: 13px; color: var(--ink2); min-height: 18px; }
+
+.dock { position: sticky; bottom: max(12px, env(safe-area-inset-bottom)); margin-top: auto; padding: 10px; border-radius: 30px; display: grid; gap: 10px; }
+#game > .spacer { height: 16px; flex: none; }
+#keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.key { height: 58px; border-radius: 18px; border: 1px solid var(--edge); background: var(--glass-strong); box-shadow: inset 0 1px 0 var(--edge), 0 1px 2px rgba(0, 0, 0, .06); font: 600 23px/1.05 var(--num); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.key small { font: 600 11px/1 var(--text); color: var(--ink2); }
+.key.word { font-size: 15px; }
+.key.plus small { color: var(--accent); }
+.key.ends { background: color-mix(in srgb, var(--danger) 18%, var(--glass-strong)); color: var(--danger); }
+.key.ends small { color: var(--danger); }
+
+#dice { display: flex; justify-content: center; gap: 30px; padding: 18px 0 14px; perspective: 700px; }
+.die { --h: 32px; width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2, .8, .25, 1); }
+.face { position: absolute; inset: 0; border-radius: 12px; background: linear-gradient(145deg, #fff, #e6e6eb); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .07); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 9px; place-items: center; }
+.face i.pip { width: 10px; height: 10px; border-radius: 50%; background: #1d1d1f; }
+.face:nth-child(1) { transform: translateZ(var(--h)); }
+.face:nth-child(2) { transform: rotateY(180deg) translateZ(var(--h)); }
+.face:nth-child(3) { transform: rotateY(90deg) translateZ(var(--h)); }
+.face:nth-child(4) { transform: rotateY(-90deg) translateZ(var(--h)); }
+.face:nth-child(5) { transform: rotateX(90deg) translateZ(var(--h)); }
+.face:nth-child(6) { transform: rotateX(-90deg) translateZ(var(--h)); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+</style>
 </head>
 <body>
-<header><a href="../index.html">NordgrenLabs Games</a></header>
-<main>
-  <h1>Bank</h1>
+<div class="app">
+  <nav class="top">
+    <a id="back" href="../index.html">‹ Games</a>
+    <span id="roundLabel"></span>
+    <button id="undo" hidden>Undo</button>
+  </nav>
 
-  <section id="setup">
-    <form id="add">
-      <label for="name">Add a player</label>
-      <div class="row">
-        <input type="text" id="name" maxlength="20" autocomplete="off">
-        <button>Add</button>
+  <main id="setup">
+    <h1>Bank</h1>
+    <p class="lede">Push your luck together. Bank before the seven.</p>
+
+    <section class="glass group">
+      <h2>Players</h2>
+      <ul id="roster"></ul>
+      <form id="add">
+        <input id="newName" maxlength="20" placeholder="Add a player" aria-label="New player name" autocomplete="off" enterkeyhint="done">
+        <button class="circle add" aria-label="Add player">+</button>
+      </form>
+    </section>
+
+    <section class="glass group">
+      <div class="group-head">
+        <h2 id="roundsTitle">Rounds</h2>
+        <div class="stepper">
+          <button id="less" aria-label="One round fewer">−</button>
+          <input id="rounds" type="number" inputmode="numeric" min="1" max="99" aria-labelledby="roundsTitle">
+          <button id="more" aria-label="One round more">+</button>
+        </div>
       </div>
-    </form>
-    <ul id="roster"></ul>
-    <fieldset>
-      <legend>Rounds</legend>
-      <label><input type="radio" name="rounds" value="10"> 10</label>
-      <label><input type="radio" name="rounds" value="15" checked> 15</label>
-      <label><input type="radio" name="rounds" value="20"> 20</label>
-    </fieldset>
-    <button class="primary" id="start">Start game</button>
-  </section>
+      <div class="presets" id="presets"></div>
+    </section>
 
-  <section id="game" hidden>
-    <p class="muted" id="round"></p>
-    <div id="board">
-      <div id="dice" aria-hidden="true"></div>
-      <p id="pot" aria-label="Bank total"></p>
-      <p id="hint"></p>
+    <section class="glass group">
+      <h2 id="diceTitle">Dice</h2>
+      <div class="segmented" role="radiogroup" aria-labelledby="diceTitle">
+        <label><input type="radio" name="mode" value="tap">Tap your roll</label>
+        <label><input type="radio" name="mode" value="dice">Roll on screen</label>
+      </div>
+      <p class="note" id="modeNote"></p>
+    </section>
+
+    <button class="btn primary" id="start">Start game</button>
+
+    <details class="glass group">
+      <summary>How to play</summary>
+      <ul>
+        <li>Everyone shares one bank. Each roll of two dice adds its total.</li>
+        <li>The first three rolls of a round are safe, and a seven is worth 70.</li>
+        <li>From the fourth roll on, a seven ends the round and empties the bank. Doubles double it.</li>
+        <li>Between rolls, anyone can bank: the bank is added to their score and they sit out until the next round.</li>
+        <li>Highest score after the last round wins.</li>
+      </ul>
+    </details>
+  </main>
+
+  <main id="game" hidden>
+    <div class="hero">
+      <span class="sr" id="potLabel">In the bank</span>
+      <p id="pot" aria-labelledby="potLabel pot"></p>
+      <p id="phase"></p>
       <p id="msg" role="status"></p>
     </div>
-    <button class="primary" id="act"></button>
-    <ul id="players"></ul>
-    <button id="quit">Quit to setup</button>
-  </section>
 
-  <details>
-    <summary>How to play</summary>
-    <ul>
-      <li>Everyone shares one bank. Each roll of two dice adds its total to the bank.</li>
-      <li>The first three rolls of a round are safe, and a 7 is worth 70.</li>
-      <li>From the fourth roll on, a 7 ends the round and empties the bank. Doubles double it.</li>
-      <li>Between rolls, anyone can tap Bank to add the bank to their score. They sit out until the next round.</li>
-      <li>The round ends on a 7 or when everyone has banked. Highest score after the last round wins.</li>
-    </ul>
-  </details>
-</main>
+    <ul id="players" class="glass"></ul>
+    <p id="legend"></p>
+    <div class="spacer"></div>
+
+    <div class="dock glass">
+      <div id="dice" aria-hidden="true"><div class="die"></div><div class="die"></div></div>
+      <div id="keypad"></div>
+      <button class="btn primary" id="roll"></button>
+      <button class="btn primary" id="next"></button>
+      <button class="btn primary" id="again">Play again</button>
+      <button class="btn" id="edit">Change players</button>
+    </div>
+  </main>
+</div>
 
 <script>
 const $ = id => document.getElementById(id);
-const FACES = ' ⚀⚁⚂⚃⚄⚅';
-const die = () => 1 + Math.floor(Math.random() * 6);
-const el = (tag, text, cls) => {
+const el = (tag, cls, text) => {
   const e = document.createElement(tag);
-  e.textContent = text; // textContent, never innerHTML: player names are user input
   if (cls) e.className = cls;
+  if (text != null) e.textContent = text; // textContent, never innerHTML: names are user input
   return e;
 };
 
 // The whole scoring rule. Returns the new bank, or null when the roll ends the round.
-function applyRoll(pot, rollNo, a, b) {
-  const sum = a + b;
+function applyRoll(pot, rollNo, sum, doubles) {
   if (rollNo <= 3) return pot + (sum === 7 ? 70 : sum);
   if (sum === 7) return null;
-  return a === b ? pot * 2 : pot + sum;
+  return doubles ? pot * 2 : pot + sum;
 }
-console.assert(applyRoll(0, 1, 3, 4) === 70, 'safe 7 is worth 70');
-console.assert(applyRoll(10, 3, 2, 2) === 14, 'safe doubles only add');
-console.assert(applyRoll(50, 4, 3, 3) === 100, 'late doubles double');
-console.assert(applyRoll(50, 4, 3, 4) === null, 'late 7 busts');
-console.assert(applyRoll(50, 5, 2, 3) === 55, 'late roll adds');
+console.assert(applyRoll(0, 1, 7, false) === 70, 'safe 7 is worth 70');
+console.assert(applyRoll(10, 3, 4, true) === 14, 'safe doubles only add');
+console.assert(applyRoll(50, 4, 6, true) === 100, 'late doubles double');
+console.assert(applyRoll(50, 4, 7, false) === null, 'late 7 ends the round');
+console.assert(applyRoll(50, 5, 5, false) === 55, 'late roll adds');
 
-let names = ['Player 1', 'Player 2'];
-let g = null;
-const over = () => g.round > g.rounds;
+// ---- State: saved on every change so a refresh or a sleeping phone loses nothing.
+const KEY = 'nl-bank-v1';
+let S = { names: ['Player 1', 'Player 2'], rounds: 15, mode: 'tap', g: null, hist: [] };
+try {
+  const saved = JSON.parse(localStorage.getItem(KEY));
+  if (saved && Array.isArray(saved.names) && saved.names.length) S = { ...S, ...saved };
+} catch {}
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+const finished = () => S.g.round > S.rounds;
 
-function renderSetup() {
-  $('roster').replaceChildren(...names.map((n, i) => {
-    const li = el('li'), rm = el('button', '×');
-    rm.setAttribute('aria-label', `Remove ${n}`);
-    rm.onclick = () => { names.splice(i, 1); renderSetup(); };
-    li.append(el('span', n, 'name'), rm);
-    return li;
-  }));
-  $('start').disabled = names.length < 2;
+// Every game action goes through here, so every action can be undone.
+function change(fn, isRoll) {
+  S.hist.push({ g: JSON.stringify(S.g), roll: !!isRoll });
+  if (S.hist.length > 300) S.hist.shift();
+  fn(S.g);
+  render();
 }
-
-$('add').onsubmit = e => {
-  e.preventDefault();
-  const n = $('name').value.trim();
-  if (n) names.push(n);
-  $('name').value = '';
-  renderSetup();
-};
+// On-screen dice can't be re-rolled by undoing; tapped rolls can always be corrected.
+const canUndo = () => S.hist.length > 0 && !(S.mode === 'dice' && S.hist.at(-1).roll);
+function undo() {
+  if (!canUndo()) return;
+  S.g = JSON.parse(S.hist.pop().g);
+  render();
+}
 
 function start() {
-  g = {
-    rounds: +document.querySelector('[name=rounds]:checked').value,
-    round: 1, pot: 0, rolls: 0, turn: 0, roundOver: false, msg: '',
-    scores: names.map(() => 0), banked: names.map(() => false),
-  };
-  $('dice').textContent = '';
-  $('setup').hidden = true;
-  $('game').hidden = false;
+  S.names = S.names.map((n, i) => n.trim() || `Player ${i + 1}`);
+  S.g = { round: 1, pot: 0, rolls: 0, turn: 0, ended: false, bust: false, msg: '', dice: null,
+          scores: S.names.map(() => 0), banked: S.names.map(() => null) };
+  S.hist = [];
   render();
-  $('act').focus();
 }
 
-// Next player still in the round, starting from whose turn it is.
-function roller() {
-  for (let k = 0; k < names.length; k++) {
-    const i = (g.turn + k) % names.length;
-    if (!g.banked[i]) return i;
+// Next player still in the round (only shown for on-screen dice).
+function roller(g) {
+  for (let k = 0; k < S.names.length; k++) {
+    const i = (g.turn + k) % S.names.length;
+    if (g.banked[i] === null) return i;
   }
+  return 0;
 }
 
-function act() {
-  if (over()) return start();
-  if (g.roundOver) return nextRound();
-  const r = roller(), a = die(), b = die();
-  g.rolls++;
-  g.turn = (r + 1) % names.length;
-  const next = applyRoll(g.pot, g.rolls, a, b);
-  $('dice').textContent = FACES[a] + FACES[b];
-  $('dice').classList.remove('rolled');
-  void $('dice').offsetWidth; // restart the animation
-  $('dice').classList.add('rolled');
-  if (next === null) {
-    g.pot = 0;
-    g.roundOver = true;
-    g.msg = `${names[r]} rolled a 7. The bank is lost.`;
-  } else {
-    g.msg = `${names[r]} rolled ${a + b}` +
-      (g.rolls <= 3 && a + b === 7 ? ', a safe 7 worth 70!' :
-       g.rolls > 3 && a === b ? '. Doubles! The bank doubles.' : '.');
-    g.pot = next;
-  }
-  render();
+function roll(sum, doubles, dice) {
+  change(g => {
+    g.rolls++;
+    g.dice = dice || null;
+    g.turn = (roller(g) + 1) % S.names.length;
+    const next = applyRoll(g.pot, g.rolls, sum, doubles);
+    if (next === null) {
+      g.msg = `Seven. ${g.pot} lost.`;
+      g.pot = 0; g.ended = g.bust = true;
+    } else {
+      g.msg = g.rolls > 3 && doubles ? `Doubles. The bank doubled to ${next}.`
+            : sum === 7 ? 'Seven on a safe roll. Plus 70.'
+            : `Rolled ${sum}.`;
+      g.pot = next;
+    }
+  }, true);
 }
 
 function bank(i) {
-  g.scores[i] += g.pot;
-  g.banked[i] = true;
-  g.msg = `${names[i]} banked ${g.pot}.`;
-  if (g.banked.every(Boolean)) {
-    g.roundOver = true;
-    g.msg += ' Everyone is in, so the round is over.';
-  }
-  render();
+  change(g => {
+    g.scores[i] += g.pot;
+    g.banked[i] = g.pot;
+    g.msg = `${S.names[i]} banked ${g.pot}.`;
+    if (g.banked.every(b => b !== null)) g.ended = true;
+  });
 }
 
 function nextRound() {
-  g.round++;
-  g.pot = g.rolls = 0;
-  g.roundOver = false;
-  g.banked.fill(false);
-  g.msg = '';
-  $('dice').textContent = '';
-  if (over()) {
-    const max = Math.max(...g.scores);
-    const winners = names.filter((_, i) => g.scores[i] === max);
-    g.msg = winners.join(' and ') + (winners.length > 1 ? ' tie' : ' wins') + ` with ${max}.`;
-  }
-  render();
+  change(g => {
+    g.round++;
+    g.pot = g.rolls = 0;
+    g.ended = g.bust = false;
+    g.msg = '';
+    g.banked.fill(null);
+  });
 }
 
-function render() {
-  const done = over(), max = Math.max(...g.scores);
-  $('round').textContent = done ? 'Final scores' : `Round ${g.round} of ${g.rounds}`;
-  $('pot').textContent = done ? '' : g.pot;
-  $('hint').textContent = done || g.roundOver ? '' :
-    g.rolls < 3 ? `Safe rolls left: ${3 - g.rolls}` : 'Danger: a 7 ends the round. Doubles double the bank.';
-  $('hint').classList.toggle('danger', g.rolls >= 3);
-  $('msg').textContent = g.msg;
-  $('act').textContent = done ? 'Play again' :
-    g.roundOver ? (g.round === g.rounds ? 'See final scores' : 'Next round') :
-    `Roll for ${names[roller()]}`;
-  $('players').replaceChildren(...names.map((n, i) => {
-    const li = el('li', '', done && g.scores[i] === max ? 'win' : '');
-    li.append(el('span', n, 'name'), el('span', g.scores[i], 'score'));
-    if (g.banked[i]) li.append(el('span', 'Banked', 'muted'));
-    else if (!done) {
-      const b = el('button', 'Bank');
-      b.setAttribute('aria-label', `Bank for ${n}`);
-      b.disabled = g.pot === 0 || g.roundOver;
+// ---- Keypad (tap mode): the totals 2 to 12, plus Doubles.
+const keys = {};
+for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 'D']) {
+  const k = el('button', n === 'D' ? 'key word' : 'key');
+  k.append(el('span', '', n === 'D' ? 'Doubles' : n), el('small'));
+  k.onclick = () => {
+    navigator.vibrate?.(8);
+    const live = S.g.rolls >= 3;
+    // 2 and 12 can only be rolled as doubles.
+    n === 'D' ? roll(0, true) : roll(n, live && (n === 2 || n === 12));
+  };
+  $('keypad').append(keys[n] = k);
+}
+function renderKeys(live) {
+  for (const n in keys) {
+    const k = keys[n], sub = k.lastChild;
+    k.classList.remove('plus', 'ends');
+    k.disabled = false;
+    sub.textContent = '';
+    if (n === '7') {
+      k.classList.add(live ? 'ends' : 'plus');
+      sub.textContent = live ? 'ends round' : '+70';
+    } else if (n === 'D') {
+      k.disabled = !live; // in the safe rolls doubles are just their total
+      sub.textContent = live ? 'bank ×2' : 'tap the total';
+    } else if (live && (n === '2' || n === '12')) {
+      sub.textContent = 'bank ×2';
+    }
+    k.setAttribute('aria-label', `${n === 'D' ? 'Doubles' : 'Rolled ' + n}${sub.textContent ? ', ' + sub.textContent : ''}`);
+  }
+}
+
+// ---- On-screen dice: two CSS cubes that turn to the face rolled.
+const PIPS = [, [4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]];
+const SHOW = { 1: [0, 0], 6: [0, 180], 2: [0, -90], 5: [0, 90], 3: [-90, 0], 4: [90, 0] }; // cube turn that brings each face forward
+const dieEls = [...document.querySelectorAll('.die')];
+for (const d of dieEls) for (const v of [1, 6, 2, 5, 3, 4]) { // order matches the .face:nth-child transforms
+  const f = el('div', 'face');
+  for (let p = 0; p < 9; p++) f.append(el('i', PIPS[v].includes(p) ? 'pip' : ''));
+  d.append(f);
+}
+let spins = 0, rolling = false;
+function showDice([a, b]) {
+  const turn = (d, v, kx, ky) => d.style.transform = `rotateX(${SHOW[v][0] + 360 * kx}deg) rotateY(${SHOW[v][1] + 360 * ky}deg)`;
+  turn(dieEls[0], a, spins, spins);
+  turn(dieEls[1], b, -spins, 2 * spins);
+}
+function rollDice() {
+  if (rolling) return;
+  const a = 1 + Math.floor(Math.random() * 6), b = 1 + Math.floor(Math.random() * 6);
+  rolling = true; spins++;
+  $('roll').disabled = true;
+  showDice([a, b]);
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  setTimeout(() => { rolling = false; roll(a + b, a === b, [a, b]); }, still ? 0 : 950);
+}
+
+// ---- Rendering
+function renderSetup() {
+  $('roster').replaceChildren(...S.names.map((n, i) => {
+    const li = el('li'), input = el('input'), rm = el('button', 'circle remove', '−');
+    input.value = n; input.maxLength = 20;
+    input.setAttribute('aria-label', `Player ${i + 1} name`);
+    input.oninput = () => { S.names[i] = input.value; save(); };
+    rm.setAttribute('aria-label', `Remove ${n || 'player ' + (i + 1)}`);
+    rm.hidden = S.names.length <= 2; // Bank needs two players
+    rm.onclick = () => { S.names.splice(i, 1); render(); };
+    li.append(input, rm);
+    return li;
+  }));
+  $('rounds').value = S.rounds;
+  for (const b of $('presets').children) b.setAttribute('aria-pressed', +b.textContent === S.rounds);
+  document.querySelector(`[name=mode][value=${S.mode}]`).checked = true;
+  $('modeNote').textContent = S.mode === 'tap'
+    ? 'Roll your own dice, then tap the total.'
+    : 'The game rolls two dice for you.';
+}
+
+function renderGame() {
+  const g = S.g, fin = finished(), live = !fin && !g.ended && g.rolls >= 3;
+  const max = Math.max(...g.scores);
+  const inRound = i => !fin && !g.ended && g.banked[i] === null;
+  document.body.classList.toggle('live', live);
+  $('roundLabel').textContent = fin ? 'Final scores' : `Round ${g.round} of ${S.rounds}`;
+
+  const pot = $('pot'), winners = S.names.filter((_, i) => g.scores[i] === max);
+  const text = fin ? winners.join(' and ') + (winners.length > 1 ? ' tie' : ' wins') : String(g.pot);
+  pot.classList.remove('pop', 'bust');
+  if (pot.textContent !== text) { void pot.offsetWidth; pot.classList.add(g.bust ? 'bust' : 'pop'); } // restart the animation
+  pot.textContent = text;
+  pot.classList.toggle('final', fin);
+
+  $('phase').hidden = fin;
+  $('phase').textContent = g.ended ? (g.bust ? 'Round over' : 'Everyone banked')
+    : g.rolls === 0 ? 'Three safe rolls'
+    : g.rolls < 3 ? `${3 - g.rolls} safe ${g.rolls === 2 ? 'roll' : 'rolls'} left`
+    : 'Live. A seven ends the round.';
+  $('msg').textContent = fin ? `${max} points` : g.msg;
+
+  // Standings. Seats stay put during play so Bank buttons never move; the final table is sorted.
+  const order = S.names.map((_, i) => i);
+  if (fin) order.sort((a, b) => g.scores[b] - g.scores[a]);
+  const scale = Math.max(1, ...g.scores.map((s, i) => inRound(i) ? s + g.pot : s));
+  $('players').replaceChildren(...order.map(i => {
+    const s = g.scores[i], leads = max > 0 && s === max;
+    const li = el('li', leads ? 'row lead' : 'row');
+    const who = el('div'), pts = el('div', 'pts');
+    who.append(el('span', 'name', S.names[i]),
+      el('span', 'gap', max === 0 ? '' : !leads ? `${max - s} behind` : winners.length > 1 ? 'Tied for first' : fin ? 'Winner' : 'Leading'));
+    const proj = el('span', 'proj', inRound(i) && g.pot > 0 ? s + g.pot : '');
+    proj.title = 'Total if banked now';
+    pts.append(el('span', 'score', s), proj);
+    li.append(el('span', 'rank', max > 0 ? 1 + g.scores.filter(x => x > s).length : ''), who, pts);
+    if (g.banked[i] !== null) li.append(el('span', 'took', `+${g.banked[i]}`));
+    else if (fin || g.ended) li.append(el('span'));
+    else {
+      const b = el('button', 'bank', 'Bank');
+      b.setAttribute('aria-label', `Bank ${g.pot} for ${S.names[i]}`);
+      b.disabled = g.pot === 0 || rolling;
       b.onclick = () => bank(i);
       li.append(b);
     }
+    const bar = el('i', 'bar');
+    bar.style.setProperty('--w', `${100 * s / scale}%`);
+    bar.style.setProperty('--p', `${100 * (inRound(i) ? s + g.pot : s) / scale}%`);
+    li.append(bar);
     return li;
   }));
+  $('legend').textContent = !fin && !g.ended && g.pot > 0 ? 'The grey number is your total if you bank now.' : '';
+
+  const tap = S.mode === 'tap', playing = !fin && !g.ended;
+  $('keypad').hidden = !(tap && playing);
+  $('dice').hidden = tap || fin;
+  $('roll').hidden = tap || !playing;
+  $('next').hidden = fin || !g.ended;
+  $('again').hidden = $('edit').hidden = !fin;
+  if (tap) renderKeys(live);
+  else {
+    $('roll').disabled = rolling;
+    $('roll').textContent = `Roll for ${S.names[roller(g)]}`;
+    if (g.dice && !rolling) showDice(g.dice);
+  }
+  $('next').textContent = g.round >= S.rounds ? 'See final scores' : 'Next round';
 }
 
-$('start').onclick = start;
-$('act').onclick = act;
-$('quit').onclick = () => {
-  if (!over() && !confirm('End this game?')) return;
-  $('game').hidden = true;
-  $('setup').hidden = false;
+function render() {
+  save();
+  const playing = !!S.g;
+  $('setup').hidden = playing;
+  $('game').hidden = !playing;
+  $('undo').hidden = !playing;
+  $('undo').disabled = !canUndo();
+  $('back').textContent = playing ? '‹ End game' : '‹ Games';
+  if (!playing) { document.body.classList.remove('live'); $('roundLabel').textContent = ''; }
+  playing ? renderGame() : renderSetup();
+}
+
+// ---- Setup controls
+$('add').onsubmit = e => {
+  e.preventDefault();
+  const n = $('newName').value.trim();
+  if (!n) return;
+  S.names.push(n);
+  $('newName').value = '';
+  render();
+  $('newName').focus(); // stay put so several names can be typed in a row
 };
 
-renderSetup();
+function setRounds(n) {
+  S.rounds = Math.min(99, Math.max(1, Math.round(n) || 1));
+  render();
+}
+for (const n of [5, 10, 15, 20]) {
+  const b = el('button', '', n);
+  b.onclick = () => setRounds(n);
+  $('presets').append(b);
+}
+$('rounds').onchange = () => setRounds(+$('rounds').value);
+// Tap steps by one; holding keeps stepping.
+for (const [id, step] of [['less', -1], ['more', 1]]) {
+  const b = $(id);
+  let wait, repeat;
+  const stop = () => { clearTimeout(wait); clearInterval(repeat); };
+  b.onclick = () => setRounds(S.rounds + step);
+  b.onpointerdown = () => { stop(); wait = setTimeout(() => repeat = setInterval(() => setRounds(S.rounds + step), 90), 400); };
+  b.onpointerup = b.onpointerleave = b.onpointercancel = stop;
+}
+for (const r of document.querySelectorAll('[name=mode]')) r.onchange = () => { S.mode = r.value; render(); };
+
+$('start').onclick = start;
+$('undo').onclick = undo;
+$('roll').onclick = rollDice;
+$('next').onclick = nextRound;
+$('again').onclick = start;
+const toSetup = () => { S.g = null; S.hist = []; render(); };
+$('edit').onclick = toSetup;
+$('back').onclick = e => {
+  if (!S.g) return; // on setup this is a plain link back to Games
+  e.preventDefault();
+  if (finished() || confirm('End this game? Scores will be cleared.')) toSetup();
+};
+
+render();
 </script>
 </body>
 </html>
