@@ -108,7 +108,7 @@ BG says game code stays inline in the game's `index.html`, with `console.assert`
 2. The engine is several times Tidevault's size (ten systems, schemas, interpreter). One 3000+ line HTML file is hard to review.
 3. Still vanilla: no bundler, no transpile, no framework. Files serve as-is from any static host. `site/_headers` `nosniff` is fine because `.js` is served as JavaScript.
 
-Tests live outside the served folder, at repo root `tests/keep/*.test.js`, importing `../../site/keep/engine/*.js` (the `site/` move has landed). Run: `node --test tests/keep/`. Node 22+ detects ES module syntax in `.js` without a `package.json`; if that warns, add a two-line `tests/package.json` `{ "type": "module" }` (not served). No new dependency.
+Tests live outside the served folder, at repo root `tests/keep/*.test.js`, importing `../../site/keep/engine/*.js` (the `site/` move has landed). Run: `node --test "tests/keep/*.test.js"` (Node 24 takes a glob, not a folder). Node 22+ detects ES module syntax in `.js` without a `package.json`; if that warns, add a two-line `tests/package.json` `{ "type": "module" }` (not served). No new dependency.
 
 Proposed BG amendment to "Layout" and "Per-game contract" (pending owner approval):
 
