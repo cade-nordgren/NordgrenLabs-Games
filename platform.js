@@ -29,11 +29,72 @@
     remove: async id => { write(read().filter(r => r.id !== id)); },
   };
 
-  // ---- Identity. Prototype: a host page may define window.NL_IDENTITY; later this is the signed-in platform person.
+  // ---- Identity. With a publishable key from the server (config.js) this is the ClerkJS session;
+  // without one, a host page may define window.NL_IDENTITY (the local test path).
+  const key = window.NL_CONFIG?.clerkPublishableKey;
+  let clerk = null, me = null, unlinked = false;
+  const token = async () => { try { return (await clerk?.session?.getToken()) || null; } catch { return null; } }; // for server saves (step 5)
+  const signedIn = async () => {
+    if (!window.Clerk) await new Promise((ok, fail) => {
+      const s = document.createElement('script');
+      s.src = `https://${atob(key.split('_')[2]).slice(0, -1)}/npm/@clerk/clerk-js@5.128.1/dist/clerk.browser.js`; // the key encodes "<frontend api host>$"
+      s.crossOrigin = 'anonymous';
+      s.dataset.clerkPublishableKey = key;
+      s.onload = ok; s.onerror = fail;
+      document.head.append(s);
+    });
+    await window.Clerk.load();
+    clerk = window.Clerk;
+    const at = clerk.user?.id ?? null;
+    clerk.addListener(({ user }) => { if ((user?.id ?? null) !== at) location.reload(); }); // sign-in, sign-out or switch: start clean
+    if (!clerk.user) return null;
+    let personPublicId = null;
+    try {
+      const t = await token(), r = t && await fetch('/api/me', { headers: { Authorization: `Bearer ${t}` } });
+      const id = r?.ok ? (await r.json()).personPublicId : null;
+      unlinked = r?.status === 403; // signed in, but the Control Center has not linked a person yet
+      if (UUID.test(id)) personPublicId = id; // 401, 403 or offline: no server saves
+    } catch {}
+    return { displayName: (clerk.user.firstName || clerk.user.username || '').trim(), personPublicId };
+  };
   const identity = () => {
+    if (typeof key === 'string') return me && { ...me };
     const i = window.NL_IDENTITY;
     if (!i || typeof i.displayName !== 'string' || !i.displayName.trim()) return null;
     return { displayName: i.displayName.trim(), personPublicId: UUID.test(i.personPublicId) ? i.personPublicId : null };
+  };
+  // Always resolves, never rejects: any failure or a 10 second wait counts as signed out.
+  const ready = typeof key !== 'string' ? Promise.resolve(identity())
+    : Promise.race([signedIn().catch(() => null), new Promise(ok => setTimeout(ok, 10000, null))]).then(i => { me = i; return identity(); });
+
+  // Shared account control: renders nothing without a key, so the plain static preview stays as it was.
+  const account = async box => {
+    box.hidden = true;
+    if (typeof key !== 'string') return;
+    const i = await ready;
+    if (!clerk) return; // ClerkJS did not load, so there is nothing to sign in with
+    const p = text => { const e = document.createElement('p'); e.textContent = text; return e; };
+    const b = document.createElement('button');
+    b.className = 'btn';
+    if (!clerk.user) {
+      b.textContent = 'Sign in';
+      b.onclick = () => { box.closest('dialog')?.close(); clerk.openSignIn(); }; // Clerk's modal would sit under an open sheet
+      box.append(p('Sign in to keep saved games across devices.'), b);
+    } else {
+      b.textContent = 'Sign out';
+      b.onclick = () => clerk.signOut();
+      box.append(p(i?.displayName ? `Signed in as ${i.displayName}` : 'Signed in'));
+      if (unlinked) {
+        const a = document.createElement('a');
+        a.href = 'https://admin.nordgrenlabs.com/';
+        a.textContent = 'Control Center';
+        const setup = p('Finish setting up your account in the ');
+        setup.append(a, ' to keep saved games across devices.');
+        box.append(setup);
+      }
+      box.append(b);
+    }
+    box.hidden = false;
   };
 
   // ---- Theme. Preference system|light|dark in localStorage; the resolved light|dark lives on <html data-theme>.
@@ -89,5 +150,5 @@
     });
   };
 
-  window.NL = { saves, identity, theme: { get, set }, topbar, segmented };
+  window.NL = { saves, identity, ready, account, theme: { get, set }, topbar, segmented };
 })();

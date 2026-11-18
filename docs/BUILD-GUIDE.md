@@ -11,7 +11,8 @@ A small static site of original tabletop helpers (scorekeepers, dice) from Nordg
 ```
 index.html          games list
 style.css           shared: tokens, backdrop, glass, buttons, top bar, sheets, segmented control, theme icon
-platform.js         shared: window.NL (saves, identity, theme, top bar highlight, segmented control)
+platform.js         shared: window.NL (saves, identity, sign-in, theme, top bar highlight, segmented control)
+config.js           placeholder for the server's /config.js (Clerk publishable key); keeps the static preview signed out
 bank/index.html     one game: its own CSS and JS inline
 docs/BUILD-GUIDE.md this file
 docs/decisions/     decision records (0001: platform adoption)
@@ -47,14 +48,14 @@ Quality floor for every screen: visible keyboard focus, 44px touch targets, `pre
    ```
 
    camelCase, lowercase hyphenated UUIDs, ISO-8601 UTC, integer schema versions. `NL.saves` drops records that fail this shape; the game must also validate its own `state` before playing it (stored data is a trust boundary). Saving a resumed game reuses its `id` and `createdAt`. Keep a capped slice of undo history in `state` so undo survives resume.
-5. **Identity via `NL.identity()`**: `{ displayName, personPublicId }` or `null`. Use it to pre-fill the first player and to stamp `personPublicId` on new saves. Never store a Clerk user id or an email.
+5. **Identity via `NL.identity()`**: `{ displayName, personPublicId }` or `null`. It is `null` until `NL.ready` resolves (to the same value) when sign-in is configured, and `displayName` can be empty for a signed-in person. Pre-fill the first player in `NL.ready.then(...)`, only into an empty roster with no game in progress, and stamp `personPublicId` on new saves. Put `NL.account(el)` in the game's settings sheet for the shared sign-in control; it stays hidden without a key. Never store a Clerk user id or an email.
 
 ## Adding a game
 
 1. Create `<game>/index.html`. Copy Bank's `<head>` (meta, no-flash script, `../style.css`) and its top bar and settings sheet markup as a starting point.
 2. Write the rules as pure functions with asserts. Design the rules yourself; games here must be original.
 3. Hold state in one object, route actions through `change()`, autosave under `nl-<game>-v1`.
-4. Wire `NL.topbar`, sheets, `NL.segmented` and saves as above. Load `../platform.js` before the game script.
+4. Wire `NL.topbar`, sheets, `NL.segmented` and saves as above. Load `<script src="../config.js"></script>` then `<script src="../platform.js"></script>` before the game script.
 5. Add a `.glass.tile` link to `index.html`.
 6. Preview and run the checks below.
 
