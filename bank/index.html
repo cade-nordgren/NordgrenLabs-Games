@@ -50,7 +50,7 @@ details li + li { margin-top: 6px; }
 #game { flex: 1; display: flex; flex-direction: column; }
 .hero { text-align: center; padding: 0 0 18px; }
 #roundLabel { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink2); }
-#pot { margin: 0; font: 700 clamp(84px, 30vw, 128px)/1 var(--num); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+#pot { margin: 0; font: 700 clamp(64px, min(30vw, 16dvh), 128px)/1 var(--num); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 #pot.pop { animation: pop .28s ease-out; }
 #pot.bust { animation: shake .4s; color: var(--danger); }
 #pot.final { font-size: clamp(34px, 11vw, 48px); letter-spacing: -.02em; padding: 26px 0 10px; }
@@ -79,7 +79,10 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
 #legend { margin: 8px 16px 0; font-size: 13px; color: var(--ink2); min-height: 18px; }
 
 .dock { position: sticky; bottom: max(12px, env(safe-area-inset-bottom)); margin-top: auto; padding: 10px; border-radius: 30px; display: grid; gap: 10px; }
-#game > .spacer { height: 16px; flex: none; }
+.spacer { height: 16px; }
+#turn { display: flex; justify-content: center; margin: 2px 8px 0; font-size: 22px; line-height: 1.2; font-weight: 600; color: var(--ink2); }
+#turn strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; color: var(--ink); }
+#turn span { flex: none; }
 #keypad { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
 .key { height: 58px; border-radius: 18px; border: 1px solid var(--edge); background: var(--glass-strong); box-shadow: inset 0 1px 0 var(--edge), 0 1px 2px rgba(0, 0, 0, .06); font: 600 23px/1.05 var(--num); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
 .key small { font: 600 11px/1 var(--text); color: var(--ink2); }
@@ -99,6 +102,28 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
 .face:nth-child(5) { transform: rotateX(90deg) translateZ(var(--h)); }
 .face:nth-child(6) { transform: rotateX(-90deg) translateZ(var(--h)); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* Short screens: denser rows and keys so more of the standings shows above the dock, still 44px or more to tap. */
+@media (max-height: 700px) {
+  .hero { padding-bottom: 12px; }
+  #msg { margin-top: 6px; }
+  .row { min-height: 56px; padding: 7px 16px 9px; }
+  .key { height: 50px; }
+  #dice { padding: 12px 0 8px; }
+}
+
+/* Phone in landscape: the board scrolls on the left, the dock stays whole on the right. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .app { max-width: 960px; }
+  #setup { columns: 2; column-gap: 14px; }
+  #setup > h1, #setup > .lede { column-span: all; }
+  #setup > * { break-inside: avoid; }
+  #setup > details { margin-top: 0; }
+  #game { flex-direction: row; align-items: flex-start; gap: 16px; }
+  .board { flex: 1; min-width: 0; }
+  #pot { font-size: clamp(56px, 20dvh, 96px); }
+  .dock { flex: 0 0 min(340px, 48%); position: sticky; top: calc(max(6px, env(safe-area-inset-top)) + 60px); bottom: auto; margin-top: 0; }
+}
 </style>
 </head>
 <body>
@@ -178,6 +203,7 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
   </main>
 
   <main id="game" hidden>
+    <div class="board">
     <div class="hero">
       <p id="roundLabel"></p>
       <span class="sr" id="potLabel">In the bank</span>
@@ -189,11 +215,13 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
     <ul id="players" class="glass"></ul>
     <p id="legend"></p>
     <div class="spacer"></div>
+    </div>
 
     <div class="dock glass">
+      <p id="turn"><strong id="turnName"></strong><span>’s roll</span></p>
       <div id="dice" aria-hidden="true"><div class="die"></div><div class="die"></div></div>
       <div id="keypad"></div>
-      <button class="btn primary" id="roll"></button>
+      <button class="btn primary" id="roll">Roll</button>
       <button class="btn primary" id="next"></button>
       <button class="btn primary" id="again">Play again</button>
       <button class="btn" id="edit">Change players</button>
@@ -323,7 +351,7 @@ function start() {
   render();
 }
 
-// Next player still in the round (only shown for on-screen dice).
+// Whose roll it is: the next player still in the round, in the order they were entered.
 function roller(g) {
   for (let k = 0; k < S.names.length; k++) {
     const i = (g.turn + k) % S.names.length;
@@ -575,10 +603,11 @@ function renderGame() {
   $('roll').hidden = tap || !playing;
   $('next').hidden = fin || !g.ended;
   $('again').hidden = $('edit').hidden = !fin;
+  $('turn').hidden = !playing;
+  $('turnName').textContent = S.names[roller(g)];
   if (tap) renderKeys(live);
   else {
     $('roll').disabled = rolling;
-    $('roll').textContent = `Roll for ${S.names[roller(g)]}`;
     if (g.dice && !rolling) showDice(g.dice);
   }
   $('next').textContent = g.round >= S.rounds ? 'See final scores' : 'Next round';

@@ -41,6 +41,8 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+/* iOS otherwise enlarges text when the phone turns to landscape. */
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 body {
   margin: 0; background: var(--canvas); color: var(--ink);
   font: 17px/1.4 var(--text); -webkit-font-smoothing: antialiased;
@@ -68,7 +70,8 @@ body::after {
 body.live::before { opacity: 0; }
 body.live::after { opacity: 1; }
 
-.app { max-width: 440px; min-height: 100dvh; margin: 0 auto; padding: 0 16px 16px; display: flex; flex-direction: column; }
+.app { max-width: 440px; min-height: 100dvh; margin: 0 auto; display: flex; flex-direction: column;
+  padding: 0 max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
 h1 { margin: 8px 0 4px; font: 700 40px/1.1 var(--num); letter-spacing: -.02em; }
 h2 { margin: 0; font-size: 17px; font-weight: 600; }
 .lede { margin: 0 0 24px; color: var(--ink2); }
@@ -87,6 +90,8 @@ a { color: var(--accent); text-decoration: none; }
 
 button, input { font: inherit; color: inherit; }
 button { border: 0; background: none; padding: 0; cursor: pointer; transition: transform .12s ease, opacity .2s; }
+/* Fast taps on keys and buttons must not zoom the page or select their labels. */
+button, .topbar .item { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
 button:active:not(:disabled) { transform: scale(.96); }
 button:disabled { opacity: .35; cursor: default; }
 .btn { min-height: 44px; padding: 0 18px; border-radius: 999px; background: var(--fill); font-weight: 600; }
@@ -98,7 +103,7 @@ a.tile strong { display: block; font: 700 24px var(--num); }
 a.tile span { color: var(--ink2); }
 
 /* Floating top bar: actions as icon + label, with a highlight that springs to the hovered, focused or pressed item. */
-.topbar { position: sticky; top: max(10px, env(safe-area-inset-top)); z-index: 10; align-self: center; display: flex; padding: 4px; margin: 10px 0 14px; border-radius: 999px; }
+.topbar { position: sticky; top: max(10px, env(safe-area-inset-top)); z-index: 10; align-self: center; display: flex; padding: 4px; margin: max(10px, env(safe-area-inset-top)) 0 14px; border-radius: 999px; }
 .topbar .item { position: relative; z-index: 1; flex: 1; min-width: 76px; min-height: 52px; padding: 6px 12px 5px; border-radius: 999px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--ink); font-size: 11px; font-weight: 600; line-height: 1.1; }
 .topbar .item span { color: var(--ink2); }
 .topbar .item svg { width: 22px; height: 22px; }
@@ -106,9 +111,16 @@ a.tile span { color: var(--ink2); }
   transition: transform var(--spring-dur) var(--spring), width var(--spring-dur) var(--spring), opacity .2s; }
 .topbar .hl.on { opacity: 1; }
 .topbar .hl.jump { transition: opacity .2s; }
+/* Phone in landscape: height is scarce, so the bar shows icons only and keeps the labels as accessible names. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .topbar { top: max(6px, env(safe-area-inset-top)); margin: max(6px, env(safe-area-inset-top)) 0 8px; }
+  .topbar .item { min-width: 56px; min-height: 44px; padding: 0 12px; }
+  .topbar .item span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+}
 
 /* Sheets: a native <dialog> opened with showModal(); the inner div carries the padding so a click on the dialog itself is a backdrop click. */
-dialog.sheet { width: min(100% - 24px, 408px); max-width: none; margin: auto auto max(12px, env(safe-area-inset-bottom)); padding: 0; color: var(--ink); }
+dialog.sheet { width: min(100% - 24px, 408px); max-width: none; margin: auto auto max(12px, env(safe-area-inset-bottom)); padding: 0; color: var(--ink);
+  max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))); overflow: auto; overscroll-behavior: contain; }
 dialog.sheet > div { padding: 22px 18px 18px; display: grid; gap: 10px; }
 dialog.sheet h2 { font-size: 20px; }
 dialog.sheet h3 { margin: 10px 0 0; font-size: 15px; font-weight: 600; color: var(--ink2); }
