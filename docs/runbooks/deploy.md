@@ -68,19 +68,18 @@ D1 Time Travel covers the free plan's window. For a copy on demand: `node node_m
 
 ## Retire the VM container
 
-The container started on the Production VM `nordgren-labs` on 2026-11-18 from commit `226b9b7` was never public. Remove it, as its own operator act with the owner's go-ahead. On the guest:
+The container started on the Production VM `nordgren-labs` on 2026-11-18 from commit `226b9b7` was never public. Remove it, as its own operator act with the owner's go-ahead. The checkout is at `/srv/nordgren-labs/games/repo`, detached at that commit, so it still has the Compose file. On the guest:
 
 ```
-cd /srv/nordgren-labs/games
-GAMES_IMAGE_TAG=$(git rev-parse HEAD) docker compose -f docker-compose.prod.yml down --volumes
-docker volume rm nordgrenlabs-games-prod_games_data 2>/dev/null || true
-docker image ls nordgrenlabs-games-web
-docker image rm $(docker image ls -q nordgrenlabs-games-web)
+cd /srv/nordgren-labs/games/repo
+sudo GAMES_IMAGE_TAG=226b9b7af22e7a65300e96d2bd8b1d013d5e0f49 docker compose -f docker-compose.prod.yml down --volumes
+sudo docker image rm nordgrenlabs-games-web:226b9b7af22e7a65300e96d2bd8b1d013d5e0f49
 sudo rm -rf /etc/nordgren-labs/games
 cd / && sudo rm -rf /srv/nordgren-labs/games
+sudo rm -f /root/.ssh/games_deploy_ed25519 /root/.ssh/games_deploy_ed25519.pub
 ```
 
-`down --volumes` already removes the volume; the second command only confirms it is gone. Then remove the deploy key: delete it under the GitHub repository's Settings, Deploy keys, and delete its private key file on the guest (look in the deploying user's `~/.ssh/` and `~/.ssh/config` for the entry that names this repository). Leave RideLab and the Control Center untouched. Games was never made public, so the Tunnel config should have no `games.nordgrenlabs.com` rule; look, and if one is there, stop and ask the owner before changing it.
+`down --volumes` removes the container, its network and the saves volume. The last line deletes the read-only deploy key made for the clone; also delete its entry under the GitHub repository's Settings, Deploy keys. Leave RideLab and the Control Center untouched. Games was never routed through the Tunnel, so its config should have no `games.nordgrenlabs.com` rule; look, and if one is there, stop and ask the owner before changing it.
 
 ## Afterwards
 
