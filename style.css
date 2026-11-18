@@ -8,6 +8,7 @@
   --thumb: #fff;
   /* Dice invert against the theme: white dice on the light glass were about 1.1:1. */
   --die: linear-gradient(145deg, #48484a, #1c1c1e); --die-edge: rgba(255, 255, 255, .14); --pip: #fff;
+  --glass-menu: rgba(250, 250, 252, .92);
   --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 12px 40px rgba(0, 0, 0, .08);
   --text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --num: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
@@ -25,6 +26,7 @@
   --edge: rgba(255, 255, 255, .13); --hair: rgba(255, 255, 255, .1); --fill: rgba(120, 120, 128, .26);
   --thumb: #636366;
   --die: linear-gradient(145deg, #fff, #e6e6eb); --die-edge: rgba(0, 0, 0, .07); --pip: #1d1d1f;
+  --glass-menu: rgba(20, 20, 22, .9);
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .5);
 }
 @media (prefers-color-scheme: dark) {
@@ -35,6 +37,7 @@
     --edge: rgba(255, 255, 255, .13); --hair: rgba(255, 255, 255, .1); --fill: rgba(120, 120, 128, .26);
     --thumb: #636366;
     --die: linear-gradient(145deg, #fff, #e6e6eb); --die-edge: rgba(0, 0, 0, .07); --pip: #1d1d1f;
+    --glass-menu: rgba(20, 20, 22, .9);
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .5);
   }
 }
@@ -105,8 +108,9 @@ a.tile span { color: var(--ink2); }
 .account:not([hidden]) { display: grid; gap: 10px; }
 .account p { margin: 0; color: var(--ink2); font-size: 15px; }
 
-/* Menu: one glass circle fixed top right. Opened, its items slide down from behind it into a tight column, each with a label chip. */
-.menu { position: fixed; z-index: 20; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); width: 48px; height: 48px; }
+/* Menu: one glass circle fixed top right. Opened, its items slide down from behind it into a spaced column, each with a label chip.
+   It floats over the score and standings, so its glass is near solid to stay readable. */
+.menu { --glass: var(--glass-menu); position: fixed; z-index: 20; top: max(10px, env(safe-area-inset-top)); right: max(10px, env(safe-area-inset-right)); width: 48px; height: 48px; }
 .menu-trigger, .menu .item { width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); }
 .menu-trigger { position: relative; z-index: 1; }
 .menu svg { width: 22px; height: 22px; }
@@ -116,9 +120,8 @@ a.tile span { color: var(--ink2); }
 .menu.open .menu-trigger .x { opacity: 1; transform: none; }
 .menu .item { position: absolute; top: 0; right: 0; opacity: 0; visibility: hidden;
   transition: transform .3s cubic-bezier(.4, 0, .2, 1), opacity .3s cubic-bezier(.4, 0, .2, 1), visibility 0s .3s; }
-.menu.open .item { transform: translateY(calc(var(--i) * 48px)); opacity: 1; visibility: visible; transition-delay: 0s; }
-/* The chip sits over page content, so it uses the stronger glass; reduced transparency still makes it solid. */
-.menu .item span { --glass: var(--glass-strong); position: absolute; top: 50%; right: calc(100% + 8px); translate: 8px -50%; padding: 6px 12px; border-radius: 999px;
+.menu.open .item { transform: translateY(calc(var(--i) * 58px)); opacity: 1; visibility: visible; transition-delay: 0s; }
+.menu .item span { position: absolute; top: 50%; right: calc(100% + 8px); translate: 8px -50%; padding: 6px 12px; border-radius: 999px;
   font-size: 15px; font-weight: 600; white-space: nowrap; transition: translate .3s cubic-bezier(.4, 0, .2, 1); }
 .menu.open .item span { translate: 0 -50%; }
 .menu .item:disabled svg, .menu .item:disabled span { opacity: .35; }
