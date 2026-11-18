@@ -14,6 +14,7 @@ style.css           shared: tokens, backdrop, glass, buttons, menu, sheets, segm
 platform.js         shared: window.NL (saves, identity, sign-in, theme, menu, segmented control)
 config.js           placeholder for the server's /config.js (Clerk publishable key); keeps the static preview signed out
 bank/index.html     one game: its own CSS and JS inline
+tidevault/index.html solo dive game: its own CSS and JS inline
 docs/BUILD-GUIDE.md this file
 docs/decisions/     decision records (0001: platform adoption)
 ```
@@ -88,3 +89,4 @@ Production runs one container built from `Dockerfile` and started by `docker-com
 - **Platform integration is built in this repo, not yet live.** `docs/decisions/0001-platform-adoption.md` (accepted 2026-11-18) records it: sign-in with ClerkJS on `games.nordgrenlabs.com`, a small backend in `server/` that verifies the session and implements the same `NL.saves` interface keyed on `nl_person_id`, anonymous play kept, and a Control Center catalog entry. `docs/PLATFORM-INTEGRATION-PLAN.md` has the step list; deployment and the catalog entry are still to do, and real sign-in has not been exercised. Under the plain static preview everything runs signed-out and `NL.identity()` reads `window.NL_IDENTITY`. The client stays static with no build step throughout.
 - **Original designs only.** Bank shares only folk rules with other Bank scorekeepers; no copied layouts, art or text.
 - **Bank specifics.** Standings are always sorted (banked points, or "if banked now" as a setting); rank and gap always use banked points. Rows are keyed per player and slide into place (FLIP). In the live phase the 2 and 12 keys are disabled with the label "doubles" so players learn the Doubles key.
+- **Tidevault specifics.** A solo push-your-luck dive on a 7x7 map revealed room by room from a weighted bag, driven by a seeded PRNG kept in the run (`g.rng`) so runs replay and undo restores the dice too. Every finished run (surfaced, drowned or caught by the tide) saves itself once as a finished record titled with its relic value, and Best runs ranks those; Undo is off once a run is over.
