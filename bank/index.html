@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank · NordgrenLabs Games</title>
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header><a href="../index.html">NordgrenLabs Games</a></header>
+<main>
+  <h1>Bank</h1>
+
+  <section id="setup">
+    <form id="add">
+      <label for="name">Add a player</label>
+      <div class="row">
+        <input type="text" id="name" maxlength="20" autocomplete="off">
+        <button>Add</button>
+      </div>
+    </form>
+    <ul id="roster"></ul>
+    <fieldset>
+      <legend>Rounds</legend>
+      <label><input type="radio" name="rounds" value="10"> 10</label>
+      <label><input type="radio" name="rounds" value="15" checked> 15</label>
+      <label><input type="radio" name="rounds" value="20"> 20</label>
+    </fieldset>
+    <button class="primary" id="start">Start game</button>
+  </section>
+
+  <section id="game" hidden>
+    <p class="muted" id="round"></p>
+    <div id="board">
+      <div id="dice" aria-hidden="true"></div>
+      <p id="pot" aria-label="Bank total"></p>
+      <p id="hint"></p>
+      <p id="msg" role="status"></p>
+    </div>
+    <button class="primary" id="act"></button>
+    <ul id="players"></ul>
+    <button id="quit">Quit to setup</button>
+  </section>
+
+  <details>
+    <summary>How to play</summary>
+    <ul>
+      <li>Everyone shares one bank. Each roll of two dice adds its total to the bank.</li>
+      <li>The first three rolls of a round are safe, and a 7 is worth 70.</li>
+      <li>From the fourth roll on, a 7 ends the round and empties the bank. Doubles double it.</li>
+      <li>Between rolls, anyone can tap Bank to add the bank to their score. They sit out until the next round.</li>
+      <li>The round ends on a 7 or when everyone has banked. Highest score after the last round wins.</li>
+    </ul>
+  </details>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+const FACES = ' ⚀⚁⚂⚃⚄⚅';
+const die = () => 1 + Math.floor(Math.random() * 6);
+const el = (tag, text, cls) => {
+  const e = document.createElement(tag);
+  e.textContent = text; // textContent, never innerHTML: player names are user input
+  if (cls) e.className = cls;
+  return e;
+};
+
+// The whole scoring rule. Returns the new bank, or null when the roll ends the round.
+function applyRoll(pot, rollNo, a, b) {
+  const sum = a + b;
+  if (rollNo <= 3) return pot + (sum === 7 ? 70 : sum);
+  if (sum === 7) return null;
+  return a === b ? pot * 2 : pot + sum;
+}
+console.assert(applyRoll(0, 1, 3, 4) === 70, 'safe 7 is worth 70');
+console.assert(applyRoll(10, 3, 2, 2) === 14, 'safe doubles only add');
+console.assert(applyRoll(50, 4, 3, 3) === 100, 'late doubles double');
+console.assert(applyRoll(50, 4, 3, 4) === null, 'late 7 busts');
+console.assert(applyRoll(50, 5, 2, 3) === 55, 'late roll adds');
+
+let names = ['Player 1', 'Player 2'];
+let g = null;
+const over = () => g.round > g.rounds;
+
+function renderSetup() {
+  $('roster').replaceChildren(...names.map((n, i) => {
+    const li = el('li'), rm = el('button', '×');
+    rm.setAttribute('aria-label', `Remove ${n}`);
+    rm.onclick = () => { names.splice(i, 1); renderSetup(); };
+    li.append(el('span', n, 'name'), rm);
+    return li;
+  }));
+  $('start').disabled = names.length < 2;
+}
+
+$('add').onsubmit = e => {
+  e.preventDefault();
+  const n = $('name').value.trim();
+  if (n) names.push(n);
+  $('name').value = '';
+  renderSetup();
+};
+
+function start() {
+  g = {
+    rounds: +document.querySelector('[name=rounds]:checked').value,
+    round: 1, pot: 0, rolls: 0, turn: 0, roundOver: false, msg: '',
+    scores: names.map(() => 0), banked: names.map(() => false),
+  };
+  $('dice').textContent = '';
+  $('setup').hidden = true;
+  $('game').hidden = false;
+  render();
+  $('act').focus();
+}
+
+// Next player still in the round, starting from whose turn it is.
+function roller() {
+  for (let k = 0; k < names.length; k++) {
+    const i = (g.turn + k) % names.length;
+    if (!g.banked[i]) return i;
+  }
+}
+
+function act() {
+  if (over()) return start();
+  if (g.roundOver) return nextRound();
+  const r = roller(), a = die(), b = die();
+  g.rolls++;
+  g.turn = (r + 1) % names.length;
+  const next = applyRoll(g.pot, g.rolls, a, b);
+  $('dice').textContent = FACES[a] + FACES[b];
+  $('dice').classList.remove('rolled');
+  void $('dice').offsetWidth; // restart the animation
+  $('dice').classList.add('rolled');
+  if (next === null) {
+    g.pot = 0;
+    g.roundOver = true;
+    g.msg = `${names[r]} rolled a 7. The bank is lost.`;
+  } else {
+    g.msg = `${names[r]} rolled ${a + b}` +
+      (g.rolls <= 3 && a + b === 7 ? ', a safe 7 worth 70!' :
+       g.rolls > 3 && a === b ? '. Doubles! The bank doubles.' : '.');
+    g.pot = next;
+  }
+  render();
+}
+
+function bank(i) {
+  g.scores[i] += g.pot;
+  g.banked[i] = true;
+  g.msg = `${names[i]} banked ${g.pot}.`;
+  if (g.banked.every(Boolean)) {
+    g.roundOver = true;
+    g.msg += ' Everyone is in, so the round is over.';
+  }
+  render();
+}
+
+function nextRound() {
+  g.round++;
+  g.pot = g.rolls = 0;
+  g.roundOver = false;
+  g.banked.fill(false);
+  g.msg = '';
+  $('dice').textContent = '';
+  if (over()) {
+    const max = Math.max(...g.scores);
+    const winners = names.filter((_, i) => g.scores[i] === max);
+    g.msg = winners.join(' and ') + (winners.length > 1 ? ' tie' : ' wins') + ` with ${max}.`;
+  }
+  render();
+}
+
+function render() {
+  const done = over(), max = Math.max(...g.scores);
+  $('round').textContent = done ? 'Final scores' : `Round ${g.round} of ${g.rounds}`;
+  $('pot').textContent = done ? '' : g.pot;
+  $('hint').textContent = done || g.roundOver ? '' :
+    g.rolls < 3 ? `Safe rolls left: ${3 - g.rolls}` : 'Danger: a 7 ends the round. Doubles double the bank.';
+  $('hint').classList.toggle('danger', g.rolls >= 3);
+  $('msg').textContent = g.msg;
+  $('act').textContent = done ? 'Play again' :
+    g.roundOver ? (g.round === g.rounds ? 'See final scores' : 'Next round') :
+    `Roll for ${names[roller()]}`;
+  $('players').replaceChildren(...names.map((n, i) => {
+    const li = el('li', '', done && g.scores[i] === max ? 'win' : '');
+    li.append(el('span', n, 'name'), el('span', g.scores[i], 'score'));
+    if (g.banked[i]) li.append(el('span', 'Banked', 'muted'));
+    else if (!done) {
+      const b = el('button', 'Bank');
+      b.setAttribute('aria-label', `Bank for ${n}`);
+      b.disabled = g.pot === 0 || g.roundOver;
+      b.onclick = () => bank(i);
+      li.append(b);
+    }
+    return li;
+  }));
+}
+
+$('start').onclick = start;
+$('act').onclick = act;
+$('quit').onclick = () => {
+  if (!over() && !confirm('End this game?')) return;
+  $('game').hidden = true;
+  $('setup').hidden = false;
+};
+
+renderSetup();
+</script>
+</body>
+</html>

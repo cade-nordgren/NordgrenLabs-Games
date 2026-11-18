@@ -1,0 +1,2 @@
+# Preserve file bytes exactly; never normalize line endings.
+* -text
