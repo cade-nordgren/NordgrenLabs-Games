@@ -33,10 +33,10 @@
   },
   "d1_databases": [
     {
-      // Replace with the id `wrangler d1 create games` prints (docs/runbooks/deploy.md).
+      // Created 2026-11-18 with `wrangler d1 create games` (region WNAM).
       "binding": "DB",
       "database_name": "games",
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "fca7723e-47e4-483f-b173-4a176b98396a",
       "migrations_dir": "migrations"
     }
   ],
