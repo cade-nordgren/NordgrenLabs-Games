@@ -46,3 +46,7 @@ Recorded here as an addendum when done (NL-ADR-0007 §6.3, §7):
 - Whether a session on another NordgrenLabs origin is recognised on Games without a second sign-in is unmeasured. The worst case is one extra sign-in.
 - Games shares the Clerk instance with the Control Center, so a script flaw in Games is a risk to anyone who visits while signed in (NL-ADR-0007 §9). User text is inserted with `textContent` only. No content security policy is set, because game scripts are inline.
 - Concurrent edits to one save resolve as last write wins.
+
+## Addendum 2026-11-18: `verifyJwt` instead of `verifyToken`
+
+Decision 6 names `verifyToken`. The seam as built calls `verifyJwt` from `@clerk/backend/jwt` with the same public key: the same library and the same checks, still offline. `verifyToken` (2.33.8) caches one key entry per `kid` taken from the token header before the signature is checked, and never evicts, so unauthenticated requests could grow server memory without limit. NL-ADR-0009 §1(h) names this risk. `verifyJwt` has no cache. The pins in decision 6 are unchanged.

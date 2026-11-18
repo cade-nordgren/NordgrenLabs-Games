@@ -69,6 +69,10 @@ Before calling it done:
 - 375x812 and a wide window; light and dark; keyboard only; reduced motion on.
 - Clear test data from localStorage afterwards.
 
+## Server
+
+`server/` is the one Node process for production: it serves the same static files from the repo root plus `/config.js` and `/api` on one origin, and verifies Clerk session tokens offline in `server/seam.js` (decision 6 of the adoption record). Its only dependency is `@clerk/backend`, pinned exactly. Run its tests with `cd server && npm install && npm test`; they need no network and no real keys. It refuses to start unless `CLERK_PUBLISHABLE_KEY`, `CLERK_JWT_KEY` and `CLERK_ISSUER` are set, and on any other `CLERK_` variable. The plain `python -m http.server` preview still works and runs signed-out.
+
 ## Decisions log
 
 - **Static, vanilla, no build.** Nothing to install or maintain; any static host works.

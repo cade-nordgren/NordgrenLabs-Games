@@ -1,0 +1,12 @@
+{
+  "name": "nordgrenlabs-games-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node index.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@clerk/backend": "2.33.8"
+  }
+}
