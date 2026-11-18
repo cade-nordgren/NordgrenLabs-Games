@@ -4,48 +4,52 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Bank · NordgrenLabs Games</title>
+<script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
 <link rel="stylesheet" href="../style.css">
 <style>
-.top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; height: 52px; font-size: 16px; }
-.top > :last-child { justify-self: end; }
-#roundLabel { font-weight: 600; }
-#undo { color: var(--accent); font-weight: 600; min-height: 44px; padding: 0 4px; }
-
 /* Setup */
 .group { padding: 16px; margin-bottom: 14px; }
 .group-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .note { margin: 10px 0 0; font-size: 14px; color: var(--ink2); }
-#roster { list-style: none; margin: 8px 0 0; padding: 0; }
-#roster li, #add { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; }
+#roster, #saves { list-style: none; margin: 8px 0 0; padding: 0; }
+#roster li, #add, #saves li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; }
 #roster input, #add input { flex: 1; min-width: 0; border: 0; background: none; padding: 12px 0; outline: none; }
 #roster input:focus-visible, #add input:focus-visible { box-shadow: inset 0 -2px 0 var(--accent); }
-.circle { width: 30px; height: 30px; border-radius: 50%; font-size: 20px; line-height: 1; flex: none; display: grid; place-items: center; }
-.circle.remove { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
-.circle.add { background: var(--accent); color: #fff; }
+/* 30px circle drawn inside a 44px touch target. */
+.circle { width: 44px; height: 44px; padding: 7px; background-clip: content-box; border-radius: 50%; font-size: 20px; line-height: 1; flex: none; display: grid; place-items: center; }
+.circle.remove { background-color: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.circle.add { background-color: var(--accent); color: #fff; }
+.resume { flex: 1; min-width: 0; min-height: 58px; padding: 9px 0; text-align: left; }
+.resume strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume span { display: block; font-size: 14px; color: var(--ink2); }
+.resume:active:not(:disabled) { transform: none; opacity: .6; }
+#saves .btn.danger { flex: none; }
 
 .stepper { display: flex; align-items: center; background: var(--fill); border-radius: 12px; }
-.stepper button { width: 46px; height: 42px; font-size: 24px; line-height: 1; }
+.stepper button { width: 46px; height: 44px; font-size: 24px; line-height: 1; }
 .stepper input { width: 48px; border: 0; background: none; text-align: center; font: 700 21px var(--num); padding: 0; appearance: textfield; -moz-appearance: textfield; }
 .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; }
 .presets { display: flex; gap: 8px; margin-top: 12px; }
-.presets button { flex: 1; min-height: 38px; border-radius: 999px; background: var(--fill); font: 600 16px var(--num); }
+.presets button { flex: 1; min-height: 44px; border-radius: 999px; background: var(--fill); font: 600 16px var(--num); }
 .presets button[aria-pressed=true] { background: var(--accent); color: #fff; }
-
-.segmented { position: relative; display: grid; grid-template-columns: 1fr 1fr; background: var(--fill); border-radius: 12px; padding: 3px; margin-top: 12px; }
-.segmented::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc(50% - 3px); border-radius: 9px; background: var(--thumb); box-shadow: 0 1px 4px rgba(0, 0, 0, .14); transition: transform .28s cubic-bezier(.3, .7, .3, 1); }
-.segmented:has(label:last-child input:checked)::before { transform: translateX(100%); }
-.segmented label { position: relative; text-align: center; padding: 9px 6px; font-size: 15px; font-weight: 600; cursor: pointer; border-radius: 9px; }
-.segmented input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
-.segmented label:has(:focus-visible) { outline: 3px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+#modeSeg { margin-top: 12px; }
 
 details summary { font-weight: 600; cursor: pointer; }
 details ul { margin: 10px 0 0; padding-left: 20px; color: var(--ink2); font-size: 15px; }
 details li + li { margin-top: 6px; }
-#start { margin: 6px 0 14px; }
+#start { margin-top: 6px; }
+#startHint { text-align: center; margin: 8px 0 0; }
+#setup > details { margin-top: 14px; }
+
+/* Settings */
+.appearance { display: flex; align-items: center; gap: 12px; }
+.appearance .segmented { flex: 1; }
+#settingsDone { margin-top: 10px; }
 
 /* Game */
 #game { flex: 1; display: flex; flex-direction: column; }
-.hero { text-align: center; padding: 6px 0 18px; }
+.hero { text-align: center; padding: 0 0 18px; }
+#roundLabel { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink2); }
 #pot { margin: 0; font: 700 clamp(84px, 30vw, 128px)/1 var(--num); letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
 #pot.pop { animation: pop .28s ease-out; }
 #pot.bust { animation: shake .4s; color: var(--danger); }
@@ -67,7 +71,7 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
 .pts { text-align: right; font-variant-numeric: tabular-nums; }
 .score { display: block; font: 700 23px/1.15 var(--num); }
 .proj { display: block; font: 600 14px var(--num); color: var(--ink2); min-height: 20px; }
-.bank { min-height: 40px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); font-weight: 600; font-size: 16px; }
+.bank { min-height: 44px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 15%, transparent); color: var(--accent); font-weight: 600; font-size: 16px; }
 .took { text-align: center; color: var(--good); font: 700 16px var(--num); }
 /* The divider under each row is also its score bar: solid is banked, faint is what banking now would add. */
 .bar { position: absolute; left: 16px; right: 16px; bottom: 0; height: 2px; border-radius: 2px;
@@ -99,15 +103,34 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
 </head>
 <body>
 <div class="app">
-  <nav class="top">
-    <a id="back" href="../index.html">‹ Games</a>
-    <span id="roundLabel"></span>
-    <button id="undo" hidden>Undo</button>
+  <nav class="topbar glass" id="bar" aria-label="Bank">
+    <i class="hl" aria-hidden="true"></i>
+    <a class="item" id="gamesLink" href="../index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+      <span>Games</span>
+    </a>
+    <button class="item" id="endBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
+      <span>End game</span>
+    </button>
+    <button class="item" id="undo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 4 9l4 4"/><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H10"/></svg>
+      <span>Undo</span>
+    </button>
+    <button class="item" id="settingsBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+      <span>Settings</span>
+    </button>
   </nav>
 
   <main id="setup">
     <h1>Bank</h1>
     <p class="lede">Push your luck together. Bank before the seven.</p>
+
+    <section class="glass group" id="savedGroup" hidden>
+      <h2>Saved games</h2>
+      <ul id="saves"></ul>
+    </section>
 
     <section class="glass group">
       <h2>Players</h2>
@@ -132,14 +155,15 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
 
     <section class="glass group">
       <h2 id="diceTitle">Dice</h2>
-      <div class="segmented" role="radiogroup" aria-labelledby="diceTitle">
-        <label><input type="radio" name="mode" value="tap">Tap your roll</label>
-        <label><input type="radio" name="mode" value="dice">Roll on screen</label>
+      <div class="segmented" id="modeSeg" role="group" aria-labelledby="diceTitle">
+        <button value="tap">Tap your roll</button>
+        <button value="dice">Roll on screen</button>
       </div>
       <p class="note" id="modeNote"></p>
     </section>
 
     <button class="btn primary" id="start">Start game</button>
+    <p class="note" id="startHint">Add at least two players to start.</p>
 
     <details class="glass group">
       <summary>How to play</summary>
@@ -155,6 +179,7 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
 
   <main id="game" hidden>
     <div class="hero">
+      <p id="roundLabel"></p>
       <span class="sr" id="potLabel">In the bank</span>
       <p id="pot" aria-labelledby="potLabel pot"></p>
       <p id="phase"></p>
@@ -176,6 +201,51 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
   </main>
 </div>
 
+<dialog class="sheet glass" id="endSheet" aria-labelledby="endTitle">
+  <div>
+    <h2 id="endTitle"></h2>
+    <p id="endNote"></p>
+    <button class="btn primary" id="saveExit">Save and exit</button>
+    <button class="btn danger" id="discard"></button>
+    <button class="btn" id="keep"></button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="settings" aria-labelledby="settingsTitle">
+  <div>
+    <h2 id="settingsTitle">Settings</h2>
+    <h3 id="themeTitle">Appearance</h3>
+    <div class="appearance">
+      <div class="segmented" id="themeSeg" role="group" aria-labelledby="themeTitle">
+        <button value="system">System</button>
+        <button value="light">Light</button>
+        <button value="dark">Dark</button>
+      </div>
+      <svg class="theme-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(45 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(90 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(135 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(180 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(225 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(270 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(315 12 12)"/>
+        <circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>
+        <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <h3 id="sortTitle">Sort standings by</h3>
+    <div class="segmented" id="sortSeg" role="group" aria-labelledby="sortTitle">
+      <button value="score">Banked points</button>
+      <button value="potential">If banked now</button>
+    </div>
+    <button class="btn" id="settingsDone">Done</button>
+  </div>
+</dialog>
+
+<template id="xIcon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></template>
+
+<script src="../platform.js"></script>
 <script>
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -184,6 +254,9 @@ const el = (tag, cls, text) => {
   if (text != null) e.textContent = text; // textContent, never innerHTML: names are user input
   return e;
 };
+const xIcon = () => $('xIcon').content.firstElementChild.cloneNode(true);
+const listOf = names => new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
+const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 // The whole scoring rule. Returns the new bank, or null when the roll ends the round.
 function applyRoll(pot, rollNo, sum, doubles) {
@@ -197,12 +270,30 @@ console.assert(applyRoll(50, 4, 6, true) === 100, 'late doubles double');
 console.assert(applyRoll(50, 4, 7, false) === null, 'late 7 ends the round');
 console.assert(applyRoll(50, 5, 5, false) === 55, 'late roll adds');
 
+// Standings order: highest first, by banked score or by what each player would have if they banked now.
+// Ties keep the order players were entered.
+function standings(scores, inRound, pot, byPotential) {
+  const v = i => scores[i] + (byPotential && inRound[i] ? pot : 0);
+  return scores.map((_, i) => i).sort((a, b) => v(b) - v(a) || a - b);
+}
+console.assert(standings([5, 9, 5], [true, true, true], 40, false).join() === '1,0,2', 'highest first, ties keep entry order');
+console.assert(standings([10, 0, 30], [false, true, false], 25, true).join() === '2,1,0', 'potential adds the bank only for players still in');
+
+// A saved or autosaved game is outside data: check its shape before playing it.
+const okGame = s => !!s && Array.isArray(s.names) && s.names.length >= 2 && s.names.every(n => typeof n === 'string')
+  && Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= 99 && (s.mode === 'tap' || s.mode === 'dice')
+  && !!s.g && Number.isInteger(s.g.round) && Number.isInteger(s.g.pot) && Number.isInteger(s.g.rolls)
+  && Array.isArray(s.g.scores) && s.g.scores.length === s.names.length && s.g.scores.every(Number.isInteger)
+  && Array.isArray(s.g.banked) && s.g.banked.length === s.names.length
+  && Array.isArray(s.hist) && s.hist.every(h => h && typeof h.g === 'string');
+
 // ---- State: saved on every change so a refresh or a sleeping phone loses nothing.
-const KEY = 'nl-bank-v1';
-let S = { names: ['Player 1', 'Player 2'], rounds: 15, mode: 'tap', g: null, hist: [] };
+const KEY = 'nl-bank-v2';
+const me = NL.identity();
+let S = { names: me ? [me.displayName] : [], rounds: 15, mode: 'tap', sort: 'score', g: null, hist: [], saveId: null };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
-  if (saved && Array.isArray(saved.names) && saved.names.length) S = { ...S, ...saved };
+  if (saved && Array.isArray(saved.names) && (saved.g === null || okGame(saved))) S = { ...S, ...saved };
 } catch {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 const finished = () => S.g.round > S.rounds;
@@ -223,10 +314,12 @@ function undo() {
 }
 
 function start() {
-  S.names = S.names.map((n, i) => n.trim() || `Player ${i + 1}`);
+  S.names = S.names.map(n => n.trim()).filter(Boolean);
+  if (S.names.length < 2) return render();
   S.g = { round: 1, pot: 0, rolls: 0, turn: 0, ended: false, bust: false, msg: '', dice: null,
           scores: S.names.map(() => 0), banked: S.names.map(() => null) };
   S.hist = [];
+  S.saveId = null;
   render();
 }
 
@@ -276,6 +369,59 @@ function nextRound() {
   });
 }
 
+// ---- Saved games, through the shared NL.saves adapter.
+async function saveGame() {
+  S.saveId ||= crypto.randomUUID(); // set before awaiting so a double tap updates one record
+  const old = await NL.saves.get(S.saveId), now = new Date().toISOString();
+  await NL.saves.put({
+    schemaVersion: 1, id: S.saveId, game: 'bank',
+    personPublicId: old ? old.personPublicId : NL.identity()?.personPublicId ?? null,
+    title: listOf(S.names), status: finished() ? 'finished' : 'in_progress',
+    createdAt: old ? old.createdAt : now, updatedAt: now,
+    state: { names: S.names, rounds: S.rounds, mode: S.mode, g: S.g, hist: S.hist.slice(-50) },
+  });
+}
+
+async function resume(id) {
+  const r = await NL.saves.get(id);
+  if (!r || !okGame(r.state)) return renderSaves();
+  const { names, rounds, mode, g, hist } = r.state;
+  Object.assign(S, { names, rounds, mode, g, hist, saveId: r.id });
+  render();
+}
+
+function saveStatus({ names, rounds, g }) {
+  if (g.round <= rounds) return `Round ${g.round} of ${rounds}`;
+  const max = Math.max(...g.scores), won = names.filter((_, i) => g.scores[i] === max);
+  return `Finished, ${listOf(won)} ${won.length > 1 ? 'tied' : 'won'}`;
+}
+
+async function renderSaves() {
+  const recs = (await NL.saves.list('bank')).filter(r => okGame(r.state));
+  $('savedGroup').hidden = !recs.length;
+  $('saves').replaceChildren(...recs.map(r => {
+    const li = el('li'), open = el('button', 'resume'), del = el('button');
+    const when = new Date(r.updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    open.append(el('strong', '', r.title), el('span', '', `${saveStatus(r.state)} · ${when}`));
+    open.onclick = () => resume(r.id);
+    // Two-step delete in place: the X turns into a Delete button, and leaving it puts the X back.
+    const arm = on => {
+      del.className = on ? 'btn danger' : 'circle remove';
+      del.replaceChildren(on ? 'Delete' : xIcon());
+      del.setAttribute('aria-label', on ? `Confirm delete ${r.title}` : `Delete ${r.title}`);
+    };
+    del.onclick = async () => {
+      if (!del.classList.contains('btn')) { arm(true); del.focus(); return; }
+      try { await NL.saves.remove(r.id); } catch {}
+      renderSaves();
+    };
+    del.onblur = () => arm(false);
+    arm(false);
+    li.append(open, del);
+    return li;
+  }));
+}
+
 // ---- Keypad (tap mode): the totals 2 to 12, plus Doubles.
 const keys = {};
 for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 'D']) {
@@ -283,9 +429,7 @@ for (const n of [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 'D']) {
   k.append(el('span', '', n === 'D' ? 'Doubles' : n), el('small'));
   k.onclick = () => {
     navigator.vibrate?.(8);
-    const live = S.g.rolls >= 3;
-    // 2 and 12 can only be rolled as doubles.
-    n === 'D' ? roll(0, true) : roll(n, live && (n === 2 || n === 12));
+    n === 'D' ? roll(0, true) : roll(n, false);
   };
   $('keypad').append(keys[n] = k);
 }
@@ -302,7 +446,8 @@ function renderKeys(live) {
       k.disabled = !live; // in the safe rolls doubles are just their total
       sub.textContent = live ? 'bank ×2' : 'tap the total';
     } else if (live && (n === '2' || n === '12')) {
-      sub.textContent = 'bank ×2';
+      k.disabled = true; // only ever rolled as doubles, so this teaches the Doubles key
+      sub.textContent = 'doubles';
     }
     k.setAttribute('aria-label', `${n === 'D' ? 'Doubles' : 'Rolled ' + n}${sub.textContent ? ', ' + sub.textContent : ''}`);
   }
@@ -329,35 +474,49 @@ function rollDice() {
   rolling = true; spins++;
   $('roll').disabled = true;
   showDice([a, b]);
-  const still = matchMedia('(prefers-reduced-motion: reduce)').matches;
-  setTimeout(() => { rolling = false; roll(a + b, a === b, [a, b]); }, still ? 0 : 950);
+  setTimeout(() => { rolling = false; if (S.g) roll(a + b, a === b, [a, b]); }, still() ? 0 : 950);
 }
 
 // ---- Rendering
+const showMode = NL.segmented($('modeSeg'), v => { S.mode = v; render(); });
+const showSort = NL.segmented($('sortSeg'), v => { S.sort = v; render(); });
+const showTheme = NL.segmented($('themeSeg'), v => { NL.theme.set(v); showTheme(v); });
+const hideHighlight = NL.topbar($('bar'));
+
+function gateStart() {
+  const ready = S.names.filter(n => n.trim()).length >= 2; // Bank needs two players
+  $('start').disabled = !ready;
+  $('startHint').hidden = ready;
+}
+
 function renderSetup() {
   $('roster').replaceChildren(...S.names.map((n, i) => {
-    const li = el('li'), input = el('input'), rm = el('button', 'circle remove', '−');
+    const li = el('li'), input = el('input'), rm = el('button', 'circle remove');
     input.value = n; input.maxLength = 20;
     input.setAttribute('aria-label', `Player ${i + 1} name`);
-    input.oninput = () => { S.names[i] = input.value; save(); };
+    input.oninput = () => { S.names[i] = input.value; save(); gateStart(); };
+    rm.append(xIcon());
     rm.setAttribute('aria-label', `Remove ${n || 'player ' + (i + 1)}`);
-    rm.hidden = S.names.length <= 2; // Bank needs two players
     rm.onclick = () => { S.names.splice(i, 1); render(); };
     li.append(input, rm);
     return li;
   }));
+  gateStart();
   $('rounds').value = S.rounds;
   for (const b of $('presets').children) b.setAttribute('aria-pressed', +b.textContent === S.rounds);
-  document.querySelector(`[name=mode][value=${S.mode}]`).checked = true;
+  showMode(S.mode);
   $('modeNote').textContent = S.mode === 'tap'
     ? 'Roll your own dice, then tap the total.'
     : 'The game rolls two dice for you.';
+  renderSaves();
 }
 
+// Row elements are kept per player so they can glide to their new place when the order changes.
+let rows = [];
 function renderGame() {
   const g = S.g, fin = finished(), live = !fin && !g.ended && g.rolls >= 3;
   const max = Math.max(...g.scores);
-  const inRound = i => !fin && !g.ended && g.banked[i] === null;
+  const inRound = S.names.map((_, i) => !fin && !g.ended && g.banked[i] === null);
   document.body.classList.toggle('live', live);
   $('roundLabel').textContent = fin ? 'Final scores' : `Round ${g.round} of ${S.rounds}`;
 
@@ -375,20 +534,20 @@ function renderGame() {
     : 'Live. A seven ends the round.';
   $('msg').textContent = fin ? `${max} points` : g.msg;
 
-  // Standings. Seats stay put during play so Bank buttons never move; the final table is sorted.
-  const order = S.names.map((_, i) => i);
-  if (fin) order.sort((a, b) => g.scores[b] - g.scores[a]);
-  const scale = Math.max(1, ...g.scores.map((s, i) => inRound(i) ? s + g.pot : s));
-  $('players').replaceChildren(...order.map(i => {
+  // Standings: sorted by the setting. Rank and gap always count banked points.
+  if (rows.length !== S.names.length) $('players').replaceChildren(...(rows = S.names.map(() => el('li'))));
+  const before = rows.map(r => r.getClientRects().length ? r.getBoundingClientRect().top : null);
+  const scale = Math.max(1, ...g.scores.map((s, i) => inRound[i] ? s + g.pot : s));
+  rows.forEach((li, i) => {
     const s = g.scores[i], leads = max > 0 && s === max;
-    const li = el('li', leads ? 'row lead' : 'row');
+    li.className = leads ? 'row lead' : 'row';
     const who = el('div'), pts = el('div', 'pts');
     who.append(el('span', 'name', S.names[i]),
       el('span', 'gap', max === 0 ? '' : !leads ? `${max - s} behind` : winners.length > 1 ? 'Tied for first' : fin ? 'Winner' : 'Leading'));
-    const proj = el('span', 'proj', inRound(i) && g.pot > 0 ? s + g.pot : '');
+    const proj = el('span', 'proj', inRound[i] && g.pot > 0 ? s + g.pot : '');
     proj.title = 'Total if banked now';
     pts.append(el('span', 'score', s), proj);
-    li.append(el('span', 'rank', max > 0 ? 1 + g.scores.filter(x => x > s).length : ''), who, pts);
+    li.replaceChildren(el('span', 'rank', max > 0 ? 1 + g.scores.filter(x => x > s).length : ''), who, pts);
     if (g.banked[i] !== null) li.append(el('span', 'took', `+${g.banked[i]}`));
     else if (fin || g.ended) li.append(el('span'));
     else {
@@ -400,10 +559,14 @@ function renderGame() {
     }
     const bar = el('i', 'bar');
     bar.style.setProperty('--w', `${100 * s / scale}%`);
-    bar.style.setProperty('--p', `${100 * (inRound(i) ? s + g.pot : s) / scale}%`);
+    bar.style.setProperty('--p', `${100 * (inRound[i] ? s + g.pot : s) / scale}%`);
     li.append(bar);
-    return li;
-  }));
+  });
+  $('players').append(...standings(g.scores, inRound, g.pot, S.sort === 'potential').map(i => rows[i]));
+  if (!still()) rows.forEach((r, i) => { // FLIP: start each row where it was, then let it slide home
+    const dy = before[i] === null ? 0 : before[i] - r.getBoundingClientRect().top;
+    if (dy) r.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 350, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+  });
   $('legend').textContent = !fin && !g.ended && g.pot > 0 ? 'The grey number is your total if you bank now.' : '';
 
   const tap = S.mode === 'tap', playing = !fin && !g.ended;
@@ -421,15 +584,19 @@ function renderGame() {
   $('next').textContent = g.round >= S.rounds ? 'See final scores' : 'Next round';
 }
 
+let wasPlaying;
 function render() {
   save();
   const playing = !!S.g;
+  if (playing !== wasPlaying) hideHighlight(); // the bar's items change between screens
+  wasPlaying = playing;
   $('setup').hidden = playing;
   $('game').hidden = !playing;
-  $('undo').hidden = !playing;
+  $('gamesLink').hidden = playing;
+  $('endBtn').hidden = $('undo').hidden = !playing;
   $('undo').disabled = !canUndo();
-  $('back').textContent = playing ? '‹ End game' : '‹ Games';
-  if (!playing) { document.body.classList.remove('live'); $('roundLabel').textContent = ''; }
+  showSort(S.sort);
+  if (!playing) document.body.classList.remove('live');
   playing ? renderGame() : renderSetup();
 }
 
@@ -463,20 +630,38 @@ for (const [id, step] of [['less', -1], ['more', 1]]) {
   b.onpointerdown = () => { stop(); wait = setTimeout(() => repeat = setInterval(() => setRounds(S.rounds + step), 90), 400); };
   b.onpointerup = b.onpointerleave = b.onpointercancel = stop;
 }
-for (const r of document.querySelectorAll('[name=mode]')) r.onchange = () => { S.mode = r.value; render(); };
 
 $('start').onclick = start;
 $('undo').onclick = undo;
 $('roll').onclick = rollDice;
 $('next').onclick = nextRound;
 $('again').onclick = start;
-const toSetup = () => { S.g = null; S.hist = []; render(); };
+const toSetup = () => { S.g = null; S.hist = []; S.saveId = null; render(); };
 $('edit').onclick = toSetup;
-$('back').onclick = e => {
-  if (!S.g) return; // on setup this is a plain link back to Games
-  e.preventDefault();
-  if (finished() || confirm('End this game? Scores will be cleared.')) toSetup();
+
+// ---- Sheets. Esc and a backdrop click close them (for End game that means keep playing).
+for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
+$('endBtn').onclick = () => {
+  const fin = finished();
+  $('endTitle').textContent = fin ? 'Leave the final scores?' : 'End this game?';
+  $('endNote').textContent = fin ? 'Save the result to see it again later.' : 'Save it to pick up later from Saved games.';
+  $('discard').textContent = fin ? 'Exit without saving' : 'End without saving';
+  $('keep').textContent = fin ? 'Back to scores' : 'Keep playing';
+  $('endSheet').showModal();
 };
+$('saveExit').onclick = async () => {
+  try {
+    await saveGame();
+    $('endSheet').close();
+    toSetup();
+  } catch {
+    $('endNote').textContent = 'Could not save on this device.';
+  }
+};
+$('discard').onclick = () => { $('endSheet').close(); toSetup(); };
+$('keep').onclick = () => $('endSheet').close();
+$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); $('settings').showModal(); };
+$('settingsDone').onclick = () => $('settings').close();
 
 render();
 </script>

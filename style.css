@@ -1,19 +1,33 @@
-/* Shared look for every NordgrenLabs game: tokens, ambient backdrop, glass, buttons. */
+/* Shared look for every NordgrenLabs game: tokens, ambient backdrop, glass, buttons, top bar, sheets, segmented control. */
 :root {
   color-scheme: light dark;
   --canvas: #f2f2f7; --solid: #fff; --ink: #1d1d1f; --ink2: #6e6e73;
-  --accent: #0071e3; --danger: #d70015; --good: #1d7a33;
+  --accent: #0071e3; --danger: #d70015; --good: #1d7a33; --primary: #0071e3;
   --glass: rgba(255, 255, 255, .58); --glass-strong: rgba(255, 255, 255, .8);
   --edge: rgba(255, 255, 255, .75); --hair: rgba(60, 60, 67, .14); --fill: rgba(120, 120, 128, .13);
   --thumb: #fff;
   --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 12px 40px rgba(0, 0, 0, .08);
   --text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --num: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+  /* Spring with stiffness 400, damping 30 (mass 1), sampled into linear(). */
+  --spring: linear(0, .068, .22, .398, .569, .715, .829, .912, .967, 1.002, 1.02, 1.027, 1.028, 1.025, 1.02, 1.015, 1.011, 1.007, 1.004, 1.002, 1, 1, 1);
+  --spring-dur: .45s;
+}
+:root[data-theme="light"] { color-scheme: light; }
+/* data-theme is set before paint by the inline script in each page's <head>; the media query covers pages without it. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --canvas: #000; --solid: #1c1c1e; --ink: #f5f5f7; --ink2: #a1a1a6;
+  --accent: #2997ff; --danger: #ff453a; --good: #30d158; --primary: #0a84ff;
+  --glass: rgba(44, 44, 46, .55); --glass-strong: rgba(72, 72, 74, .6);
+  --edge: rgba(255, 255, 255, .13); --hair: rgba(255, 255, 255, .1); --fill: rgba(120, 120, 128, .26);
+  --thumb: #636366;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .5);
 }
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme]) {
     --canvas: #000; --solid: #1c1c1e; --ink: #f5f5f7; --ink2: #a1a1a6;
-    --accent: #2997ff; --danger: #ff453a; --good: #30d158;
+    --accent: #2997ff; --danger: #ff453a; --good: #30d158; --primary: #0a84ff;
     --glass: rgba(44, 44, 46, .55); --glass-strong: rgba(72, 72, 74, .6);
     --edge: rgba(255, 255, 255, .13); --hair: rgba(255, 255, 255, .1); --fill: rgba(120, 120, 128, .26);
     --thumb: #636366;
@@ -72,11 +86,47 @@ button { border: 0; background: none; padding: 0; cursor: pointer; transition: t
 button:active:not(:disabled) { transform: scale(.96); }
 button:disabled { opacity: .35; cursor: default; }
 .btn { min-height: 44px; padding: 0 18px; border-radius: 999px; background: var(--fill); font-weight: 600; }
-.btn.primary { width: 100%; min-height: 54px; background: var(--accent); color: #fff; font-size: 18px; }
-@media (prefers-color-scheme: dark) { .btn.primary { background: #0a84ff; } }
+.btn.primary { width: 100%; min-height: 54px; background: var(--primary); color: #fff; font-size: 18px; }
+.btn.danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
 
 a.tile { display: block; padding: 20px; color: var(--ink); }
 a.tile strong { display: block; font: 700 24px var(--num); }
 a.tile span { color: var(--ink2); }
+
+/* Floating top bar: actions as icon + label, with a highlight that springs to the hovered, focused or pressed item. */
+.topbar { position: sticky; top: max(10px, env(safe-area-inset-top)); z-index: 10; align-self: center; display: flex; padding: 4px; margin: 10px 0 14px; border-radius: 999px; }
+.topbar .item { position: relative; z-index: 1; flex: 1; min-width: 76px; min-height: 52px; padding: 6px 12px 5px; border-radius: 999px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; color: var(--ink); font-size: 11px; font-weight: 600; line-height: 1.1; }
+.topbar .item span { color: var(--ink2); }
+.topbar .item svg { width: 22px; height: 22px; }
+.topbar .hl { position: absolute; top: 4px; bottom: 4px; left: 0; width: var(--w, 0); transform: translateX(var(--x, 0)); border-radius: 999px; background: var(--fill); opacity: 0;
+  transition: transform var(--spring-dur) var(--spring), width var(--spring-dur) var(--spring), opacity .2s; }
+.topbar .hl.on { opacity: 1; }
+.topbar .hl.jump { transition: opacity .2s; }
+
+/* Sheets: a native <dialog> opened with showModal(); the inner div carries the padding so a click on the dialog itself is a backdrop click. */
+dialog.sheet { width: min(100% - 24px, 408px); max-width: none; margin: auto auto max(12px, env(safe-area-inset-bottom)); padding: 0; color: var(--ink); }
+dialog.sheet > div { padding: 22px 18px 18px; display: grid; gap: 10px; }
+dialog.sheet h2 { font-size: 20px; }
+dialog.sheet h3 { margin: 10px 0 0; font-size: 15px; font-weight: 600; color: var(--ink2); }
+dialog.sheet p { margin: 0 0 6px; color: var(--ink2); font-size: 15px; }
+dialog.sheet::backdrop { background: rgba(0, 0, 0, .3); }
+dialog.sheet[open] { animation: sheet-in var(--spring-dur) var(--spring); }
+@keyframes sheet-in { from { transform: translateY(40px); opacity: 0; } }
+
+/* Segmented control: a role=group of <button aria-pressed>; NL.segmented() sets --n and --i so the thumb springs to the chosen one. */
+.segmented { position: relative; display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; background: var(--fill); border-radius: 12px; padding: 3px; }
+.segmented::before { content: ""; position: absolute; top: 3px; bottom: 3px; left: 3px; width: calc((100% - 6px) / var(--n, 2)); transform: translateX(calc(100% * var(--i, 0)));
+  border-radius: 9px; background: var(--thumb); box-shadow: 0 1px 4px rgba(0, 0, 0, .14); transition: transform var(--spring-dur) var(--spring); }
+.segmented button { position: relative; min-height: 44px; padding: 0 6px; font-size: 15px; font-weight: 600; border-radius: 9px; }
+.segmented button:active { transform: none; }
+
+/* Sun/moon icon showing the resolved theme: rays draw out, the disc shrinks, the moon grows in. */
+.theme-icon { flex: none; color: var(--ink2); }
+.theme-icon line { stroke-dasharray: 1; stroke-dashoffset: 0; transition: stroke-dashoffset .7s ease-in-out, opacity .7s ease-in-out; }
+.theme-icon circle, .theme-icon path { transform-box: view-box; transform-origin: 12px 12px; transition: transform .7s ease-in-out, opacity .7s ease-in-out; }
+.theme-icon path { transform: scale(0); opacity: 0; }
+:root[data-theme="dark"] .theme-icon line { stroke-dashoffset: 1; opacity: 0; }
+:root[data-theme="dark"] .theme-icon circle { transform: scale(0); }
+:root[data-theme="dark"] .theme-icon path { transform: scale(1); opacity: 1; }
 
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation: none !important; transition: none !important; } }
