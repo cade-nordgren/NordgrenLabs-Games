@@ -4,6 +4,7 @@ import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { verify, AUTHORIZED_PARTY } from './seam.js';
+import { openDb, handleSaves } from './saves.js';
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const REQUIRED = ['CLERK_PUBLISHABLE_KEY', 'CLERK_JWT_KEY', 'CLERK_ISSUER'];
@@ -25,7 +26,7 @@ export function checkEnv(env) {
   return problems;
 }
 
-export function createServer({ publishableKey, jwtKey, issuer }) {
+export function createServer({ publishableKey, jwtKey, issuer, db }) {
   return http.createServer(async (req, res) => {
     const send = (status, type, body, headers = {}) => {
       res.writeHead(status, { 'Content-Type': type, 'X-Content-Type-Options': 'nosniff', ...headers });
@@ -36,12 +37,20 @@ export function createServer({ publishableKey, jwtKey, issuer }) {
     const raw = req.url.split('?')[0];
 
     if (raw === '/api' || raw.startsWith('/api/')) {
-      if (raw !== '/api/me') return json(404, { error: 'not_found' });
-      if (req.method !== 'GET') return json(405, { error: 'method_not_allowed' }, { Allow: 'GET' });
+      const id = /^\/api\/saves\/([^/]+)$/.exec(raw)?.[1];
+      const allow = raw === '/api/me' || raw === '/api/saves' ? 'GET' : id ? 'GET, PUT, DELETE' : null;
+      if (!allow) return json(404, { error: 'not_found' });
+      if (!allow.split(', ').includes(req.method)) return json(405, { error: 'method_not_allowed' }, { Allow: allow });
       const r = await verify(req.headers.authorization, { jwtKey, issuer, authorizedParty: AUTHORIZED_PARTY });
       if (!r.ok) return json(401, { error: 'unauthenticated' });
       if (r.personPublicId === null) return json(403, { error: 'not_associated' });
-      return json(200, { personPublicId: r.personPublicId });
+      if (raw === '/api/me') return json(200, { personPublicId: r.personPublicId });
+      try {
+        const game = new URLSearchParams(req.url.split('?')[1]).get('game');
+        return json(...await handleSaves(db, req, r.personPublicId, id, game));
+      } catch {
+        return json(503, { error: 'unavailable' });
+      }
     }
 
     if (req.method !== 'GET' && req.method !== 'HEAD') return send(405, 'text/plain', 'Method not allowed', { Allow: 'GET, HEAD' });
@@ -83,5 +92,6 @@ if (import.meta.main) {
     publishableKey: process.env.CLERK_PUBLISHABLE_KEY,
     jwtKey: process.env.CLERK_JWT_KEY,
     issuer: process.env.CLERK_ISSUER,
+    db: openDb(process.env.GAMES_DB || path.join(import.meta.dirname, 'data', 'games.db')),
   }).listen(port, () => console.log(`games server on http://localhost:${port}/`));
 }
