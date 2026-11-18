@@ -15,6 +15,7 @@ platform.js         shared: window.NL (saves, identity, sign-in, theme, menu, se
 config.js           placeholder for the server's /config.js (Clerk publishable key); keeps the static preview signed out
 bank/index.html     one game: its own CSS and JS inline
 tidevault/index.html solo dive game: its own CSS and JS inline
+dungeon/index.html  table companion for an owned dungeon board game: its own CSS and JS inline
 docs/BUILD-GUIDE.md this file
 docs/decisions/     decision records (0001: platform adoption)
 ```
@@ -90,3 +91,4 @@ Production runs one container built from `Dockerfile` and started by `docker-com
 - **Original designs only.** Bank shares only folk rules with other Bank scorekeepers; no copied layouts, art or text.
 - **Bank specifics.** Standings are always sorted (banked points, or "if banked now" as a setting); rank and gap always use banked points. Rows are keyed per player and slide into place (FLIP). In the live phase the 2 and 12 keys are disabled with the label "doubles" so players learn the Doubles key.
 - **Tidevault specifics.** A solo push-your-luck dive on a 7x7 map revealed room by room from a weighted bag, driven by a seeded PRNG kept in the run (`g.rng`) so runs replay and undo restores the dice too. Every finished run (surfaced, drowned or caught by the tide) saves itself once as a finished record titled with its relic value, and Best runs ranks those; Undo is off once a run is over.
+- **Dungeon companion specifics.** A helper used beside a physical dungeon board game the owner already has, like Bank is a scorekeeper. It holds no published content (no card texts, art, hero names, title or branding): players type their own hero numbers, and it only tracks HP, gold, vault cards, status, the sun (1 to 27), d12 stat tests, the 8-card guardian deck and a simple fight tally. Plain rolls skip the undo history; everything else goes through `change()`. Escaped heroes rank by gold plus the vault card value typed in at the end; nobody escaped means the castle wins.
