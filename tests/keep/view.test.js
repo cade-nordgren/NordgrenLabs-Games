@@ -2,7 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { reduce, serialize, restore } from '../../site/keep/engine/reducer.js';
-import { view, canUndoTo } from '../../site/keep/engine/view.js';
+import { view, canUndoTo, screenOwner } from '../../site/keep/engine/view.js';
 import { FX, setup, act, acts, place, putHero, give, slotsOf, EMPTY_ROOMS } from './helpers.js';
 
 function combatGame() {
@@ -85,4 +85,29 @@ test('T29 engine part: save mid-combat with a hidden pick, restore, continue ide
   const next = a => reduce(a, acts(a).find(x => x.side === 'monster' && x.letter === 'C'), FX);
   assert.equal(serialize(next(restored)), serialize(next(g)));
   assert.throws(() => reduce(g, { type: 'COMBAT_PICK', seat: 0, side: 'hero', letter: 'B' }, FX), /Illegal/, 'no second pick by refresh or double click');
+});
+
+test('view gold: the holder sees the full total, everyone else only the public held loot (RB 1, D25)', () => {
+  const g = setup({ players: 2, towers: [0, 1] });
+  give(g, 0, 'TREASURY', 'FX_TREASURY_B'); // 20, private
+  give(g, 0, 'ROOM', 'FX_ROOM_COINS');     // 7, public
+  assert.equal(view(g, FX, 0).heroes[0].gold, 27);
+  assert.equal(view(g, FX, 1).heroes[0].gold, 7);
+  assert.equal(view(g, FX, null).heroes[0].gold, 7);
+});
+
+test('screenOwner: the controller reads the card, A/B/C picks one side at a time, solo always the player (RB 8.1, RB 8.4, plan 4.9)', () => {
+  let g = combatGame();
+  assert.equal(screenOwner(g), 0, 'the hero picks first');
+  g = act(g, 'COMBAT_PICK', { side: 'hero', letter: 'A' });
+  assert.equal(screenOwner(g), 1, 'then the controller');
+  let r = setup({ players: 2, towers: [0, 1], deckOrders: { ROOM: ['FX_ROOM_MONSTER', ...EMPTY_ROOMS], MONSTER: ['FX_MON_BRUTE'] } });
+  place(r, '1,0', 'FX_CROSS');
+  place(r, '1,1', 'FX_CROSS');
+  putHero(r, 0, '1,0');
+  r = act(r, 'MOVE', { dir: 'S' });
+  assert.equal(screenOwner(r), null, 'the commit is made at the shared table');
+  r = act(r, 'RESPOND', { choice: 'attack' });
+  assert.equal(screenOwner(r), 1, 'the right-hand player reads the card');
+  assert.equal(screenOwner(setup()), 0);
 });

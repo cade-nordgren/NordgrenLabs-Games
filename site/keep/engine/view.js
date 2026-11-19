@@ -1,6 +1,8 @@
 // Hidden-information projection and undo commit points (system 1/10; plan 4.3, 4.9; SP 9, SP 11).
 // view(game, viewer) is what a given seat may see; the full state never goes to the screen.
 import { wakeOdds } from './treasury.js';
+import { heroGold } from './heroes.js';
+import { cardDef } from './decks.js';
 
 // viewer: a seat number, or null for a public screen (nobody's private cards).
 export function view(game, content, viewer = null) {
@@ -11,7 +13,9 @@ export function view(game, content, viewer = null) {
   if (v.decks) for (const cat of Object.keys(v.decks)) v.decks[cat] = { count: game.decks[cat].order.length, shuffles: game.decks[cat].shuffles };
   if (v.dragon) v.dragon = { remaining: game.dragon.remaining.length, aside: game.dragon.aside, resets: game.dragon.resets, odds: wakeOdds(game, content) };
   // RB 9.1, SP 9, D25: treasure-chamber cards are private to the holder; held loot stays public.
-  v.heroes = v.heroes.map(h => (h && h.seat !== viewer ? { ...h, treasury: h.treasury.length } : h));
+  // gold: what this viewer may know, the holder's full total, or only the public held loot for others.
+  const heldGold = h => h.held.reduce((sum, inst) => sum + (cardDef(content, inst).gold || 0), 0);
+  v.heroes = v.heroes.map(h => (!h ? h : h.seat !== viewer ? { ...h, treasury: h.treasury.length, gold: heldGold(h) } : { ...h, gold: heroGold(h, content) }));
   const enc = v.encounter;
   if (enc) {
     const isController = viewer === enc.controller;
@@ -33,6 +37,17 @@ export function view(game, content, viewer = null) {
   v.log = v.log.map(e => (e.private !== undefined && e.private !== viewer ? { ...e, value: 'hidden' } : e));
   // Hidden choices in pending effects are fine to show: they are labels of the active hero's options.
   return v;
+}
+
+// Plan 4.9: the seat that must be the only one looking at the screen right now, or null for the
+// shared table. RB 8.1: the controller reads the monster card and announces. RB 8.4: A/B/C picks
+// are made one side at a time behind a cover. Solo: the one player always looks (RB 10, SP 9).
+export function screenOwner(game) {
+  if (game.seats.length === 1) return 0;
+  const enc = game.encounter;
+  if (game.phase === 'MONSTER_REACT' && enc) return enc.controller;
+  if (game.phase === 'COMBAT_SELECT' && enc?.combat?.mode === 'abc') return enc.combat.heroPick ? enc.controller : enc.seat;
+  return null;
 }
 
 // D21 (application-only): reduce() counts commit points (an action that rolled, drew, shuffled or
