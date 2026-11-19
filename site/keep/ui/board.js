@@ -3,7 +3,7 @@
 // are legal actions from the engine. Pointer events and CSS transforms; nothing depends on hover.
 import { squareKind, sideAt, edgeKind, edgeKey, neighbour, key } from '../engine/board.js';
 import { isActive, ESCAPED } from '../engine/heroes.js';
-import { contentIndex } from '../content/schema.js';
+import { contentIndex, chamberName } from '../content/schema.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const C = 100; // one square
@@ -72,7 +72,7 @@ export function cellInfo(v, content, c, names = []) {
   const left = typeof v.board.tileBag === 'number' ? v.board.tileBag : v.board.tileBag.length;
   let what;
   if (kind === 'tower') what = towerAt(c);
-  else if (kind === 'center') what = v.board.chamberPlaced ? 'treasure chamber' : 'chamber reserve, not yet entered';
+  else if (kind === 'center') what = v.board.chamberPlaced ? chamberName(content) : `${chamberName(content)}, not yet entered`;
   else if (def) what = `revealed ${tileWords(def)}${def.mark !== 'none' ? `, ${def.mark} mark` : ''}, entry dot ${DIR[inst.entrySide]}`;
   else what = left ? 'unexplored, will reveal a tile' : 'unexplored, no tiles left';
   const sides = SIDES.map(side => ({ side, word: sideWord(v, content, c, side) }));
@@ -93,10 +93,10 @@ export function cellLabel(v, content, c, names, extra) {
   return [info.title, info.what, topology(info.sides), info.occupants.length ? list(info.occupants) : 'empty', extra].filter(Boolean).join(', ');
 }
 
-// The chamber's one label: "Treasure chamber, row 6, columns 5 to 6", then who is in it.
+// The chamber's one label: "Dragon's Lair, row 6, columns 5 to 6" (its name, chamberName), then who is in it.
 function chamberLabel(v, content, ch, names) {
   const who = ch.cells.flatMap(t => cellInfo(v, content, t, names).occupants);
-  return [`Treasure chamber, ${ch.where}`, v.board.chamberPlaced ? '' : 'not yet entered', who.length ? list(who) : 'empty'].filter(Boolean).join(', ');
+  return [`${capital(chamberName(content))}, ${ch.where}`, v.board.chamberPlaced ? '' : 'not yet entered', who.length ? list(who) : 'empty'].filter(Boolean).join(', ');
 }
 
 // ---- Glyphs
@@ -293,7 +293,13 @@ export function mountBoard(host, opts) {
         svg('rect', { x: 2, y: 2, width: w - 4, height: h - 4, rx: 4, class: v.board.chamberPlaced ? 'chamber' : 'reserved' }, g);
         const lx = w / 2, ly = ch.cells.length > 1 && w >= h ? 36 : h / 2;
         if (v.board.chamberPlaced) chestGlyph(g, lx, ly);
-        else svg('text', { x: lx, y: ly + 7, class: 'reserved-label', 'text-anchor': 'middle' }, g).textContent = 'Chamber';
+        else {
+          // The chamber's name, squeezed to fit the room when it is too long for it (about 11 units a letter at 19px).
+          const name = capital(chamberName(content)), fit = w - 16;
+          const label = svg('text', { x: lx, y: ly + 7, class: 'reserved-label', 'text-anchor': 'middle' }, g);
+          label.textContent = name;
+          if (name.length * 11 > fit) { label.setAttribute('textLength', fit); label.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+        }
       } else if (inst) {
         const def = ix.tiles.get(inst.defId);
         svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 4, class: 'floor' }, g);

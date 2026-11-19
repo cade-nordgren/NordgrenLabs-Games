@@ -1,6 +1,7 @@
 // Content slot manifest, validation and the full-fidelity start gate (plan 4.7; SP 2, SP 11, RB 2).
 // Errors name the exact id. Nothing falls back to a default.
 import { tileSlots } from '../engine/tiles.js';
+import { shownEffectText } from '../engine/describe.js';
 
 const SIDE_VALUES = ['wall', 'open', 'door', 'gate'];
 const STATUS = ['EMPTY', 'DRAFT', 'OWNER_APPROVED', 'FIXTURE'];
@@ -333,6 +334,8 @@ export function mixContent(own, fx) {
   m.specialWeapons = m.specialWeapons.filter(w => w.status !== 'FIXTURE' || w.heroIds.every(id => heroIds.has(id)));
   const weaponIds = new Set(m.specialWeapons.map(w => w.id));
   m.heroes = m.heroes.map(h => (h.status === 'FIXTURE' && h.specialWeaponId && !weaponIds.has(h.specialWeaponId) ? { ...h, specialWeaponId: null } : h));
+  // Fixture cards carry their generated line as `text`: say it again with the owner's chamber name.
+  if (own.chamber?.name) for (const k of ALL_CARD_KEYS) m[k] = m[k].map(e => (e.status === 'FIXTURE' && e.text ? { ...e, text: shownEffectText(e, chamberName(m)) } : e));
   return m;
 }
 
@@ -360,6 +363,13 @@ export function contentStatus(own, fx, mode = 'mixed') {
       : `Play-test is off: ${mixReport.errors[0]?.message || 'a slot has nothing in it'}.`,
   };
 }
+
+// The chamber's name as players read it (owner, 2026-11-19: "The Chamber is the Dragon's Lair"): the content's
+// chamber `name`, else the generic wording. A leading "The" is dropped so "the Dragon's Lair" never doubles it.
+export const chamberName = content => content?.chamber?.name?.trim().replace(/^the\s+/i, '') || 'treasure chamber';
+export const theChamber = content => `the ${chamberName(content)}`;
+export const chamberCards = (content, n = 2) => `${chamberName(content)} ${n === 1 ? 'card' : 'cards'}`;
+export const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 // Lookup maps, built once per content object.
 const cache = new WeakMap();

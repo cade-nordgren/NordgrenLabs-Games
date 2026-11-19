@@ -6,7 +6,7 @@
 // spec v3 forbids inventing item effects, so a special weapon card without one shows as pending.
 import { logEvent } from './dice.js';
 import { toBottom, cardDef } from './decks.js';
-import { contentIndex } from '../content/schema.js';
+import { contentIndex, chamberName, chamberCards, capital } from '../content/schema.js';
 import { shownEffectText } from './describe.js';
 
 export const groupOf = def => (def.kind === 'treasure' ? 'treasure' : 'items');
@@ -49,8 +49,8 @@ const TIMING_REASON = {
   'turn-action': 'Only as your action at the start of your turn',
   'encounter-special': 'Only as a special weapon, before a monster is revealed (not in an ambush)',
 };
-function cardReason(def, left, group) {
-  if (group === 'chamber') return 'Treasure chamber card: no use; its gold counts if you escape, and each one adds 1 to a well jump';
+function cardReason(def, left, group, content) {
+  if (group === 'chamber') return `${capital(chamberCards(content, 1))}: no use; its gold counts if you escape, and each one adds 1 to a well jump`;
   if (def.specialWeapon && !def.use) return 'Special weapon: its card effect is pending (not yet supplied)';
   if (!def.use) return group === 'treasure' ? 'Treasure: no use; its gold counts if you escape' : 'No use in its card data';
   if (left === 0) return 'No uses left';
@@ -69,9 +69,9 @@ export function inventoryView(g, content, seat, viewer, legal) {
     const actions = mine(a => a.item === inst || a.card === inst);
     const usable = actions.some(a => a.type !== 'WELL_DISCARD');
     return {
-      inst, id: def.id, name: def.name, effectText: shownEffectText(def), deck: def.deck, group, owner: seat, kind: def.kind, gold: def.gold || 0,
+      inst, id: def.id, name: def.name, effectText: shownEffectText(def, chamberName(content)), deck: def.deck, group, owner: seat, kind: def.kind, gold: def.gold || 0,
       specialWeapon: !!def.specialWeapon, use: def.use ? { timing: def.use.timing, afterUse: def.use.afterUse || 'keep', uses: def.use.uses ?? null } : null,
-      usesLeft: left, pending: !!def.specialWeapon && !def.use, usable, reason: usable ? null : cardReason(def, left, group), actions,
+      usesLeft: left, pending: !!def.specialWeapon && !def.use, usable, reason: usable ? null : cardReason(def, left, group, content), actions,
     };
   };
   const equipment = (Array.isArray(hdef.equipment) ? hdef.equipment : []).map(name => ({ name, group: 'equipment', source: 'hero', owner: seat, pending: true, usable: false, reason: 'Equipment effect pending: no structured card data yet' }));
@@ -79,11 +79,11 @@ export function inventoryView(g, content, seat, viewer, legal) {
   if (w) {
     const left = w.uses == null ? null : w.uses - hero.weaponUses;
     const actions = mine(a => a.type === 'RESPOND' && a.choice === 'special' && !a.item);
-    equipment.push({ id: w.id, name: w.name, effectText: shownEffectText(w), group: 'equipment', source: 'specialWeapons', owner: seat, uses: w.uses ?? null, usesLeft: left, pending: false, usable: actions.length > 0, reason: actions.length ? null : left === 0 ? 'No uses left' : TIMING_REASON['encounter-special'], actions });
+    equipment.push({ id: w.id, name: w.name, effectText: shownEffectText(w, chamberName(content)), group: 'equipment', source: 'specialWeapons', owner: seat, uses: w.uses ?? null, usesLeft: left, pending: false, usable: actions.length > 0, reason: actions.length ? null : left === 0 ? 'No uses left' : TIMING_REASON['encounter-special'], actions });
   }
   const ringId = g.seats[seat].ringId;
   const r = ringId && contentIndex(content).rings.get(ringId);
-  const ring = r ? { id: r.id, name: r.name, effectText: shownEffectText(r), group: 'ring', owner: seat, trigger: r.trigger, pending: true, usable: false, reason: 'Ring power pending: ring effects are not applied by the engine yet' } : null;
+  const ring = r ? { id: r.id, name: r.name, effectText: shownEffectText(r, chamberName(content)), group: 'ring', owner: seat, trigger: r.trigger, pending: true, usable: false, reason: 'Ring power pending: ring effects are not applied by the engine yet' } : null;
   const held = hero.held.map(inst => card(groupOf(cardDef(content, inst)))(inst));
   return {
     equipment, ring,

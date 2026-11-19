@@ -200,7 +200,7 @@ const apply = {
   WELL_JUMP(g, { seat }, content) {
     const hero = g.heroes[seat];
     g.pending = null;
-    const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', wellJumpModifiers(hero));
+    const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', wellJumpModifiers(hero, content));
     if (!pass) killHero(g, content, seat, 'failed the well jump');
     else { clearCondition(g, seat, 'well-edge'); hero.roomState = { ...hero.roomState, phase: 'CROSSED' }; } // plan 13 #10: across, the turn ends
     g.turn.endAfter = true;

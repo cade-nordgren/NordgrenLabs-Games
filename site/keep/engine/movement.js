@@ -3,7 +3,7 @@
 import { roll, testStat, testPreview, logEvent } from './dice.js';
 import { key, squareKind, exits, exitFor, edgeKey } from './board.js';
 import { SIDES, OPPOSITE, rotationFor, sideOnBoard } from './tiles.js';
-import { contentIndex } from '../content/schema.js';
+import { contentIndex, chamberCards } from '../content/schema.js';
 import { killHero, setCondition, clearCondition, statOf, TILE_CONDITIONS, hasCondition, EXPLORING, IN_TOWER } from './heroes.js';
 import { drawAndResolve, run } from './effects.js';
 import { collect } from './treasury.js';
@@ -209,7 +209,7 @@ export function rollDarkExit(g, content) {
 }
 
 // RB 6.3, spec v3 section 4: +1 on the jump per treasure-chamber card carried.
-export const wellJumpModifiers = hero => [{ source: 'treasure chamber cards carried', value: hero.treasury.length }];
+export const wellJumpModifiers = (hero, content) => [{ source: `${chamberCards(content)} carried`, value: hero.treasury.length }];
 
 // Spec v3: the attribute tests an action may roll, for a confirmation before it (view.pendingTests).
 // Only what the engine knows in advance: a portcullis on the edge (RB 6.7: only a fallen or printed one,
@@ -227,7 +227,7 @@ export function actionTests(g, content, action) {
     if (inst && contentIndex(content).tiles.get(inst.defId).special === 'well') out.push(testPreview('AGI', stat('AGI'), 'well entry'));
     return out;
   }
-  if (action.type === 'WELL_JUMP') return [testPreview('AGI', stat('AGI'), 'well jump', wellJumpModifiers(hero))];
+  if (action.type === 'WELL_JUMP') return [testPreview('AGI', stat('AGI'), 'well jump', wellJumpModifiers(hero, content))];
   if (action.type === 'RUBBLE_FORCE') return [testPreview('AGI', stat('AGI'), 'force rubble')];
   return [];
 }

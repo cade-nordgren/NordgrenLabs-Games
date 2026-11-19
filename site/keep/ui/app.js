@@ -10,9 +10,9 @@ import { isActive } from '../engine/heroes.js';
 import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
 import { BEATS } from '../engine/combat.js';
-import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
+import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL, chamberName, theChamber, chamberCards } from '../content/schema.js';
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, cardText, monsterText, expr, undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, DECK, towerName } from './words.js';
+import { lines, entries, cardText, monsterText, expr, undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName } from './words.js';
 import { rollDice } from './dice.js';
 import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
 import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
@@ -32,6 +32,7 @@ const STATUS = contentStatus(ORIGINAL, FIXTURES); // the same status `node tools
 const REPORT = STATUS.report;
 const CONTENT = { fixture: FIXTURES, original: ORIGINAL, mixed: STATUS.mixed };
 const FX_REPORT = validateContent(FIXTURES);
+$('howChamber').textContent = theChamber(ORIGINAL); // How to play names the owner's chamber
 const KEY = 'nl-keep-v1';
 
 // Rules-config entries with their ruling from the plan's decision register (display only); the authority tags
@@ -216,7 +217,7 @@ function testInfo(v, a) {
   const [t, ...then] = tests; // a portcullis into a well room: the well test follows a pass
   return {
     title: ROLL_TITLE[t.reason] || `${STAT[t.stat]} test`, die: t.die, stat: t.stat, value: t.target, need: t.passingRolls, cancel: true,
-    why: [ROLL_WHY[t.reason], t.reason === 'well jump' && legalActions(S.game, content()).some(x => x.type === 'WELL_DISCARD') ? 'Each treasure chamber card you carry adds 1 to the roll. Go back to drop cards first.' : '', ...then.map(x => `Then ${x.reason === 'well entry' ? 'an Agility test on entering the well room' : `a ${STAT[x.stat]} test`}.`)].filter(Boolean).join(' '),
+    why: [ROLL_WHY[t.reason], t.reason === 'well jump' && legalActions(S.game, content()).some(x => x.type === 'WELL_DISCARD') ? `Each ${chamberCards(content(), 1)} you carry adds 1 to the roll. Go back to drop cards first.` : '', ...then.map(x => `Then ${x.reason === 'well entry' ? 'an Agility test on entering the well room' : `a ${STAT[x.stat]} test`}.`)].filter(Boolean).join(' '),
     mods: t.modifiers.map(m => ({ label: capital(m.source), n: m.value })),
   };
 }
@@ -523,7 +524,7 @@ function showCover(need) {
   $('coverBanner').textContent = g.banner || '';
   const name = nameOf(need);
   $('coverTitle').textContent = `Pass to ${name}`;
-  $('coverNote').textContent = S.peek ? `Only ${name} should look: secret treasure chamber cards.`
+  $('coverNote').textContent = S.peek ? `Only ${name} should look: secret ${chamberCards(content())}.`
     : g.phase === 'MONSTER_REACT' ? `${name} plays the monster and reads its card in secret.`
     : need === g.encounter?.seat ? `${name} picks a combat card in secret.` : `${name} picks the monster's card in secret.`;
   $('coverGo').textContent = `I am ${name}, show me`;
@@ -865,7 +866,7 @@ function moveInfo(g, a) {
   if (ex.edge === 'gate') parts.push(`${sideWord(g, c, ex.from, dir)}, Strength ${heroDef(hero).stats.STR} test`);
   if (ex.edge === 'secret') parts.push('secret passage');
   if (kind === 'tower') parts.push('you may escape, stay or go on through it');
-  else if (kind === 'center') parts.push('treasure chamber, two secret cards then a dragon card');
+  else if (kind === 'center') parts.push(`${chamberName(c)}, two secret cards then a dragon card`);
   else if (!def) parts.push('unexplored, will reveal a tile');
   else parts.push(tileWords(def), MARK_EFFECT[def.mark], def.mark === 'blue' && g.rules.darkRoomPolicy === 'EVERY_ENTRY' ? 'ends your turn, a D6 picks the way out' : '', SPECIAL_EFFECT[def.special]);
   const title = ex.edge === 'door' || ex.edge === 'gate' ? `Try ${DIR[dir]}` : kind === 'tower' ? `Enter the ${towerAt(ex.to)}` : `Go ${DIR[dir]}`;
@@ -987,13 +988,13 @@ function renderPrompt(v, la, targets) {
 
   if (S.peek) {
     const seat = S.peek.seat, mine = v.heroes[seat];
-    p = panel(`${nameOf(seat)}, your treasure chamber cards`, 'Only you may see these.');
+    p = panel(`${nameOf(seat)}, your ${chamberCards(c)}`, 'Only you may see these.');
     if (S.peek.from !== null) {
       const drawn = v.log.slice(S.peek.from).filter(e => (e.kind === 'draw' && e.deck === 'TREASURY') && e.private === seat);
-      for (const e of drawn) { const d = cardDef(c, e.value); const f = el('div', 'cardface'); f.append(el('strong', '', `Drawn: ${e.cardName || d.name}`), el('p', '', cardText(d, e.effectText))); p.append(f); }
+      for (const e of drawn) { const d = cardDef(c, e.value); const f = el('div', 'cardface'); f.append(el('strong', '', `Drawn: ${e.cardName || d.name}`), el('p', '', cardText(d, e.effectText, c))); p.append(f); }
     }
     const f = el('div', 'cardface');
-    f.append(el('strong', '', mine.treasury.length ? `You hold ${mine.treasury.length}: ${mine.gold} gold in all` : 'You hold no treasure chamber cards now'));
+    f.append(el('strong', '', mine.treasury.length ? `You hold ${mine.treasury.length}: ${mine.gold} gold in all` : `You hold no ${chamberCards(c)} now`));
     mine.treasury.forEach((inst, i) => f.append(el('p', '', `${i + 1}. ${cardDef(c, inst).name}, ${cardDef(c, inst).gold || 0} gold`)));
     p.append(f);
     const ch = el('div', 'choices');
@@ -1040,7 +1041,7 @@ function renderPrompt(v, la, targets) {
       }
       for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
       if (!by('SEARCH').length && typeof v.searchUnavailable === 'string' && v.searchUnavailable) ch.append(el('p', 'muted', `Can't search here: ${v.searchUnavailable.replace(/\.$/, '')}.`));
-      for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two treasure chamber cards, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
+      for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two ${chamberCards(c)}, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
       for (const a of by('STOP')) ch.append(inTower ? choice('Stop in the tower', 'End your turn here, not escaped', () => act(a)) : choice('Stop here', 'End your turn', () => act(a)));
       for (const a of by('FORCED_SKIP')) ch.append(choice('No way on', 'The turn passes', () => act(a)));
       break;
@@ -1052,11 +1053,11 @@ function renderPrompt(v, la, targets) {
         p = panel('In the dark', 'You cannot choose a way out: the D6 picks it.');
         for (const a of by('ROLL_DARK_EXIT')) ch.append(choice('Roll the D6', null, () => tryAct(a), 'primary'));
       } else if (kind === 'well-edge') {
-        p = panel('At the edge of the well', `Climb back the way you came, or jump: an Agility test on the D12 plus ${hero.treasury.length} treasure chamber ${hero.treasury.length === 1 ? 'card' : 'cards'} against ${agi}. A failed jump is death. You may drop treasure chamber cards first.`);
+        p = panel('At the edge of the well', `Climb back the way you came, or jump: an Agility test on the D12 plus ${hero.treasury.length} ${chamberCards(c, hero.treasury.length)} against ${agi}. A failed jump is death. You may drop ${chamberCards(c)} first.`);
         for (const a of by('WELL_RETURN')) ch.append(choice('Climb back', 'Go back the way you came', () => tryAct(a)));
         for (const a of by('WELL_DISCARD')) {
           const i = hero.treasury.indexOf(a.card);
-          ch.append(choice(`Drop treasure chamber card ${i + 1}`, viewer === g.activeSeat ? `${cardDef(c, a.card).name}, ${cardDef(c, a.card).gold || 0} gold` : 'Check which with Show my cards', () => act(a)));
+          ch.append(choice(`Drop ${chamberCards(c, 1)} ${i + 1}`, viewer === g.activeSeat ? `${cardDef(c, a.card).name}, ${cardDef(c, a.card).gold || 0} gold` : 'Check which with Show my cards', () => act(a)));
         }
         for (const a of by('WELL_JUMP')) ch.append(choice('Jump', `Agility test, D12 + ${hero.treasury.length} against ${agi}`, () => tryAct(a), 'primary'));
       } else {
@@ -1070,7 +1071,7 @@ function renderPrompt(v, la, targets) {
       const pend = g.pending;
       const frame = [...g.stack].reverse().find(f => f.card);
       if (pend.kind === 'choice') {
-        p = panel('Choose', frame ? `${cardDef(c, frame.card).name}. ${cardText(cardDef(c, frame.card))}` : null);
+        p = panel('Choose', frame ? `${cardDef(c, frame.card).name}. ${cardText(cardDef(c, frame.card), null, c)}` : null);
         by('CHOOSE').forEach(a => ch.append(choice(pend.options[a.option], null, () => act(a))));
       } else {
         p = panel('Move', 'Pick a neighbouring square.');
@@ -1154,7 +1155,7 @@ function renderPrompt(v, la, targets) {
     }
     case 'FORCED_MOVE': {
       const seat = g.pending.seat;
-      p = panel('The dragon drives you out', `${nameOf(seat)} must move to an explored room next to the chamber. No room card is drawn.`);
+      p = panel('The dragon drives you out', `${nameOf(seat)} must move to an explored room next to ${theChamber(c)}. No room card is drawn.`);
       for (const a of by('FORCED_MOVE')) {
         const sq = actionSquare(g, a);
         targets.push({ ...sq, label: `${nameOf(seat)} moves to ${place(sq)}`, pick: () => tryAct(a) });
@@ -1260,7 +1261,7 @@ function mapKey() {
   item('Portcullis', s => sideGlyph(s, 'gate', [4, 30, 56, 30]));
   item('Portcullis down behind a red room', s => sideGlyph(s, 'gate', [4, 30, 56, 30], 'fallen'));
   item('Tower', s => { svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 10, class: 'tower' }, s); towerGlyph(s); }, 100);
-  item('Chamber reserve, not yet entered', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 4, class: 'reserved' }, s));
+  item(`${capital(chamberName(content()))}, not yet entered`, s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 4, class: 'reserved' }, s));
   item('Unexplored', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 4, class: 'fog' }, s));
   item('Off the board', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, class: 'offboard' }, s));
   item('Lit: a legal move', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 6, class: 'target' }, s));
@@ -1337,7 +1338,7 @@ function roomStateWords(h) {
 function whereWords(v, h) {
   if (!h.coord) return 'Not placed yet';
   const c = content(), kind = squareKind(c.board, h.coord), inst = v.board.tiles[key(h.coord)];
-  const what = kind === 'tower' ? towerAt(h.coord) : kind === 'center' ? 'treasure chamber' : inst ? tileWords(contentIndex(c).tiles.get(inst.defId)) : 'unexplored';
+  const what = kind === 'tower' ? towerAt(h.coord) : kind === 'center' ? chamberName(c) : inst ? tileWords(contentIndex(c).tiles.get(inst.defId)) : 'unexplored';
   return `${capital(place(h.coord))}, ${what}`;
 }
 
@@ -1365,7 +1366,7 @@ function heroesPanel(v) {
     // Ordinary gold is held loot, public (D25); chamber cards are private, so only their number shows here.
     const ordinary = h.held.reduce((sum, inst) => sum + (cardDef(c, inst).gold || 0), 0);
     const chamberCount = Array.isArray(h.treasury) ? h.treasury.length : h.treasury;
-    body.append(el('div', 'meta', `HP ${Math.max(0, h.hp)} of ${h.hpStart} · Gold ${ordinary} · ${chamberCount} hidden chamber ${chamberCount === 1 ? 'card' : 'cards'}`));
+    body.append(el('div', 'meta', `HP ${Math.max(0, h.hp)} of ${h.hpStart} · Gold ${ordinary} · ${chamberCount} hidden ${chamberCards(c, chamberCount)}`));
     const ring = g.seats[seat].ringId && contentIndex(c).rings.get(g.seats[seat].ringId);
     const weapon = def.specialWeaponId && (c.specialWeapons || []).find(w => w.id === def.specialWeaponId);
     const uses = weapon && Number.isInteger(weapon.uses) ? `, ${Math.max(0, weapon.uses - h.weaponUses)} of ${weapon.uses} uses left` : '';
@@ -1377,7 +1378,7 @@ function heroesPanel(v) {
     body.append(itemsButton(v, seat, 'btn'));
     if (n > 1 && chamberCount > 0 && isActive(h)) {
       const b = el('button', 'btn', 'Show my cards');
-      b.setAttribute('aria-label', `Show ${g.seats[seat].name}'s treasure chamber cards`);
+      b.setAttribute('aria-label', `Show ${g.seats[seat].name}'s ${chamberCards(c)}`);
       b.onclick = () => { S.peek = { seat, from: null }; render(); };
       body.append(b);
     }
@@ -1403,13 +1404,13 @@ function itemsButton(v, seat, cls) {
   return b;
 }
 const SOURCE = { hero: 'Hero equipment', specialWeapons: 'Special weapon card' };
-const ITEM_GROUPS = [['equipment', 'Starting equipment'], ['ring', 'Magic ring'], ['items', 'Weapons and useful items'], ['treasure', 'Treasure'], ['chamber', 'Treasure chamber cards']];
+const ITEM_GROUPS = [['equipment', 'Starting equipment'], ['ring', 'Magic ring'], ['items', 'Weapons and useful items'], ['treasure', 'Treasure'], ['chamber', null]]; // null: the chamber's name, from the content
 function openItems(seat) {
   const g = S.game, v = view(g, content(), viewer), inv = v.heroes[seat].inventory;
   $('itemsTitle').textContent = `${nameOf(seat)}'s items`;
   const out = [];
   for (const [k, title] of ITEM_GROUPS) {
-    out.push(el('h3', '', title));
+    out.push(el('h3', '', title || capital(chamberCards(content()))));
     const list = k === 'ring' ? (inv.ring ? [inv.ring] : []) : inv[k];
     if (typeof list === 'number') { out.push(el('p', 'meta', list ? `${list} ${list === 1 ? 'card' : 'cards'}, kept secret by ${nameOf(seat)}` : 'None')); continue; }
     if (!list.length) { out.push(el('p', 'meta', 'None')); continue; }
@@ -1417,7 +1418,7 @@ function openItems(seat) {
     for (const item of list) {
       const li = el('li');
       li.append(el('strong', '', item.name || item.id || 'Unnamed'));
-      const facts = [item.deck ? DECK[item.deck] : SOURCE[item.source] || (k === 'ring' ? 'Ring' : '')];
+      const facts = [item.deck ? capital(deckWord(item.deck, content())) : SOURCE[item.source] || (k === 'ring' ? 'Ring' : '')];
       if (item.gold) facts.push(`${item.gold} gold`);
       if (Number.isInteger(item.usesLeft)) facts.push(`${item.usesLeft} ${item.usesLeft === 1 ? 'use' : 'uses'} left`);
       li.append(el('span', 'meta', facts.filter(Boolean).join(' · ')));

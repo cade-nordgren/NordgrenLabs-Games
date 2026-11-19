@@ -1,7 +1,7 @@
 // Legal actions per phase (system 1; SP 4). reduce() accepts only these, so a repeated
 // click or a refresh cannot resolve anything twice. No PvP, trading or revival action exists (SP 9).
 import { exits, key, squareKind } from './board.js';
-import { contentIndex } from '../content/schema.js';
+import { contentIndex, theChamber } from '../content/schema.js';
 import { responseOptions, combatActions } from './monsters.js';
 import { usableHeld } from './inventory.js';
 
@@ -82,7 +82,7 @@ export function searchUnavailable(game, content) {
   const kind = squareKind(content.board, hero.coord);
   const mark = kind === 'maze' ? contentIndex(content).tiles.get(game.board.tiles[key(hero.coord)].defId).mark : null;
   if (kind !== 'maze' || !['black', 'red'].includes(mark)) {
-    const where = kind === 'tower' ? 'a tower' : kind === 'center' ? 'the treasure chamber' : mark === 'yellow' ? 'a yellow corridor' : mark === 'blue' ? 'a dark room' : 'a special room with no dot';
+    const where = kind === 'tower' ? 'a tower' : kind === 'center' ? theChamber(content) : mark === 'yellow' ? 'a yellow corridor' : mark === 'blue' ? 'a dark room' : 'a special room with no dot';
     return `not a room square (this is ${where}). Only black or red dot rooms can be searched.`;
   }
   if (game.phase === 'CHOOSE_ACTION') return null;

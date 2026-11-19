@@ -111,18 +111,51 @@ test('item and monster lines: a chamber card stays unnamed for others, a kill is
     { kind: 'item', action: 'lose', seat: 1, value: 'hidden', group: 'chamber', to: 'bottom of TREASURY', why: 'dragon' },
     { kind: 'monster-dead', seat: 0 }, { kind: 'bottom' }, { kind: 'encounter-end', outcome: 'monster-killed' },
   ], ctx), [
-    'P1 discards a chamber card.',
-    'P2 loses a chamber card when the dragon wakes.',
+    'P1 discards a treasure chamber card.',
+    'P2 loses a treasure chamber card when the dragon wakes.',
     'The monster is dead.',
   ]);
   // Where the card went is deck bookkeeping: the debug log alone says it.
   const debug = entries([{ kind: 'item', action: 'discard', seat: 0, value: 'hidden', group: 'chamber', to: 'bottom of TREASURY' }, { kind: 'bottom', deck: 'MONSTER', value: 'hidden' }, { kind: 'shuffle', deck: 'CHEST' }], ctx, { debug: true });
   assert.deepEqual(debug.map(x => [x.text, x.mech]), [
-    ['P1 discards a chamber card.', 'It goes to the bottom of the treasure chamber pile.'],
+    ['P1 discards a treasure chamber card.', 'It goes to the bottom of the treasure chamber pile.'],
     ['', 'A card goes to the bottom of the monster pile.'],
     ['', 'The chest pile is shuffled.'],
   ]);
   assert.equal(entries([{ kind: 'bottom', deck: 'MONSTER', value: 'hidden' }], ctx).length, 0, 'not in the plain log');
+});
+
+test('the chamber is called by its content name in log lines, prompts and card text; with no name it falls back', async () => {
+  const { mixContent, chamberName } = await import('../../site/keep/content/schema.js');
+  const { shownEffectText } = await import('../../site/keep/engine/describe.js');
+  const { wellJumpModifiers } = await import('../../site/keep/engine/movement.js');
+  const NAMED = { ...FX, chamber: { ...FX.chamber, name: "Dragon's Lair" } };
+  const events = [
+    { kind: 'place-chamber' }, { kind: 'stay', seat: 0 }, { kind: 'dragon-wakes', waker: 1, queue: [1] },
+    { kind: 'item', action: 'discard', seat: 0, value: 'hidden', group: 'chamber', to: 'bottom of TREASURY' },
+  ];
+  const thief = FX.room.find(e => e.id === 'FX_ROOM_THIEF');
+  const g = setup();
+  putHero(g, 0, '4,5');
+  const say = c => ({
+    log: lines(events, { content: c, name: s => `P${s + 1}` }),
+    search: view(g, c).searchUnavailable, cell: cellInfo(view(g, c), c, { x: 4, y: 5 }).what,
+    card: shownEffectText(thief, chamberName(c)), jump: wellJumpModifiers({ treasury: [] }, c)[0].source,
+  });
+  assert.deepEqual(say(NAMED), {
+    log: ["The Dragon's Lair is entered for the first time.", "P1 stays in the Dragon's Lair.", "The dragon wakes. Everyone in the Dragon's Lair, from P2 clockwise.", "P1 discards a Dragon's Lair card."],
+    search: "not a room square (this is the Dragon's Lair). Only black or red dot rooms can be searched.",
+    cell: "Dragon's Lair, not yet entered", card: "Made-up test card. You lose your Dragon's Lair cards.", jump: "Dragon's Lair cards carried",
+  });
+  assert.deepEqual(say(FX), {
+    log: ['The treasure chamber is entered for the first time.', 'P1 stays in the treasure chamber.', 'The dragon wakes. Everyone in the treasure chamber, from P2 clockwise.', 'P1 discards a treasure chamber card.'],
+    search: 'not a room square (this is the treasure chamber). Only black or red dot rooms can be searched.',
+    cell: 'treasure chamber, not yet entered', card: 'Made-up test card. You lose your treasure chamber cards.', jump: 'treasure chamber cards carried',
+  });
+  assert.equal(chamberName({ chamber: { name: "  The Dragon's Lair " } }), "Dragon's Lair", 'a leading "The" is not doubled');
+  // Play-test: fixture cards say their generated line with the owner's chamber name.
+  const own = Object.fromEntries(Object.keys(FX).map(k => [k, Array.isArray(FX[k]) ? [] : null]));
+  assert.equal(mixContent({ ...own, chamber: NAMED.chamber }, FX).room.find(e => e.id === 'FX_ROOM_THIEF').text, "Made-up test card. You lose your Dragon's Lair cards.");
 });
 
 test('a hero in the chamber sees all six squares around the room lit, and each sends its own move (D39)', () => {
