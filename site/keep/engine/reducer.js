@@ -224,6 +224,8 @@ const apply = {
   },
   // Spec v2, owner tower ruling: only ESCAPE sets ESCAPED (final, the hero leaves the turn order); STAY ends
   // the turn in the tower; CONTINUE goes on through another legal tower passage this turn (transit).
+  // Deliberate owner rule (D23, D32-D34), not the printed rulebook (which only says reach any tower before
+  // sunset, 2023 rules section 2): do not "correct" Escape / Stay / Continue or INSIDE_AT_SUNSET from the PDF.
   TOWER_CHOICE(g, { seat, choice }, content) {
     const hero = g.heroes[seat];
     g.pending = null;
