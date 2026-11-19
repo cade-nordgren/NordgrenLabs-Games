@@ -2,9 +2,9 @@
 // sentence is read from an engine event or a content definition, never decided here.
 import { cardDef } from '../engine/decks.js';
 import { contentIndex } from '../content/schema.js';
-import { tileWords, place } from './board.js';
+import { tileWords, place, DIR, towerAt, MARK_WORD } from './board.js';
 
-export const DIR = { N: 'north', E: 'east', S: 'south', W: 'west' };
+export { DIR };
 export const STAT = { STR: 'Strength', AGI: 'Agility', ARM: 'Armour', LCK: 'Luck' };
 export const CHOICE = { attack: 'Attack', wait: 'Wait', flee: 'Flee', special: 'Special weapon' };
 export const REACTION = {
@@ -79,8 +79,12 @@ export function monsterText(def) {
   }).join(' ');
 }
 
-const TOWER = t => `${t.y === 0 ? 'north' : 'south'}-${t.x === 0 ? 'west' : 'east'}`;
-export const towerName = (content, i) => `${TOWER(content.board.towers[i])} tower`;
+export const towerName = (content, i) => towerAt(content.board.towers[i]);
+const xy = at => { const [x, y] = at.split(',').map(Number); return { x, y }; };
+// 'x,y|S' (one key per shared edge) as words.
+export const edgeWords = e => { const [at, side] = e.split('|'); return `the ${DIR[side]} side of ${place(xy(at))}`; };
+const markWords = (m, at) => (m === 'tower' ? towerAt(xy(at)) : m === 'center' ? 'the treasure chamber' : MARK_WORD[m] ? `${MARK_WORD[m]}, ${m} mark` : 'no mark');
+const TOWER_CHOICE = { ESCAPE: 'chooses Escape', STAY: 'stays in the tower', CONTINUE: 'continues through the tower' };
 
 // ctx: { content, name(seat) }. Returns null for bookkeeping events that need no line.
 export function describe(e, ctx, next) {
@@ -96,7 +100,10 @@ export function describe(e, ctx, next) {
       if (e.reason === 'dark room exit' || e.reason === 'ambush' || e.reason === 'dragon fire') return null; // their own lines follow
       return `${e.die}: ${e.value} (${e.reason}).`;
     }
-    case 'test': return `${STAT[e.stat]} test (${e.reason}): D12 ${e.roll}${e.modifier ? ` + ${e.modifier}` : ''} against ${e.target}. ${e.pass ? 'Pass' : 'Fail'}.`;
+    case 'test': return `${STAT[e.stat]} test (${e.reason}): ${e.arithmetic || `D12 ${e.roll}${e.modifier ? ` + ${e.modifier}` : ''} against ${e.target}, ${e.pass ? 'pass' : 'fail'}`}.`;
+    case 'formula': return `${capital(e.reason)}: ${e.arithmetic}.`;
+    case 'gate': return `Portcullis on ${edgeWords(e.edge)}: ${e.pass ? 'lifted' : 'it holds'}.`;
+    case 'tower-choice': return `${who(e.seat)} ${TOWER_CHOICE[e.choice]} at ${place(xy(e.at))}.`;
     case 'pick-hero': return `${who(e.seat)} takes ${contentIndex(content).heroes.get(e.heroId).name}.`;
     case 'pick-ring': return `${who(e.seat)} takes ${contentIndex(content).rings.get(e.ringId).name}.`;
     case 'pick-tower': return `${who(e.seat)} starts in the ${towerName(content, e.tower)}.`;
@@ -104,16 +111,16 @@ export function describe(e, ctx, next) {
     case 'sun': return `The sun moves to ${e.sun}.`;
     case 'reveal': {
       const [x, y] = e.at.split(',').map(Number);
-      return `Revealed: ${tileWords(contentIndex(content).tiles.get(e.defId))} at ${place({ x, y })}.`;
+      return `Revealed: ${tileWords(contentIndex(content).tiles.get(e.defId))} at ${place({ x, y })}, turned ${e.rotation} degrees.`;
     }
     case 'place-chamber': return 'The treasure chamber is entered for the first time.';
     case 'move': {
       const how = { door: ' through the door', gate: ' under the portcullis', flight: ' in flight', forced: ', driven out by the dragon', secret: ' through a secret passage', card: '' }[e.via] || '';
-      return `${who(e.seat)} goes ${DIR[e.dir]}${how}.`;
+      return `${who(e.seat)} goes ${DIR[e.dir]}${how}, from ${place(xy(e.from))} to ${place(xy(e.to))} (${markWords(e.mark, e.to)}).`;
     }
-    case 'escape': return `${who(e.seat)} escapes the keep.`;
+    case 'escape': return `${who(e.seat)} escapes the keep${e.atSunset ? ' at sunset (rules config)' : ''}.`;
     case 'rotate': return 'The room turns a quarter clockwise.';
-    case 'gate-falls': return 'A portcullis drops behind.';
+    case 'gate-falls': return `A portcullis drops behind, on ${edgeWords(e.edge)}.`;
     case 'condition': return `${who(e.seat)} ${CONDITION[e.id] || 'is under a lasting effect'}.`;
     case 'condition-cleared': return `${who(e.seat)} ${CONDITION_OFF[e.id] || 'is free of a lasting effect'}.`;
     case 'dark-exit': return `Dark room: the D6 shows ${e.roll}, the way out is ${DIR[e.dir]}.`;
@@ -122,18 +129,18 @@ export function describe(e, ctx, next) {
       if (e.deck === 'TILE') return null;
       if (e.deck === 'DRAGON') return `Dragon card: ${e.card === 'awake' ? 'awake' : 'asleep'}.`;
       const def = card(e.value);
-      return def ? `${DECK[e.deck]}: ${def.name}. ${e.deck === 'MONSTER' ? '' : cardText(def)}`.trim() : `${DECK[e.deck]} drawn, kept secret.`;
+      return def ? `${DECK[e.deck]} ${e.value}: ${def.name}. ${e.deck === 'MONSTER' ? '' : cardText(def)}`.trim() : `${DECK[e.deck]} drawn, kept secret.`;
     }
     case 'retain': { const def = card(e.value); return def ? `Kept: ${def.name}.` : 'A card is kept in secret.'; }
     case 'remove-card': return `${card(e.value).name} leaves the game.`;
-    case 'door': return { opens: 'The door opens.', closed: 'The door stays shut.', trap: 'The door was trapped.' }[e.result];
+    case 'door': return `${{ opens: 'The door opens', closed: 'The door stays shut', trap: 'The door was trapped' }[e.result]}${e.edge ? `, on ${edgeWords(e.edge)}` : ''}${e.card && e.card !== 'hidden' ? ` (door card ${e.card})` : ''}.`;
     case 'stop': return `${who(e.seat)} stops.`;
     case 'search': return `${who(e.seat)} searches the room.`;
     case 'stay': return `${who(e.seat)} stays in the chamber.`;
     case 'forced-skip': return `${who(e.seat)} has no move and the turn passes.`;
     case 'well-discard': return `${who(e.seat)} drops a treasure chamber card.`;
     case 'encounter': return e.ambush ? 'An ambush.' : `A monster. ${who(e.seat)} chooses before it shows itself.`;
-    case 'commit': return `${who(e.seat)} chooses ${CHOICE[e.choice]}.`;
+    case 'commit': return `${who(e.seat)} commits to ${CHOICE[e.choice]} before the monster shows itself.`;
     case 'reaction': return `The monster's answer: ${REACTION[e.type]}.`;
     case 'monster-wound': return `The monster takes ${e.amount}.`;
     case 'encounter-end': return e.outcome === 'hero-fled' ? 'The hero gets away.' : OUTCOME[e.outcome];
@@ -141,7 +148,7 @@ export function describe(e, ctx, next) {
     case 'combat-pick': return e.side === 'hero' ? 'The hero picks a card.' : 'The monster picks a card.';
     case 'exchange': return `Exchange: hero ${e.hero}, monster ${e.monster}. Hero takes ${e.heroDmg}, monster takes ${e.monsterDmg}.`;
     case 'throw': return e.rethrow ? 'Unclear throw: throw again.' : `Throw: ${PLACEMENT[e.placement].toLowerCase()}, ${FACE[e.face].toLowerCase()}. Hero takes ${e.heroDmg}, monster takes ${e.monsterDmg}.`;
-    case 'damage': return `${who(e.seat)} takes ${e.amount}, ${e.reason}${e.raw !== e.amount ? ` (${e.raw} counts as 0)` : ''}. ${Math.max(0, e.hp)} HP left.`;
+    case 'damage': return `${who(e.seat)} takes ${e.amount}, ${e.reason}${e.arithmetic ? ` (${e.arithmetic})` : e.raw !== e.amount ? ` (${e.raw} counts as 0)` : ''}. ${Math.max(0, e.hp)} HP left.`;
     case 'heal': return `${who(e.seat)} heals ${e.amount}. ${e.hp} HP.`;
     case 'death': return `${who(e.seat)} dies: ${e.reason}.`;
     case 'dragon-odds': return `The dragon wakes on ${e.awake} in ${e.remaining}.`;
@@ -151,12 +158,14 @@ export function describe(e, ctx, next) {
     case 'flight': return `${who(e.seat)} flees back.`;
     case 'secret-passage': return 'A secret passage opens.';
     case 'deck-empty': return `The ${DECK[e.deck].toLowerCase()} pile is empty.`;
-    case 'lost-at-sunset': return `${who(e.seat)} is caught inside at sunset.`;
+    case 'lost-at-sunset': return `${who(e.seat)} is inside at sunset: not escaped${e.status === 'IN_TOWER_NOT_ESCAPED' ? ', though in a tower' : ''}.`;
     case 'game-over': return 'The game is over.';
     default: return null; // shuffle, bottom, resolve-card, monster-dead, pick bookkeeping
   }
 }
 
-export function lines(events, ctx) {
-  return events.map((e, i) => ({ e, text: describe(e, ctx, events[i + 1]) })).filter(x => x.text).map(x => capital(x.text));
+// Each line with its entry, so the log can show the round and the debug log the raw fields.
+export function entries(events, ctx) {
+  return events.map((e, i) => ({ e, text: describe(e, ctx, events[i + 1]) })).filter(x => x.text).map(x => ({ e: x.e, text: capital(x.text) }));
 }
+export const lines = (events, ctx) => entries(events, ctx).map(x => x.text);

@@ -2,15 +2,16 @@
 // reduce() and renders view(game, content, seat) for whoever is looking. No rules live here.
 import FIXTURES from '../content/fixtures/fixtures.js';
 import ORIGINAL from '../content/original/index.js';
-import { createGame, reduce, restore, DEFAULT_RULES } from '../engine/reducer.js';
+import { createGame, reduce, restore, DEFAULT_RULES, RULE_TAGS } from '../engine/reducer.js';
 import { legalActions } from '../engine/phases.js';
 import { view, canUndoTo, screenOwner } from '../engine/view.js';
-import { neighbour, edgeKind, squareKind, key } from '../engine/board.js';
+import { neighbour, squareKind, exits, key } from '../engine/board.js';
+import { isActive } from '../engine/heroes.js';
 import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
-import { validateContent, contentIndex, contentStatus } from '../content/schema.js';
-import { drawBoard, svg, place, tileWords } from './board.js';
-import { lines, cardText, monsterText, expr, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, towerName } from './words.js';
+import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
+import { mountBoard, resetView, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
+import { lines, entries, cardText, monsterText, expr, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, towerName } from './words.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -30,16 +31,24 @@ const FX_REPORT = validateContent(FIXTURES);
 const KEY = 'nl-keep-v1';
 const HIST_CAP = 20; // shortcut: full snapshots, at most 20 and cleared at every commit point; store diffs if long uncommitted runs ever matter
 
-// Rules-config flags with their ruling and class from the plan's decision register (display only).
+// Rules-config entries with their ruling from the plan's decision register (display only); the authority tags
+// come from the engine's RULE_TAGS. Entries in RULE_TAGS but not in the rules config are fixed rulings.
 const RULE_INFO = {
-  darkRoomOnReentry: v => `D06, interpretation, provisional. ${v ? 'Going back into a dark room makes you roll your way out again.' : 'Only the first entry is dark.'}`,
-  forcedMoveTileEffects: v => `Open point 3 (with D19), interpretation, provisional. ${v ? 'Room effects apply where the dragon drives a hero.' : 'No room effects there.'}`,
-  soloCombat: v => (v === 'target' ? 'D17, original rule. Solo fights use the target with results entered by hand.' : 'D17, application only. A, B or C against a computer pick is a digital variant, not an original rule.'),
+  darkRoomPolicy: v => ['D06', v === 'EVERY_ENTRY' ? 'Every entry into a dark room makes you roll your way out.' : 'A dark room acts when it is first revealed and when you flee back into it; walking back in is safe.'],
+  forcedMoveTileEffects: v => ['Open point 3 (with D16, D19)', v ? 'Room effects apply where the dragon drives a hero.' : 'No room effects there.'],
+  soloCombat: v => ['D17', v === 'target' ? 'Solo fights use the target with results entered by hand.' : 'A, B or C against a computer pick: a digital variant, not an original rule.'],
+  towerAtSunsetCountsAsEscape: v => ['D32', v ? 'A hero in a tower at sunset counts as escaped.' : 'A hero in a tower at sunset who never chose Escape is inside at sunset: not escaped, not dead.'],
+  escapeWithoutExploring: v => ['D33', v ? 'A hero may escape straight from the start tower.' : 'A hero still in the start tower is never offered Escape.'],
+  towerEscapeOnLaterTurns: () => ['D34', 'After Stay, Escape is offered on every later turn, the last one included.'],
 };
+const PREFS = 'nl-keep-prefs-v1'; // per-browser display preferences, not game state
+let prefs = { debugLog: false };
+try { prefs = { debugLog: JSON.parse(localStorage.getItem(PREFS))?.debugLog === true }; } catch {}
+const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch {} };
 
 // ---- State. The engine game plus what the screen needs; saved on every change. It belongs to whoever was signed in
 // (owner), so a game in progress never shows to the next person on this browser.
-const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null, zoom: 1, owner: NL.person() });
+const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null, owner: NL.person() });
 let S = fresh();
 let viewer = null; // the seat looking now; never saved, so a refresh always covers a private screen
 let target = { placement: null, face: null }; // solo target entry, before it is sent
@@ -54,7 +63,6 @@ function load() {
   if ([1, 2, 3, 4].includes(s.count)) b.count = s.count;
   if (Array.isArray(s.names)) b.names = b.names.map((n, i) => (typeof s.names[i] === 'string' ? s.names[i].slice(0, 20) : ''));
   if (['target', 'abc-digital-variant'].includes(s.soloCombat)) b.soloCombat = s.soloCombat;
-  if ([1, 1.5, 2, 3].includes(s.zoom)) b.zoom = s.zoom;
   // Stored data is a trust boundary: the engine's restore() checks versions, content and shape.
   if (s.game && CONTENT[s.mode]) {
     try {
@@ -124,6 +132,7 @@ function newGame(mode) {
   }
   Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
   viewer = players.length === 1 ? 0 : null;
+  resetView();
   render();
   window.scrollTo(0, 0);
 }
@@ -170,6 +179,7 @@ async function resume(id) {
     saveId: r.id, createdAt: r.createdAt, finishedSaved: r.status === 'finished', seen: game.log.length, reveal: null, peek: null,
   });
   viewer = game.seats.length === 1 ? 0 : null;
+  resetView();
   render();
   window.scrollTo(0, 0);
 }
@@ -305,13 +315,18 @@ function showCover(need) {
 }
 
 // ---- Rendering
+let boardApi = null; // the mounted map, to put keyboard focus back on its grid after a re-render
 function render() {
   persist();
   const g = S.game;
   const screen = !g ? 'title' : g.status === 'setup' ? 'draft' : g.status === 'over' ? 'results' : 'table';
+  const onCell = !!document.activeElement?.closest?.('[data-cell]');
+  boardApi = null;
   document.querySelector('.app').classList.toggle('wide', screen !== 'title');
+  // Spec v2 #12: the banner names exactly which categories are synthetic.
   $('banner').hidden = !g?.banner;
-  $('banner').textContent = g?.banner || '';
+  $('bannerText').textContent = g?.banner || '';
+  $('synthetic').replaceChildren(...(g?.banner ? syntheticCategories(content()) : []).map(t => el('li', '', t)));
   $('undo').hidden = $('saveExit').hidden = !g;
   $('undo').disabled = !canUndo();
   $('saveExit').disabled = false;
@@ -338,8 +353,9 @@ function render() {
   else if (screen === 'table') renderTable(v);
   else renderResults(v);
   const lost = a => !a || a === document.body || !a.isConnected || !!a.closest('[hidden]');
-  if (keyboard && lost(document.activeElement)) {
-    const first = $(screen).querySelector('.choices button:not(:disabled), button.choice:not(:disabled), .target');
+  if (onCell && boardApi && lost(document.activeElement)) boardApi.focus();
+  else if (keyboard && lost(document.activeElement)) {
+    const first = $(screen).querySelector('.choices button:not(:disabled), button.choice:not(:disabled)');
     first?.focus();
   }
 }
@@ -480,9 +496,7 @@ function renderDraft(v) {
   if (step === 'towers') {
     const p = panel(`${nameOf(seat)}, pick your starting tower`, 'Towers are picked clockwise from the first player and may be shared.');
     const wrap = el('div', 'board-wrap');
-    const host = el('div', 'board-scroll');
-    wrap.append(host);
-    drawBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: la.map(a => ({ ...c.board.towers[a.tower], label: `Start in the ${towerName(c, a.tower)}`, pick: () => act(a) })) });
+    boardApi = mountBoard(wrap, { v, content: c, names: g.seats.map(s => s.name), onInspect: inspect, targets: la.map(a => ({ ...c.board.towers[a.tower], label: `Start in the ${towerName(c, a.tower)}`, pick: () => act(a) })) });
     p.append(wrap);
     const ch = el('div', 'choices grid2');
     for (const a of la) ch.append(choice(capital(towerName(c, a.tower)), null, () => act(a)));
@@ -518,14 +532,32 @@ function sunClock(sun) {
 
 function heldNames(h) { return h.held.map(inst => cardDef(content(), inst).name); }
 
-function moveLabel(g, a) {
-  const c = content(), hero = g.heroes[a.seat];
-  const to = neighbour(hero.coord, a.dir);
-  const kind = squareKind(c.board, to);
-  const edge = edgeKind(g, c, hero.coord, a.dir);
-  const where = kind === 'tower' ? 'the tower' : kind === 'center' ? 'the treasure chamber' : g.board.tiles[key(to)] ? tileWords(contentIndex(c).tiles.get(g.board.tiles[key(to)].defId)) : 'unexplored';
-  const via = edge === 'door' ? ', through a door (door card)' : edge === 'gate' ? ', under a portcullis (Strength test)' : edge === 'wall' ? ', through the secret passage' : '';
-  return `${where}${via}`;
+// A move as a title and a reason line, read from the engine's exits (BoardDefinition geometry) and the tile data.
+const MARK_EFFECT = { black: 'draws a room card', red: 'draws a room card, a portcullis drops behind you', yellow: 'you may keep moving', blue: '', none: '' };
+const SPECIAL_EFFECT = { well: 'Agility test on entry, a fall is death', rubble: 'ends your turn', rotating: 'turns a quarter on entry', none: '' };
+function moveInfo(g, dir) {
+  const c = content(), seat = g.activeSeat, hero = g.heroes[seat];
+  const ex = exits(g, c, seat).find(e => e.dir === dir);
+  const kind = squareKind(c.board, ex.to);
+  const inst = g.board.tiles[key(ex.to)];
+  const def = inst && contentIndex(c).tiles.get(inst.defId);
+  const parts = [];
+  if (ex.edge === 'door') parts.push('door, a door card first');
+  if (ex.edge === 'gate') parts.push(`${sideWord(g, c, hero.coord, dir)}, Strength ${heroDef(hero).stats.STR} test`);
+  if (ex.edge === 'secret') parts.push('secret passage');
+  if (kind === 'tower') parts.push('you may escape, stay or go on through it');
+  else if (kind === 'center') parts.push('treasure chamber, two secret cards then a dragon card');
+  else if (!def) parts.push('unexplored, will reveal a tile');
+  else parts.push(tileWords(def), MARK_EFFECT[def.mark], def.mark === 'blue' && g.rules.darkRoomPolicy === 'EVERY_ENTRY' ? 'ends your turn, a D6 picks the way out' : '', SPECIAL_EFFECT[def.special]);
+  const title = ex.edge === 'door' || ex.edge === 'gate' ? `Try ${DIR[dir]}` : kind === 'tower' ? `Enter the ${towerAt(ex.to)}` : `Go ${DIR[dir]}`;
+  return { title, reason: parts.filter(Boolean).join(', ') };
+}
+// Why an adjacent square cannot be entered now (the engine's exits() reason, in words).
+const WHY = { 'door-closed': 'the door stayed shut this turn', 'tower-entry': 'that is the way you came into the tower', 'no-tiles-left': 'no tiles left to reveal', occupied: 'occupied room, one hero per room' };
+function whyNot(g, ex) {
+  if (ex.reason !== 'wall') return WHY[ex.reason] || ex.reason;
+  const w = sideWord(g, content(), g.heroes[g.activeSeat].coord, ex.dir);
+  return w === 'wall' ? 'wall on this side' : w === 'printed wall' ? 'wall printed on the board' : 'wall on their side';
 }
 
 function testLines(events) {
@@ -613,15 +645,19 @@ function renderPrompt(v, la, targets) {
   switch (g.phase) {
     case 'CHOOSE_ACTION':
     case 'CHOOSE_EXIT': {
-      p = g.phase === 'CHOOSE_ACTION' ? panel(`${name}, your move`, 'Pick a lit square on the map, use the arrow keys, or choose below.') : panel('Keep moving?', 'You may go on this turn, or stop here.');
+      const inTower = hero.status === 'IN_TOWER_NOT_ESCAPED';
+      p = g.phase === 'CHOOSE_ACTION'
+        ? panel(`${name}, your move`, `${inTower ? `You are in the ${towerAt(hero.coord)}, not escaped. ` : ''}Pick a lit square on the map, or choose below. Tap or press Enter on any other square to see why it is shut.`)
+        : panel('Keep moving?', 'You may go on this turn, or stop here.');
       for (const a of by('MOVE')) {
-        ch.append(choice(`Go ${DIR[a.dir]}`, moveLabel(g, a), () => act(a)));
-        const to = neighbour(hero.coord, a.dir);
-        targets.push({ ...to, label: `Go ${DIR[a.dir]}: ${moveLabel(g, a)}`, pick: () => act(a) });
+        const m = moveInfo(g, a.dir);
+        ch.append(choice(m.title, m.reason, () => act(a)));
+        targets.push({ ...neighbour(hero.coord, a.dir), label: `${m.title}, ${m.reason}`, pick: () => act(a) });
       }
+      for (const a of by('TOWER_CHOICE')) ch.append(choice('Escape the castle', "End this hero's run with their treasure. Final: no way back in.", () => act(a), 'primary'));
       for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
       for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two treasure chamber cards, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
-      for (const a of by('STOP')) ch.append(choice('Stop here', 'End your turn', () => act(a)));
+      for (const a of by('STOP')) ch.append(inTower ? choice('Stop in the tower', 'End your turn here, not escaped', () => act(a)) : choice('Stop here', 'End your turn', () => act(a)));
       for (const a of by('FORCED_SKIP')) ch.append(choice('No way on', 'The turn passes', () => act(a)));
       break;
     }
@@ -660,6 +696,13 @@ function renderPrompt(v, la, targets) {
           targets.push({ ...neighbour(hero.coord, dir), label: `Go ${DIR[dir]}`, pick: () => act(a) });
         }
       }
+      break;
+    }
+    case 'TOWER_CHOICE': {
+      // Spec v2: being in a tower is not escaping; only Escape ends the run.
+      p = panel('You reached a tower', `${name} is in the ${towerAt(hero.coord)}. Only Escape ends the run; a hero who stays is still inside.${g.sun === SUNSET - 1 ? ' This is the last round: anyone inside after it is inside at sunset.' : ''}`);
+      const L = { ESCAPE: ['Escape the castle', "End this hero's run with their treasure. Final: no way back in."], STAY: ['Stay in the tower', g.sun === SUNSET - 1 ? 'End your turn here, not escaped; the sun sets after this round' : 'End your turn here and keep playing; you may escape on a later turn'], CONTINUE: ['Continue through the other passage', 'Keep moving this turn, not back the way you came'] };
+      for (const a of by('TOWER_CHOICE')) ch.append(choice(...L[a.choice], () => act(a), a.choice === 'ESCAPE' ? 'primary' : ''));
       break;
     }
     case 'CHOOSE_MONSTER_RESPONSE': {
@@ -755,16 +798,10 @@ function renderTable(v) {
   const prompt = renderPrompt(v, la, targets);
 
   const bp = el('section', 'glass board-panel board-wrap');
-  const zoom = el('div', 'zoom');
-  const zb = (label, text, z) => { const b = el('button', 'btn', text); b.setAttribute('aria-label', label); b.disabled = z === S.zoom; b.onclick = () => { S.zoom = z; render(); }; return b; };
-  // shortcut: zoom in fixed steps with native scrolling to pan, no pinch gesture; enough for the 6 x 5 fixture board, revisit with the real board size (M4)
-  const zs = [1, 1.5, 2, 3], zi = zs.indexOf(S.zoom);
-  zoom.append(zb('Zoom out', '−', zs[Math.max(0, zi - 1)]), zb('Fit the board', 'Fit', 1), zb('Zoom in', '+', zs[Math.min(zs.length - 1, zi + 1)]), el('span', '', `${v.board.tileBag} tiles left`));
-  const host = el('div', 'board-scroll');
-  host.style.setProperty('--zoom', S.zoom);
-  host.classList.toggle('fit', S.zoom === 1);
-  bp.append(zoom, host, mapKey());
-  drawBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets });
+  bp.setAttribute('aria-label', 'Map');
+  const host = el('div');
+  bp.append(host, mapKey());
+  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[g.activeSeat].coord, onInspect: inspect, tilesLeft: v.board.tileBag });
 
   const side = el('div');
   side.append(prompt);
@@ -778,43 +815,97 @@ function renderTable(v) {
     lp.append(ol);
     side.append(lp);
   }
-  side.append(heroesPanel(v));
-  const log = el('details', 'glass panel');
-  log.append(el('summary', '', 'Event log'));
-  const ol = el('ol');
-  ol.id = 'log';
-  for (const t of lines(v.log, ctx()).slice(-300)) ol.append(el('li', '', t));
-  log.append(ol);
-  side.append(log);
+  side.append(heroesPanel(v), logPanel(v));
   grid.append(bp, side);
   out.push(grid);
   $('table').replaceChildren(...out);
 }
 
+let keyOpen = false;
 function mapKey() {
   const d = el('details');
+  d.open = keyOpen;
+  d.ontoggle = () => { keyOpen = d.open; };
   d.append(el('summary', '', 'Map key'));
   const k = el('div', 'key');
-  const item = (label, draw) => {
+  const item = (label, draw, box = 60) => {
     const s = el('span');
-    const ic = svg('svg', { viewBox: '0 0 60 60', 'aria-hidden': 'true' });
+    const ic = svg('svg', { viewBox: `0 0 ${box} ${box}`, 'aria-hidden': 'true' });
     draw(ic);
     s.append(ic, label);
     k.append(s);
   };
-  item('Room: a room card', s => svg('circle', { cx: 30, cy: 30, r: 12, class: 'dot dot-black' }, s));
-  item('Red room: card, then a portcullis drops behind', s => svg('path', { d: 'M30 15l15 15-15 15-15-15z', class: 'dot dot-red' }, s));
-  item('Corridor: no card, keep going', s => svg('path', { d: 'M30 15l15 26h-30z', class: 'dot dot-yellow' }, s));
-  item('Dark room', s => svg('path', { d: 'M34 15a15 15 0 1 0 11 24a12 12 0 1 1-11-24z', class: 'dot dot-blue' }, s));
-  item('Door', s => svg('rect', { x: 12, y: 24, width: 36, height: 12, rx: 3, class: 'door' }, s));
-  item('Portcullis', s => { for (let t = 16; t <= 44; t += 7) svg('line', { x1: t, y1: 22, x2: t, y2: 38, class: 'gate' }, s); svg('line', { x1: 12, y1: 30, x2: 48, y2: 30, class: 'gate' }, s); });
+  item('Room: a room card', s => markGlyph(s, 'black', 30, 30));
+  item('Red room: card, then a portcullis drops behind', s => markGlyph(s, 'red', 30, 30));
+  item('Corridor: no card, keep going', s => markGlyph(s, 'yellow', 30, 32));
+  item('Dark room', s => markGlyph(s, 'blue', 28, 30));
+  item('Entry dot: the side the tile was entered from', s => { svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 4, class: 'floor' }, s); entryGlyph(s, 'S', 30, 54); });
+  item('Wall', s => sideGlyph(s, 'wall', [8, 30, 52, 30]));
+  item('Shut from the other side', s => { svg('rect', { x: 0, y: 0, width: 100, height: 100, rx: 4, class: 'floor' }, s); blockedGlyph(s, 'N'); }, 100);
+  item('Wall printed on the board', s => sideGlyph(s, 'wall', [8, 30, 52, 30], 'fixed'));
+  item('Door', s => sideGlyph(s, 'door', [4, 30, 56, 30]));
+  item('Portcullis', s => sideGlyph(s, 'gate', [4, 30, 56, 30]));
+  item('Portcullis down behind a red room', s => sideGlyph(s, 'gate', [4, 30, 56, 30], 'fallen'));
+  item('Tower', s => { svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 10, class: 'tower' }, s); towerGlyph(s); }, 100);
+  item('Chamber reserve, not yet entered', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 4, class: 'reserved' }, s));
   item('Unexplored', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 4, class: 'fog' }, s));
+  item('Off the board', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, class: 'offboard' }, s));
+  item('Lit: a legal move', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 6, class: 'target' }, s));
   d.append(k);
   return d;
 }
 
+// Spec v2 #11: the semantic log, with the round on every line. "Debug log" (a setting, off by default) reads the
+// debug view instead: every hidden card, deck ids, shuffles and the RNG state, with each entry's raw fields.
+let logOpen = false;
+function logPanel(v) {
+  const g = S.game, c = content();
+  const d = el('details', 'glass panel');
+  d.open = logOpen;
+  d.ontoggle = () => { logOpen = d.open; };
+  d.append(el('summary', '', prefs.debugLog ? 'Event log, debug: hidden cards shown' : 'Event log'));
+  const ol = el('ol');
+  ol.id = 'log';
+  const when = e => el('span', 'when', e.round ? `Round ${e.round}` : 'Setup');
+  if (prefs.debugLog) {
+    const dv = view(g, c, null, { debug: true });
+    const tops = Object.entries(dv.decks || {}).map(([cat, dk]) => `${cat} ${dk.order.length} (top ${dk.order.slice(0, 2).join(', ') || 'none'})`);
+    ol.append(el('li', 'debug', `RNG seed ${dv.rng.seed}, state ${dv.rng.state}. Tile bag ${dv.board.tileBag.length} (next ${dv.board.tileBag[0] || 'none'}). Decks: ${tops.join('; ')}.`));
+    const text = new Map(entries(dv.log, ctx()).map(x => [x.e, x.text]));
+    for (const e of dv.log.slice(-400)) {
+      const { seq, round, seat, kind, ...rest } = e;
+      const li = el('li', 'debug');
+      li.append(when(e), ` ${text.get(e) || ''} `, el('code', '', `#${seq} ${kind}${seat !== undefined ? ` seat ${seat}` : ''} ${JSON.stringify(rest)}`));
+      ol.append(li);
+    }
+  } else {
+    for (const { e, text } of entries(v.log, ctx()).slice(-300)) {
+      const li = el('li');
+      li.append(when(e), ` ${text}`);
+      ol.append(li);
+    }
+  }
+  d.append(ol);
+  return d;
+}
+
+const STATUS_WORD = { READY_IN_START_TOWER: 'Ready in the start tower', EXPLORING: 'Exploring', IN_TOWER_NOT_ESCAPED: 'In a tower, not escaped', ESCAPED: 'Escaped', DEAD: 'Dead' };
+function roomStateWords(h) {
+  const r = h.roomState;
+  if (r?.special === 'well') return `${r.phase === 'CROSSED' ? 'Across the well' : 'At the near edge of the well'}, entered from the ${DIR[r.entryEdge]}`;
+  if (r?.special === 'rubble') return `In the rubble, came in heading ${DIR[r.arrivalDir]}`;
+  if (h.conditions.some(x => x.id === 'dark')) return 'In the dark: a D6 picks the way out';
+  return null;
+}
+function whereWords(v, h) {
+  if (!h.coord) return 'Not placed yet';
+  const c = content(), kind = squareKind(c.board, h.coord), inst = v.board.tiles[key(h.coord)];
+  const what = kind === 'tower' ? towerAt(h.coord) : kind === 'center' ? 'treasure chamber' : inst ? tileWords(contentIndex(c).tiles.get(inst.defId)) : 'unexplored';
+  return `${capital(place(h.coord))}, ${what}`;
+}
+
 function heroesPanel(v) {
-  const g = S.game, n = g.seats.length;
+  const g = S.game, c = content(), n = g.seats.length;
   const p = panel('Heroes');
   p.id = 'heroes';
   const ul = el('ul');
@@ -825,20 +916,31 @@ function heroesPanel(v) {
     const pawn = el('span', 'pawn', seat + 1);
     pawn.style.background = `var(--seat${seat})`;
     const body = el('div');
-    const status = { inside: '', escaped: 'Escaped', dead: 'Dead', 'lost-at-sunset': 'Caught at sunset' }[h.status];
-    body.append(el('div', 'name', `${g.seats[seat].name}, ${def.name}${status ? `: ${status}` : ''}`));
+    body.append(el('div', 'name', `${g.seats[seat].name}, ${def.name}`));
+    const stats = el('div', 'stats');
+    for (const s of ['STR', 'AGI', 'ARM', 'LCK']) stats.append(el('span', '', `${STAT[s]} ${def.stats[s]}`));
+    body.append(stats);
     const hp = el('div', 'hp');
     const fill = el('i');
     fill.style.width = `${Math.max(0, 100 * h.hp / h.hpStart)}%`;
     hp.append(fill);
     body.append(hp);
-    const cond = h.conditions.map(x => ({ dark: 'in the dark', 'well-edge': 'at the well edge', rubble: 'in rubble' }[x.id] || 'under an effect'));
+    // Ordinary gold is held loot, public (D25); chamber cards are private, so only their number shows here.
+    const ordinary = h.held.reduce((sum, inst) => sum + (cardDef(c, inst).gold || 0), 0);
     const chamberCount = Array.isArray(h.treasury) ? h.treasury.length : h.treasury;
-    body.append(el('div', 'meta', `HP ${Math.max(0, h.hp)} of ${h.hpStart} · ${Array.isArray(h.treasury) ? `${h.gold} gold` : `${h.gold} gold showing`} · ${chamberCount} chamber ${chamberCount === 1 ? 'card' : 'cards'}${cond.length ? ` · ${cond.join(', ')}` : ''}`));
+    body.append(el('div', 'meta', `HP ${Math.max(0, h.hp)} of ${h.hpStart} · Gold ${ordinary} · ${chamberCount} hidden chamber ${chamberCount === 1 ? 'card' : 'cards'}`));
+    const ring = g.seats[seat].ringId && contentIndex(c).rings.get(g.seats[seat].ringId);
+    const weapon = def.specialWeaponId && (c.specialWeapons || []).find(w => w.id === def.specialWeaponId);
+    const uses = weapon && Number.isInteger(weapon.uses) ? `, ${Math.max(0, weapon.uses - h.weaponUses)} of ${weapon.uses} uses left` : '';
+    body.append(el('div', 'meta', `Ring: ${ring ? ring.name || ring.id : 'none'} · Special weapon: ${weapon ? weapon.name + uses : 'none'}`));
+    const room = roomStateWords(h);
+    if (room) body.append(el('div', 'meta room', room));
+    const end = h.endResult === 'INSIDE_AT_SUNSET' ? ', inside at sunset' : '';
+    body.append(el('div', 'meta', `${whereWords(v, h)} · ${STATUS_WORD[h.status]}${end}`));
     const held = heldNames(h);
     if (held.length) body.append(el('div', 'meta', `Holds: ${held.join(', ')}`));
-    if (Array.isArray(h.treasury) && h.treasury.length) body.append(el('div', 'meta', `Chamber cards: ${h.treasury.map(i => cardDef(content(), i).name).join(', ')}`));
-    if (n > 1 && chamberCount > 0 && h.status === 'inside') {
+    if (Array.isArray(h.treasury) && h.treasury.length && n === 1) body.append(el('div', 'meta', `Chamber cards: ${h.treasury.map(i => cardDef(c, i).name).join(', ')}`));
+    if (n > 1 && chamberCount > 0 && isActive(h)) {
       const b = el('button', 'btn', 'Show my cards');
       b.setAttribute('aria-label', `Show ${g.seats[seat].name}'s treasure chamber cards`);
       b.onclick = () => { S.peek = { seat, from: null }; render(); };
@@ -851,34 +953,57 @@ function heroesPanel(v) {
   return p;
 }
 
-// ---- Results: escapees by gold, shared top gold wins together (D01); none means the keep wins.
+// The inspect sheet: what a square is, side by side, who is in it, and whether the active hero may go there.
+function inspect(c) {
+  const g = S.game, cc = content(), v = view(g, cc, viewer);
+  const info = cellInfo(v, cc, c, g.seats.map(s => s.name));
+  $('inspectTitle').textContent = info.title;
+  const out = [el('p', '', capital(info.what))];
+  const ul = el('ul', 'sides');
+  for (const { side, word } of info.sides) ul.append(el('li', '', `${capital(DIR[side])}: ${word === 'unknown' ? 'not known until revealed' : word}`));
+  out.push(ul, el('p', '', info.occupants.length ? `Here: ${listOf(info.occupants)}.` : 'Nobody is here.'));
+  const hero = g.status === 'playing' && g.heroes[g.activeSeat];
+  if (hero && ['CHOOSE_ACTION', 'CHOOSE_EXIT'].includes(g.phase) && !S.peek && !S.reveal) {
+    const ex = exits(g, cc, g.activeSeat).find(e => e.to.x === c.x && e.to.y === c.y);
+    const a = ex && legalActions(g, cc).find(x => x.type === 'MOVE' && x.dir === ex.dir);
+    if (a) {
+      const m = moveInfo(g, ex.dir);
+      out.push(el('p', 'why', `${m.title}: ${m.reason}.`));
+      const go = el('button', 'btn primary', m.title);
+      go.onclick = () => { $('inspect').close(); act(a); };
+      out.push(go);
+    } else if (ex) out.push(el('p', 'why', `${nameOf(g.activeSeat)} cannot go there: ${whyNot(g, ex)}.`));
+    else if (hero.coord.x === c.x && hero.coord.y === c.y) out.push(el('p', 'why', `${nameOf(g.activeSeat)} is here.`));
+  }
+  $('inspectBody').replaceChildren(...out);
+  $('inspect').showModal();
+}
+
+// ---- Results: escapees by gold, shared top gold wins together (D01); none means the keep wins. Dead and
+// inside at sunset are listed apart (owner tower and sunset ruling).
 function renderResults(v) {
   const g = S.game, r = g.result, c = content();
+  const hero = e => `${nameOf(e.seat)}, ${contentIndex(c).heroes.get(e.heroId).name}`;
   const out = [el('h1', '', r.castleWins ? 'The keep wins' : `${listOf(r.winners.map(nameOf))} ${r.winners.length > 1 ? 'share the win' : 'wins'}`)];
   out.push(el('p', 'lede', r.castleWins ? 'Nobody escaped before sunset.' : r.shared ? 'Equal top gold among those who escaped: a shared win.' : 'Most gold among those who escaped.'));
-  const p = panel('Escaped');
-  const ol = el('ol');
-  for (const e of r.escaped) ol.append(el('li', '', `${nameOf(e.seat)}, ${contentIndex(c).heroes.get(e.heroId).name}: ${e.gold} gold${r.winners.includes(e.seat) ? ', winner' : ''}`));
-  if (!r.escaped.length) ol.append(el('li', '', 'Nobody'));
-  p.append(ol);
-  out.push(p);
-  if (r.others.length) {
-    const q = panel('Did not escape');
-    const ul = el('ul');
-    for (const e of r.others) ul.append(el('li', '', `${nameOf(e.seat)}, ${contentIndex(c).heroes.get(e.heroId).name}: ${e.status === 'dead' ? 'died in the keep' : 'caught inside at sunset'}`));
-    q.append(ul);
-    out.push(q);
-  }
+  const group = (title, rows, tag = 'ul') => {
+    if (!rows.length) return;
+    const p = panel(title);
+    const l = el(tag);
+    for (const t of rows) l.append(el('li', '', t));
+    p.append(l);
+    out.push(p);
+  };
+  group('Escaped', r.escaped.length ? r.escaped.map(e => `${hero(e)}: ${e.gold} gold${r.winners.includes(e.seat) ? ', winner' : ''}`) : ['Nobody'], 'ol');
+  const dead = r.others.filter(e => e.status === 'DEAD');
+  const inside = r.others.filter(e => e.status !== 'DEAD' && e.endResult === 'INSIDE_AT_SUNSET');
+  group('Dead', dead.map(e => `${hero(e)}: died in the keep`));
+  group('Inside at sunset', inside.map(e => `${hero(e)}: ${e.status === 'IN_TOWER_NOT_ESCAPED' ? 'in a tower, never chose Escape' : 'still in the keep'}, ${e.gold} gold not counted`));
+  group('Other', r.others.filter(e => !dead.includes(e) && !inside.includes(e)).map(e => `${hero(e)}: ${STATUS_WORD[e.status] || e.status}`));
   const again = el('div', 'choices');
   again.append(choice('New game', null, toTitle, 'primary'));
   out.push(again);
-  const log = el('details', 'glass panel');
-  log.append(el('summary', '', 'Event log'));
-  const l = el('ol');
-  l.id = 'log';
-  for (const t of lines(v.log, ctx()).slice(-400)) l.append(el('li', '', t));
-  log.append(l);
-  out.push(log);
+  out.push(logPanel(v));
   $('results').replaceChildren(...out);
 }
 
@@ -901,31 +1026,30 @@ $('saveExit').onclick = async () => {
   }
 };
 for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
+const showDebug = NL.segmented($('debugSeg'), v => { prefs.debugLog = v === 'on'; savePrefs(); showDebug(v); if (S.game) render(); });
 $('settingsBtn').onclick = () => {
   showTheme(NL.theme.get());
+  showDebug(prefs.debugLog ? 'on' : 'off');
   const rules = S.game?.rules || DEFAULT_RULES;
-  $('rules').replaceChildren(...Object.entries(rules).map(([k, val]) => {
+  $('rules').replaceChildren(...Object.keys(RULE_TAGS).map(k => {
     const li = el('li');
-    li.append(el('code', '', `${k}: ${val === true ? 'on' : val === false ? 'off' : val}`), el('span', '', RULE_INFO[k] ? RULE_INFO[k](val) : 'Unclassified'));
+    const fixed = !(k in rules), val = rules[k];
+    const [ruling, text] = RULE_INFO[k] ? RULE_INFO[k](val) : ['Not in the register', ''];
+    li.append(el('code', '', `${k}: ${fixed ? 'always on' : val === true ? 'on' : val === false ? 'off' : val}`), el('span', '', `${ruling}, ${RULE_TAGS[k].join(' and ')}. ${text}`));
     return li;
   }));
   $('settings').showModal();
 };
 $('settingsDone').onclick = () => $('settings').close();
+$('inspectDone').onclick = () => $('inspect').close();
+for (const id of ['appLabel', 'appLabelSettings']) $(id).textContent = APP_LABEL;
+if (matchMedia('(min-width: 820px)').matches) $('banner').open = true; // phones start with the list folded
 
-// Arrow keys move when a move that way is legal.
-const ARROWS = { ArrowUp: 'N', ArrowRight: 'E', ArrowDown: 'S', ArrowLeft: 'W' };
+// Esc cancels an uncommitted choice (the target placement and face, before Enter the result); sheets close natively.
 document.addEventListener('keydown', e => {
   keyboard = true;
-  const dir = ARROWS[e.key];
-  if (!dir || !S.game || S.game.status !== 'playing' || !$('cover').hidden || S.peek || S.reveal || document.querySelector('dialog[open]')) return;
-  if (e.target.closest?.('input, textarea, select')) return;
-  const la = legalActions(S.game, content());
-  const a = la.find(x => x.type === 'MOVE' && x.dir === dir)
-    || (S.game.pending?.kind === 'move-choice' && la.find(x => x.type === 'CHOOSE' && S.game.pending.options[x.option] === dir));
-  if (!a) return;
-  e.preventDefault();
-  act(a);
+  if (e.key !== 'Escape' || document.querySelector('dialog[open]') || !S.game) return;
+  if (target.placement || target.face) { target = { placement: null, face: null }; render(); }
 });
 document.addEventListener('pointerdown', () => { keyboard = false; });
 
