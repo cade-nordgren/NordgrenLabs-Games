@@ -73,6 +73,24 @@ export function legalActions(game, content) {
   }
 }
 
+// Why the active hero is not offered SEARCH right now, or null when it is offered (owner question 2026-11-19).
+// RB 7.1, SP 6 (R55-R57): search instead of moving, in a black or red room only, any number of times.
+const TILE_CONDITION_WORDS = { dark: 'a dark room', 'well-edge': 'the well', rubble: 'the rubble' };
+export function searchUnavailable(game, content) {
+  if (game.status !== 'playing' || game.activeSeat === null) return null;
+  const hero = game.heroes[game.activeSeat];
+  const kind = squareKind(content.board, hero.coord);
+  const mark = kind === 'maze' ? contentIndex(content).tiles.get(game.board.tiles[key(hero.coord)].defId).mark : null;
+  if (kind !== 'maze' || !['black', 'red'].includes(mark)) {
+    const where = kind === 'tower' ? 'a tower' : kind === 'center' ? 'the treasure chamber' : mark === 'yellow' ? 'a yellow corridor' : mark === 'blue' ? 'a dark room' : 'a special room with no dot';
+    return `not a room square: search only in a black or red dot room (RB 7.1), and this is ${where}`;
+  }
+  if (game.phase === 'CHOOSE_ACTION') return null;
+  if (game.phase === 'CHOOSE_EXIT') return 'already moved this turn: a search is instead of moving, at the start of a turn (RB 7.1)';
+  if (game.phase === 'TURN_START' && game.pending && TILE_CONDITION_WORDS[game.pending.kind]) return `${TILE_CONDITION_WORDS[game.pending.kind]} takes this turn first`;
+  return 'not now: something else is being resolved this turn';
+}
+
 export const sameAction = (a, b) => {
   const ka = Object.keys(a), kb = Object.keys(b);
   return ka.length === kb.length && ka.every(k => a[k] === b[k]);

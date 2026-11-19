@@ -3,7 +3,7 @@
 import { wakeOdds } from './treasury.js';
 import { heroGold } from './heroes.js';
 import { cardDef } from './decks.js';
-import { legalActions } from './phases.js';
+import { legalActions, searchUnavailable } from './phases.js';
 import { actionTests } from './movement.js';
 import { inventoryView } from './inventory.js';
 
@@ -57,6 +57,8 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   // Hidden choices in pending effects are fine to show: they are labels of the active hero's options.
   // Spec v3: every attribute test a legal action may roll, for a confirmation first (the shape of dice.testPreview).
   v.pendingTests = legal.flatMap(action => actionTests(game, content, action).map(t => ({ action, ...t })));
+  // RB 7.1 (R55-R57): when the active hero is not offered SEARCH, a short reason why; null when it is offered.
+  v.searchUnavailable = legal.some(a => a.type === 'SEARCH') ? null : searchUnavailable(game, content);
   return v;
 }
 
