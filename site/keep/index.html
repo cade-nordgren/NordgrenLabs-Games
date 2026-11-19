@@ -178,11 +178,55 @@ details li + li { margin-top: 6px; }
 .tablegrid > * { min-width: 0; }
 .tablegrid .panel { scroll-margin-top: 76px; }
 .board-panel { padding: 12px; }
-#latest ol, #log { margin: 8px 0 0; padding-left: 20px; font-size: 15px; }
-#latest li + li, #log li + li { margin-top: 4px; }
-#log { max-height: 50dvh; overflow: auto; color: var(--ink2); }
+/* The event log and "What just happened": plain lines, the dice arithmetic under each in smaller text, one group
+   per turn under the player's name. It grows with the page (no scroll box inside a scroll box). */
+#log { list-style: none; margin: 8px 0 0; padding: 0; font-size: 15px; line-height: 1.45; }
+#log li.debug + li.debug { margin-top: 6px; }
+#log li.debug { color: var(--ink2); overflow-wrap: anywhere; }
 #log .when { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 #log li.debug code { display: block; font-size: 12px; overflow-wrap: anywhere; }
+.turnlog { padding: 10px 0 8px; border-top: 1px solid var(--hair); }
+.turnlog h3 { margin: 0 0 2px; color: var(--ink); display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; overflow-wrap: anywhere; }
+.turnlog h3 span { font-size: 13px; font-weight: 500; color: var(--ink2); }
+.loglines { list-style: none; margin: 0; padding: 0; line-height: 1.45; overflow-wrap: anywhere; }
+#latest .loglines { margin-top: 8px; font-size: 15px; }
+.loglines li { padding: 3px 0; }
+.loglines small { display: block; font-size: 13px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+#logPanel { scroll-margin-top: max(12px, env(safe-area-inset-top)); }
+#logPanel:focus { outline: none; }
+#logPanel > .btn { margin-top: 10px; }
+.again { display: grid; gap: 10px; max-width: 440px; margin: 4px auto 18px; }
+
+/* Dice: Bank's cubes (site/bank/index.html), numbered faces for a D12 or D6. ui/dice.js turns them. */
+.dice { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 26px; padding: 14px 0 8px; perspective: 700px; }
+.dice figure { margin: 0; display: grid; justify-items: center; gap: 8px; max-width: 110px; }
+.dice figcaption { font-size: 14px; color: var(--ink2); text-align: center; overflow-wrap: anywhere; }
+.cube { --h: 32px; width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2, .8, .25, 1); }
+.cube .face { position: absolute; inset: 0; border-radius: 12px; background: var(--die); box-shadow: inset 0 0 0 1px var(--die-edge); display: grid; place-items: center; color: var(--pip); font: 700 calc(var(--h) * .85) var(--num); }
+.cube .face:nth-child(1) { transform: translateZ(var(--h)); }
+.cube .face:nth-child(2) { transform: rotateY(180deg) translateZ(var(--h)); }
+.cube .face:nth-child(3) { transform: rotateY(90deg) translateZ(var(--h)); }
+.cube .face:nth-child(4) { transform: rotateY(-90deg) translateZ(var(--h)); }
+.cube .face:nth-child(5) { transform: rotateX(90deg) translateZ(var(--h)); }
+.cube .face:nth-child(6) { transform: rotateX(-90deg) translateZ(var(--h)); }
+
+/* The roll card: over the dimmed board, its buttons at the bottom in thumb reach. */
+#roll::backdrop { background: rgba(0, 0, 0, .55); }
+#roll h2:focus { outline: none; } /* focused only while the dice turn, so nothing reads as a button */
+#roll .facts { margin: 0; }
+#roll .facts div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; border-top: 1px solid var(--hair); font-size: 15px; }
+#roll dt { color: var(--ink2); }
+#roll dd { margin: 0; font: 700 18px var(--num); color: var(--ink); }
+#roll p.need { margin: 0; text-align: center; font: 700 20px var(--num); color: var(--ink); }
+#roll .outcome { display: grid; gap: 6px; justify-items: center; text-align: center; }
+#roll .outcome > div { display: grid; gap: 4px; justify-items: center; }
+#roll .outcome p { margin: 0; }
+#roll p.verdict { padding: 2px 20px; border-radius: 999px; font: 700 30px/1.2 var(--num); color: var(--ink); background: var(--fill); }
+#roll p.verdict.pass { background: color-mix(in srgb, var(--good) 24%, transparent); }
+#roll p.verdict.fail { background: color-mix(in srgb, var(--danger) 22%, transparent); }
+#roll p.sum { color: var(--ink); font-variant-numeric: tabular-nums; }
+.rollbtns { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; margin-top: 4px; }
+.rollbtns .btn { min-height: 54px; }
 #heroes ul { list-style: none; margin: 8px 0 0; padding: 0; }
 #heroes li { padding: 10px 0; border-top: 1px solid var(--hair); display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 10px; align-items: start; }
 #heroes li.active { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 12px; }
@@ -194,8 +238,6 @@ details li + li { margin-top: 6px; }
 .hp i { display: block; height: 100%; background: var(--good); }
 .pips { display: inline-flex; gap: 4px; vertical-align: middle; }
 .pips i { width: 12px; height: 12px; border-radius: 50%; background: var(--danger); }
-.die { display: inline-grid; place-items: center; min-width: 40px; height: 40px; padding: 0 6px; border-radius: 10px; background: var(--die); color: var(--pip); box-shadow: inset 0 0 0 1px var(--die-edge); font: 700 20px var(--num); margin-right: 8px; vertical-align: middle; }
-.testline { display: flex; align-items: center; margin-top: 8px; font-size: 15px; }
 .vs { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 12px; font: 700 40px var(--num); }
 .vs small { display: block; font: 600 13px var(--text); color: var(--ink2); text-align: center; }
 
@@ -232,12 +274,21 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .app.table > #table:not([hidden]) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .banner { margin-bottom: 6px; font-size: 14px; }
   .statusbar { flex: none; min-height: 44px; padding: 4px 12px; margin: 0 0 8px; } /* sits below the menu button, so full width */
+  .tablegrid { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  .tablegrid > .side { display: contents; }
+  .dock { flex: none; max-height: 50dvh; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; border-radius: 26px; }
+  .dock > .panel { flex: none; margin: 0; }
+  .dock > #latest { order: -1; }
+  .fold { flex: none; height: 0; min-height: 0; margin-top: max(8px, env(safe-area-inset-bottom)); }
+  .fold::after { content: ''; display: block; height: max(16px, env(safe-area-inset-bottom)); }
+}
+/* Any phone, portrait or landscape (PHONE in app.js): the one-line status and the map buttons floating in its
+   top right corner over a map that takes all the room it is given. */
+@media (max-width: 819.98px) and (orientation: portrait), (orientation: landscape) and (max-height: 540px) {
   .statusbar .sun, .statusbar .long { display: none; }
   .statusbar .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; white-space: nowrap; } /* a long name wraps rather than being cut */
   .statusbar strong { min-width: 0; font-size: 15px; }
   .statusbar .short { display: inline; flex: none; font-size: 13px; }
-  .tablegrid { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
-  .tablegrid > .side { display: contents; }
   #table .board-panel { flex: 1; min-height: 140px; display: flex; flex-direction: column; padding: 6px; }
   #table .board-host, #table .map { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #table .map { position: relative; }
@@ -246,28 +297,38 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   #table .map-tools .btn { width: 44px; height: 44px; min-width: 0; padding: 0; display: grid; place-items: center; background: var(--solid); color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, .3); font-size: 22px; }
   #table .map-tools .ico { display: block; width: 22px; height: 22px; }
   #table .map-tools .tool-text, #table .map-tools .tiles { display: none; }
-  .dock { flex: none; max-height: 50dvh; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; border-radius: 26px; }
-  .dock > .panel { flex: none; margin: 0; }
-  .dock > #latest { order: -1; }
-  .fold { flex: none; height: 0; min-height: 0; margin-top: max(8px, env(safe-area-inset-bottom)); }
-  .fold::after { content: ''; display: block; height: max(16px, env(safe-area-inset-bottom)); }
 }
+/* Phone in landscape (667x375 to 932x430). The table: the board on the left the full height of the screen, and on
+   the right a column with the banner, the one-line status and below them, scrolling inside the column, the
+   prompt, what just happened, the map key, heroes and log. Other screens scroll as pages, in two columns. */
 @media (orientation: landscape) and (max-height: 540px) {
   .app, .app.wide { max-width: 1060px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   #title { columns: 2; column-gap: 14px; }
   #title > h1, #title > .lede { column-span: all; }
   #title > * { break-inside: avoid; }
-  .tablegrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-  .board-panel { position: sticky; top: 8px; }
   .viewport { max-height: calc(100dvh - 90px); }
   .map-tools { flex-wrap: nowrap; gap: 6px; }
   .map-tools .btn { padding: 0 10px; font-size: 14px; }
   .map-tools .tiles { display: none; }
-  .banner { padding: 0 12px; margin-bottom: 8px; }
-  .statusbar { margin-bottom: 10px; min-height: 48px; padding: 4px 12px; }
-  .statusbar span { display: inline; margin-right: 8px; }
-  .sun { width: 56px; height: 30px; }
+  .banner { padding: 0 12px; margin-bottom: 6px; font-size: 14px; }
   h1 { font-size: 32px; }
+  .cover { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .cover > div { gap: 10px; }
+  .cover > div > svg { display: none; } /* the keep picture, so the button stays on a 375px high screen */
+  .cover h2 { font-size: 26px; }
+  .app.table { max-width: none; height: 100dvh; min-height: 0; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 42%, 420px); grid-template-rows: auto auto minmax(0, 1fr); column-gap: 10px; }
+  .app.table > #table:not([hidden]), .app.table .tablegrid { display: contents; }
+  .app.table > .banner { grid-column: 2; grid-row: 1; margin: 0 60px 6px 0; } /* clear of the menu circle */
+  .app.table .statusbar { grid-column: 2; grid-row: 2; margin: 0 60px 8px 0; min-height: 44px; padding: 4px 12px; }
+  .app.table .board-panel { grid-column: 1; grid-row: 1 / -1; position: static; min-height: 0; }
+  .app.table .side { grid-column: 2; grid-row: 3; min-height: 0; overflow: auto; overscroll-behavior: contain; border-radius: 26px; padding-bottom: 8px; }
+  .app.table .side .panel { margin-bottom: 8px; }
+  #roll > div { gap: 6px; padding: 14px 16px 12px; }
+  #roll .dice { padding: 4px 0; }
+  #roll .cube { --h: 26px; }
+  #roll .facts div { padding: 3px 0; }
+  #roll p.verdict { font-size: 24px; }
 }
 </style>
 </head>
@@ -385,6 +446,14 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
     <h2 id="inspectTitle"></h2>
     <div id="inspectBody"></div>
     <button class="btn" id="inspectDone">Close</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="roll" aria-labelledby="rollTitle">
+  <div>
+    <h2 id="rollTitle" tabindex="-1"></h2>
+    <div id="rollBody"></div>
+    <div class="rollbtns" id="rollBtns"></div>
   </div>
 </dialog>
 
