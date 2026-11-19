@@ -15,7 +15,7 @@ import { legalActions, sameAction } from './phases.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v2'; // v2: shared towers and new hero statuses; older saves are refused
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v3'; // v3: one-cell chamber, private monster data, inventory; older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
@@ -228,7 +228,7 @@ const apply = {
     else { g.turn.mayContinue = true; g.turn.transitFrom = hero.enteredFrom; }
     run(g, content);
   },
-  RESPOND(g, { choice }, content) { respond(g, content, choice); },
+  RESPOND(g, { choice }, content) { respond(g, content, choice); run(g, content); },
   ANNOUNCE(g, a, content) { announce(g, content); run(g, content); },
   COMBAT_PICK(g, { side, letter }, content) { combatPick(g, content, side, letter); run(g, content); },
   TARGET_RESULT(g, { placement, face }, content) { targetResult(g, content, placement, face); run(g, content); },

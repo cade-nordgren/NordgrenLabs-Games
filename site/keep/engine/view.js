@@ -20,11 +20,12 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   v.heroes = v.heroes.map(h => (!h ? h : h.seat !== viewer ? { ...h, treasury: h.treasury.length, gold: heldGold(h) } : { ...h, gold: heroGold(h, content) }));
   const enc = v.encounter;
   if (enc) {
-    const isController = viewer === enc.controller;
     // RB 8.1, RB 8.3: only the controller reads the card; the hero hears the announced reaction.
-    // RB 10, SP 9: in solo the hero is the controller, so HP is visible.
+    // D37 (spec v3): the hero never sees the monster's card, HP or damage tally, solo included (there the
+    // computer is the monster player). groupId stays: the monster's A/B/C cards are revealed in play.
+    const isController = viewer === enc.controller && viewer !== enc.seat;
     if (enc.monster && !isController) {
-      enc.monster = { wounds: enc.monster.wounds, groupId: enc.monster.groupId };
+      enc.monster = { groupId: enc.monster.groupId };
       if (!enc.announced) enc.reaction = null;
       else enc.reaction = { type: enc.reaction.type };
     }
@@ -37,9 +38,17 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   }
   // Drawn cards marked private (treasure-chamber cards, the monster card) are blanked for others.
   // Normal mode also drops the RNG calls (shuffles); debug mode keeps them.
-  v.log = v.log.filter(e => e.kind !== 'shuffle').map(e => (e.private !== undefined && e.private !== viewer ? { ...e, value: 'hidden' } : e));
+  v.log = v.log.filter(e => e.kind !== 'shuffle').map(e => (e.private !== undefined && e.private !== viewer ? redact(e) : e));
   // Hidden choices in pending effects are fine to show: they are labels of the active hero's options.
   return v;
+}
+
+// A private entry seen by someone else: the card and any running total are blanked.
+const SECRET_FIELDS = ['wounds', 'hp', 'card', 'defId', 'gold'];
+function redact(e) {
+  const out = { ...e, value: 'hidden' };
+  for (const k of SECRET_FIELDS) delete out[k];
+  return out;
 }
 
 // Plan 4.9: the seat that must be the only one looking at the screen right now, or null for the

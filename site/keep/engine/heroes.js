@@ -57,7 +57,7 @@ export function killHero(g, content, seat, reason) {
   returnTreasury(g, seat);
   hero.conditions = [];
   if (g.encounter && g.encounter.seat === seat) {
-    if (g.encounter.monster) toBottom(g, 'MONSTER', g.encounter.monster.inst, g.encounter.controller);
+    if (g.encounter.monster) toBottom(g, 'MONSTER', g.encounter.monster.inst, g.encounter.priv);
     g.encounter = null;
   }
   if (seat === g.activeSeat && g.turn) {

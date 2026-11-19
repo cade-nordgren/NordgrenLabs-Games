@@ -31,7 +31,8 @@ test('T29b view hides tile bag and deck order, other heroes\' treasure-chamber c
   assert.deepEqual(hero.heroes[1].held, ['FX_ROOM_COINS#1'], 'D25: held loot is public');
   assert.equal(pub.heroes[0].treasury, 1);
   assert.equal(hero.encounter.monster.hp, undefined);
-  assert.equal(hero.encounter.monster.wounds, 0, 'wound markers are public');
+  assert.equal(hero.encounter.monster.wounds, undefined, 'spec v3: the damage tally belongs to the monster player (D37)');
+  assert.equal(ctrl.encounter.monster.wounds, 0);
   assert.equal(ctrl.encounter.monster.hp, 4);
   assert.equal(hero.encounter.combat.heroPick, 'C');
   assert.equal(ctrl.encounter.combat.heroPick, 'hidden', 'the controller cannot see the hero\'s face-down card');

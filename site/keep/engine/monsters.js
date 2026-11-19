@@ -8,7 +8,8 @@ import { abcExchange, targetThrow, LETTERS } from './combat.js';
 import { contentIndex } from '../content/schema.js';
 
 // D12 (interpretation): the seated player to the right controls the monster, even if dead or
-// escaped. Seats are in clockwise order, so the right-hand seat is the previous one. Solo: the hero.
+// escaped. Seats are in clockwise order, so the right-hand seat is the previous one. Solo: the hero's
+// seat answers the prompts, but D37 (spec v3): the computer is the monster player and the card stays hidden.
 export const controllerSeat = (g, seat) => (g.seats.length === 1 ? seat : (seat - 1 + g.seats.length) % g.seats.length);
 
 const combatSet = (content, setId) => (content.combat || []).filter(c => c.setId === setId);
@@ -32,7 +33,11 @@ export function startEncounter(g, content, { ambush }) {
     damageHero(g, content, seat, d12 - statOf(content, hero, 'LCK'), 'ambush (D12 - Luck)');
     if (hero.status === 'DEAD') return;
   }
-  g.encounter = { seat, ambush, controller: controllerSeat(g, seat), choice: null, monster: null, reaction: null, announced: false, combat: null };
+  const controller = controllerSeat(g, seat);
+  // D37 (spec v3): monster card and HP are private to the monster player: the controller, or in solo the
+  // computer ('computer' matches no viewer seat, so only the debug view shows them).
+  const priv = g.seats.length === 1 ? 'computer' : controller;
+  g.encounter = { seat, ambush, controller, priv, choice: null, monster: null, reaction: null, announced: false, combat: null };
   g.phase = 'CHOOSE_MONSTER_RESPONSE';
   g.pending = { kind: 'monster-response', seat };
 }
@@ -53,10 +58,12 @@ export function respond(g, content, choice) {
   const enc = g.encounter;
   enc.choice = choice;
   logEvent(g, { kind: 'commit', seat: enc.seat, choice });
-  const inst = draw(g, 'MONSTER', 'monster encounter', enc.controller);
+  const inst = draw(g, 'MONSTER', 'monster encounter', enc.priv);
   const def = cardDef(content, inst);
   enc.monster = { inst, hp: def.hp, wounds: 0, groupId: def.groupId };
   enc.reaction = def.reactions[choice === 'special' ? 'attack' : choice];
+  // D37: in solo the computer reads the card and announces at once; nobody sees the card.
+  if (enc.priv === 'computer') return announce(g, content);
   g.phase = 'MONSTER_REACT';
   g.pending = { kind: 'announce', seat: enc.controller };
 }
@@ -82,7 +89,8 @@ export function woundMonster(g, amount) {
   const m = g.encounter?.monster;
   if (!m) throw new Error('No monster to damage');
   m.wounds += amount;
-  logEvent(g, { kind: 'monster-wound', amount, wounds: m.wounds });
+  // Spec v3: the monster player tracks damage privately; the running total is theirs alone.
+  logEvent(g, { kind: 'monster-wound', amount, wounds: m.wounds, private: g.encounter.priv });
 }
 
 const monsterDead = g => g.encounter.monster.wounds >= g.encounter.monster.hp;
@@ -106,7 +114,7 @@ export function applyReaction(g, content) {
 
 function endEncounter(g, outcome, turnEffect) {
   const enc = g.encounter;
-  if (enc.monster) toBottom(g, 'MONSTER', enc.monster.inst, enc.controller);
+  if (enc.monster) toBottom(g, 'MONSTER', enc.monster.inst, enc.priv);
   logEvent(g, { kind: 'encounter-end', outcome });
   g.encounter = null;
   g.pending = null;
@@ -114,11 +122,13 @@ function endEncounter(g, outcome, turnEffect) {
 }
 
 // D17: solo uses manual physical-target entry (original) unless the labelled digital A/B/C variant is chosen.
+// Spec v3: the physical dice-target system is its own labelled mode, never the encounter choices.
+export const COMBAT_LABEL = { abc: 'A/B/C combat', target: 'Dice-target combat (2023 alternative mode, physical throw entered by hand)', 'abc-digital-variant': 'A/B/C combat, DIGITAL VARIANT (not an original rule)' };
 export const combatMode = g => (g.seats.length === 1 ? g.rules.soloCombat : 'abc');
 
 function startCombat(g, content) {
   const mode = combatMode(g);
-  g.encounter.combat = { mode, heroPick: null, monsterPick: null, exchanges: [], variant: mode === 'abc-digital-variant' ? 'DIGITAL VARIANT (not an original rule)' : null };
+  g.encounter.combat = { mode, label: COMBAT_LABEL[mode], heroPick: null, monsterPick: null, exchanges: [], variant: mode === 'abc-digital-variant' ? 'DIGITAL VARIANT (not an original rule)' : null };
   logEvent(g, { kind: 'combat', mode });
   g.phase = 'COMBAT_SELECT';
   g.pending = { kind: 'combat', seat: g.encounter.seat };
@@ -173,7 +183,7 @@ function applyCombatDamage(g, content, heroDmg, monsterDmg) {
   const enc = g.encounter;
   if (monsterDmg) woundMonster(g, monsterDmg);
   const killed = monsterDead(g);
-  if (killed) logEvent(g, { kind: 'monster-dead' });
+  if (killed) logEvent(g, { kind: 'monster-dead', seat: enc.seat }); // spec v3: announced, never with its HP
   if (heroDmg) damageHero(g, content, enc.seat, heroDmg, 'combat');
   if (!g.encounter) return; // hero died: killHero cleaned up the encounter
   if (killed) endEncounter(g, 'monster-killed', 'endAfter'); // RB 8.4: combat over, turn ends
