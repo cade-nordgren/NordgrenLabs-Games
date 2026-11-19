@@ -3,6 +3,7 @@
 import { exits, key, squareKind } from './board.js';
 import { contentIndex } from '../content/schema.js';
 import { responseOptions, combatActions } from './monsters.js';
+import { usableHeld } from './inventory.js';
 
 const moves = (game, content, seat) => exits(game, content, seat).filter(e => e.legal).map(e => ({ type: 'MOVE', seat, dir: e.dir }));
 
@@ -32,6 +33,8 @@ export function legalActions(game, content) {
       // RB 7.1, SP 6: search only in a black or red room.
       if (kind === 'maze' && ['black', 'red'].includes(contentIndex(content).tiles.get(game.board.tiles[key(hero.coord)].defId).mark)) out.push({ type: 'SEARCH', seat });
       if (kind === 'center') out.push({ type: 'COLLECT', seat }); // RB 9.1: stay and collect
+      // Spec v3 section 4: a Use action only where the item's own card data allows it now.
+      out.push(...usableHeld(game, content, seat, 'turn-action').map(item => ({ type: 'USE_ITEM', seat, item })));
       // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
       if (hero.status === 'READY_IN_START_TOWER' && game.rules.escapeWithoutExploring) out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
       // Plan 13 #25 (interpretation): a hero who stayed in a tower after exploring may escape on any later turn.
@@ -54,7 +57,11 @@ export function legalActions(game, content) {
       const onward = p.transit && exits(game, content, seat).some(e => e.legal && e.dir !== hero.enteredFrom);
       return ['ESCAPE', 'STAY', ...(onward ? ['CONTINUE'] : [])].map(choice => ({ type: 'TOWER_CHOICE', seat, choice }));
     }
-    case 'CHOOSE_MONSTER_RESPONSE': return responseOptions(game, content).map(choice => ({ type: 'RESPOND', seat, choice }));
+    case 'CHOOSE_MONSTER_RESPONSE': return [
+      ...responseOptions(game, content).map(choice => ({ type: 'RESPOND', seat, choice })),
+      // Spec v3: a held special weapon card whose data allows it (not in an ambush, as the hero's own weapon).
+      ...(game.encounter.ambush ? [] : usableHeld(game, content, seat, 'encounter-special').map(item => ({ type: 'RESPOND', seat, choice: 'special', item }))),
+    ];
     case 'MONSTER_REACT': return [{ type: 'ANNOUNCE', seat: p.seat }];
     case 'COMBAT_SELECT': return combatActions(game);
     case 'FORCED_MOVE': return p.targets.map(to => ({ type: 'FORCED_MOVE', seat: p.seat, to }));

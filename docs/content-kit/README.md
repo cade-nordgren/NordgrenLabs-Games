@@ -353,7 +353,8 @@ export default [
 | `turnDisposition` | `'end-turn'` (usual), `'continue'`, `'ongoing'` | `'continue'` lets the hero keep moving afterwards. |
 | `cardDisposition` | `'UNDER_SAME_DECK'` (usual), `'RETAIN_HELD'`, `'RETAIN_TREASURY'`, `'REMOVE'`, `'RESHUFFLE_DECK'` | Where the card goes afterwards ([card disposition](#card-disposition)). |
 | `privacy` | `'public'` (usual), `'private-to-holder'` | Whether other players see it when kept. Kept room loot and its gold are public (D25). |
-| `specialWeapon` | `true` / `false` | Marks an item as usable as a special weapon (stored, see section 10). |
+| `specialWeapon` | `true` / `false` | Marks an item as a special weapon. It can be chosen before a monster is revealed only if `use` says how (otherwise the app shows its effect as pending). |
+| `use` | optional `{ timing, effects, afterUse, uses }` | How a kept card can be used ([using kept cards](#using-kept-cards)). Leave it out and the card has no Use action. |
 
 After a monster flees or the hero flees, the rest of the room card is skipped; after a won fight the rest still runs (plan 13 #16), so a card can say "defeat it, then keep this".
 
@@ -516,6 +517,19 @@ That is why the table has no `special` key.
 
 A card with `followUpDeck` hands over to another deck once it is done: `'SEARCH'`, `'CHEST'` or `'DOOR'` draws and plays the top card of that deck, and `'MONSTER'` starts a monster encounter (RB 7.3). Inside `effects`, `DRAW_CARD` does the same mid-card and lets you choose `then: 'keep'` to put the drawn card in the hero's hand instead of playing it.
 
+### Using kept cards
+
+A kept card (in the hero's hand or treasury) gets a Use action only when its entry has a `use` block; the app never invents one (owner specification v3). The fields:
+
+| Field | Allowed values | Meaning |
+|---|---|---|
+| `timing` | `'turn-action'`, `'encounter-special'` | `'turn-action'`: used as the hero's action at the start of their turn; the turn then ends unless the effects say `CONTINUE_MOVEMENT`. `'encounter-special'`: chosen as a special weapon before a monster is revealed (not in an ambush), so the monster answers with its Attack reaction (RB 8.1); needs `specialWeapon: true`. |
+| `effects` | list of steps | What using it does, in order. |
+| `afterUse` | `'keep'` (usual), `'bottom'`, `'remove'` | Where the card goes after a use: stays in hand, under its own deck, or out of the game. |
+| `uses` | whole number 1 or more, or `null` | How many times it can be used while kept; `null` means no limit. |
+
+**Example only, not real content, not authentic:** `use: { timing: 'turn-action', effects: [{ op: 'HEAL', amount: 2 }], afterUse: 'bottom', uses: 1 }`.
+
 ### Card disposition
 
 After a card has done its work, `cardDisposition` decides where it goes:
@@ -584,7 +598,7 @@ These fields are checked and saved, but the engine does not act on them yet. Fil
 
 - tile `effects` (dot and special behaviour come from the rules, not data);
 - ring `trigger` and `effects` (rings are drafted and shown by their `power` or `text`);
-- the card `specialWeapon` flag (heroes use the special weapon card named by `specialWeaponId`);
+- hero `equipment` (shown in the hero's inventory, effect pending);
 - effects printed on treasury cards, which are kept as drawn (plan section 13, M2 shortcuts);
 - `turnDisposition: 'ongoing'` (use `SET_CONDITION` for lasting effects);
 - `art` everywhere.

@@ -98,6 +98,11 @@ export default {
     card('ROOM', 'FX_ROOM_THIEF', 'trap', { effects: [{ op: 'REMOVE_TREASURY_CARDS', who: 'hero' }] }),
     card('ROOM', 'FX_ROOM_SHOVE', 'trap', { effects: [{ op: 'MOVE_HERO', to: 'adjacent-choice', drawRoom: true, applyTile: true }] }),
     card('ROOM', 'FX_ROOM_STOP', 'trap', { effects: [{ op: 'END_TURN' }, { op: 'HEAL', amount: 99 }] }),
+    // Synthetic items for the spec v3 inventory mechanics (made up, NON-AUTHENTIC): a one-use turn-action
+    // item that goes under its deck, a reusable special weapon card, and a special weapon whose effect is pending.
+    card('ROOM', 'FX_ROOM_SALVE', 'item', { gold: 1, cardDisposition: 'RETAIN_HELD', use: { timing: 'turn-action', effects: [{ op: 'HEAL', amount: 2 }], afterUse: 'bottom', uses: 1 } }),
+    card('ROOM', 'FX_ROOM_SPEAR', 'item', { cardDisposition: 'RETAIN_HELD', specialWeapon: true, use: { timing: 'encounter-special', effects: [{ op: 'DEAL_DAMAGE', target: 'monster', amount: 1 }], afterUse: 'keep', uses: null } }),
+    card('ROOM', 'FX_ROOM_RELIC', 'item', { cardDisposition: 'RETAIN_HELD', specialWeapon: true }),
   ],
   search: [
     card('SEARCH', 'FX_SEARCH_CAPTIVE', 'item', { gold: 5, effects: [{ op: 'GRANT_TREASURE' }] }),

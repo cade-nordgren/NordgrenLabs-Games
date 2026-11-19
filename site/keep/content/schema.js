@@ -48,6 +48,9 @@ const FOLLOW_UP = ['SEARCH', 'CHEST', 'DOOR', 'MONSTER'];
 const TURN_DISP = ['continue', 'end-turn', 'ongoing'];
 const CARD_DISP = ['UNDER_SAME_DECK', 'RETAIN_HELD', 'RETAIN_TREASURY', 'REMOVE', 'RESHUFFLE_DECK'];
 const PRIVACY = ['public', 'private-to-holder'];
+// Spec v3 section 4: a kept card is usable only through its own `use` block (never a universal use action).
+const USE_TIMINGS = ['turn-action', 'encounter-special'];
+const AFTER_USE = ['keep', 'bottom', 'remove'];
 const REACTIONS = ['monster-flees', 'combat', 'strike-then-flight', 'strike-then-combat', 'flight-succeeds', 'other'];
 const RING_TRIGGERS = ['passive', 'once-per-game', 'on-test', 'on-encounter'];
 const BEATS = { A: 'B', B: 'C', C: 'A' };
@@ -143,6 +146,7 @@ function fieldErrors(key, e, content) {
       if (e.privacy !== undefined && !PRIVACY.includes(e.privacy)) err.push(`privacy ${e.privacy} not allowed`);
       if (!bool(e.specialWeapon)) err.push('specialWeapon must be true/false');
       err.push(...effectErrors(e.effects || []));
+      if (e.use !== undefined) err.push(...useErrors(e));
     }
   }
   if (key === 'monster') err.push(...monsterErrors(e, content));
@@ -164,6 +168,20 @@ function fieldErrors(key, e, content) {
   }
   if (key === 'dragon' && !['sleeping', 'awake'].includes(e.kind)) err.push('dragon kind must be sleeping or awake');
   if (CARD_KEYS.includes(key) && e.gold !== undefined && (!Number.isInteger(e.gold) || e.gold < 0)) err.push('gold must be an integer >= 0');
+  return err;
+}
+
+// use: { timing, effects, afterUse, uses }. 'encounter-special' is a special weapon (RB 8.1: it reads the
+// monster's Attack reaction), so the card must say specialWeapon: true.
+function useErrors(e) {
+  const u = e.use;
+  if (!u || typeof u !== 'object' || Array.isArray(u)) return ['use must be { timing, effects, afterUse, uses }'];
+  const err = [];
+  if (!USE_TIMINGS.includes(u.timing)) err.push(`use timing ${u.timing} not one of ${USE_TIMINGS.join('/')}`);
+  else if (u.timing === 'encounter-special' && e.specialWeapon !== true) err.push('use timing encounter-special needs specialWeapon: true');
+  if (u.afterUse !== undefined && !AFTER_USE.includes(u.afterUse)) err.push(`use afterUse ${u.afterUse} not one of ${AFTER_USE.join('/')}`);
+  if (!(u.uses === undefined || u.uses === null || (Number.isInteger(u.uses) && u.uses > 0))) err.push('use uses must be a positive integer or null');
+  err.push(...effectErrors(u.effects || []).map(m => `use: ${m}`));
   return err;
 }
 

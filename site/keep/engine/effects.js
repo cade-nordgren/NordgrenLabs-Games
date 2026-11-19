@@ -8,6 +8,7 @@ import { damageHero, healHero, statOf, setCondition, clearCondition, returnTreas
 import { enterTile, rotateTile, moveChoices, beginCarryOver } from './movement.js';
 import { startEncounter, woundMonster, applyReaction } from './monsters.js';
 import { continueWake } from './treasury.js';
+import { itemLog, groupOf } from './inventory.js';
 import { endTurn } from './clock.js';
 import { neighbour } from './board.js';
 
@@ -66,7 +67,10 @@ const OPS = {
   DRAW_CARD(g, c, e) {
     if (e.then === 'keep') {
       const inst = draw(g, e.deck, 'card draw (keep)', e.deck === 'TREASURY' ? g.activeSeat : null);
-      if (inst) active(g)[e.deck === 'TREASURY' ? 'treasury' : 'held'].push(inst);
+      if (inst) {
+        active(g)[e.deck === 'TREASURY' ? 'treasury' : 'held'].push(inst);
+        itemLog(g, g.activeSeat, 'obtain', inst, e.deck === 'TREASURY' ? 'chamber' : groupOf(cardDef(c, inst)));
+      }
     } else drawAndResolve(g, c, e.deck, 'card branch');
   },
   RETAIN_CARD(g, c, e, f) { retain(g, owner(g, f), e.into); },
@@ -79,7 +83,7 @@ const OPS = {
     const o = owner(g, f);
     if (!e.deck || e.deck === o.deck) o.reshuffle = true; else reshuffle(g, e.deck);
   },
-  REMOVE_TREASURY_CARDS: g => returnTreasury(g, g.activeSeat),
+  REMOVE_TREASURY_CARDS: g => returnTreasury(g, g.activeSeat, undefined, 'card'),
   MOVE_HERO(g, c, e) {
     const opts = { drawRoom: e.drawRoom !== false, applyTile: e.applyTile !== false, via: 'card' };
     const hero = active(g);
@@ -118,6 +122,7 @@ function retain(g, f, into) {
   f.kept = true;
   active(g)[into === 'treasury' ? 'treasury' : 'held'].push(f.card);
   logEvent(g, { kind: 'retain', value: f.card, into, ...(into === 'treasury' ? { private: g.activeSeat } : {}) });
+  itemLog(g, g.activeSeat, 'obtain', f.card, into === 'treasury' ? 'chamber' : groupOf(f));
 }
 
 function dirTo(from, to) {

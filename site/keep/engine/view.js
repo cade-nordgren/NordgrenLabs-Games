@@ -5,6 +5,7 @@ import { heroGold } from './heroes.js';
 import { cardDef } from './decks.js';
 import { legalActions } from './phases.js';
 import { actionTests } from './movement.js';
+import { inventoryView } from './inventory.js';
 
 // viewer: a seat number, or null for a public screen (nobody's private cards).
 // debug (spec v2 #11, developer only): the full state, with deck orders, the RNG and every hidden card.
@@ -20,6 +21,9 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   // gold: what this viewer may know, the holder's full total, or only the public held loot for others.
   const heldGold = h => h.held.reduce((sum, inst) => sum + (cardDef(content, inst).gold || 0), 0);
   v.heroes = v.heroes.map(h => (!h ? h : h.seat !== viewer ? { ...h, treasury: h.treasury.length, gold: heldGold(h) } : { ...h, gold: heroGold(h, content) }));
+  // Spec v3 section 4: each hero's inventory in five groups, with usable / reason per item.
+  const legal = game.status === 'playing' ? legalActions(game, content) : [];
+  v.heroes.forEach((h, seat) => { if (h) h.inventory = inventoryView(game, content, seat, viewer, legal); });
   const enc = v.encounter;
   if (enc) {
     // RB 8.1, RB 8.3: only the controller reads the card; the hero hears the announced reaction.
@@ -43,7 +47,7 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   v.log = v.log.filter(e => e.kind !== 'shuffle').map(e => (e.private !== undefined && e.private !== viewer ? redact(e) : e));
   // Hidden choices in pending effects are fine to show: they are labels of the active hero's options.
   // Spec v3: every attribute test a legal action may roll, for a confirmation first (the shape of dice.testPreview).
-  v.pendingTests = game.status === 'playing' ? legalActions(game, content).flatMap(action => actionTests(game, content, action).map(t => ({ action, ...t }))) : [];
+  v.pendingTests = legal.flatMap(action => actionTests(game, content, action).map(t => ({ action, ...t })));
   return v;
 }
 

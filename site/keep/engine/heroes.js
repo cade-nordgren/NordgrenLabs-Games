@@ -3,6 +3,7 @@
 import { logEvent } from './dice.js';
 import { toBottom, cardDef } from './decks.js';
 import { contentIndex } from '../content/schema.js';
+import { itemLog, groupOf } from './inventory.js';
 
 export const TILE_CONDITIONS = ['dark', 'well-edge', 'rubble'];
 
@@ -37,11 +38,13 @@ export function healHero(g, seat, amount, uncapped = false) {
 }
 
 // Treasure-chamber cards back to the bottom of the treasury deck (well discard D09, dragon wake RB 9.2).
-export function returnTreasury(g, seat, insts = g.heroes[seat].treasury) {
+// why: 'dragon' | 'card' | 'death', for the 'lose' log entry (spec v3).
+export function returnTreasury(g, seat, insts = g.heroes[seat].treasury, why = null) {
   const hero = g.heroes[seat];
   for (const inst of [...insts]) {
     hero.treasury.splice(hero.treasury.indexOf(inst), 1);
     toBottom(g, 'TREASURY', inst, seat);
+    itemLog(g, seat, 'lose', inst, 'chamber', { to: 'bottom of TREASURY', why });
   }
 }
 
@@ -52,9 +55,14 @@ export function killHero(g, content, seat, reason) {
   hero.status = DEAD;
   hero.hp = Math.min(hero.hp, 0);
   logEvent(g, { kind: 'death', seat, reason });
-  for (const inst of hero.held) toBottom(g, cardDef(content, inst).deck, inst);
+  for (const inst of hero.held) {
+    const def = cardDef(content, inst);
+    toBottom(g, def.deck, inst);
+    itemLog(g, seat, 'lose', inst, groupOf(def), { to: 'bottom of ' + def.deck, why: 'death' });
+  }
   hero.held = [];
-  returnTreasury(g, seat);
+  hero.itemUses = {};
+  returnTreasury(g, seat, undefined, 'death');
   hero.conditions = [];
   if (g.encounter && g.encounter.seat === seat) {
     if (g.encounter.monster) toBottom(g, 'MONSTER', g.encounter.monster.inst, g.encounter.priv);

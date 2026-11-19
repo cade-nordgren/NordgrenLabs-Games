@@ -167,7 +167,7 @@ test('card data validation: effect ops, expressions, decks, reactions, combat se
 });
 
 test('T30 no PvP, trading, revival or shared-turn actions exist (SP 9, SP 12 #30)', () => {
-  const allowed = new Set(['MOVE', 'STOP', 'SEARCH', 'COLLECT', 'FORCED_SKIP', 'ROLL_DARK_EXIT', 'WELL_RETURN', 'WELL_DISCARD', 'WELL_JUMP', 'RUBBLE_RETURN', 'RUBBLE_FORCE', 'CHOOSE', 'RESPOND', 'ANNOUNCE', 'COMBAT_PICK', 'TARGET_RESULT', 'FORCED_MOVE', 'TOWER_CHOICE']);
+  const allowed = new Set(['MOVE', 'STOP', 'SEARCH', 'COLLECT', 'FORCED_SKIP', 'ROLL_DARK_EXIT', 'WELL_RETURN', 'WELL_DISCARD', 'WELL_JUMP', 'RUBBLE_RETURN', 'RUBBLE_FORCE', 'CHOOSE', 'RESPOND', 'ANNOUNCE', 'COMBAT_PICK', 'TARGET_RESULT', 'FORCED_MOVE', 'TOWER_CHOICE', 'USE_ITEM']); // USE_ITEM: only where a card's own use data allows (spec v3)
   const seen = new Set();
   for (const seed of [3, 11, 19, 27]) {
     let g = createGame({ players: ['A', 'B', 'C', 'D'], seed, content: FX });

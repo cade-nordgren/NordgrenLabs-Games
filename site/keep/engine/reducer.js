@@ -12,6 +12,7 @@ import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
 import { collect, forcedMove, checkDragonReset } from './treasury.js';
 import { legalActions, sameAction } from './phases.js';
+import { spendUse, itemLog } from './inventory.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
@@ -136,7 +137,7 @@ const apply = {
   PICK_HERO(g, { seat, heroId }, content) {
     const def = contentIndex(content).heroes.get(heroId);
     g.seats[seat].heroId = heroId;
-    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0 };
+    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0, itemUses: {} };
     logEvent(g, { kind: 'pick-hero', seat, heroId });
     if (++g.setup.index === n(g)) nextPick(g, 'rings', [...g.setup.order].reverse());
   },
@@ -187,6 +188,12 @@ const apply = {
     hero.treasury.splice(hero.treasury.indexOf(card), 1);
     toBottom(g, 'TREASURY', card, seat);
     logEvent(g, { kind: 'well-discard', seat });
+    itemLog(g, seat, 'discard', card, 'chamber', { to: 'bottom of TREASURY' });
+  },
+  // Spec v3 section 4: a held card whose own `use` data allows it, as the turn's action (timing 'turn-action').
+  USE_ITEM(g, { seat, item }, content) {
+    g.stack.push({ effects: spendUse(g, content, seat, item), i: 0 });
+    run(g, content);
   },
   // RB 6.3, SP 5: AGI test on D12 + held treasure-chamber cards. D08 (interpretation): a failed jump is death.
   WELL_JUMP(g, { seat }, content) {
@@ -228,7 +235,7 @@ const apply = {
     else { g.turn.mayContinue = true; g.turn.transitFrom = hero.enteredFrom; }
     run(g, content);
   },
-  RESPOND(g, { choice }, content) { respond(g, content, choice); run(g, content); },
+  RESPOND(g, { choice, item }, content) { respond(g, content, choice, item); run(g, content); },
   ANNOUNCE(g, a, content) { announce(g, content); run(g, content); },
   COMBAT_PICK(g, { side, letter }, content) { combatPick(g, content, side, letter); run(g, content); },
   TARGET_RESULT(g, { placement, face }, content) { targetResult(g, content, placement, face); run(g, content); },

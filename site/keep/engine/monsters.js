@@ -6,6 +6,7 @@ import { canFlee, flee } from './movement.js';
 import { evalExpr } from './effects.js';
 import { abcExchange, targetThrow, LETTERS } from './combat.js';
 import { contentIndex } from '../content/schema.js';
+import { spendUse, itemLog } from './inventory.js';
 
 // D12 (interpretation): the seated player to the right controls the monster, even if dead or
 // escaped. Seats are in clockwise order, so the right-hand seat is the previous one. Solo: the hero's
@@ -54,10 +55,11 @@ export function responseOptions(g, content) {
 
 // Commit, then the controller draws the top monster card privately and reads the matching reaction.
 // RB 8.1: a special weapon reads the Attack reaction.
-export function respond(g, content, choice) {
+export function respond(g, content, choice, item = null) {
   const enc = g.encounter;
   enc.choice = choice;
-  logEvent(g, { kind: 'commit', seat: enc.seat, choice });
+  enc.item = item; // a held special weapon card (spec v3), or null for the hero's own special weapon
+  logEvent(g, { kind: 'commit', seat: enc.seat, choice, ...(item ? { item } : {}) });
   const inst = draw(g, 'MONSTER', 'monster encounter', enc.priv);
   const def = cardDef(content, inst);
   enc.monster = { inst, hp: def.hp, wounds: 0, groupId: def.groupId };
@@ -76,9 +78,11 @@ export function announce(g, content) {
   g.pending = null;
   logEvent(g, { kind: 'reaction', seat: enc.seat, type: enc.reaction.type });
   const effects = [];
-  if (enc.choice === 'special') {
+  if (enc.choice === 'special' && enc.item) effects.push(...spendUse(g, content, enc.seat, enc.item));
+  else if (enc.choice === 'special') {
     const w = weaponOf(g, content, enc.seat);
     g.heroes[enc.seat].weaponUses += 1;
+    itemLog(g, enc.seat, 'use', w.id, 'equipment');
     effects.push(...(w.effects || []));
   }
   effects.push(...(enc.reaction.effects || []), { op: '_REACT' });
