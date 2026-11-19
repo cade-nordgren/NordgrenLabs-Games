@@ -12,7 +12,7 @@ import { SUNSET } from '../engine/clock.js';
 import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL, chamberName, theChamber, chamberCards } from '../content/schema.js';
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, cardText, monsterText, fightRowModel, expr,
+import { lines, entries, cardText, monsterText, fightRowModel, soloStripModel, expr,
  undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName } from './words.js';
 import { rollDice } from './dice.js';
 import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
@@ -1194,7 +1194,7 @@ function renderPrompt(v, la, targets) {
 function renderTable(v) {
   const g = S.game, c = content(), la = legalActions(g, c);
   const out = [];
-  const bar = el('header', 'glass statusbar');
+  const bar = el('header', `glass statusbar${solo() ? ' solo' : ''}`); // solo: the name is for readers only (CSS)
   const who = el('strong', 'who', nameOf(g.activeSeat));
   who.append(el('span', 'turnword', "'s turn")); // on a phone only the name shows; readers still hear it
   const odds = `${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`;
@@ -1205,6 +1205,8 @@ function renderTable(v) {
     // Tiles left: on wide screens the map tools say it, so this chip is for phones (CSS).
     chip('tilesleft', `${v.board.tileBag} tiles left`, 'M4 4h16v16H4zM4 12h16M12 4v16', '', String(v.board.tileBag)));
   out.push(bar);
+  const strip = soloStrip(v);
+  if (strip) out.push(strip);
   // The board's light follows the sun (index.html mixes these into the board background and unexplored squares).
   for (const [k, val] of Object.entries(skyAt(daylight(v.sun, SUNSET).f).vars)) $('table').style.setProperty(k, val);
 
@@ -1244,6 +1246,26 @@ function renderTable(v) {
   grid.append(bp, side);
   out.push(grid);
   $('table').replaceChildren(...out);
+}
+
+// Solo only (owner, 2026-11-19): the hero's HP, stats and gold in one line under the status bar, so a phone need not
+// scroll to the Heroes panel; a tap opens the Items sheet. Its height comes out of the map, not the dock.
+function soloStrip(v) {
+  const m = soloStripModel(v, content(), nameOf);
+  if (!m) return null;
+  const b = el('button', 'glass herostrip');
+  b.setAttribute('aria-label', m.label);
+  b.onclick = () => openItems(0);
+  const hp = el('span', 'herohp'), bar = el('span', 'hp'), fill = el('i');
+  fill.style.width = `${100 * m.hp.left / m.hp.max}%`;
+  bar.append(fill);
+  hp.append(bar, `${m.hp.left}/${m.hp.max}`);
+  const stats = el('span', 'stats');
+  for (const s of m.stats) { const x = el('span', '', `${s.short} `); x.append(el('b', '', String(s.value))); stats.append(x); }
+  const gold = el('span', 'gold', 'Gold ');
+  gold.append(el('b', '', String(m.gold)));
+  b.append(hp, stats, gold);
+  return b;
 }
 
 let keyOpen = false;

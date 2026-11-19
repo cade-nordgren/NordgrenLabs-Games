@@ -227,6 +227,15 @@ details li + li { margin-top: 6px; }
 .chip { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chip svg { width: 15px; height: 15px; flex: none; }
 .chip.tilesleft { display: none; }
+/* Solo (soloStrip in app.js): the name leaves the status bar (readers still hear it) and a strip under it, same glass
+   and width, holds the hero's HP, stats and gold; a button for the Items sheet. Labels --ink2, numbers --ink. */
+.statusbar.solo .who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.herostrip { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; width: calc(100% - 60px); min-height: 44px; padding: 4px 16px; margin: -6px 60px 14px 0;
+  text-align: left; font-size: 14px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.herostrip b { font-weight: 600; color: var(--ink); }
+.herostrip .stats { display: flex; gap: 10px; }
+.herostrip .stats span, .herostrip .gold { white-space: nowrap; }
+.herostrip .herohp .hp { width: 48px; }
 .tablegrid { display: grid; gap: 14px; }
 .tablegrid > * { min-width: 0; }
 .tablegrid .panel { scroll-margin-top: 76px; }
@@ -416,6 +425,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .app.table > #table:not([hidden]) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .banner { margin-bottom: 6px; font-size: 14px; }
   .statusbar { flex: none; min-height: 44px; padding: 4px 12px; margin: 0 0 8px; } /* sits below the menu button, so full width */
+  .herostrip { flex: none; width: 100%; padding: 4px 12px; margin: 0 0 8px; } /* its height comes out of the map, not the dock */
   .tablegrid { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
   .tablegrid > .side { display: contents; }
   .dock { flex: none; max-height: 50dvh; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; border-radius: 26px; }
@@ -441,6 +451,9 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .chip { gap: 3px; padding: 2px 7px; }
   .chip svg { width: 13px; height: 13px; }
   .chip.tilesleft { display: inline-flex; }
+  .herostrip { gap: 2px 8px; font-size: 13px; }
+  .herostrip .stats { gap: 8px; }
+  .herostrip .herohp .hp { width: 40px; }
   #table .board-panel { flex: 1; min-height: 140px; display: flex; flex-direction: column; padding: 6px; }
   #table .board-host, #table .map { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #table .map { position: relative; }
@@ -469,12 +482,13 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .cover > div > svg { display: none; } /* the keep picture, so the button stays on a 375px high screen */
   .cover h2 { font-size: 26px; }
   .app.table { max-width: none; height: 100dvh; min-height: 0; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));
-    display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 42%, 420px); grid-template-rows: auto auto minmax(0, 1fr); column-gap: 10px; }
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 42%, 420px); grid-template-rows: auto auto auto minmax(0, 1fr); column-gap: 10px; }
   .app.table > #table:not([hidden]), .app.table .tablegrid { display: contents; }
   .app.table > .banner { grid-column: 2; grid-row: 1; margin: 0 60px 6px 0; } /* clear of the menu circle */
   .app.table .statusbar { grid-column: 2; grid-row: 2; margin: 0 60px 8px 0; min-height: 44px; padding: 4px 12px; }
   .app.table .board-panel { grid-column: 1; grid-row: 1 / -1; position: static; min-height: 0; }
-  .app.table .side { grid-column: 2; grid-row: 3; min-height: 0; overflow: auto; overscroll-behavior: contain; border-radius: 26px; padding-bottom: 8px; }
+  .app.table .herostrip { grid-column: 2; grid-row: 3; margin: 0 60px 8px 0; width: calc(100% - 60px); padding: 4px 12px; }
+  .app.table .side { grid-column: 2; grid-row: 4; min-height: 0; overflow: auto; overscroll-behavior: contain; border-radius: 26px; padding-bottom: 8px; }
   .app.table .side .panel { margin-bottom: 8px; }
   #roll > div { gap: 6px; padding: 14px 16px 12px; }
   #roll .dice { padding: 4px 0; }

@@ -35,6 +35,20 @@ export function fightRowModel(v, seat, enc, name, content) {
   };
 }
 
+// The solo strip under the status bar (ui/app.js soloStrip draws it): the one hero's HP, four stats and ordinary gold,
+// the same public facts the Heroes panel shows (D25), so nothing new is exposed. Multiplayer (2 to 4 seats): null.
+export const STAT_SHORT = { STR: 'Str', AGI: 'Agi', ARM: 'Arm', LCK: 'Luck' };
+export function soloStripModel(v, content, name) {
+  if (v.heroes.length !== 1) return null;
+  const h = v.heroes[0], def = contentIndex(content).heroes.get(h.heroId), left = Math.max(0, h.hp);
+  const gold = h.held.reduce((sum, inst) => sum + (cardDef(content, inst).gold || 0), 0);
+  const stats = ['STR', 'AGI', 'ARM', 'LCK'].map(k => ({ short: STAT_SHORT[k], value: def.stats[k] }));
+  return {
+    hp: { left, max: h.hpStart }, stats, gold,
+    label: `${name(0)}, ${def.name}: ${left} of ${h.hpStart} HP, ${['STR', 'AGI', 'ARM', 'LCK'].map(k => `${STAT[k]} ${def.stats[k]}`).join(', ')}, gold ${gold}. Show items`,
+  };
+}
+
 export function expr(e, content) {
 
   if (Number.isInteger(e)) return String(e);
