@@ -2,7 +2,7 @@
 
 Working title "Dusk Keep", game id `keep`, folder `keep/`. All three are placeholders for the owner to rename.
 
-Status: M0 approved by the owner (2026-11-18). The owner checked all 31 decisions (D01-D31, section 9) against the 2023 Swedish rulebook and ruled on each; the register records the rulings with a class. M1 (deterministic board, clock, hero, turn and dice engine) and M2 (tile effects, doors and gates, decks and the effect interpreter, monsters and A/B/C combat, inventory and gold, the chamber and dragon, the hidden-information view) are built on the local branch `keep-engine`. No push, no merge, no deploy.
+Status: M0 approved by the owner (2026-11-18). The owner checked all 31 decisions (D01-D31, section 9) against the 2023 Swedish rulebook and ruled on each; the register records the rulings with a class. M1 (deterministic board, clock, hero, turn and dice engine) and M2 (tile effects, doors and gates, decks and the effect interpreter, monsters and A/B/C combat, inventory and gold, the chamber and dragon, the hidden-information view) are built on the local branch `keep-engine`, and M3 (the playable frontend at `site/keep/index.html`, fixtures only until owner content exists) is built on top. No push, no merge, no deploy.
 
 Sources, cited throughout as:
 
@@ -67,7 +67,7 @@ And BG "Adding a game" step 2 ("games here must be original") gets the same qual
 | 7 | Health, equipment, inventory and gold | `heroes.js` | `HeroInstance`, HP, held cards, treasury cards kept separate, gold total |
 | 8 | Central treasury and shared dragon deck | `treasury.js` | `Dragon`, two-card collect, wake queue, reset |
 | 9 | Sunlight, escape and winning | `clock.js` | sun step, sunset, escape, ranking |
-| 10 | Frontend, pass-and-play, save/resume | `keep/index.html` (+ `keep/ui.js` if inline grows past about 800 lines) | rendering, privacy screens, `change()`, `NL.saves`, autosave |
+| 10 | Frontend, pass-and-play, save/resume | `keep/index.html` (markup and CSS) + `keep/ui/app.js`, `ui/board.js`, `ui/words.js` (M3) | rendering, privacy screens, actions to `reduce()`, `NL.saves`, autosave |
 
 As built in M2: system 3's rules (moves, entry, dots, special rooms, doors, gates, carry-overs) are in `movement.js` (`tiles.js` keeps the pure orientation geometry); system 7 is `heroes.js`; combat arithmetic is `combat.js` and the encounter flow `monsters.js`; the hidden-information projection and D21 commit check are `view.js`.
 
@@ -114,7 +114,7 @@ Tests live outside the served folder, at repo root `tests/keep/*.test.js`, impor
 
 Proposed BG amendment to "Layout" and "Per-game contract" (pending owner approval):
 
-> A game may keep its rules engine in plain ES module files under its folder (`<game>/engine/*.js`, loaded with `<script type="module">`, no build) when the rules need tests under `node --test`; tests go in `tests/<game>/` at the repo root, outside the served site. Bank, Tidevault and the companion stay inline.
+> A game may keep its rules engine in plain ES module files under its folder (`<game>/engine/*.js`, with its screen code in `<game>/ui/*.js`, loaded with `<script type="module">`, no build) when the rules need tests under `node --test`; tests go in `tests/<game>/` at the repo root, outside the served site. Bank, Tidevault and the companion stay inline.
 
 ### 4.3 Deterministic reducer
 
@@ -427,13 +427,13 @@ Status: VERIFIED (documented procedure, implementable now), NEEDS CONTENT (proce
 | R93 | Odds shown from actual remaining cards (1/8 ... 1/1) | RB 9.3, SP 8 | "1 in N" | - | - | 8 | VERIFIED; **M2** implemented | T24 |
 | R94 | Solo: commit before reveal; monster HP visible | RB 10, SP 9 | view rule for 1 seat | - | - | 10 | VERIFIED; **M2** implemented | T28 |
 | R95 | Solo uses target combat, not A/B/C | RB 10, SP 9 | physical target with manual result entry; A/B/C with computer-chosen monster cards only as a labelled digital variant | - | - | 6 | RULED D17 (class 1; variant class 4); **M2** implemented | T28, T28b |
-| R96 | Solo log: escaped or not, gold extracted | RB 10, SP 9 | finished save record | save | - | 10 | VERIFIED; **M2** engine part (UI M3) | T28 |
+| R96 | Solo log: escaped or not, gold extracted | RB 10, SP 9 | finished save record | save | - | 10 | VERIFIED; **M2** engine part; **M3** finished record saved once | T28 |
 | R97 | Escape: reach any corner tower alive before sunset | RB 12, SP 10 | must leave the starting tower, then enter any tower; escaped heroes take no more turns | status | - | 9 | VERIFIED (D23, class 2) | T27, T27c |
 | R98 | Still inside at sunset loses | SP 10, SP 12 | status lost-at-sunset | status | - | 9 | VERIFIED | T05 |
 | R99 | Private treasury cards not exposed | RB 9.1, SP 9 | view strips them; held room-loot gold is public | - | - | 10 | VERIFIED (D25, class 2); **M2** implemented | T29b |
 | R100 | No PvP, trading, revival or extra decisions | SP 9 | no such actions | - | - | 1 | VERIFIED; **M2** implemented | T30 |
-| R101 | Save/resume exact, no double draws on refresh | SP 11 | autosave per action, idempotent reducer | all | - | 10 | VERIFIED; **M2** engine part (UI M3) | T29 |
-| R102 | Undo restores exact RNG, decks, board | SP 11 | full snapshots; undo covers only uncommitted actions: no reroll of revealed dice, redraw of hidden cards, or undo of a resolved dragon awakening | all | - | 10 | RULED D21 (class 4); **M2** engine part (UI M3) | T29c |
+| R101 | Save/resume exact, no double draws on refresh | SP 11 | autosave per action, idempotent reducer | all | - | 10 | VERIFIED; **M2** engine part; **M3** autosave and resume checked in the browser | T29 |
+| R102 | Undo restores exact RNG, decks, board | SP 11 | full snapshots; undo covers only uncommitted actions: no reroll of revealed dice, redraw of hidden cards, or undo of a resolved dragon awakening | all | - | 10 | RULED D21 (class 4); **M2** engine part; **M3** undo wired to `canUndoTo` | T29c |
 | R103 | Full Start blocked until content complete; fixtures labelled | SP 11 | content gate | content | - | 5 | VERIFIED | T30 |
 | R104 | Physical HP marker supply is 80 | RB 2, SP 2 | not enforced | - | - | 7 | RULED D26 (class 4) | - |
 | R105 | A dead hero's acquired cards | not documented | acquired held and treasury cards go to the bottom of their original decks unless the card says otherwise; hero identity, combat and starting ring cards never become loot | decks, held | all decks | 7 | RULED D28 (class 3); **M2** implemented | T04c |
@@ -575,7 +575,7 @@ Also the BG browser checks: console clean, every action, undo, reload mid-game, 
 | M0 | This plan; owner approves mechanical contract, boundary, register rulings, BG amendments | Owner sign-off; decision register ruled or explicitly deferred | S (done when approved) |
 | M1 | Systems 1, 2, 4, 9 and the placement part of 3: reducer, phases, seeded PRNG in state and scripted dice, setup (player count, first player, hero and ring drafts, towers), board, tile bag, orientation, connectivity, occupancy, clock, escape, ranking; schema.js, slot manifest, content report and full-fidelity start gate; fixture board and tiles. Tile special effects (dot types, well, rotating, rubble, dark), doors and gates move to M2, with hooks left in place. | T01-T07, T05, T27 and their M1 sub-cases green; deterministic replay and save/restore continuation green. **Built** (`443c287`). | L |
 | M2 | Systems 5, 6, 7, 8 and the rest of 3: tile special effects (dot types, dark, well, rotating, rubble), doors and gates, decks, effect interpreter, room/search/chest/door/monster flow, commit and controller, A/B/C, flight, ambush, inventory, treasury and dragon; fixture cards | T08-T26, T28, T30, T31 green; all fixture replays green. **Built** on `keep-engine` (2026-11-18): 92 tests green, M-A/M-B/M-C automated as scripted replays (browser runs stay in M3). | L |
-| M3 | System 10: `keep/index.html` UI (setup, draft, board with zoom/pan, panels, cover screens, combat, chamber, results, content status, fixtures banner), `NL.saves`, autosave, undo, games-list tile | T29 green; M-A, M-B, M-C pass; BG quality floor checks pass; screenshots and replay log shown to owner | L |
+| M3 | System 10: `keep/index.html` UI (setup, draft, board with zoom/pan, panels, cover screens, combat, chamber, results, content status, fixtures banner), `NL.saves`, autosave, undo, games-list tile | T29 green; M-A, M-B, M-C pass; BG quality floor checks pass; screenshots and replay log shown to owner. **Built** on `keep-engine` (2026-11-18): title and setup with the content report and gated Start, fixtures banner, draft, tabletop (SVG map, legal targets, arrow keys, zoom steps, sun clock, heroes, event log), a panel per engine phase, commit-before-reveal and cover screens, A/B/C with simultaneous reveal, solo target entry and the labelled digital variant, private chamber cards, dragon odds and wake, results, autosave `nl-keep-v1`, `NL.saves`, D21 undo, games-list tile. Engine additions: `view()` gold per viewer and `screenOwner()` (who must be looking), with tests; 94 tests green. Browser checks: M-A, M-B, M-C and a solo target fight replayed from constructed positions through the real buttons; about 75 random fixture games (1 to 4 players) clicked through end to end with a privacy check (no monster card name on a public screen) and no errors; refresh mid-encounter keeps the phase and the draw count; save, resume (same record id), delete; 375x812, 667x375, light, dark, keyboard only; piece contrast measured (section 13 #19). | L |
 | M4 | Owner supplies or approves original content in the documented slots (board, 88 tiles, chamber, 8 heroes, 224 cards, rings, crossbow), plus original art | Content status 100% OWNER_APPROVED; validation clean; full Start unblocked | M (engineering), owner-paced |
 | M5 | Full playtests with real content, solo and 4 players, edge-case review, polish | All tests green with real content; owner approves merge; push and deploy only on explicit owner go-ahead | M |
 
@@ -586,14 +586,14 @@ Also the BG browser checks: console clean, every action, undo, reload mid-game, 
 3. When convenient: verify the provisional rulings (D06 re-entry, D07, D11, D19, D24) and the open points in section 13 against the Swedish rulebook and the components.
 4. Original content for every slot in section 8.2, or approval of drafts we write to the documented structure; original art direction.
 5. Final name, route id and theme (placeholders: "Dusk Keep", `keep`).
-6. Approve the two BUILD-GUIDE amendments (content boundary line; ES-module engine exception with `tests/<game>/`).
+6. Approve the two BUILD-GUIDE amendments (content boundary line; ES-module engine exception with `tests/<game>/`, now also covering the `ui/*.js` modules). Still pending after M3; not applied to BG.
 7. Done: the `site/` and Worker move is on `main` (`11f85ee`); the game lives at `site/keep/`.
 8. Decide the fate of the companion (`dungeon/`, `becd950`) and Tidevault (`a414084`); this plan leaves both untouched.
 9. Get independent IP advice before any public distribution.
 
 ## 13. Remaining contradictions
 
-Only points still open after the owner's rulings (section 9). Resolved and removed: chamber collect on the entry turn (D18), dark room on first discovery and on retreat (D06), solo combat (D17), the status label (NEEDS CONTENT is used), hero naming (fixtures only). None blocks M1 or M2; each has a default (a rules-config entry, one named function, or a pending gate). Rows 10-17 were found while building M2.
+Only points still open after the owner's rulings (section 9). Resolved and removed: chamber collect on the entry turn (D18), dark room on first discovery and on retreat (D06), solo combat (D17), the status label (NEEDS CONTENT is used), hero naming (fixtures only). None blocks M1 to M3; each has a default (a rules-config entry, one named function, or a pending gate). Rows 10-17 were found while building M2, rows 18-22 while building M3.
 
 | # | Point | Sources | Default now | Blocks implementation? |
 |---|---|---|---|---|
@@ -614,6 +614,14 @@ Only points still open after the owner's rulings (section 9). Resolved and remov
 | 15 | Secret passage reach and lifetime | RB 7.1, RB 6.8, D11 (timing from the card) | crosses printed walls only (open, door and gate edges resolve normally); lasts until the hero moves or the turn ends | No; reconcile with the card text (M4). |
 | 16 | Remaining room-card effects after an encounter | RB 8.2 "nothing further occurs"; RB 8.5 cards under their decks | monster flees or hero flees: the rest of the room card is skipped; after a won combat the rest of the card still runs (lets a card say "defeat it, then keep this") | No; follows card data. |
 | 17 | Target combat for groups | RB 8.9 recommends the target "for groups that prefer" it too | multiplayer always uses A/B/C; target entry only in solo | No; an M3 option at most. |
+
+| 18 | Monster reaction when the controller is in the hot seat | RB 8.1 "announces"; plan 4.9 | the controller's screen shows the card, HP and the matched reaction; "Announce to the table" hands back through a cover; the hero sees only the reaction type. Solo: the hero reads the card | No; application behaviour (class 4), M3. |
+| 19 | Game-piece contrast | BG quality floor 3:1 | every dot, door, token and target is outlined in the wall ink, 9.8:1 or better against the floor in both themes (measured). Fills alone: yellow dot 1.4:1 on the light floor, black dot 1.6:1 on the dark floor, seat tokens 2.0 to 2.4:1 on the dark floor; the shapes also differ (circle, diamond, triangle, crescent), so colour is never the only cue | No; revisit with the owner's art direction (M4). |
+| 20 | Screens the engine does not need: the shared reveal after an A/B/C exchange, "Pass back to the table" covers, the holder's chamber-card view after a private draw and on "Show my cards" | plan 4.9 | UI state only, saved with the autosave; a refresh always re-covers a private screen | No; class 4. |
+| 21 | Card wording | plan 2, 4.7 | no slot carries card text yet; the UI summarises a card from its effect data (`ui/words.js`), and fixtures show their fixture names | No; add an optional `text` field to card definitions with the owner's content (M4). |
+| 22 | Well discard in hot seat | RB 6.3, D25 | the discard buttons are numbered, not named, on the shared screen; the holder checks which is which with "Show my cards" | No. |
+
+Shortcuts in the M3 code (marked `shortcut:` where they live): undo keeps up to 20 full snapshots and clears them at every commit point (`ui/app.js`); a save drops the undo history if the record would pass 240 KB; zoom is fixed steps (1, 1.5, 2, 3) with native scrolling to pan, no pinch (`ui/app.js`); card text is summarised from effect data (`ui/words.js`). Not verified in M3: the full-fidelity Start (no owner content exists, so only its disabled state and reason were checked), signed-in `NL.saves` against the Worker, a real phone, and screen readers beyond labelled controls.
 
 Shortcuts in the M2 code (each marked `shortcut:` where it lives):
 
