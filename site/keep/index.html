@@ -202,9 +202,10 @@ details li + li { margin-top: 6px; }
 .loglines small { display: block; font-size: 13px; color: var(--ink2); font-variant-numeric: tabular-nums; }
 .again { display: grid; gap: 10px; max-width: 440px; margin: 4px auto 18px; }
 
-/* Dice: Bank's cubes (site/bank/index.html), numbered faces for a D12 or D6. ui/dice.js turns them. */
-.dice { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 26px; padding: 14px 0 8px; perspective: 700px; }
-.dice figure { margin: 0; display: grid; justify-items: center; gap: 8px; max-width: 110px; }
+/* Dice: a D12 is a 3D dodecahedron of twelve pentagons, a D6 Bank's cube (site/bank/index.html). ui/dice.js places
+   the faces and turns them. 68px a die keeps four in a row on a 375px phone. */
+.dice { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 12px; padding: 14px 0 8px; }
+.dice figure { margin: 0; display: grid; justify-items: center; gap: 8px; flex: 0 1 68px; min-width: 0; perspective: 600px; }
 .dice figcaption { font-size: 14px; color: var(--ink2); text-align: center; overflow-wrap: anywhere; }
 .cube { --h: 32px; width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2, .8, .25, 1); }
 .cube .face { position: absolute; inset: 0; border-radius: 12px; background: var(--die); box-shadow: inset 0 0 0 1px var(--die-edge); display: grid; place-items: center; color: var(--pip); font: 700 calc(var(--h) * .85) var(--num); }
@@ -214,6 +215,17 @@ details li + li { margin-top: 6px; }
 .cube .face:nth-child(4) { transform: rotateY(-90deg) translateZ(var(--h)); }
 .cube .face:nth-child(5) { transform: rotateX(90deg) translateZ(var(--h)); }
 .cube .face:nth-child(6) { transform: rotateX(-90deg) translateZ(var(--h)); }
+/* --a is the edge: the die is about 2.8 edges across. Each face is a pentagon (clip-path) in a square whose middle is
+   the pentagon's middle; its edge line is the face colour showing round a slightly smaller pentagon of die colour.
+   Numbers are var(--pip) on var(--die), the shared dice tokens (9:1 or better in both themes). */
+.d12 { --a: 20px; width: calc(var(--a) * 2.8); height: calc(var(--a) * 2.8); position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2, .8, .25, 1); }
+.d12 .face { position: absolute; left: 50%; top: 50%; width: calc(var(--a) * 1.7013); height: calc(var(--a) * 1.7013); margin: calc(var(--a) * -.85065);
+  display: grid; place-items: center; color: var(--pip); font: 700 calc(var(--a) * .82)/1 var(--num);
+  background: color-mix(in srgb, var(--pip) 45%, transparent); -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  -webkit-clip-path: polygon(50% 0%, 97.55% 34.55%, 79.39% 90.45%, 20.61% 90.45%, 2.45% 34.55%); clip-path: polygon(50% 0%, 97.55% 34.55%, 79.39% 90.45%, 20.61% 90.45%, 2.45% 34.55%); }
+.d12 .face::before { content: ''; position: absolute; inset: calc(var(--a) * .06); z-index: -1; background: var(--die);
+  -webkit-clip-path: inherit; clip-path: inherit; }
+.d12 .face.mark { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
 
 /* The roll card: over the dimmed board, its buttons at the bottom in thumb reach. */
 #roll::backdrop { background: rgba(0, 0, 0, .55); }
@@ -351,6 +363,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   #roll > div { gap: 6px; padding: 14px 16px 12px; }
   #roll .dice { padding: 4px 0; }
   #roll .cube { --h: 26px; }
+  #roll .d12 { --a: 17px; }
   #roll .facts div { padding: 3px 0; }
   #roll p.verdict { font-size: 24px; }
 }
