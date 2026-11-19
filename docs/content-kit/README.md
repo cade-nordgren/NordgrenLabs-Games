@@ -142,7 +142,7 @@ Cards (and special weapons, rings and monster reactions) carry `effects`: a list
 | `SET_CONDITION` | `id: 'a name'`, `turns:` a number or `null`, `onTurnStart: [steps]` | A lasting effect on the hero. Its `onTurnStart` steps run at the start of each of their turns, for that many turns (`null`: until cleared). |
 | `CLEAR_CONDITION` | `id: 'a name'` | Ends a lasting effect with that name. |
 | `REQUEST_CHOICE` | `options: [{ label: 'words', effects: [steps] }, ...]` | The player picks one option; its steps run. |
-| `MONSTER_ENCOUNTER` / `REQUEST_COMBAT` | `ambush: true/false`, `monster: 'S09'` (the monster type met) | A monster: the hero commits to Attack, Wait, Flee or Special before the monster card is revealed. In an ambush the monster strikes first (D12 minus Luck, never below 0) and Wait is not offered (RB 8.7). `monster` names the type the hero meets, a monster-group combat set `'S09'` to `'S12'`; the drawn monster card is read on that type's row ([Monster cards](#monster-cards)). It is required once your monster cards have rows. |
+| `MONSTER_ENCOUNTER` / `REQUEST_COMBAT` | `ambush: true/false`, `monster: 'S09'` (the monster type met) | A monster: the hero commits to Attack, Wait, Flee or Special before the monster card is revealed. In an ambush the monster strikes first (D12 minus Luck, never below 0) and Wait is not offered (RB 8.7); a special weapon still is (D41). `monster` names the type the hero meets, a monster-group combat set `'S09'` to `'S12'`; the drawn monster card is read on that type's row ([Monster cards](#monster-cards)). It is required once your monster cards have rows. |
 | `OPEN_TEMPORARY_PASSAGE` | `side: 'N' \| 'E' \| 'S' \| 'W' \| 'any-orthogonal'` | A secret passage for this turn's move, which may cross a printed wall (D11, provisional; plan 13 #4 and #15). |
 | `ROTATE_TILE` | `degrees: 90` | Turns the hero's room a quarter turn clockwise. |
 
@@ -230,7 +230,8 @@ Rules and rulings:
 
 - **Entry side must be open.** A door or gate on the dot side is not documented in the rules, so the checker rejects it by id ("PENDING owner ruling on door/gate entry sides", plan 13 #8). If your tile design needs one, make the ruling first; until then, the tile cannot be loaded.
 - **Blue (dark) tiles** need exactly 2 or 3 non-wall sides (RB 6.2). They trigger on first discovery, on retreat into them, and on ordinary re-entry while the `darkRoomOnReentry` flag is on (D06, provisional). A blocked rolled exit keeps the hero there to roll again next turn (D07).
-- **Well:** a failed jump is death (D08); treasury cards discarded there go to the bottom of the treasury deck (D09).
+- **Well:** a failed jump is death (D08); treasury cards discarded there go to the bottom of the treasury deck (D09). A successful jump leaves the hero on the well tile at the far edge; they leave by that side on a later turn, or jump back (D42).
+
 - **Rotating:** it turns 90 degrees on every entry, including the first reveal, after being oriented by the dot (D10).
 - **Special plus mark:** allowed. Nothing bans a special room from also having a dot (D29); your data decides. The order the engine applies them in is plan 13 #13.
 - Total copies must be exactly 88 for the full game.
@@ -331,7 +332,7 @@ export default [
 | `effects` | list of steps | What happens when the hero declares the special weapon at a monster. |
 | `uses` | `null` or a whole number | `null` for no limit, otherwise uses per game. |
 
-Declaring the special weapon is answered by the monster's **attack** reaction (RB 8.1). It is not offered during an ambush (plan 13 #12).
+Declaring the special weapon is answered by the monster's **attack** reaction (RB 8.1). It is offered during an ambush too, after the ambush damage (D41, owner ruling).
 
 **Example only, not real content, not authentic:**
 
@@ -453,7 +454,7 @@ Each reaction is `{ type, damage, hp, effects }`:
 
 `damage` is a number or dice ([section 5](#dice-and-numbers)) for the two strike types, for example `{ die: 'D6', plus: -2 }` for "D6 minus 2", otherwise `null`. `hp` is the monster's hit points in that fight, a whole number 1 or more, required for `'combat'` and `'strike-then-combat'` and left out otherwise; only the monster player sees it. `effects` are extra steps that run before the reaction.
 
-The hero commits before the card is revealed; the seated player to the right controls the monster, even if that player is dead or escaped (D12), and in solo the computer plays the monster and never shows the card (D37). Fleeing goes back to the previous tile with no room card, and that tile's effects apply again (D16); it is not offered back through a secret passage just used or through a red-room gate that fell behind the hero (D15).
+The hero commits before the card is revealed; the seated player to the right controls the monster, even if that player is dead or escaped (D12), and in solo the computer plays the monster and never shows the card, but once the monster is revealed the player sees its HP and the damage it has taken, as the printed rule says (D37 as amended by the owner). In multiplayer only the monster's player sees its HP. Fleeing goes back to the previous tile with no room card, and that tile's effects apply again (D16); it is not offered back through a secret passage just used or through a red-room gate that fell behind the hero (D15).
 
 **Single-monster form.** A card may instead describe one monster for any encounter: `hp`, `groupId` (its monster-group set) and one `reactions: { attack, wait, flee }` table, no `rows`. The fixtures use it; a card has either `rows` or these three, never both.
 
@@ -489,7 +490,7 @@ And the room card that names the type, in `room.js`: `effects: [{ op: 'MONSTER_E
 |---|---|---|
 | `kind` | `'sleeping'` or `'awake'` | All copies together must be 7 sleeping and 1 awake (RB 9, SP 8). This structure is the rule; names and art are yours. |
 
-One dragon card is drawn per chamber turn without replacement, shared by all heroes, so the odds climb from 1 in 8 (RB 9.3). When the awake card comes up, every hero in the chamber loses their treasury cards, takes a full D12 of damage and is driven to an already revealed maze tile next to the chamber square, never a new one (D19); the deck resets when the chamber empties (D22).
+One dragon card is drawn per chamber turn without replacement, shared by all heroes, so the odds climb from 1 in 8 (RB 9.3). When the awake card comes up, every hero in the chamber loses their treasury cards, takes a full D12 of damage and is driven to an already revealed maze tile next to the chamber square, never a new one (D19); the deck resets when the chamber empties (D22). A hero who has no such tile stays in the chamber with the dragon awake: nobody can take treasure there until every surviving hero has left, and only then does the deck reset (D40).
 
 **Example only, not real content, not authentic:**
 
@@ -537,7 +538,7 @@ A kept card (in the hero's hand or treasury) gets a Use action only when its ent
 
 | Field | Allowed values | Meaning |
 |---|---|---|
-| `timing` | `'turn-action'`, `'encounter-special'` | `'turn-action'`: used as the hero's action at the start of their turn; the turn then ends unless the effects say `CONTINUE_MOVEMENT`. `'encounter-special'`: chosen as a special weapon before a monster is revealed (not in an ambush), so the monster answers with its Attack reaction (RB 8.1); needs `specialWeapon: true`. |
+| `timing` | `'turn-action'`, `'encounter-special'` | `'turn-action'`: used as the hero's action at the start of their turn; the turn then ends unless the effects say `CONTINUE_MOVEMENT`. `'encounter-special'`: chosen as a special weapon before a monster is revealed (in an ambush too, D41), so the monster answers with its Attack reaction (RB 8.1); needs `specialWeapon: true`. |
 | `effects` | list of steps | What using it does, in order. |
 | `afterUse` | `'keep'` (usual), `'bottom'`, `'remove'` | Where the card goes after a use: stays in hand, under its own deck, or out of the game. |
 | `uses` | whole number 1 or more, or `null` | How many times it can be used while kept; `null` means no limit. |
