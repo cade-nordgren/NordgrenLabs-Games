@@ -13,13 +13,28 @@ export const AUTHORIZED_PARTY = typeof __GAMES_BUILD_MODE__ !== 'undefined' && _
 const SKEW_S = 5;
 const MAX_TOKEN_LENGTH = 4096;
 const BEARER = /^Bearer ([A-Za-z0-9_.-]+)$/;
+// ClerkJS writes the session token as `__session` and, in current versions, also as `__session_<suffix>`.
+const SESSION = /(?:^|;\s*)__session(?:_[A-Za-z0-9_-]{1,32})?=([A-Za-z0-9_.-]+)(?=\s*(?:;|$))/g;
+const MAX_SESSION_COOKIES = 4; // bounds the signature checks one request can ask for
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const filled = v => typeof v === 'string' && v.length > 0;
 const base64url = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
 
-export async function verify(authorization, { jwtKey, issuer, authorizedParty, now = Date.now() }) {
+// The API reads only the bearer header.
+export const verify = (authorization, options) => check(BEARER.exec(authorization ?? '')?.[1], options);
+// Pages only (docs/decisions/0003): a browser navigation cannot send a header, so it proves its session with ClerkJS's
+// __session cookie, which holds the same short-lived session token. Same checks, nothing else trusted.
+export async function verifyCookie(cookie, options) {
+  // Either name may hold the fresh token while the other is stale, so any one that verifies is enough.
+  for (const m of [...(cookie ?? '').matchAll(SESSION)].slice(0, MAX_SESSION_COOKIES)) {
+    const r = await check(m[1], options);
+    if (r.ok) return r;
+  }
+  return { ok: false };
+}
+
+async function check(token, { jwtKey, issuer, authorizedParty, now = Date.now() }) {
   try {
-    const token = BEARER.exec(authorization ?? '')?.[1];
     if (!token || token.length > MAX_TOKEN_LENGTH) return { ok: false };
     if (!filled(jwtKey) || !filled(issuer) || !filled(authorizedParty)) return { ok: false };
     const p = await verifyJwt(token, { key: jwtKey, authorizedParties: [authorizedParty], clockSkewInMs: SKEW_S * 1000 });

@@ -1,5 +1,5 @@
 // Admission test for wrangler.jsonc (NL-ADR-0007 §7 evidence iii; docs/decisions/0002): no secret, only the three
-// public Clerk values, one D1 binding, no paid-plan setting, and only site/ published. The Worker's refusal on any
+// public Clerk values, one D1 binding plus the static assets binding, no paid-plan setting, and only site/ published. The Worker's refusal on any
 // other CLERK_ name is tested in worker.test.js.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -50,8 +50,9 @@ test('Workers, static assets and one D1 binding only, nothing that presumes a pa
 
 test('only site/ is published, and it holds only site files', () => {
   assert.equal(config.assets.directory, './site');
-  assert.deepEqual(config.assets.run_worker_first, ['/api/*', '/config.js']);
+  assert.equal(config.assets.binding, 'ASSETS');
+  assert.equal(config.assets.run_worker_first, true); // the sign-in gate must see every request (decisions/0003)
   const files = readdirSync(new URL('../site/', import.meta.url), { recursive: true, withFileTypes: true })
     .filter(f => f.isFile()).map(f => f.name);
-  for (const name of files) assert.match(name, /^([a-z0-9-]+\.(html|css|js)|_headers)$/, name);
+  for (const name of files) assert.match(name, /^([a-z0-9-]+\.(html|css|js|png|svg|ico|webmanifest)|_headers)$/, name);
 });

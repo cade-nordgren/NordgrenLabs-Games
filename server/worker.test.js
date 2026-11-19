@@ -4,7 +4,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, rmSync } from 'node:fs';
+import { readdirSync, readFileSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { getPlatformProxy } from 'wrangler';
@@ -155,24 +155,125 @@ test('/config.js carries the publishable key', async () => {
   assert.equal(head.body, '');
 });
 
-test('a request no asset matched: 404 text for GET and HEAD, 405 with Allow for other methods', async () => {
-  const r = await get('/nope.html');
-  assert.equal(r.status, 404);
-  assert.match(r.headers['content-type'], /^text\/plain/);
-  assert.equal(r.headers['x-content-type-options'], 'nosniff');
-  assert.equal((await get('/nope.html', {}, 'HEAD')).body, '');
-  const post = await get('/', {}, 'POST');
-  assert.equal(post.status, 405);
-  assert.equal(post.headers.allow, 'GET, HEAD');
+// ---- The sign-in gate (docs/decisions/0003): pages and files need ClerkJS's __session cookie, verified like a token.
+const session = (payload = claims()) => ({ cookie: `theme=dark; __session=${sign(payload)}; other=1` });
+const isSignInPage = r => {
+  assert.equal(r.status, 401);
+  assert.equal(r.headers['cache-control'], 'no-store');
+  assert.match(r.headers['content-type'], /^text\/html/);
+  assert.match(r.body, /Sign in to play/);
+  assert.match(r.body, /window\.NL_CONFIG = \{"clerkPublishableKey":"pk_test_games"\};/); // filled in: it needs no other file
+  assert.doesNotMatch(r.body, /NL_CONFIG = null/);
+};
+
+test('signed out, every page and file outside the allowlist answers 401 with the sign-in page in place', async () => {
+  for (const p of ['/', '/index.html', '/bank/', '/bank', '/bank/index.html', '/tidevault/', '/dungeon/index.html',
+    '/style.css', '/platform.js', '/config.js/', '/icons/', '/icons/favicon.svg/', '/ICONS/icon-192.png',
+    '/%69cons/icon-192.png', '/signin', '/signin.html', '/a-future-game/deep/asset.png', '/nope.html']) {
+    isSignInPage(await get(p));
+  }
+  const head = await get('/bank/', {}, 'HEAD');
+  assert.equal(head.status, 401);
+  assert.equal(head.body, '');
 });
 
-// Static files come only from site/ (config.test.js); the Worker itself never serves a file from anywhere.
+// A phone fetches these at install time and from the home screen without a usable session.
+const INSTALL = ['/manifest.webmanifest', '/apple-touch-icon.png', '/favicon.ico',
+  ...readdirSync(new URL('../site/icons/', import.meta.url)).map(f => `/icons/${f}`)];
+test('every install file is served signed out with normal caching, and nothing else near them is', async () => {
+  for (const p of INSTALL) {
+    const r = await get(p);
+    assert.equal(r.status, 200, p);
+    assert.doesNotMatch(r.headers['cache-control'] ?? '', /private|no-store/, p);
+    assert.equal(r.headers['x-content-type-options'], 'nosniff');
+  }
+  assert.equal((await get('/config.js')).status, 200);
+  for (const p of ['/icons/nope.png', '/apple-touch-icon-precomposed.png', '/favicon.ico/', '/manifest.json', '/icons/../bank/']) {
+    isSignInPage(await get(p));
+  }
+  const manifest = JSON.parse((await get('/manifest.webmanifest')).body);
+  assert.deepEqual([manifest.id, manifest.scope, manifest.start_url, manifest.name, manifest.short_name],
+    ['/', '/', '/', 'NordgrenLabs Games', 'Games']);
+  assert.ok(manifest.icons.some(i => i.purpose === 'maskable' && i.sizes === '512x512'));
+  for (const icon of manifest.icons) assert.ok(INSTALL.includes(icon.src), icon.src);
+});
+
+test('a valid cookie gets the real file, private and revalidated, and an unchanged file answers 304', async () => {
+  for (const [p, type] of [['/', /text\/html/], ['/bank/', /text\/html/], ['/style.css', /text\/css/], ['/platform.js', /javascript/]]) {
+    const r = await get(p, session());
+    assert.equal(r.status, 200, p);
+    assert.match(r.headers['content-type'], type);
+    assert.doesNotMatch(r.body, /Sign in to play/);
+    assert.equal(r.headers['cache-control'], 'private, no-cache');
+    assert.ok(r.headers.etag, p);
+    const again = await get(p, { ...session(), 'if-none-match': r.headers.etag });
+    assert.equal(again.status, 304, p);
+    assert.equal(again.headers['cache-control'], 'private, no-cache');
+    isSignInPage(await get(p, { 'if-none-match': r.headers.etag })); // revalidating signed out gets the sign-in page
+  }
+  assert.equal((await get('/bank/', session(without('nl_person_id')))).status, 200); // signed in, not yet linked: may play
+});
+
+const cookieRefusals = {
+  'expired': claims({ exp: now() - 60 }),
+  'wrong iss': claims({ iss: 'https://clerk.example.com' }),
+  'wrong azp': claims({ azp: 'https://evil.example.com' }),
+  'development azp': claims({ azp: DEV }),
+  'aud': claims({ aud: PROD }),
+  'missing sid': without('sid'),
+  'over 4096 characters': claims({ pad: 'x'.repeat(4096) }),
+  'nl_person_id not a UUID': claims({ nl_person_id: 'person-1' }),
+};
+for (const [name, payload] of Object.entries(cookieRefusals)) {
+  test(`gate refuses a cookie: ${name}`, async () => isSignInPage(await get('/bank/', session(payload))));
+}
+test('gate refuses garbage, another key, a look-alike name and an empty cookie', async () => {
+  const t = sign(claims());
+  for (const cookie of ['__session=a.b.c', `__session=${sign(claims(), { key: rsa().privateKey })}`, `__session-abc=${t}`, `__sessionabc=${t}`,
+    `x__session=${t}`, `__Session=${t}`, '__session=', `__session="${t}"`, `__session=${t}%00`]) {
+    isSignInPage(await get('/bank/', { cookie }));
+  }
+});
+test('gate accepts the suffixed cookie name ClerkJS also writes, and a fresh one beside a stale one', async () => {
+  const t = sign(claims()), stale = sign(claims({ exp: now() - 600, iat: now() - 660, nbf: now() - 660 }));
+  for (const cookie of [`__session_AbC123=${t}`, `__session=${stale}; __session_AbC123=${t}`, `__session_AbC123=${stale}; __session=${t}`]) {
+    assert.equal((await get('/bank/', { cookie })).status, 200, cookie.slice(0, 24));
+  }
+  // Only the first few candidates are checked, so a pile of junk cookies cannot buy unlimited signature checks.
+  const junk = Array.from({ length: 4 }, (_, i) => `__session_j${i}=a.b.c`).join('; ');
+  isSignInPage(await get('/bank/', { cookie: `${junk}; __session=${t}` }));
+});
+test('a bearer header is not a page session, and a cookie is not an API token', async () => {
+  isSignInPage(await get('/bank/', { authorization: bearer(sign(claims())) }));
+  const api = await get('/api/me', session());
+  assert.equal(api.status, 401);
+  assert.deepEqual(JSON.parse(api.body), { error: 'unauthenticated' });
+});
+
+test('a path no file matched: 404 for GET and HEAD signed in, 405 with Allow for other methods', async () => {
+  assert.equal((await get('/nope.html', session())).status, 404);
+  assert.equal((await get('/nope.html', session(), 'HEAD')).body, '');
+  for (const p of ['/', '/style.css', '/nope']) {
+    const post = await get(p, {}, 'POST');
+    assert.equal(post.status, 405);
+    assert.equal(post.headers.allow, 'GET, HEAD');
+  }
+});
+
+// Static files come only from site/ (config.test.js); nothing outside it is served, signed in or out.
 for (const p of ['/server/worker.js', '/SERVER/worker.js', '//server/worker.js', '/server./worker.js',
   '/docs/BUILD-GUIDE.md', '/server/node_modules/@clerk/backend/package.json', '/.git/config', '/.gitattributes',
-  '/wrangler.jsonc', '/migrations/0001_saves.sql', '/%2e%2e/', '/..%2f..%2f', '/bank/..%5c..%5cserver/worker.js',
-  '/bank/%2e%2e/server/worker.js', '/%E0%A4%A', '/nope.html']) {
-  test(`worker refuses ${p}`, async () => assert.equal((await get(p)).status, 404));
+  '/wrangler.jsonc', '/migrations/0001_saves.sql', '/..%2f..%2f', '/bank/..%5c..%5cserver/worker.js',
+  '/bank/%2e%2e/server/worker.js', '/%E0%A4%A', '/nope.html', '/brand/games-icon-1024.png']) {
+  test(`worker refuses ${p}`, async () => {
+    assert.equal((await get(p, session())).status, 404);
+    isSignInPage(await get(p));
+  });
 }
+test('dot segments resolve inside site/ before the gate: /%2e%2e/ is the games list, and only with a session', async () => {
+  assert.match((await get('/%2e%2e/', session())).body, /<title>Games/);
+  isSignInPage(await get('/%2e%2e/'));
+});
 
 // ---- The refuse-to-serve tripwire: names only, never values, on every route the Worker answers.
 const clerk = { CLERK_PUBLISHABLE_KEY: 'pk', CLERK_JWT_KEY: jwtKey, CLERK_ISSUER: ISSUER };
@@ -205,10 +306,25 @@ test('tripwire refuses a missing name, or one of the three left empty', async ()
     assert.equal((await logged(() => get('/api/me', {}, 'GET', undefined, { ...main.env, ...clerk, [name]: '' }))).result.status, 503);
   }
 });
-test('all three empty is the signed-out dev environment: null config, every API call 401', async () => {
+test('all three empty is the signed-out dev environment: null config, every API call 401, pages with no gate', async () => {
   const env = { ...main.env, CLERK_PUBLISHABLE_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '' };
   assert.equal((await get('/config.js', {}, 'GET', undefined, env)).body, 'window.NL_CONFIG = null;\n');
   assert.equal((await get('/api/me', { authorization: bearer(sign(claims())) }, 'GET', undefined, env)).status, 401);
+  for (const p of ['/', '/bank/', '/style.css']) { // only Bank and shared files: other games may be absent from a release
+    const r = await get(p, {}, 'GET', undefined, env);
+    assert.equal(r.status, 200, p);
+    assert.doesNotMatch(r.headers['cache-control'], /private/);
+  }
+  assert.equal((await get('/nope.html', {}, 'GET', undefined, env)).status, 404);
+});
+test('a partial configuration fails closed on pages too: 503, never an open site', async () => {
+  for (const name of Object.keys(clerk)) {
+    for (const p of ['/', '/bank/', '/icons/icon-192.png']) {
+      const { result } = await logged(() => get(p, session(), 'GET', undefined, { ...main.env, ...clerk, [name]: '' }));
+      assert.equal(result.status, 503);
+      assert.doesNotMatch(result.body, /Bank|Sign in/);
+    }
+  }
 });
 test('the key works on one line, and one that is not a public key refuses every token', async () => {
   const oneLine = jwtKey.replace(/\n/g, '');
