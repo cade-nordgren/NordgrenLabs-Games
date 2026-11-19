@@ -77,7 +77,7 @@ export function killHero(g, content, seat, reason) {
 export function setCondition(g, seat, cond) {
   const hero = g.heroes[seat];
   hero.conditions = hero.conditions.filter(c => c.id !== cond.id).concat(cond);
-  logEvent(g, { kind: 'condition', seat, id: cond.id });
+  logEvent(g, { kind: 'condition', seat, id: cond.id, ...(cond.label ? { label: cond.label } : {}), ...(Number.isInteger(cond.turns) ? { turns: cond.turns } : {}) });
 }
 
 export function clearCondition(g, seat, id) {

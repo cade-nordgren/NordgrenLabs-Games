@@ -2,8 +2,8 @@
 // sentence is read from an engine event or a content definition, never decided here.
 import { cardDef } from '../engine/decks.js';
 import { legalActions } from '../engine/phases.js';
-import { contentIndex, chamberName, theChamber, chamberCards } from '../content/schema.js';
-import { mechanicsText } from '../engine/describe.js';
+import { contentIndex, chamberName, theChamber, chamberCards, monsterTypeName } from '../content/schema.js';
+import { mechanicsText, shownEffectText } from '../engine/describe.js';
 import { tileWords, place, DIR, towerAt, MARK_WORD } from './board.js';
 
 export { DIR };
@@ -19,17 +19,27 @@ export const deckWord = (deck, content) => (deck === 'TREASURY' ? chamberCards(c
 export const PLACEMENT = { inner: 'Inner circle', outer: 'Outer circle', outside: 'Outside the circles', corner: 'Corner', 'corner-skull': 'Skull corner', unclear: 'Unclear, throw again' };
 export const FACE = { sword: 'Sword', skull: 'Skull', other: 'Other face' };
 const OUTCOME = { 'monster-killed': 'The monster is defeated.', 'monster-fled': 'The monster flees.', 'reaction-resolved': 'The encounter is over.' };
-const CONDITION = { dark: 'is in the dark', 'well-edge': 'clings to the edge of the well', rubble: 'is stuck in the rubble' };
-const CONDITION_OFF = { dark: 'leaves the dark', 'well-edge': 'is across the well', rubble: 'is free of the rubble' };
+const CONDITION = { dark: 'is in the dark', 'well-edge': 'clings to the edge of the well', rubble: 'is stuck in the rubble', trapdoor: 'falls into a trapdoor pit', 'torch-out': 'is in the dark: the torch has gone out', spider: 'is caught in a fight with the giant spider', 'skip-turns': 'will miss turns' };
+const CONDITION_OFF = { dark: 'leaves the dark', 'well-edge': 'is across the well', rubble: 'is free of the rubble', trapdoor: 'is out of the trapdoor pit', 'torch-out': 'has the torch lit again', spider: 'is done with the giant spider', 'skip-turns': 'is back in play' };
+const TURNS = { 90: 'a quarter turn clockwise', 180: 'half a turn', 270: 'a quarter turn counter-clockwise' };
+// A hero's lasting card effect as one short line for the Heroes panel and prompts: its label (card data), and for
+// skipped turns how many are left ("Unconscious: 2 turns").
+export function conditionWords(c) {
+  if (!c.label && !CONDITION[c.id]) return null;
+  const turns = Number.isInteger(c.turns) && c.id === 'skip-turns' ? `: ${c.turns} ${c.turns === 1 ? 'turn' : 'turns'} to miss` : '';
+  return `${c.label || capital(CONDITION[c.id].replace(/^is /, ''))}${turns}`;
+}
 
 // The fight row's content (ui/app.js fightRow draws it): who fights, the hero's HP, and the monster's HP only when the
 // view carries it: the monster player's view, or the solo player's once the monster is revealed (D37 as amended by
 // spec v4). enc: the encounter in view v (null once it is over); name: seat -> player name.
+const groupName = (content, setId) => { const n = setId && monsterTypeName(content, setId); return n && n !== 'Monster' ? n : null; };
 export function fightRowModel(v, seat, enc, name, content) {
   const m = enc?.monster, hero = v.heroes[seat], left = Math.max(0, hero.hp);
   const mLeft = Number.isInteger(m?.hp) ? Math.max(0, m.hp - m.wounds) : null;
   return {
-    who: `${name(seat)} against ${m?.inst ? cardDef(content, m.inst).name : 'the monster'}`,
+    // The monster type the room card named is public (owner catalogue: Dark Elf, Mountain Troll, Skeleton, Orc).
+    who: `${name(seat)} against ${groupName(content, enc?.type ?? m?.groupId) ? `the ${groupName(content, enc?.type ?? m?.groupId)}` : m?.inst ? cardDef(content, m.inst).name : 'the monster'}`,
     hero: { left, max: hero.hpStart, label: `${name(seat)}: ${left} of ${hero.hpStart} HP` },
     monster: mLeft === null ? null : { left: mLeft, max: m.hp, label: `Monster: ${mLeft} of ${m.hp} HP left` },
   };
@@ -71,34 +81,6 @@ export function testWords(e) {
   return [mods.length ? `Roll ${e.roll}${terms} = ${total}.` : `You rolled ${e.roll}.`, `You needed ${e.target} or less (${STAT[e.stat] || e.stat} ${e.target}).`];
 }
 
-// A plain summary of a card's effects, used when the content has no text of its own (plan 13 #21: the owner's
-// optional `text` field replaces it wherever it is set).
-function effectWords(list, content) {
-  return (list || []).map(e => {
-    switch (e.op) {
-      case 'DEAL_DAMAGE': return e.target === 'monster' ? `The monster takes ${expr(e.amount, content)}.` : `Take ${expr(e.amount, content)} damage.`;
-      case 'HEAL': return `Heal ${expr(e.amount, content)}.`;
-      case 'CHECK_STAT': {
-        const fail = effectWords(e.onFail, content), pass = effectWords(e.onPass, content);
-        return `${STAT[e.stat]} test${e.modifier ? ` (${expr(e.modifier, content)})` : ''}.${pass ? ` Pass: ${pass}` : ''}${fail ? ` Fail: ${fail}` : ''}`;
-      }
-      case 'MONSTER_ENCOUNTER': case 'REQUEST_COMBAT': return e.ambush ? 'An ambush.' : 'A monster.';
-      case 'DRAW_CARD': return `Draw a ${deckWord(e.deck, content)}${e.then === 'keep' ? ' and keep it' : ''}.`;
-      case 'REQUEST_CHOICE': return `Choose: ${e.options.map(o => o.label).join(' or ')}.`;
-      case 'MOVE_HERO': return e.to === 'prev' ? 'You are pushed back.' : e.to === 'adjacent-choice' ? 'Move to a neighbouring square.' : `You are moved ${DIR[e.to]}.`;
-      case 'SET_CONDITION': return `A lasting effect${e.turns ? ` for ${e.turns} turns` : ''}${e.onTurnStart?.length ? `: ${effectWords(e.onTurnStart, content)}` : '.'}`;
-      case 'CLEAR_CONDITION': return 'A lasting effect ends.';
-      case 'CONTINUE_MOVEMENT': return 'You may keep moving.';
-      case 'END_TURN': return 'Your turn ends.';
-      case 'OPEN_TEMPORARY_PASSAGE': return 'A secret passage opens.';
-      case 'REMOVE_TREASURY_CARDS': return `Lose your ${chamberCards(content)}.`;
-      case 'ROTATE_TILE': return 'The room turns.';
-      case 'RETAIN_CARD': case 'GRANT_TREASURE': return 'Keep this card.';
-      default: return '';
-    }
-  }).filter(Boolean).join(' ');
-}
-
 // What an item or card does, in the content's own words: effectText (engine, plain words) or the owner's text.
 export const itemText = def => def?.effectText || def?.text || null;
 
@@ -132,13 +114,7 @@ export function revealWords(x, hero) {
 export function cardText(def, effectText = null, content = null) {
   if (def.text) return def.text;
   if (effectText || def.effectText) return effectText || def.effectText;
-  const out = [effectWords(def.effects, content)];
-  if (def.deck === 'DOOR') out.unshift({ opens: 'The door opens.', closed: 'The door stays shut.', trap: 'The door is trapped.' }[def.kind] || '');
-  if (def.followUpDeck) out.push(def.followUpDeck === 'MONSTER' ? 'A monster.' : `Then draw a ${DECK[def.followUpDeck].toLowerCase()}.`);
-  if (['RETAIN_HELD', 'RETAIN_TREASURY'].includes(def.cardDisposition)) out.push('Keep this card.');
-  if (def.turnDisposition === 'continue') out.push('You may keep moving.');
-  if (def.gold) out.push(`Worth ${def.gold} gold.`);
-  return out.filter(Boolean).join(' ') || 'Nothing happens.';
+  return shownEffectText(def, chamberName(content));
 }
 
 export function monsterText(def) {
@@ -210,7 +186,7 @@ export function describe(e, ctx, next) {
     }
     case 'rotate': return 'The room turns a quarter clockwise.';
     case 'gate-falls': return `A portcullis drops behind, on ${edgeWords(e.edge)}.`;
-    case 'condition': return `${who(e.seat)} ${CONDITION[e.id] || 'is under a lasting effect'}.`;
+    case 'condition': return `${who(e.seat)} ${CONDITION[e.id] || (e.label ? `is affected: ${e.label.toLowerCase()}` : 'is under a lasting effect')}.`;
     case 'condition-cleared': return `${who(e.seat)} ${CONDITION_OFF[e.id] || 'is free of a lasting effect'}.`;
     case 'dark-exit': return [`Dark room: the way out is ${DIR[e.dir]}.`, `D6 ${e.roll}`];
     case 'dark-blocked': return 'That way is blocked. The hero stays and rolls again next turn.';
@@ -255,6 +231,11 @@ export function describe(e, ctx, next) {
     case 'secret-passage': return 'A secret passage opens.';
     case 'table-row': return e.empty ? 'Miss.' : null; // spec v5: a weapon table's empty row
     case 'trap-ignored': return `The trap does not affect ${who(e.seat)}.`;
+    case 'named-roll': return [`${who(e.seat)} named ${e.numbers.join(', ')} and rolled ${e.value}: ${e.match ? (e.numbers.length === 1 ? 'the number named' : 'one of them') : 'no match'}.`, `D6 ${e.value}`];
+    case 'turn-skipped': return `${who(e.seat)} misses this turn${e.left ? `, ${e.left} more to miss` : ''}.`;
+    case 'freed': return `${who(e.seat)} is out of it at once, with the ${card(e.item)?.name?.toLowerCase() || 'item'}.`;
+    case 'tiles-rotated': return `Every ${e.mark} corridor on the board turns ${TURNS[e.degrees]}${e.at.length ? ` (${e.at.length} on the board)` : ': none is on the board yet'}.`;
+    case 'flight-blocked': return 'There is no way back.';
     case 'deck-empty': return `The ${deckWord(e.deck, content)} pile is empty.`;
     case 'lost-at-sunset': return `${who(e.seat)} is inside at sunset: not escaped${e.status === 'IN_TOWER_NOT_ESCAPED' ? ', though in a tower' : ''}.`;
     case 'game-over': return 'The game is over.';

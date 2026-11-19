@@ -185,6 +185,7 @@ function kitContent(status) {
   p.specialWeapons = p.specialWeapons.map(x => ({ ...x, heroIds: ['HERO_1'], effects: [], uses: null }));
   p.rings = p.rings.map(x => ({ ...x, effects: [], trigger: 'passive' }));
   for (const [k, d] of Object.entries(deck)) p[k] = p[k].map(x => ({ ...x, deck: d, kind: d === 'DOOR' ? 'opens' : 'empty', effects: [] }));
+  p.treasury = p.treasury.map(x => ({ ...x, kind: 'treasure', gold: 1, cardDisposition: 'RETAIN_TREASURY' })); // a chamber card is a kept treasure
   const r = { type: 'combat', damage: null, effects: [] };
   p.monster = p.monster.map(x => ({ ...x, deck: 'MONSTER', hp: 3, groupId: 'S09', reactions: { attack: r, wait: r, flee: r } }));
   return p;

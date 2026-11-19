@@ -229,6 +229,16 @@ function fieldErrors(key, e, content) {
   }
   if (key === 'dragon' && !['sleeping', 'awake'].includes(e.kind)) err.push('dragon kind must be sleeping or awake');
   if (CARD_KEYS.includes(key) && e.gold !== undefined && (!Number.isInteger(e.gold) || e.gold < 0)) err.push('gold must be an integer >= 0');
+  // Values that must agree with the kind (owner catalogue, 2026-11-19): a treasure has gold and is kept, a treasure
+  // chamber card is a treasure, a "shuffle again" card shuffles, a usable or freeing item is kept.
+  if (DECK_OF[key] && key !== 'monster') {
+    const kept = ['RETAIN_HELD', 'RETAIN_TREASURY'].includes(e.cardDisposition) || (e.effects || []).some(x => ['GRANT_TREASURE', 'RETAIN_CARD'].includes(x?.op));
+    if (e.kind === 'treasure' && (!Number.isInteger(e.gold) || e.gold < 1)) err.push('a treasure card needs gold, a whole number 1 or more');
+    if (e.kind === 'treasure' && !kept) err.push("a treasure card is kept: cardDisposition 'RETAIN_HELD' (or 'RETAIN_TREASURY' in the treasure chamber deck)");
+    if (key === 'treasury' && e.kind !== 'treasure') err.push('treasure chamber cards are kind treasure');
+    if (e.kind === 'reshuffle' && e.cardDisposition !== 'RESHUFFLE_DECK' && !(e.effects || []).some(x => x?.op === 'SHUFFLE_DECK')) err.push("a shuffle card needs cardDisposition 'RESHUFFLE_DECK'");
+    if ((e.use || e.frees) && e.cardDisposition !== 'RETAIN_HELD') err.push("a card with a use or frees must be kept: cardDisposition 'RETAIN_HELD'");
+  }
   return err;
 }
 
@@ -318,6 +328,10 @@ function monsterTypeErrors(content) {
   }
   const rowCards = entriesOf(content, 'monster').filter(m => m.rows && typeof m.rows === 'object');
   const err = [];
+  // Owner catalogue: every row card covers every monster type (each physical card has all four rows).
+  const types = [...new Set(entriesOf(content, 'combat').filter(c => c.owner === 'monster-group').map(c => c.setId))];
+  const written = entriesOf(content, 'monster').reduce((s, m) => s + copiesOf(m), 0) >= slotsOf('monster').length;
+  if (content.mode === 'original' && written) for (const m of rowCards) for (const t of types) if (!m.rows[t]) err.push(`${m.id}: no row for monster type ${t}`);
   for (const n of named) {
     if (n.type !== undefined && !setOwnedBy(content, n.type, 'monster-group')) err.push(`${n.id}: monster ${n.type} is not a monster-group combat set`);
     else if (n.type === undefined && rowCards.length) err.push(`${n.id}: names no monster type, but monster cards with rows need one (${n.followUp ? "use a MONSTER_ENCOUNTER step with monster: 'S09' instead of followUpDeck MONSTER" : "add monster: 'S09' to the step"})`);
@@ -447,10 +461,24 @@ export async function loadSlots(base) {
 }
 
 export const MIXED_BANNER = 'Play-test: your content plus NON-AUTHENTIC fill-in';
+// A play-test with every slot written by the owner (owner catalogue, 2026-11-19): no fill-in, but nothing approved yet.
+export const DRAFT_BANNER = 'Play-test: your own draft content, not approved yet';
+// Entries whose notes carry this flag are entered with the most literal reading and wait on an owner ruling.
+export const CONFIRM_FLAG = 'NEEDS OWNER CONFIRMATION';
+export const toConfirm = content => CATEGORIES.flatMap(cat => entriesOf(content, cat.key).filter(e => typeof e?.notes === 'string' && e.notes.includes(CONFIRM_FLAG)).map(e => e.id));
 // Spec v2 #13: shown until the completion gate passes; the app never claims exactness.
 export const APP_LABEL = 'Mechanics engine under verification';
 // Spec v2 #12: exactly which categories of this content are synthetic (fixture data), for the developer banner.
 // A category holding owner entries too is partly synthetic; for combat cards the fixture sets are named.
+// The banner's Details list: the synthetic categories, or for a play-test on the owner's own drafts, what is not approved
+// and how many entries wait on an owner ruling.
+export function bannerLines(content) {
+  const fx = syntheticCategories(content);
+  if (content.mode !== 'mixed' || fx.length) return fx;
+  const draft = CATEGORIES.filter(cat => entriesOf(content, cat.key).some(e => e.status === 'DRAFT')).map(cat => cat.label);
+  const n = toConfirm(content).length;
+  return [...(draft.length ? [`Draft, not approved: ${draft.join(', ')}`] : []), ...(n ? [`${n} ${n === 1 ? 'entry waits' : 'entries wait'} on your ruling (${CONFIRM_FLAG} in its notes)`] : [])];
+}
 export const syntheticCategories = content => CATEGORIES.flatMap(cat => {
   const all = entriesOf(content, cat.key), fx = all.filter(e => e?.status === 'FIXTURE');
   if (!fx.length) return [];
@@ -490,6 +518,7 @@ export function mixContent(own, fx) {
   if (common) for (const k of CARD_KEYS) m[k] = m[k].map(e => (e.status === 'FIXTURE' ? typeFx(e) : e));
   // Fixture cards carry their generated line as `text`: say it again with the owner's chamber name.
   if (own.chamber?.name) for (const k of ALL_CARD_KEYS) m[k] = m[k].map(e => (e.status === 'FIXTURE' && e.text ? { ...e, text: shownEffectText(e, chamberName(m)) } : e));
+  if (!syntheticCategories(m).length) m.label = DRAFT_BANNER; // every slot is the owner's own: no NON-AUTHENTIC claim
   return m;
 }
 
@@ -511,7 +540,8 @@ export function contentStatus(own, fx, mode = 'mixed') {
     lines: report.lines,
     start: report.fullStartAllowed ? 'Start is on: every slot holds approved original content.'
       : `Start is off until the content is complete: ${n ? `${n} content ${n === 1 ? 'error' : 'errors'} to fix` : [report.lines[gap], ...report.pending.filter(p => p.category === report.categories[gap].key).map(p => p.message)].join('; ')}.`,
-    play: mixedAllowed ? `Play-test is on: your ${report.categories.reduce((s, c) => s + c.defined, 0)} written slots plus NON-AUTHENTIC fill-in.`
+    confirm: toConfirm(own),
+    play: mixedAllowed ? (syntheticCategories(mixed).length ? `Play-test is on: your ${report.categories.reduce((s, c) => s + c.defined, 0)} written slots plus NON-AUTHENTIC fill-in.` : `Play-test is on: all ${report.categories.reduce((s, c) => s + c.defined, 0)} slots are your own entries, still draft (no fill-in).`)
       : !written ? 'Play-test is off until you write some entries.'
       : n ? `Play-test is off until the ${n} content ${n === 1 ? 'error is' : 'errors are'} fixed.`
       : `Play-test is off: ${mixReport.errors[0]?.message || 'a slot has nothing in it'}.`,

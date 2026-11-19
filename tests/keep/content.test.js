@@ -89,6 +89,7 @@ function approvedContent() {
   c.rings = c.rings.map(x => ({ ...x, effects: [], trigger: 'passive' }));
   const deck = { room: 'ROOM', search: 'SEARCH', roomSearch: 'ROOM_SEARCH', chest: 'CHEST', door: 'DOOR', treasury: 'TREASURY' };
   for (const [k, d] of Object.entries(deck)) c[k] = c[k].map(x => ({ ...x, deck: d, kind: d === 'DOOR' ? 'opens' : 'empty', effects: [] }));
+  c.treasury = c.treasury.map(x => ({ ...x, kind: 'treasure', gold: 1, cardDisposition: 'RETAIN_TREASURY' })); // a chamber card is a kept treasure
   const r = { type: 'combat', damage: null, effects: [] };
   c.monster = c.monster.map(x => ({ ...x, deck: 'MONSTER', hp: 3, groupId: 'S09', reactions: { attack: r, wait: r, flee: r } }));
   return c;

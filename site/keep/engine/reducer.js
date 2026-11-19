@@ -79,7 +79,7 @@ export function createGame({ players, seed, content, rules = {}, diceScript = nu
     schemaVersion: SCHEMA_VERSION,
     mechanicsVersion: MECHANICS_VERSION,
     contentMode: content.mode,
-    banner: content.mode === 'fixture' ? 'NON-AUTHENTIC TEST DATA' : content.mode === 'mixed' ? MIXED_BANNER : null,
+    banner: content.mode === 'fixture' ? 'NON-AUTHENTIC TEST DATA' : content.mode === 'mixed' ? content.label || MIXED_BANNER : null,
     contentHash: contentHash(content),
     rules: { ...DEFAULT_RULES, ...rules },
     phase: 'SETUP',

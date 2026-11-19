@@ -45,6 +45,10 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
 .banner ul { flex-basis: 100%; margin: 0 0 10px; padding-left: 18px; text-align: left; font-weight: 500; font-size: 14px; }
 .banner li { break-inside: avoid; overflow-wrap: anywhere; }
 @media (min-width: 640px) { .banner ul { columns: 2; column-gap: 24px; } } /* one column on phones, so items never collide */
+/* Name-the-numbers picker (owner catalogue: torch, giant spider, ceiling): six toggles in one row, the picked ones filled. */
+.numpick { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin: 8px 0 4px; }
+.numpick .btn { min-height: 44px; padding: 0; font: 600 18px var(--num); }
+.numpick .btn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .movehint { margin: 12px 0 0; font-weight: 600; }
 .movewhy { display: none; margin-top: 4px; font-size: 14px; color: var(--ink2); }
 @media (hover: hover) and (pointer: fine) { .movewhy { display: block; } } /* the keyboard hint, not on touch phones */
@@ -577,7 +581,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
     </section>
     <section class="glass group">
       <h2>Play-test your content</h2>
-      <p class="note">Play-test: your content plus NON-AUTHENTIC fill-in. Plays your draft and approved entries, with made-up test data filling every slot you have not finished. Every screen says so.</p>
+      <p class="note">Plays your draft and approved entries before they are all approved. Any slot you have not finished is filled with made-up test data. Every screen says which, under a red banner.</p>
       <button class="btn" id="mixed">Play-test my content</button>
       <p class="note reason" id="mixedReason"></p>
     </section>

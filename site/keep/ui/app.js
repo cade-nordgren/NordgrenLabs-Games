@@ -10,12 +10,12 @@ import { isActive } from '../engine/heroes.js';
 import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
 import { BEATS } from '../engine/combat.js';
-import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL, chamberName, theChamber, chamberCards } from '../content/schema.js';
+import { validateContent, contentIndex, contentStatus, bannerLines, APP_LABEL, chamberName, theChamber, chamberCards } from '../content/schema.js';
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
 import { lines, entries, cardText, monsterText, fightRowModel, soloStripModel, expr,
- undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName } from './words.js';
+ undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords } from './words.js';
 import { rollDice } from './dice.js';
-import { shownEffectText } from '../engine/describe.js';
+import { shownEffectText, describeEffects } from '../engine/describe.js';
 import { unitWord } from '../engine/inventory.js';
 import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
 import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
@@ -138,6 +138,9 @@ function act(a) {
   outcome = out;
   showOutcome();
   showDusk();
+  // D54: a skipped hero never gets a prompt, so the table is told.
+  const skipped = added.filter(e => e.kind === 'turn-skipped');
+  if (skipped.length) toast(skipped.map(e => `${nameOf(e.seat)} misses this turn${e.left ? ` (${e.left} more)` : ''}.`).join(' '));
 }
 let held = false;
 function release() { if (held) { held = false; render(); } }
@@ -265,7 +268,17 @@ function tryAct(a) {
 // Continue. Rolls are public entries, so this shows nothing the table may not see. False when there were none.
 // Spec v5: a weapon table's rolls (the crossbow's D6, and the second D6 on a 4 or 5) show here too.
 const tableRoll = e => e.kind === 'roll' && /^table roll/.test(e.reason);
-const rollShown = e => e.kind === 'test' || (e.kind === 'roll' && e.reason === 'dark room exit') || tableRoll(e);
+const namedRoll = e => e.kind === 'roll' && /^named roll/.test(e.reason);
+const cardRoll = e => e.kind === 'roll' && /^card roll /.test(e.reason);
+const rollShown = e => e.kind === 'test' || (e.kind === 'roll' && e.reason === 'dark room exit') || tableRoll(e) || namedRoll(e) || cardRoll(e);
+// A weapon table is the crossbow's (the hero used their weapon in this action); any other table is a card's.
+const weaponTable = added => added.some(e => e.kind === 'item' && e.action === 'use' && e.group === 'equipment');
+// What followed a card's own roll, in the log's words: the lines between it and the next roll shown.
+const KEEP_AFTER = new Set(['tiles-rotated', 'encounter', 'flight', 'flight-blocked', 'damage', 'heal', 'death', 'condition', 'condition-cleared', 'named-roll']);
+function afterRoll(e, added, said) {
+  const from = added.indexOf(e) + 1, to = added.findIndex((x, i) => i >= from && rollShown(x));
+  return added.slice(from, to < 0 ? undefined : to).filter(x => KEEP_AFTER.has(x.kind)).map(x => said.find(s => s.e === x)?.text).filter(Boolean);
+}
 // What a weapon table did, in plain words. Never the monster's HP: only the hit, or the kill everyone hears of.
 function tableResult(added) {
   if (added.some(e => e.kind === 'monster-dead' || (e.kind === 'encounter-end' && e.outcome === 'monster-killed'))) return 'The monster is dead.';
@@ -277,8 +290,10 @@ function showRolls(added) {
   if (!shown.length) return false;
   const d = $('roll'), said = entries(added, ctx());
   const first = shown[0];
-  const verb = tableRoll(first) && (content().specialWeapons || []).find(w => w.id === heroDef(S.game.heroes[S.game.activeSeat]).specialWeaponId)?.verb;
-  $('rollTitle').textContent = d.dataset.mode === 'rolling' && d.dataset.title ? d.dataset.title : ROLL_TITLE[first.reason] || (tableRoll(first) ? verb || 'Roll' : `${STAT[first.stat]} test`);
+  const weapon = weaponTable(added);
+  const verb = tableRoll(first) && weapon && (content().specialWeapons || []).find(w => w.id === heroDef(S.game.heroes[S.game.activeSeat]).specialWeaponId)?.verb;
+  const label = namedRoll(first) ? /\((.*)\)$/.exec(first.reason)?.[1] : null;
+  $('rollTitle').textContent = d.dataset.mode === 'rolling' && d.dataset.title ? d.dataset.title : ROLL_TITLE[first.reason] || label || (tableRoll(first) ? verb || 'Roll' : cardRoll(first) ? 'Roll' : `${STAT[first.stat]} test`);
   const dice = el('div'), out = el('div', 'outcome'), summary = [];
   for (const e of shown) {
     const box = el('div');
@@ -288,6 +303,13 @@ function showRolls(added) {
       const line = it?.text;
       if (line) box.append(el('p', '', line));
       summary.push(`${e.pass ? 'Pass' : 'Fail'}. ${rolled} ${needed} ${line || ''}`);
+    } else if (namedRoll(e) || cardRoll(e) || (tableRoll(e) && !weapon)) {
+      // A card's roll: the named-number roll, the flask's two dice (said once, after the second), a card's table.
+      box.append(el('p', 'verdict', `${e.die}: ${e.value}`));
+      const nextShown = shown[shown.indexOf(e) + 1];
+      const lines = cardRoll(e) && nextShown && cardRoll(nextShown) ? [] : afterRoll(e, added, said);
+      for (const t of lines) box.append(el('p', '', t));
+      summary.push(`${e.die} ${e.value}. ${lines.join(' ')}`.trim());
     } else if (tableRoll(e)) {
       box.append(el('p', 'verdict', `${e.die}: ${e.value}`));
       const last = e === shown.findLast(tableRoll);
@@ -590,7 +612,7 @@ function render() {
   // Spec v2 #12: the banner names exactly which categories are synthetic.
   $('banner').hidden = !g?.banner;
   $('bannerText').textContent = g?.banner || '';
-  $('synthetic').replaceChildren(...(g?.banner ? syntheticCategories(content()) : []).map(t => el('li', '', t)));
+  $('synthetic').replaceChildren(...(g?.banner ? bannerLines(content()) : []).map(t => el('li', '', t)));
   // Menu: like Bank, the Games link gives way to Exit during a game. Undo shows only when a press works, named.
   const undoOk = canUndo() && !S.peek && !S.reveal;
   if (!undoOk && document.activeElement === $('undo')) $('menu').querySelector('.menu-trigger').focus();
@@ -999,6 +1021,51 @@ function combatCards(seatSet, onPick) {
 const SAME = 'Same letter: both take 1.';
 
 // The prompt panel: one per phase the engine can raise, built from its legal actions.
+// Owner catalogue (torch, giant spider, ceiling): pick count different numbers from 1 to 6, then roll the D6. Six
+// toggle buttons (aria-pressed) and a Roll button that waits for the full set; the picks live here until the roll.
+let named = { key: null, picks: [] };
+function numberPicker(v, pend, legal) {
+  const c = content(), at = String(v.log.length);
+  if (named.key !== at) named = { key: at, picks: [] };
+  const one = pend.count === 1;
+  const said = list => describeEffects(list, chamberName(c)) || 'nothing happens';
+  const p = panel(pend.label || 'Name numbers', `${one ? 'Name one number' : `Name ${pend.count} different numbers`}, then roll the D6. If it shows ${one ? 'that number' : 'one of them'}: ${said(pend.onMatch)}. If not: ${said(pend.onMiss)}.`);
+  const row = el('div', 'numpick');
+  row.setAttribute('role', 'group');
+  row.setAttribute('aria-label', 'Numbers to name');
+  const count = el('p', 'muted');
+  count.setAttribute('aria-live', 'polite');
+  const go = el('button', 'btn primary', 'Roll the D6');
+  const sync = () => {
+    const picks = [...named.picks].sort((a, b) => a - b);
+    count.textContent = `${picks.length} of ${pend.count} chosen${picks.length ? `: ${picks.join(', ')}` : ''}`;
+    go.disabled = picks.length !== pend.count;
+    row.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed', String(named.picks.includes(+b.value))));
+  };
+  for (let n = 1; n <= 6; n++) {
+    const b = el('button', 'btn', String(n));
+    b.type = 'button';
+    b.value = n;
+    b.onclick = () => {
+      const i = named.picks.indexOf(n);
+      if (i >= 0) named.picks.splice(i, 1);
+      else if (one) named.picks = [n];
+      else if (named.picks.length < pend.count) named.picks.push(n);
+      sync();
+    };
+    row.append(b);
+  }
+  go.onclick = () => {
+    const a = legal.find(x => x.numbers === [...named.picks].sort((m, k) => m - k).join(','));
+    if (a) { named = { key: null, picks: [] }; act(a); }
+  };
+  sync();
+  const ch = el('div', 'choices');
+  ch.append(go);
+  p.append(row, count, ch);
+  return p;
+}
+
 function renderPrompt(v, la, targets) {
   const g = S.game, c = content();
   const name = nameOf(g.activeSeat);
@@ -1101,9 +1168,17 @@ function renderPrompt(v, la, targets) {
     case 'RESOLVE_CARD': {
       const pend = g.pending;
       const frame = [...g.stack].reverse().find(f => f.card);
-      if (pend.kind === 'choice') {
-        p = panel('Choose', frame ? `${cardDef(c, frame.card).name}. ${cardText(cardDef(c, frame.card), null, c)}` : null);
-        by('CHOOSE').forEach(a => ch.append(choice(pend.options[a.option], null, () => act(a))));
+      if (pend.kind === 'name-numbers') {
+        p = numberPicker(v, pend, by('NAME_NUMBERS'));
+        break;
+      } else if (pend.kind === 'choice') {
+        // An optional draw (owner catalogue: chest, sarcophagus, fallen warrior) asks its own question; a lasting
+        // effect at the start of a turn (no card drawn now) gives its reason line instead of a card.
+        const leave = pend.options.includes('Leave it');
+        const why = (hero.conditions || []).map(conditionWords).filter(Boolean).join('. ');
+        const title = leave ? `${pend.options[0]}?` : frame ? cardDef(c, frame.card).name : why || 'Choose';
+        p = panel(title, frame ? `${leave ? `${cardDef(c, frame.card).name}. ` : ''}${cardText(cardDef(c, frame.card), null, c)}` : why ? `${name}: ${why}.` : null);
+        by('CHOOSE').forEach(a => ch.append(choice(pend.options[a.option], null, () => act(a), leave && a.option === 0 ? 'primary' : '')));
       } else if (pend.kind === 'trap-ring') {
         // Spec v5: a trap card was just drawn and the Protection Ring is unused.
         const def = cardDef(c, pend.card), r = ringOfSeat(pend.seat);
@@ -1439,6 +1514,8 @@ function heroesPanel(v) {
     body.append(el('div', 'meta', `Ring: ${ring ? `${ring.name || ring.id}${h.ringUsed ? ' (used, removed from play)' : ''}` : 'none'} · Special weapon: ${weapon ? weapon.name + uses : 'none'}`));
     const room = roomStateWords(h);
     if (room) body.append(el('div', 'meta room', room));
+    // Lasting card effects with their reason line (owner catalogue): "Unconscious: 2 turns to miss", "Torch out".
+    for (const t of (h.conditions || []).map(conditionWords).filter(Boolean)) body.append(el('div', 'meta room', t));
     const end = h.endResult === 'INSIDE_AT_SUNSET' ? ', inside at sunset' : '';
     body.append(el('div', 'meta', `${whereWords(v, h)} · ${STATUS_WORD[h.status]}${end}`));
     body.append(itemsButton(v, seat, 'btn'));

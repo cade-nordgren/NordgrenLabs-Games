@@ -77,7 +77,8 @@ export const unitWord = (w, n) => `${w.unit || 'use'}${n === 1 ? '' : 's'}`;
 function cardReason(def, left, group, content) {
   if (group === 'chamber') return `${capital(chamberCards(content, 1))}: no use; its gold counts if you escape, and each one adds 1 to a well jump`;
   if (def.specialWeapon && !def.use) return 'Special weapon: its card effect is pending (not yet supplied)';
-  if (!def.use) return group === 'treasure' ? 'Treasure: no use; its gold counts if you escape' : 'No use in its card data';
+  if (!def.use && def.frees?.length) return 'Kept: it works by itself when it applies, no action needed';
+  if (!def.use) return group === 'treasure' ? 'Treasure: no use; its gold counts if you escape' : 'Kept: no use of its own';
   if (left === 0) return 'No uses left';
   return TIMING_REASON[def.use.timing];
 }
