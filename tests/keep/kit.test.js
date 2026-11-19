@@ -144,7 +144,7 @@ function kitContent(status) {
   const deck = { room: 'ROOM', search: 'SEARCH', roomSearch: 'ROOM_SEARCH', chest: 'CHEST', door: 'DOOR', treasury: 'TREASURY' };
   const p = {};
   for (const c of CATEGORIES) p[c.key] = c.ids.map(id => ({ id, copies: 1, status }));
-  p.board = { id: 'BOARD_01', status, width: 10, height: 9, towers: [[0, 0], [9, 0], [0, 8], [9, 8]].map(([x, y]) => ({ x, y, sides: all })), center: [{ x: 4, y: 4 }, { x: 5, y: 4 }] };
+  p.board = { id: 'BOARD_01', status, width: 10, height: 11, towers: [[0, 0], [9, 0], [0, 10], [9, 10]].map(([x, y]) => ({ x, y, sides: all })), center: [{ x: 4, y: 5 }, { x: 5, y: 5 }] };
   p.chamber = { id: 'CHAMBER_01', status, sides: { a: all, b: all } };
   p.tiles = [{ id: 'TILE_001', copies: 88, status, sides: all, entrySide: 'S', mark: 'black', special: 'none' }];
   p.heroes = p.heroes.map((h, i) => ({ ...h, class: 'x', stats: { STR: 5, AGI: 5, ARM: 5, LCK: 5 }, hp: 10, combatSetId: `S0${i + 1}`, specialWeaponId: null }));

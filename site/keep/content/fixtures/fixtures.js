@@ -17,25 +17,26 @@ const monster = (id, hp, groupId, attack, wait, flee) => ({ ...F, id, name: `Fix
 export default {
   mode: 'fixture',
   label: 'NON-AUTHENTIC TEST DATA',
-  // 6 x 5: corner towers, center (2,2)-(3,2), 24 maze squares.
+  // 10 x 11 (spec v2): corner towers, center (4,5)-(5,5), 104 maze squares.
   board: {
-    ...F, id: 'FX_BOARD', width: 6, height: 5,
+    ...F, id: 'FX_BOARD', width: 10, height: 11,
     towers: [
       { x: 0, y: 0, sides: { N: w, E: o, S: o, W: w } },
-      { x: 5, y: 0, sides: { N: w, E: w, S: o, W: o } },
-      { x: 0, y: 4, sides: { N: o, E: o, S: w, W: w } },
-      { x: 5, y: 4, sides: { N: o, E: w, S: w, W: o } },
+      { x: 9, y: 0, sides: { N: w, E: w, S: o, W: o } },
+      { x: 0, y: 10, sides: { N: o, E: o, S: w, W: w } },
+      { x: 9, y: 10, sides: { N: o, E: w, S: w, W: o } },
     ],
-    center: [{ x: 2, y: 2 }, { x: 3, y: 2 }],
+    center: [{ x: 4, y: 5 }, { x: 5, y: 5 }],
     walls: [],
   },
   chamber: { ...F, id: 'FX_CHAMBER', sides: { a: { N: o, E: o, S: o, W: w }, b: { N: w, E: o, S: o, W: o } } },
-  // Reference orientation: entry dot on S. Copies total 88.
+  // Reference orientation: entry dot on S. Copies total 104, one per maze square, so a whole board
+  // can be revealed (owner content is 88; D27 leaves the rest impassable).
   tiles: [
-    tile('FX_CROSS', 12, o, o, o, o, 'black'),
+    tile('FX_CROSS', 20, o, o, o, o, 'black'),
     tile('FX_STRAIGHT', 20, o, w, o, w, 'yellow'),
     tile('FX_CORNER', 16, w, o, o, w, 'red'),
-    tile('FX_TEE', 16, w, o, o, o, 'black'),
+    tile('FX_TEE', 24, w, o, o, o, 'black'),
     tile('FX_DEADEND', 8, w, w, o, w, 'black'),
     tile('FX_DARK', 4, o, w, o, w, 'blue'),
     tile('FX_WELL', 2, o, w, o, w, 'none', 'well'),

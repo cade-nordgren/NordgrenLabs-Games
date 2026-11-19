@@ -19,7 +19,7 @@ Contents:
 
 ## 1. What a slot is, and the boundary
 
-The game engine plays the rules: the sun clock, the dice, the tile reveal, the decks, combat and the dragon. It does not contain any cards, tiles, heroes or board. Those are **slots**: numbered places the engine expects to be filled with content of a known shape. There are 88 tile slots, 224 card slots in 12 decks, 8 heroes, 4 rings, 2 special weapon cards, 1 board and 1 central chamber tile.
+The game engine plays the rules: the sun clock, the dice, the tile reveal, the decks, combat and the dragon. It does not contain any cards, tiles, heroes or board. Those are **slots**: numbered places the engine expects to be filled with content of a known shape. There are 88 tile slots, 224 card slots in 12 decks, 8 heroes, 4 rings, 2 special weapon cards, 1 board (110 squares: 10 x 11 or 11 x 10) and 1 central chamber tile.
 
 Each slot has a placeholder id, such as `ROOM_017` or `TILE_034`. You use these ids for your entries, so every message from the checker names a real slot.
 
@@ -171,26 +171,26 @@ Rulings named here (D01 to D31) are in the plan's decision register, section 9. 
 
 | Field | Allowed values | Meaning |
 |---|---|---|
-| `width`, `height` | whole numbers, 3 or more | Squares across and down. Columns count from 0 in the west, rows from 0 in the north. |
+| `width`, `height` | 10 and 11, or 11 and 10 | Squares across and down: the board is always 110 squares. Columns count from 0 in the west, rows from 0 in the north. |
 | `towers` | four `{ x, y, sides }` | The four corner towers, one on each corner. `sides` gives `N`, `E`, `S`, `W`, each `'wall'`, `'open'`, `'door'` or `'gate'`. |
 | `center` | two `{ x, y }` | The two squares of the treasure chamber, side by side, in the exact middle of the board. |
 | `walls` | list of `'x,y\|SIDE'` | Printed walls between squares, for example `'3,2\|E'` is a wall on the east side of column 3, row 2. Optional. |
 
-Rules the checker applies: towers on the four corners (RB 4); center in the middle, so a two-square center across the width needs an even width and an odd height (or the other way round); at most 88 ordinary squares (width times height, minus the 4 towers and 2 chamber squares), because there are 88 tiles. With fewer tiles than squares, squares left without a tile are impassable when the bag runs out (D27). There are no room cards in towers or the chamber, and tower sides come from this entry (D31). Entering any tower after leaving your own is escape (D23).
+Rules the checker applies (owner specification v2): 110 squares, 10 x 11 or 11 x 10; towers on the four corners (RB 4); the chamber is exactly two side-by-side squares in the exact middle, so on a 10-wide, 11-deep board it is `{ x: 4, y: 5 }` and `{ x: 5, y: 5 }`, and on an 11-wide, 10-deep board `{ x: 5, y: 4 }` and `{ x: 5, y: 5 }`. That leaves 104 ordinary squares for 88 tiles: squares left without a tile are impassable once the bag runs out (D27). There are no room cards in towers or the chamber, and tower sides come from this entry (D31). Towers are shared rooms: any hero may enter any tower, and entering one from the castle offers a choice to escape, stay, or continue through another passage (spec v2, replacing D23).
 
 **Example only, not real content, not authentic:**
 
 ```js
 export default {
   id: 'BOARD_01', status: 'draft', name: 'Example board',
-  width: 10, height: 9,
+  width: 10, height: 11,
   towers: [
     { x: 0, y: 0, sides: { N: 'wall', E: 'open', S: 'open', W: 'wall' } },
     { x: 9, y: 0, sides: { N: 'wall', E: 'wall', S: 'open', W: 'open' } },
-    { x: 0, y: 8, sides: { N: 'open', E: 'open', S: 'wall', W: 'wall' } },
-    { x: 9, y: 8, sides: { N: 'open', E: 'wall', S: 'wall', W: 'open' } },
+    { x: 0, y: 10, sides: { N: 'open', E: 'open', S: 'wall', W: 'wall' } },
+    { x: 9, y: 10, sides: { N: 'open', E: 'wall', S: 'wall', W: 'open' } },
   ],
-  center: [{ x: 4, y: 4 }, { x: 5, y: 4 }],
+  center: [{ x: 4, y: 5 }, { x: 5, y: 5 }],
   walls: ['2,3|E'],
 };
 ```

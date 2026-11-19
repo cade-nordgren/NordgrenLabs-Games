@@ -62,14 +62,14 @@ test('T05b the sun still advances per round after the first player escapes (D30)
 });
 
 test('T27 escape through any tower ends the game when nobody is left inside (RB 1, RB 12, SP 10, SP 12 #27)', () => {
-  // From tower (0,0) south through three straights (yellow corridors, M2) to tower (0,4), stopping each turn.
-  let g = setup({ tileOrder: slotsOf('FX_STRAIGHT').slice(0, 3) });
-  g = run(g, [move(g, 'S'), stop(g), move(g, 'S'), stop(g), move(g, 'S'), stop(g)]);
+  // From tower (0,0) south through nine straights (yellow corridors, M2) to tower (0,10), stopping each turn.
+  let g = setup({ tileOrder: slotsOf('FX_STRAIGHT').slice(0, 9) });
+  for (let i = 0; i < 9; i++) g = run(g, [move(g, 'S'), stop(g)]);
   assert.equal(g.heroes[0].status, 'inside');
-  assert.equal(g.sun, 4);
+  assert.equal(g.sun, 10);
   g = run(g, [move(g, 'S')]);
   assert.equal(g.heroes[0].status, 'escaped');
-  assert.deepEqual(g.heroes[0].coord, { x: 0, y: 4 }, 'a different tower from the start');
+  assert.deepEqual(g.heroes[0].coord, { x: 0, y: 10 }, 'a different tower from the start');
   assert.equal(g.status, 'over');
   assert.equal(g.phase, 'GAME_OVER');
   assert.deepEqual(g.result.winners, [0]);

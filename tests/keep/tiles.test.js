@@ -43,8 +43,9 @@ test('T09 red room: room card and a gate drops behind the entrant (RB 6.1, RB 6.
 });
 
 test('T10 yellow corridor: no room card, movement continues the same turn, chains (RB 6.1, RB 6.9, SP 5, SP 12 #10)', () => {
-  let g = setup({ tileOrder: slotsOf('FX_STRAIGHT').slice(0, 3) });
-  for (const where of ['0,1', '0,2', '0,3']) {
+  let g = setup({ tileOrder: slotsOf('FX_STRAIGHT').slice(0, 9) });
+  for (let y = 1; y <= 9; y++) {
+    const where = `0,${y}`;
     g = run(g, [move(g, 'S')]);
     assert.equal(at(g), where);
     assert.equal(g.phase, 'CHOOSE_EXIT');
@@ -56,7 +57,7 @@ test('T10 yellow corridor: no room card, movement continues the same turn, chain
   const stopped = run(g, [stop(g)]);
   assert.equal(stopped.sun, 2);
   const escaped = run(g, [move(g, 'S')]);
-  assert.equal(escaped.heroes[0].status, 'escaped', 'a four-square chain into a tower in one turn');
+  assert.equal(escaped.heroes[0].status, 'escaped', 'a ten-square chain into a tower in one turn');
   assert.equal(escaped.log.filter(e => e.kind === 'turn').length, 1);
 });
 

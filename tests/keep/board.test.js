@@ -23,8 +23,8 @@ test('T06 revealing a tile orients it to all four approaches (RB 5 step 3, SP 4 
   const cases = [
     { cite: 'approach from W', tower: 0, dir: 'E', at: '1,0', entry: 'W', rotation: 90, open: ['W', 'S'] },
     { cite: 'approach from N', tower: 0, dir: 'S', at: '0,1', entry: 'N', rotation: 180, open: ['N', 'W'] },
-    { cite: 'approach from S', tower: 3, dir: 'N', at: '5,3', entry: 'S', rotation: 0, open: ['S', 'E'] },
-    { cite: 'approach from E', tower: 3, dir: 'W', at: '4,4', entry: 'E', rotation: 270, open: ['E', 'N'] },
+    { cite: 'approach from S', tower: 3, dir: 'N', at: '9,9', entry: 'S', rotation: 0, open: ['S', 'E'] },
+    { cite: 'approach from E', tower: 3, dir: 'W', at: '8,10', entry: 'E', rotation: 270, open: ['E', 'N'] },
   ];
   for (const c of cases) {
     let g = setup({ towers: [c.tower], tileOrder: slotsOf('FX_CORNER').slice(0, 1) });
@@ -84,9 +84,9 @@ test('T07 one hero per ordinary room; towers and chamber hold many (RB 5, SP 5, 
   assert.equal(blocked.reason, 'occupied');
   assert.throws(() => reduce(g, { type: 'MOVE', seat: 1, dir: 'E' }, FX), /Illegal/);
   // Chamber: two heroes may stand in the center; entering it while occupied is legal.
-  g.board.tiles['2,1'] = { slotId: 'x', defId: 'FX_CROSS', coord: { x: 2, y: 1 }, rotation: 0, entrySide: 'S', revealedRound: 1 };
-  g.heroes[0].coord = { x: 2, y: 2 };
-  g.heroes[1].coord = { x: 2, y: 1 };
+  g.board.tiles['4,4'] = { slotId: 'x', defId: 'FX_CROSS', coord: { x: 4, y: 4 }, rotation: 0, entrySide: 'S', revealedRound: 1 };
+  g.heroes[0].coord = { x: 4, y: 5 };
+  g.heroes[1].coord = { x: 4, y: 4 };
   assert.equal(exits(g, FX, 1).find(e => e.dir === 'S').legal, true);
 });
 

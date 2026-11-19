@@ -56,7 +56,7 @@ test('every die roll and draw is in the event log (plan 4.3, SP 11)', () => {
   const reveals = g.log.filter(e => e.kind === 'reveal').length;
   assert.equal(g.log.filter(e => e.kind === 'draw' && e.deck === 'TILE').length, reveals);
   assert.equal(Object.keys(g.board.tiles).length, reveals);
-  assert.equal(g.board.tileBag.length, 88 - reveals);
+  assert.equal(g.board.tileBag.length, 104 - reveals); // NON-AUTHENTIC fixture bag: one tile per maze square
   assert.ok(g.log.filter(e => e.kind === 'roll').length >= 3, 'first-player rolls logged');
   assert.deepEqual(g.log.map(e => e.seq), g.log.map((_, i) => i + 1));
 });

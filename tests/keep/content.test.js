@@ -39,7 +39,7 @@ test('T01 fixture content: playable in fixture mode, never counts as verified (S
   assert.equal(r.fixturePlayable, true);
   assert.equal(r.fullStartAllowed, false);
   const tiles = r.categories.find(c => c.key === 'tiles');
-  assert.equal(tiles.defined, 88);
+  assert.equal(tiles.defined, 104, 'fixture tiles fill all 104 maze squares (owner content is 88)');
   assert.equal(tiles.verified, 0);
 });
 
@@ -49,11 +49,14 @@ test('T01 validation errors name the exact id (SP 11, plan 4.7)', () => {
     { cite: 'plan 4.7: entry side must not be a wall', content: tile({ id: 'BAD_T1', entrySide: 'N', sides: { N: 'wall', E: 'open', S: 'open', W: 'open' } }), match: /^BAD_T1: entrySide/ },
     { cite: 'RB 6.2: dark room has 2 or 3 exits', content: tile({ id: 'BAD_T2', mark: 'blue' }), match: /^BAD_T2: blue/ },
     { cite: 'plan 4.7: enum values only', content: tile({ id: 'BAD_T3', mark: 'green' }), match: /^BAD_T3: mark green/ },
-    { cite: 'RB 2: 88 tiles exist', content: tile({ copies: 13 }), match: /Maze tiles: copies total 89, expected 88/ },
+    { cite: 'RB 2: 88 tiles exist', content: { ...ORIGINAL, tiles: [{ id: 'TILE_001', status: 'DRAFT', source: 'owner-original', copies: 89, sides: { N: 'open', E: 'open', S: 'open', W: 'open' }, entrySide: 'S', mark: 'black', special: 'none' }] }, match: /Maze tiles: copies total 89, expected 88/ },
+    { cite: 'NON-AUTHENTIC fixture tiles stop at one per maze square', content: tile({ copies: 21 }), match: /Maze tiles: copies total 105, expected 104/ },
     { cite: 'RB 3: stats 1..12', content: { ...FX, heroes: [{ ...FX.heroes[0], id: 'BAD_H', stats: { STR: 13, AGI: 4, ARM: 9, LCK: 4 } }, ...FX.heroes.slice(1)] }, match: /^BAD_H: stats/ },
     { cite: 'plan 4.7: duplicate ids', content: { ...FX, rings: [FX.rings[0], FX.rings[0]] }, match: /FX_RING_1: duplicate id/ },
     { cite: 'RB 4: towers on the corners', content: { ...FX, board: { ...FX.board, towers: [{ ...FX.board.towers[0], x: 1 }, ...FX.board.towers.slice(1)] } }, match: /FX_BOARD: towers must be the four corners/ },
     { cite: 'RB 4: center in the middle', content: { ...FX, board: { ...FX.board, center: [{ x: 1, y: 2 }, { x: 2, y: 2 }] } }, match: /FX_BOARD: center must sit in the middle/ },
+    { cite: 'spec v2: center is two adjacent squares', content: { ...FX, board: { ...FX.board, center: [{ x: 4, y: 5 }, { x: 5, y: 6 }] } }, match: /FX_BOARD: center must be two orthogonally adjacent squares/ },
+    { cite: 'spec v2: 110 squares', content: { ...FX, board: { ...FX.board, width: 6, height: 5 } }, match: /FX_BOARD: board must be 110 squares, 10 x 11 or 11 x 10 \(width 6, height 5\)/ },
     { cite: 'SP 11: fixture data never in original content', content: { ...ORIGINAL, heroes: [FX.heroes[0]] }, match: /FX_HERO_1: fixture data in original content/ },
     { cite: 'RB 9: 7 sleeping, 1 awake', content: { ...ORIGINAL, dragon: [{ id: 'D_S', status: 'DRAFT', source: 'rulebook-structure', kind: 'sleeping', copies: 6 }, { id: 'D_A', status: 'DRAFT', source: 'rulebook-structure', kind: 'awake', copies: 2 }] }, match: /need exactly 7 sleeping and 1 awake/ },
   ];
@@ -72,8 +75,8 @@ function approvedContent() {
   const all = { N: o, E: o, S: o, W: o };
   const c = { mode: 'original' };
   for (const cat of CATEGORIES) c[cat.key] = cat.ids.map(id => ({ ...A, id }));
-  // 9 x 9 has 75 maze squares (10 x 10 would exceed the 88 tiles), but no exact middle for a two-square center.
-  c.board = { ...A, id: 'BOARD_01', width: 9, height: 9, towers: [[0, 0], [8, 0], [0, 8], [8, 8]].map(([x, y]) => ({ x, y, sides: all })), center: [{ x: 4, y: 4 }, { x: 5, y: 4 }] };
+  // 11 x 10 (spec v2 allows either orientation), but this center pair lies across the long axis, off the middle.
+  c.board = { ...A, id: 'BOARD_01', width: 11, height: 10, towers: [[0, 0], [10, 0], [0, 9], [10, 9]].map(([x, y]) => ({ x, y, sides: all })), center: [{ x: 4, y: 4 }, { x: 5, y: 4 }] };
   c.chamber = { ...A, id: 'CHAMBER_01', sides: { a: all, b: all } };
   c.tiles = [{ ...A, id: 'TILE_001', copies: 88, sides: all, entrySide: 'S', mark: 'black', special: 'none' }];
   c.heroes = c.heroes.map((h, i) => ({ ...h, class: 'x', stats: { STR: 5, AGI: 5, ARM: 5, LCK: 5 }, hp: 10, combatSetId: `S0${i + 1}`, specialWeaponId: null }));
@@ -91,10 +94,10 @@ function approvedContent() {
 
 test('T30 full Start opens only when every slot is OWNER_APPROVED and valid (SP 11, SP 12 #30)', () => {
   const c = approvedContent();
-  // An odd-sized board cannot hold a two-square center in the exact middle: this is reported, and blocks the start.
+  // A chamber pair off the exact middle is reported, and blocks the start.
   assert.ok(errorsFor(c).some(m => /BOARD_01: center/.test(m)));
   assert.equal(validateContent(c).fullStartAllowed, false);
-  c.board = { ...c.board, width: 10, height: 9, towers: [[0, 0], [9, 0], [0, 8], [9, 8]].map(([x, y]) => ({ x, y, sides: c.board.towers[0].sides })), center: [{ x: 4, y: 4 }, { x: 5, y: 4 }] };
+  c.board = { ...c.board, center: [{ x: 5, y: 4 }, { x: 5, y: 5 }] }; // 11 x 10: the vertical pair in the middle
   const r = validateContent(c);
   assert.deepEqual(r.errors, []);
   assert.ok(r.lines.includes('Maze tiles 88/88 (88 approved, 0 draft)'));

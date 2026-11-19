@@ -190,10 +190,12 @@ function monsterErrors(e, content) {
   return err;
 }
 
-// RB 4, SP 3: four corner towers, a two-square center in the middle. Size comes from data.
+// Spec v2 (owner, 2026-11-19), RB 4, SP 3: a 10 x 11 footprint (110 squares) in either orientation,
+// four corner towers, a two-square chamber in the exact middle. Orientation and the pair come from data.
+export const BOARD_CELLS = 110;
 function boardErrors(b) {
   const err = [];
-  if (!Number.isInteger(b.width) || !Number.isInteger(b.height) || b.width < 3 || b.height < 3) return ['width and height must be integers >= 3'];
+  if (!Number.isInteger(b.width) || !Number.isInteger(b.height) || b.width * b.height !== BOARD_CELLS) return [`board must be ${BOARD_CELLS} squares, 10 x 11 or 11 x 10 (width ${b.width}, height ${b.height})`];
   const corners = [[0, 0], [b.width - 1, 0], [0, b.height - 1], [b.width - 1, b.height - 1]];
   if (!Array.isArray(b.towers) || b.towers.length !== 4 || !corners.every(([x, y]) => b.towers.some(t => t.x === x && t.y === y))) err.push('towers must be the four corners');
   else if (!b.towers.every(t => sidesValid(t.sides))) err.push('every tower needs N/E/S/W sides');
@@ -203,7 +205,7 @@ function boardErrors(b) {
   return err;
 }
 
-// Ordinary squares on the board versus the 88-tile bag (D27: an empty bag makes the rest impassable).
+// Ordinary squares: 104 on a 110-square board, more than the 88 tiles; D27 makes the rest impassable.
 export const mazeSquares = b => b.width * b.height - 4 - 2;
 
 export function validateContent(content) {
@@ -227,7 +229,9 @@ export function validateContent(content) {
     }
     const required = cat.ids.length;
     // A play-test layers whole fixture decks over the owner's, so only real content is held to the count.
-    if (defined > required && content.mode !== 'mixed') errors.push({ category: cat.key, id: null, message: `${cat.label}: copies total ${defined}, expected ${required}` });
+    // Fixture tiles may fill every maze square (NON-AUTHENTIC; owner content is 88).
+    const cap = content.mode === 'fixture' && cat.key === 'tiles' && content.board ? mazeSquares(content.board) : required;
+    if (defined > cap && content.mode !== 'mixed') errors.push({ category: cat.key, id: null, message: `${cat.label}: copies total ${defined}, expected ${cap}` });
     return { key: cat.key, label: cat.label, required, defined, verified, approved, draft, missing: cat.ids.slice(defined) };
   });
   // Plan 4.7: every combat set has exactly one A, one B and one C.
@@ -239,10 +243,6 @@ export function validateContent(content) {
   if (dragon.length && dragon.reduce((s, e) => s + copiesOf(e), 0) === 8) {
     const awake = dragon.filter(e => e.kind === 'awake').reduce((s, e) => s + copiesOf(e), 0);
     if (awake !== 1) errors.push({ category: 'dragon', id: null, message: 'Dragon cards: need exactly 7 sleeping and 1 awake' });
-  }
-  if (content.board) {
-    const squares = mazeSquares(content.board);
-    if (squares > TILE_TOTAL) errors.push({ category: 'board', id: content.board.id, message: `${content.board.id}: ${squares} maze squares but only ${TILE_TOTAL} tiles` });
   }
   const lines = categories.map(c => `${c.label} ${c.defined}/${c.required} (${c.approved} approved, ${c.draft} draft)`);
   const fullStartAllowed = content.mode === 'original' && !errors.length && categories.every(c => c.verified === c.required);
@@ -285,6 +285,10 @@ export async function loadSlots(base) {
 }
 
 export const MIXED_BANNER = 'Play-test: your content plus NON-AUTHENTIC fill-in';
+// Spec v2 #13: shown until the completion gate passes; the app never claims exactness.
+export const APP_LABEL = 'Mechanics engine under verification';
+// Spec v2 #12: exactly which categories of this content are synthetic (fixture data), for the developer banner.
+export const syntheticCategories = content => CATEGORIES.filter(cat => entriesOf(content, cat.key).some(e => e?.status === 'FIXTURE')).map(cat => `${cat.label}: synthetic`);
 // Play-test content: every owner entry, plus the whole fixture deck for each slot the owner has not filled.
 // Fixture heroes and monsters keep their fixture combat sets; a fixture crossbow needs its fixture hero.
 export function mixContent(own, fx) {
@@ -303,7 +307,8 @@ export function mixContent(own, fx) {
 }
 
 // The content status the title screen and `node tools/keep-content.js report` both show.
-export function contentStatus(own, fx) {
+// mode: the content the game would run on ('mixed' play-test, 'fixture', or 'original'), for `synthetic`.
+export function contentStatus(own, fx, mode = 'mixed') {
   const report = validateContent(own);
   const mixed = mixContent(own, fx);
   const mixReport = validateContent(mixed);
@@ -314,6 +319,7 @@ export function contentStatus(own, fx) {
   const mixedAllowed = written && !n && mixReport.fixturePlayable;
   return {
     report, mixed, mixedAllowed,
+    synthetic: syntheticCategories({ mixed, fixture: fx, original: own }[mode]),
     note: `${done} of ${report.categories.length} content categories verified. The full game unlocks when every slot holds approved original content.`,
     lines: report.lines,
     start: report.fullStartAllowed ? 'Start is on: every slot holds approved original content.'
