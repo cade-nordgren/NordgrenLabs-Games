@@ -43,8 +43,8 @@ export function collect(g, content, seat) {
   g.phase = 'DRAGON_WAKES';
 }
 
-// D19 (interpretation; plan 13 #2): an already revealed ordinary maze tile orthogonally adjacent to the
-// one-cell chamber (D36), free under single occupancy; no open passage needed.
+// D19 (interpretation; plan 13 #2): an already revealed ordinary maze tile orthogonally adjacent to either
+// chamber square (one room, D39), free under single occupancy; no open passage needed.
 export function forcedMoveTargets(g, content) {
   const out = [];
   for (const c of content.board.center) for (const dir of SIDES) {

@@ -17,7 +17,7 @@ const monster = (id, hp, groupId, attack, wait, flee) => ({ ...F, id, name: `Fix
 export default {
   mode: 'fixture',
   label: 'NON-AUTHENTIC TEST DATA',
-  // 10 x 11 (spec v2): corner towers, the one-cell chamber at (4,5) (spec v3, D36), 105 maze squares.
+  // 10 x 11 (spec v2): corner towers, the chamber over (4,5) and (5,5) (one room, D39), 104 maze squares.
   board: {
     ...F, id: 'FX_BOARD', width: 10, height: 11,
     towers: [
@@ -26,13 +26,13 @@ export default {
       { x: 0, y: 10, sides: { N: o, E: o, S: w, W: w } },
       { x: 9, y: 10, sides: { N: o, E: w, S: w, W: o } },
     ],
-    center: [{ x: 4, y: 5 }],
-    // D35, D36: the chamber is open on every side. No printed walls or fixed edges, so an empty
+    center: [{ x: 4, y: 5 }, { x: 5, y: 5 }],
+    // D35, D39: the chamber is open on every outer side. No printed walls or fixed edges, so an empty
     // board is a clean grid (the engine still supports board.walls and board.edges; tests use local data).
   },
   chamber: { ...F, id: 'FX_CHAMBER' },
-  // Reference orientation: entry dot on S. Copies total 104, for 105 maze squares, so nearly a whole
-  // board can be revealed (owner content is 88; D27 leaves the rest impassable).
+  // Reference orientation: entry dot on S. Copies total 104, one per maze square, so a whole board can be
+  // revealed (owner content is 88; D27 leaves the rest impassable).
   tiles: [
     tile('FX_CROSS', 20, o, o, o, o, 'black'),
     tile('FX_STRAIGHT', 20, o, w, o, w, 'yellow'),

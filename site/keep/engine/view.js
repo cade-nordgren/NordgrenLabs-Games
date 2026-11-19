@@ -23,6 +23,15 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   v.heroes = v.heroes.map(h => (!h ? h : h.seat !== viewer ? { ...h, treasury: h.treasury.length, gold: heldGold(h) } : { ...h, gold: heroGold(h, content) }));
   // Spec v3 section 4: each hero's inventory in five groups, with usable / reason per item.
   const legal = game.status === 'playing' ? legalActions(game, content) : [];
+  // D39: the chamber is one room over two squares. Draw one outline around `bounds` (board squares) and put
+  // the tokens of `seats` inside it, whichever half a hero's coord records.
+  const cells = content.board.center;
+  const xs = cells.map(c => c.x), ys = cells.map(c => c.y);
+  v.chamber = {
+    cells: cells.map(c => ({ x: c.x, y: c.y })),
+    bounds: { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs) + 1, height: Math.max(...ys) - Math.min(...ys) + 1 },
+    seats: game.heroes.filter(h => h?.coord && cells.some(c => c.x === h.coord.x && c.y === h.coord.y) && h.status !== 'DEAD' && h.status !== 'ESCAPED').map(h => h.seat),
+  };
   v.heroes.forEach((h, seat) => { if (h) h.inventory = inventoryView(game, content, seat, viewer, legal); });
   const enc = v.encounter;
   if (enc) {

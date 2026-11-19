@@ -1,6 +1,7 @@
 // Board, connectivity and occupancy (system 2; RB 5, RB 6.1, SP 3, SP 5).
 // The BoardDefinition is the authority for movement geometry: grid size (anything outside it is off the
-// board), tower openings, the one chamber cell (open on every side, D36), printed walls and fixed edges. Correcting the map is a data edit only.
+// board), tower openings, the chamber (two cells that are one room, open on every outer side, D39), printed
+// walls and fixed edges. Correcting the map is a data edit only.
 import { SIDES, OPPOSITE, sideOnBoard } from './tiles.js';
 import { contentIndex } from '../content/schema.js';
 import { isActive } from './heroes.js';
@@ -27,7 +28,7 @@ export function sideAt(game, content, c, side) {
   const bd = content.board;
   const kind = squareKind(bd, c);
   if (kind === 'tower') return bd.towers.find(t => same(t, c)).sides[side];
-  if (kind === 'center') return 'open'; // D36 (spec v3): one cell, open toward every orthogonal neighbour
+  if (kind === 'center') return 'open'; // D39: open toward every outer neighbour (the inner edge is never crossed)
   const inst = game.board.tiles[key(c)];
   if (!inst) return 'unknown';
   return sideOnBoard(contentIndex(content).tiles.get(inst.defId), inst.rotation, side);
@@ -60,24 +61,31 @@ export function occupiedBy(game, c) {
 // Sides the hero could try this turn. Doors (door card) and gates (STR test) are tries, not free
 // passages; a door that stayed closed this turn is not offered again (RB 6.6). A secret passage
 // found this turn (D11) may cross a printed wall. Tower transit (spec v2) goes on through another passage.
+// D39: the chamber is one room over two cells. A hero in it is offered every outer side of both cells (six
+// on the fixture board), whichever cell their coord records; `from` is the cell an exit leaves by. There is
+// no move between the two halves.
 export function exits(game, content, seat) {
   const hero = game.heroes[seat];
   const turn = game.turn && game.turn.seat === seat ? game.turn : null;
+  const room = squareKind(content.board, hero.coord) === 'center' ? content.board.center : [hero.coord];
   const out = [];
-  for (const dir of SIDES) {
-    const to = neighbour(hero.coord, dir);
+  for (const from of room) for (const dir of SIDES) {
+    const to = neighbour(from, dir);
     const kind = squareKind(content.board, to);
-    if (kind === 'off') continue;
-    let edge = edgeKind(game, content, hero.coord, dir);
+    if (kind === 'off' || (kind === 'center' && room.length > 1)) continue;
+    let edge = edgeKind(game, content, from, dir);
     if (edge === 'wall' && turn?.secret && (turn.secret === 'any-orthogonal' || turn.secret === dir)) edge = 'secret';
     const unrevealed = kind === 'maze' && !game.board.tiles[key(to)];
     let reason = null;
     if (edge === 'wall') reason = 'wall';
-    else if (edge === 'door' && turn?.triedDoors.includes(edgeKey(hero.coord, dir))) reason = 'door-closed';
+    else if (edge === 'door' && turn?.triedDoors.includes(edgeKey(from, dir))) reason = 'door-closed';
     else if (turn?.transitFrom === dir) reason = 'tower-entry'; // transit: not back the way the hero came in
     else if (unrevealed && !game.board.tileBag.length) reason = 'no-tiles-left'; // D27
     else if (kind === 'maze' && occupiedBy(game, to)) reason = 'occupied';
-    out.push({ dir, to, edge, legal: !reason, reason });
+    out.push({ dir, from: { x: from.x, y: from.y }, to, edge, legal: !reason, reason });
   }
   return out;
 }
+
+// The exit a MOVE names: its side, plus its `from` cell when the hero is in the chamber (D39).
+export const exitFor = (game, content, seat, dir, from = null) => exits(game, content, seat).find(e => e.dir === dir && (!from || key(e.from) === from));

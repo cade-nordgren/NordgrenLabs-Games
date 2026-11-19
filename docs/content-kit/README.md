@@ -173,13 +173,13 @@ Rulings named here (D01 to D31) are in the plan's decision register, section 9. 
 |---|---|---|
 | `width`, `height` | 10 and 11, or 11 and 10 | Squares across and down: the board is always 110 squares. Columns count from 0 in the west, rows from 0 in the north. |
 | `towers` | four `{ x, y, sides }` | The four corner towers, one on each corner. `sides` gives `N`, `E`, `S`, `W`, each `'wall'`, `'open'`, `'door'` or `'gate'`. |
-| `center` | one `{ x, y }` in a list | The one square of the treasure chamber, in the middle of the board. It is open on every side (spec v3, D36). |
+| `center` | two `{ x, y }` in a list | The two squares of the treasure chamber, side by side in the middle of the board. They are one room: open on every outer side, no move between the halves (D39). |
 | `walls` | list of `'x,y\|SIDE'` | Printed walls between squares, for example `'3,2\|E'` is a wall on the east side of column 3, row 2. Optional. |
 | `edges` | `{ 'x,y\|SIDE': 'wall' \| 'door' \| 'gate' }` | Other fixed edges printed on the board, for example a door between two squares. Optional. |
 
-The board is the authority for movement geometry: the engine reads tower openings, the chamber square, printed walls and fixed edges only from here, and every square outside `width` x `height` is off the board. Correcting the map from the real board is a data edit, never a code change. An edge is blocked if either side, a printed wall or a fixed edge says `'wall'`.
+The board is the authority for movement geometry: the engine reads tower openings, the chamber squares, printed walls and fixed edges only from here, and every square outside `width` x `height` is off the board. Correcting the map from the real board is a data edit, never a code change. An edge is blocked if either side, a printed wall or a fixed edge says `'wall'`.
 
-Rules the checker applies (owner specifications v2 and v3): 110 squares, 10 x 11 or 11 x 10; towers on the four corners (RB 4); the chamber is exactly one square in the middle (spec v3, D36). The odd side has one middle row or column, the even side two, so on a 10-wide, 11-deep board it is `{ x: 4, y: 5 }` or `{ x: 5, y: 5 }`, and on an 11-wide, 10-deep board `{ x: 5, y: 4 }` or `{ x: 5, y: 5 }`. A hero may enter it from, and leave it to, every orthogonally next square (subject, as for any move, to that square's tile having an opening toward it); `chamberSides` is no longer used and is reported as an error. That leaves 105 ordinary squares for 88 tiles: squares left without a tile are impassable once the bag runs out (D27). There are no room cards in towers or the chamber, and tower sides come from this entry (D31). Towers are shared rooms: any hero may enter any tower, and entering one from the castle offers a choice to escape, stay, or continue through another passage (spec v2, replacing D23).
+Rules the checker applies (owner specifications v2 and v3): 110 squares, 10 x 11 or 11 x 10; towers on the four corners (RB 4); the chamber is exactly two side-by-side squares in the middle (D39, the owner's ruling, replacing the one-square chamber of D36). The odd side has one middle row or column, the even side two, and the chamber takes both: on a 10-wide, 11-deep board it is `[{ x: 4, y: 5 }, { x: 5, y: 5 }]`, on an 11-wide, 10-deep board `[{ x: 5, y: 4 }, { x: 5, y: 5 }]`. The two squares are one room: a hero in it is simply in the chamber, any number of heroes may be there, and a hero may enter it from, and leave it to, every square next to either half (six on a 10 x 11 board), subject, as for any move, to that square's tile having an opening toward it. `chamberSides` is no longer used and is reported as an error. That leaves 104 ordinary squares for 88 tiles: squares left without a tile are impassable once the bag runs out (D27). There are no room cards in towers or the chamber, and tower sides come from this entry (D31). Towers are shared rooms: any hero may enter any tower, and entering one from the castle offers a choice to escape, stay, or continue through another passage (spec v2, replacing D23).
 
 **Example only, not real content, not authentic:**
 
@@ -193,7 +193,7 @@ export default {
     { x: 0, y: 10, sides: { N: 'open', E: 'open', S: 'wall', W: 'wall' } },
     { x: 9, y: 10, sides: { N: 'open', E: 'wall', S: 'wall', W: 'open' } },
   ],
-  center: [{ x: 4, y: 5 }],
+  center: [{ x: 4, y: 5 }, { x: 5, y: 5 }],
   walls: ['2,3|E'],
   edges: { '6,7|S': 'door' },
 };
@@ -203,7 +203,7 @@ export default {
 
 `chamber.js`, exactly 1 entry, id `CHAMBER_01`. No `copies`.
 
-The entry holds only `id`, `status` and the optional `name`, `text`, `notes` and `art`. The chamber is one square, open on every side (spec v3, D36), so it has no `sides`; a `sides` field is reported as an error. Where it sits comes from `center` in `board.js`. A hero entering collects at once (D18); the chamber deck resets when it empties (D22).
+The entry holds only `id`, `status` and the optional `name`, `text`, `notes` and `art`. The chamber is one room over two squares, open on every outer side (D39), so it has no `sides`; a `sides` field is reported as an error. Where it sits comes from `center` in `board.js`. A hero entering collects at once (D18); the chamber deck resets when it empties (D22).
 
 **Example only, not real content, not authentic:**
 

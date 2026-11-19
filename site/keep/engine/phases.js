@@ -5,7 +5,11 @@ import { contentIndex } from '../content/schema.js';
 import { responseOptions, combatActions } from './monsters.js';
 import { usableHeld } from './inventory.js';
 
-const moves = (game, content, seat) => exits(game, content, seat).filter(e => e.legal).map(e => ({ type: 'MOVE', seat, dir: e.dir }));
+// D39: a move out of the chamber also names the cell it leaves by (from: 'x,y'), as two sides share a direction.
+const moves = (game, content, seat) => {
+  const room = squareKind(content.board, game.heroes[seat].coord) === 'center';
+  return exits(game, content, seat).filter(e => e.legal).map(e => ({ type: 'MOVE', seat, dir: e.dir, ...(room ? { from: key(e.from) } : {}) }));
+};
 
 export function legalActions(game, content) {
   if (game.status === 'setup') {

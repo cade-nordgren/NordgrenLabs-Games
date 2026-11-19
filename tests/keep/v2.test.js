@@ -2,39 +2,37 @@
 // (docs/plans/spec-v2-owner-2026-11-19.md). Fixture content is NON-AUTHENTIC TEST DATA.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { squareKind, edgeKind, exits } from '../../site/keep/engine/board.js';
+import { squareKind, edgeKind, exits, key, neighbour } from '../../site/keep/engine/board.js';
+import { reduce } from '../../site/keep/engine/reducer.js';
 import { view } from '../../site/keep/engine/view.js';
 import { validateContent, contentStatus, syntheticCategories, APP_LABEL } from '../../site/keep/content/schema.js';
 import ORIGINAL from '../../site/keep/content/original/index.js';
-import { FX, setup, act, acts, types, run, move, place, putHero, slotsOf, draws, EMPTY_ROOMS } from './helpers.js';
+import { FX, setup, act, acts, types, run, move, place, putHero, slotsOf, draws, xy, EMPTY_ROOMS } from './helpers.js';
 
 const choices = g => acts(g).filter(a => a.type === 'TOWER_CHOICE').map(a => a.choice);
 const at = g => `${g.heroes[g.activeSeat].coord.x},${g.heroes[g.activeSeat].coord.y}`;
 
-test('v2/v3 board: 110 squares, four corner towers, a one-cell chamber at a centre position, either orientation (D36)', () => {
+test('v2 board with the D39 chamber: 110 squares, four corner towers, the chamber over the two middle squares, either orientation', () => {
   const b = FX.board;
   assert.equal(b.width * b.height, 110);
   assert.deepEqual(b.towers.map(t => `${t.x},${t.y}`), ['0,0', '9,0', '0,10', '9,10']);
-  assert.deepEqual(b.center, [{ x: 4, y: 5 }]);
+  assert.deepEqual(b.center, [{ x: 4, y: 5 }, { x: 5, y: 5 }], 'owner: row 6, columns 5 and 6 (1-based)');
   let maze = 0;
   for (let y = 0; y < b.height; y++) for (let x = 0; x < b.width; x++) if (squareKind(b, { x, y }) === 'maze') maze++;
-  assert.equal(maze, 105);
-  assert.equal(squareKind(b, { x: 5, y: 5 }), 'maze', 'the old second chamber square is an ordinary square now');
+  assert.equal(maze, 104);
   assert.equal(squareKind(b, { x: 10, y: 0 }), 'off');
   assert.equal(squareKind(b, { x: 0, y: 11 }), 'off');
-  // 11 x 10 is the other legal orientation; either middle square of the even side is a centre position.
+  // 11 x 10 is the other legal orientation: the chamber takes the two middle squares of the even side.
   const t = (x, y) => ({ x, y, sides: b.towers[0].sides });
   const errs = c => validateContent(c).errors.map(e => e.message).join(' | ');
-  for (const center of [[{ x: 5, y: 4 }], [{ x: 5, y: 5 }]]) {
-    const turned = { ...FX, board: { ...b, width: 11, height: 10, towers: [t(0, 0), t(10, 0), t(0, 9), t(10, 9)], center, walls: [], edges: {} } };
-    assert.deepEqual(validateContent(turned).errors, [], JSON.stringify(center));
-  }
-  assert.deepEqual(validateContent({ ...FX, board: { ...b, center: [{ x: 5, y: 5 }] } }).errors, []);
-  assert.match(errs({ ...FX, board: { ...b, center: [{ x: 4, y: 5 }, { x: 5, y: 5 }] } }), /center must be exactly one square/);
-  assert.match(errs({ ...FX, board: { ...b, center: [{ x: 4, y: 4 }] } }), /center must sit in the middle/);
+  const turned = { ...FX, board: { ...b, width: 11, height: 10, towers: [t(0, 0), t(10, 0), t(0, 9), t(10, 9)], center: [{ x: 5, y: 4 }, { x: 5, y: 5 }], walls: [], edges: {} } };
+  assert.deepEqual(validateContent(turned).errors, []);
+  assert.match(errs({ ...FX, board: { ...b, center: [{ x: 4, y: 5 }] } }), /center must be exactly two squares/, 'D39 supersedes the one-cell chamber of D36');
+  assert.match(errs({ ...FX, board: { ...b, center: [{ x: 4, y: 4 }, { x: 5, y: 4 }] } }), /center must sit in the middle/);
+  assert.match(errs({ ...FX, board: { ...b, center: [{ x: 4, y: 5 }, { x: 4, y: 5 }] } }), /side by side/);
   assert.match(errs({ ...FX, chamber: { ...FX.chamber, sides: {} } }), /sides are no longer used/);
   assert.match(errs({ ...FX, board: { ...b, width: 10, height: 10 } }), /board must be 110 squares/);
-  assert.match(errs({ ...FX, board: { ...b, edges: { '12,0|E': 'wall' } } }), /edge 12,0\|E/);
+  assert.match(errs({ ...FX, board: { ...b, edges: { '12,0|E': 'wall' } } }), /edge 12,0|E/);
   assert.match(errs({ ...FX, board: { ...b, chamberSides: {} } }), /chamberSides is no longer used/);
 });
 
@@ -65,31 +63,46 @@ test('v2 bilateral wall: a printed wall, a fixed board edge or a wall on either 
   assert.equal(edgeKind(g, B, { x: 2, y: 1 }, 'W'), 'wall');
 });
 
-test('v3 one-cell chamber open on every side (D35, D36): enterable from each of its 4 neighbouring squares', () => {
-  const cases = [['4,4', 'S'], ['4,6', 'N'], ['3,5', 'E'], ['5,5', 'W']];
-  for (const [from, dir] of cases) {
+// The owner's six neighbours, 1-based (row, column) (5,5) (5,6) (6,4) (6,7) (7,5) (7,6), as 0-based x,y, with the
+// side leading into the chamber and the chamber cell that side reaches.
+const CHAMBER_DOORS = [['4,4', 'S', '4,5'], ['5,4', 'S', '5,5'], ['3,5', 'E', '4,5'], ['6,5', 'W', '5,5'], ['4,6', 'N', '4,5'], ['5,6', 'N', '5,5']];
+
+test('D39 chamber: one room over two squares, entered from each of its six neighbours, the hero recorded on the cell entered by', () => {
+  for (const [from, dir, cell] of CHAMBER_DOORS) {
     let g = setup({ deckOrders: { ROOM: EMPTY_ROOMS, DRAGON: [Array(7).fill('FX_DRAGON_SLEEPING')] } });
     place(g, from, 'FX_CROSS');
     putHero(g, 0, from);
     assert.ok(exits(g, FX, 0).find(e => e.dir === dir).legal, `${from} ${dir} is legal`);
     g = act(g, 'MOVE', { dir });
-    assert.equal(squareKind(FX.board, g.heroes[0].coord), 'center', `entered from ${from}`);
+    assert.equal(`${g.heroes[0].coord.x},${g.heroes[0].coord.y}`, cell, `entered from ${from}`);
+    assert.equal(squareKind(FX.board, g.heroes[0].coord), 'center');
     // The neighbour's own side still counts: a wall facing the chamber blocks as for any move.
     const h = setup();
-    place(h, from, 'FX_DEADEND', dir === 'S' ? 180 : 0); // its only opening points away from the chamber
+    place(h, from, 'FX_DEADEND', dir === 'S' ? 180 : dir === 'N' ? 0 : dir === 'E' ? 90 : 270); // its only opening points away
     putHero(h, 0, from);
     assert.equal(exits(h, FX, 0).find(e => e.dir === dir).reason, 'wall', `${from} walled toward the chamber`);
   }
-  // Out again (spec v3: "can be moved out of to any adjacent cell"): every side, explored or not.
-  const g = setup({ tileOrder: slotsOf('FX_CROSS').slice(0, 4), deckOrders: { ROOM: EMPTY_ROOMS } });
-  place(g, '4,4', 'FX_CROSS');
-  place(g, '5,5', 'FX_CROSS');
-  putHero(g, 0, '4,5');
-  g.board.chamberPlaced = true;
-  assert.deepEqual(exits(g, FX, 0).map(e => [e.dir, e.edge, e.legal]), [['N', 'open', true], ['E', 'open', true], ['S', 'unexplored', true], ['W', 'unexplored', true]]);
-  for (const [dir, to] of [['N', '4,4'], ['E', '5,5'], ['S', '4,6'], ['W', '3,5']]) {
-    const out = act(g, 'MOVE', { dir });
-    assert.equal(`${out.heroes[0].coord.x},${out.heroes[0].coord.y}`, to, `out ${dir}`);
+});
+
+test('D39 chamber: out to all six neighbours from either recorded half, never between the halves; any number of heroes inside', () => {
+  for (const at of ['4,5', '5,5']) {
+    const g = setup({ players: 2, towers: [0, 1], deckOrders: { ROOM: EMPTY_ROOMS } });
+    for (const [n] of CHAMBER_DOORS) place(g, n, 'FX_CROSS');
+    putHero(g, 0, at);
+    putHero(g, 1, at === '4,5' ? '5,5' : '4,5'); // two heroes in the one room
+    g.board.chamberPlaced = true;
+    const moves = acts(g).filter(a => a.type === 'MOVE');
+    assert.deepEqual(moves.map(a => `${a.from} ${a.dir}`).sort(), ['4,5 N', '4,5 S', '4,5 W', '5,5 E', '5,5 N', '5,5 S'], `recorded on ${at}`);
+    assert.ok(exits(g, FX, 0).every(e => squareKind(FX.board, e.to) !== 'center'), 'no move between the halves');
+    assert.ok(acts(g).some(a => a.type === 'COLLECT'));
+    assert.deepEqual(view(g, FX).chamber, { cells: FX.board.center, bounds: { x: 4, y: 5, width: 2, height: 1 }, seats: [0, 1] }, 'the view: one outline, both tokens inside');
+    for (const [n, , cell] of CHAMBER_DOORS) {
+      const a = moves.find(m => m.from === cell && key(neighbour(xy(m.from), m.dir)) === n);
+      const out = reduce(g, a, FX);
+      assert.equal(`${out.heroes[0].coord.x},${out.heroes[0].coord.y}`, n, `out to ${n}`);
+      assert.equal(`${out.heroes[0].prevCoord.x},${out.heroes[0].prevCoord.y}`, cell, 'the previous room is the chamber, by the half next to it');
+      assert.ok(exits(out, FX, 0).some(e => e.to.x === out.heroes[0].prevCoord.x && e.to.y === out.heroes[0].prevCoord.y && e.legal), 'and the way back leads into it');
+    }
   }
 });
 

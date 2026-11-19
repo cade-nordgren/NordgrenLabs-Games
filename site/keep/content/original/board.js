@@ -18,7 +18,7 @@
 //     { x: 0, y: 10, sides: { N: 'open', E: 'open', S: 'wall', W: 'wall' } },
 //     { x: 9, y: 10, sides: { N: 'open', E: 'wall', S: 'wall', W: 'open' } },
 //   ],
-//   center: [{ x: 4, y: 5 }],     // the one chamber square, in the middle (open on every side)
+//   center: [{ x: 4, y: 5 }, { x: 5, y: 5 }], // the chamber: one room over the two middle squares (open on every outer side)
 //   walls: [],                    // printed walls between squares, as 'x,y|SIDE', for example '3,2|E'
 //   edges: {},                    // other fixed edges printed on the board, { 'x,y|SIDE': 'wall' | 'door' | 'gate' }
 // }

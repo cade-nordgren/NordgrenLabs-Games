@@ -1,7 +1,7 @@
 // Movement, tile entry, dot types, special rooms, doors and gates (system 3; RB 5, RB 6, SP 4, SP 5).
 // Dot and special behaviour come from engine rules keyed on the tile's mark and special fields.
 import { roll, testStat, testPreview, logEvent } from './dice.js';
-import { key, squareKind, exits, edgeKey } from './board.js';
+import { key, squareKind, exits, exitFor, edgeKey } from './board.js';
 import { SIDES, OPPOSITE, rotationFor, sideOnBoard } from './tiles.js';
 import { contentIndex } from '../content/schema.js';
 import { killHero, setCondition, clearCondition, statOf, TILE_CONDITIONS, hasCondition, EXPLORING, IN_TOWER } from './heroes.js';
@@ -43,10 +43,12 @@ export function beginCarryOver(g, content) {
 // exit, well or rubble retreat), where a closed door ends the turn instead of offering another exit
 // (plan 13 #14, D07 extended; compulsory moves only: on a voluntary move a closed door leaves the
 // other free passages open this turn, RB 6.6).
-export function attemptMove(g, content, dir, { noDetour = false } = {}) {
+// from: 'x,y' of the chamber cell to leave by (D39); ordinary squares have one exit per side.
+export function attemptMove(g, content, dir, { noDetour = false, from = null } = {}) {
   const seat = g.activeSeat;
   const hero = g.heroes[seat];
-  const ex = exits(g, content, seat).find(e => e.dir === dir);
+  const ex = exitFor(g, content, seat, dir, from);
+  hero.coord = { ...ex.from }; // D39: in the chamber, step to the half the exit leaves by (one room, no move)
   g.turn.mayContinue = false;
   if (ex.edge === 'door') {
     // RB 6.6, SP 5: draw the top door card before crossing.
@@ -199,7 +201,7 @@ export function actionTests(g, content, action) {
   const stat = s => statOf(content, hero, s);
   const dir = action.type === 'MOVE' ? action.dir : ['WELL_RETURN', 'RUBBLE_RETURN'].includes(action.type) ? hero.enteredFrom : null;
   if (dir) {
-    const ex = exits(g, content, action.seat).find(e => e.dir === dir);
+    const ex = exitFor(g, content, action.seat, dir, action.type === 'MOVE' ? action.from : null);
     const out = [];
     if (ex.edge === 'gate') out.push(testPreview('STR', stat('STR'), 'portcullis'));
     const inst = squareKind(content.board, ex.to) === 'maze' && g.board.tiles[key(ex.to)];

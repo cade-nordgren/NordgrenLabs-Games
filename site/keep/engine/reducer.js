@@ -16,7 +16,7 @@ import { spendUse, itemLog } from './inventory.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v3'; // v3: one-cell chamber, private monster data, inventory; older saves are refused
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v4'; // v4: two-square chamber room (D39), escape sun, continue reasons; older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
@@ -160,7 +160,7 @@ const apply = {
     startTurn(g, g.firstSeat, content);
   },
   // RB 5, SP 4, SP 5: orthogonal move; doors draw a door card, gates need a STR test.
-  MOVE(g, { dir }, content) { attemptMove(g, content, dir); run(g, content); },
+  MOVE(g, { dir, from }, content) { attemptMove(g, content, dir, { from }); run(g, content); },
   // Optional further movement (yellow corridor, door stayed closed, secret door) may be declined.
   STOP(g, { seat }, content) { logEvent(g, { kind: 'stop', seat }); endTurn(g, content); },
   // RB 7.1, SP 6: search instead of moving, black or red rooms only; repeatable on later turns.
