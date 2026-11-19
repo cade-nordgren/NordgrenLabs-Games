@@ -5,6 +5,8 @@ import assert from 'node:assert/strict';
 import { controllerSeat } from '../../site/keep/engine/monsters.js';
 import { abcExchange, targetThrow } from '../../site/keep/engine/combat.js';
 import { view } from '../../site/keep/engine/view.js';
+import { validateContent } from '../../site/keep/content/schema.js';
+import { ROW_FIXTURES } from '../../site/keep/content/fixtures/fixtures.js';
 import { FX, setup, acts, act, place, putHero, give, draws, slotsOf, assertCensus, EMPTY_ROOMS } from './helpers.js';
 
 const choices = g => acts(g).filter(a => a.type === 'RESPOND').map(a => a.choice);
@@ -226,4 +228,54 @@ test('T31 target scoring and the rulebook\'s five-throw example: hero -4, monste
   assert.ok(g.log.some(e => e.kind === 'monster-dead'));
   assert.equal(g.encounter, null);
   assert.equal(g.sun, 2, 'combat over, turn ended');
+});
+
+test('2023 monster card with rows: the named monster type picks the row, the hero choice the reaction, a fight takes its HP from that reaction and the combat set of the type (owner research 2026-11-19; NON-AUTHENTIC fixture)', () => {
+  const RF = ROW_FIXTURES;
+  assert.deepEqual(validateContent(RF).errors, []);
+  const meetRow = (room, script = []) => {
+    const g = setup({ players: 2, towers: [0, 1], script, content: RF, deckOrders: { ROOM: [room, ...EMPTY_ROOMS], MONSTER: ['FX_MON_ROWS'] } });
+    place(g, '1,0', 'FX_CROSS');
+    place(g, '1,1', 'FX_CROSS');
+    putHero(g, 0, '1,0');
+    return act(g, 'MOVE', { dir: 'S' }, RF);
+  };
+  const answer = (g, choice) => act(act(g, 'RESPOND', { choice }, RF), 'ANNOUNCE', {}, RF);
+  // Type FX_S09, Attack: a fight with 4 HP and the FX_S09 combat set; the hero never sees the HP (D37).
+  let g = answer(meetRow('FX_ROOM_MONSTER'), 'attack');
+  assert.equal(g.encounter.type, 'FX_S09');
+  assert.deepEqual([g.encounter.monster.hp, g.encounter.monster.groupId, g.phase], [4, 'FX_S09', 'COMBAT_SELECT']);
+  assert.deepEqual(view(g, RF, 0).encounter.monster, { groupId: 'FX_S09' });
+  assert.deepEqual(view(g, RF, 0).encounter.reaction, { type: 'combat' }, 'the HP on the reaction stays with the monster player');
+  // Same card and type, Wait: the monster flees (no fight, so no HP).
+  g = answer(meetRow('FX_ROOM_MONSTER'), 'wait');
+  assert.equal(g.encounter, null);
+  assert.ok(g.log.some(e => e.kind === 'encounter-end' && e.outcome === 'monster-fled'));
+  // Type FX_S10 in an ambush: D12 5 - Luck 4 = 1, then Attack reads the FX_S10 row: a D6 6 - 2 = 4 strike, then a 3-HP fight.
+  g = answer(meetRow('FX_ROOM_AMBUSH', [5, 6]), 'attack');
+  assert.equal(g.heroes[0].hp, 17 - 1 - 4);
+  assert.deepEqual([g.encounter.monster.hp, g.encounter.monster.groupId, g.phase], [3, 'FX_S10', 'COMBAT_SELECT']);
+  // Generated card text names the rows and never the HP (D37).
+  assert.match(RF.monster[0].text, /monster type FX_S09: on attack, a fight; on wait, it flees; on flee, you get away/i);
+  assert.doesNotMatch(RF.monster[0].text, /hp/i);
+});
+
+test('2023 monster card with rows: the checker names each problem by id (owner research 2026-11-19)', () => {
+  const RF = ROW_FIXTURES;
+  const card = RF.monster[0];
+  const rows = (over) => ({ ...RF, monster: [{ ...card, rows: { ...card.rows, ...over } }] });
+  const cases = [
+    { cite: 'a fight needs its HP', content: rows({ FX_S09: { ...card.rows.FX_S09, attack: { type: 'combat', damage: null, effects: [] } } }), match: /FX_MON_ROWS: row FX_S09: reaction attack: combat needs hp/ },
+    { cite: 'a row is a monster-group set', content: rows({ FX_S01: card.rows.FX_S09 }), match: /FX_MON_ROWS: row FX_S01 is not a monster-group combat set/ },
+    { cite: 'rows and a card-level table do not mix', content: { ...RF, monster: [{ ...card, hp: 4 }] }, match: /FX_MON_ROWS: a card with rows has no hp, groupId or reactions/ },
+    { cite: 'every type met has a row', content: { ...RF, monster: [{ ...card, rows: { FX_S09: card.rows.FX_S09 } }] }, match: /FX_MON_ROWS: no row for monster type FX_S10 \(met on FX_ROOM_AMBUSH\)/ },
+    { cite: 'row cards need encounters that name a type', content: { ...FX, monster: [card] }, match: /FX_ROOM_MONSTER: names no monster type/ },
+    { cite: 'a MONSTER branch names no type', content: { ...FX, monster: [card] }, match: /FX_RSEARCH_LURKER: .*instead of followUpDeck MONSTER/ },
+    { cite: 'an encounter names a monster-group set', content: { ...RF, room: RF.room.map(c => (c.id === 'FX_ROOM_MONSTER' ? { ...c, effects: [{ op: 'MONSTER_ENCOUNTER', monster: 'FX_S01' }] } : c)) }, match: /FX_ROOM_MONSTER: monster FX_S01 is not a monster-group combat set/ },
+  ];
+  for (const c of cases) {
+    const r = validateContent(c.content);
+    assert.ok(r.errors.some(e => c.match.test(e.message)), `${c.cite}: ${r.errors.map(e => e.message).join(' | ')}`);
+    assert.equal(r.fixturePlayable, false, c.cite);
+  }
 });

@@ -12,14 +12,16 @@
 //   text: '',                     // optional: your own wording, shown in the game instead of the summary
 //   notes: '',                    // optional: notes to yourself, never shown
 //   deck: 'MONSTER',              // always 'MONSTER' in this file
-//   hp: 1,                        // hit points, 1 or more
-//   groupId: 'S09',               // the monster-group combat set it fights with: 'S09' | 'S10' | 'S11' | 'S12'
-//   reactions: {                  // what the monster does for each hero choice (Special weapon uses attack)
-//     attack: { type: 'combat', damage: null, effects: [] },
-//     wait:   { type: 'combat', damage: null, effects: [] },
-//     flee:   { type: 'flight-succeeds', damage: null, effects: [] },
+//   rows: {                       // one row per monster type; a type is a monster-group combat set: 'S09' | 'S10' | 'S11' | 'S12'
+//     S09: {                      // what this monster type does for each hero choice (Special weapon uses attack)
+//       attack: { type: 'combat', hp: 1, damage: null, effects: [] },
+//       wait:   { type: 'monster-flees', damage: null, effects: [] },
+//       flee:   { type: 'flight-succeeds', damage: null, effects: [] },
+//     },
+//     // S10: { attack: ..., wait: ..., flee: ... }, and so on for every type a room card can name
 //     // type: 'monster-flees' | 'combat' | 'strike-then-combat' | 'strike-then-flight' (flee only)
 //     //       | 'flight-succeeds' (flee only) | 'other'; damage: a number or dice for the strike types, else null
+//     // hp: the monster's hit points in that fight, needed for 'combat' and 'strike-then-combat'
 //   },
 //   art: null,                    // later: a picture file, or null
 // },

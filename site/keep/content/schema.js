@@ -71,6 +71,8 @@ export function exprErrors(x) {
 }
 
 const bool = v => v === undefined || typeof v === 'boolean';
+// monster: the monster type met (a monster-group combat set id); checked against the content in monsterTypeErrors.
+const encounterArgErrors = e => [...(bool(e.ambush) ? [] : ['ambush must be true/false']), ...(e.monster === undefined || (typeof e.monster === 'string' && e.monster) ? [] : ['monster must be a monster type id'])];
 // Effect primitives (plan 4.6) and their argument checks. An unknown op is an error.
 const OP_ARGS = {
   ROLL_D12: e => (typeof e.store === 'string' ? [] : ['store must be a name']),
@@ -90,8 +92,8 @@ const OP_ARGS = {
   SET_CONDITION: e => [...(typeof e.id === 'string' && e.id ? [] : ['condition id required']), ...(e.turns === undefined || e.turns === null || (Number.isInteger(e.turns) && e.turns > 0) ? [] : ['turns must be a positive integer or null']), ...effectErrors(e.onTurnStart || [])],
   CLEAR_CONDITION: e => (typeof e.id === 'string' && e.id ? [] : ['condition id required']),
   REQUEST_CHOICE: e => (Array.isArray(e.options) && e.options.length ? e.options.flatMap(o => [...(typeof o.label === 'string' ? [] : ['option label required']), ...effectErrors(o.effects || [])]) : ['options required']),
-  REQUEST_COMBAT: e => (bool(e.ambush) ? [] : ['ambush must be true/false']),
-  MONSTER_ENCOUNTER: e => (bool(e.ambush) ? [] : ['ambush must be true/false']),
+  REQUEST_COMBAT: e => encounterArgErrors(e),
+  MONSTER_ENCOUNTER: e => encounterArgErrors(e),
   OPEN_TEMPORARY_PASSAGE: e => ([...SIDE_NAMES, 'any-orthogonal'].includes(e.side) ? [] : [`side ${e.side} not allowed`]),
   ROTATE_TILE: e => (e.degrees === 90 ? [] : ['degrees must be 90']),
 };
@@ -191,22 +193,62 @@ const setOwnedBy = (content, setId, owner) => {
   return !!setId && cards.length > 0 && cards.every(c => c.owner === owner);
 };
 
-// Plan 4.7 MonsterCardDefinition: HP, a monster-group combat set, three reactions.
+// Plan 4.7 MonsterCardDefinition, two forms. Rows (the 2023 card: owner research 2026-11-19): `rows` maps each
+// monster type (a monster-group combat set id) to { attack, wait, flee }, and a reaction that leads to a fight
+// carries that fight's `hp`. Single monster: `hp`, `groupId` and one `reactions` table for the whole card.
 // A special weapon reads the attack reaction (RB 8.1), so there is no special key.
+const FIGHTS = ['combat', 'strike-then-combat'];
 function monsterErrors(e, content) {
   const err = [];
+  if (e.rows !== undefined) {
+    if (['hp', 'groupId', 'reactions'].some(k => e[k] !== undefined)) err.push('a card with rows has no hp, groupId or reactions of its own: they go in each row');
+    if (!e.rows || typeof e.rows !== 'object' || Array.isArray(e.rows) || !Object.keys(e.rows).length) return [...err, "rows must be { 'S09': { attack, wait, flee }, ... }, one row per monster type"];
+    for (const [type, row] of Object.entries(e.rows)) {
+      if (!setOwnedBy(content, type, 'monster-group')) err.push(`row ${type} is not a monster-group combat set`);
+      err.push(...reactionErrors(row, true).map(m => `row ${type}: ${m}`));
+    }
+    return err;
+  }
   if (!Number.isInteger(e.hp) || e.hp < 1) err.push('hp must be an integer >= 1');
   if (!setOwnedBy(content, e.groupId, 'monster-group')) err.push(`groupId ${e.groupId} is not a monster-group combat set`);
+  return [...err, ...reactionErrors(e.reactions, false)];
+}
+function reactionErrors(table, rowForm) {
+  const err = [];
   for (const k of ['attack', 'wait', 'flee']) {
-    const r = e.reactions?.[k];
+    const r = table?.[k];
     if (!r) { err.push(`reaction ${k} missing`); continue; }
     if (!REACTIONS.includes(r.type)) { err.push(`reaction ${k}: type ${r.type} not allowed`); continue; }
     if (r.type.startsWith('strike')) err.push(...exprErrors(r.damage).map(m => `reaction ${k}: damage ${m}`));
     if (['strike-then-flight', 'flight-succeeds'].includes(r.type) && k !== 'flee') err.push(`reaction ${k}: ${r.type} only under flee`);
+    if (r.hp !== undefined ? !Number.isInteger(r.hp) || r.hp < 1 : rowForm && FIGHTS.includes(r.type)) err.push(`reaction ${k}: ${r.type} needs hp, an integer >= 1 (the monster's hit points in that fight)`);
     err.push(...effectErrors(r.effects || []).map(m => `reaction ${k}: ${m}`));
   }
-  if (e.reactions && Object.keys(e.reactions).some(k => !['attack', 'wait', 'flee'].includes(k))) err.push('reactions may only be attack, wait, flee');
+  if (table && Object.keys(table).some(k => !['attack', 'wait', 'flee'].includes(k))) err.push('reactions may only be attack, wait, flee');
   return err;
+}
+
+// Cross-deck: every monster type a card names must be a monster-group set, and once any monster card has rows,
+// every encounter must name a type that every row card covers (the card is read on the row of the monster met).
+function monsterTypeErrors(content) {
+  const named = [];
+  const walk = (id, list) => (Array.isArray(list) ? list : []).forEach(e => {
+    if (['MONSTER_ENCOUNTER', 'REQUEST_COMBAT'].includes(e?.op)) named.push({ id, type: e.monster });
+    walk(id, e?.onPass); walk(id, e?.onFail); walk(id, e?.onTurnStart);
+    (Array.isArray(e?.options) ? e.options : []).forEach(o => walk(id, o?.effects));
+  });
+  for (const k of ALL_CARD_KEYS) for (const c of entriesOf(content, k)) {
+    walk(c.id, c.effects); walk(c.id, c.use?.effects);
+    if (c.followUpDeck === 'MONSTER') named.push({ id: c.id, type: undefined, followUp: true });
+  }
+  const rowCards = entriesOf(content, 'monster').filter(m => m.rows && typeof m.rows === 'object');
+  const err = [];
+  for (const n of named) {
+    if (n.type !== undefined && !setOwnedBy(content, n.type, 'monster-group')) err.push(`${n.id}: monster ${n.type} is not a monster-group combat set`);
+    else if (n.type === undefined && rowCards.length) err.push(`${n.id}: names no monster type, but monster cards with rows need one (${n.followUp ? "use a MONSTER_ENCOUNTER step with monster: 'S09' instead of followUpDeck MONSTER" : "add monster: 'S09' to the step"})`);
+    else for (const m of rowCards) if (n.type !== undefined && !m.rows[n.type]) err.push(`${m.id}: no row for monster type ${n.type} (met on ${n.id})`);
+  }
+  return [...new Set(err)].map(message => ({ category: 'monster', id: null, message }));
 }
 
 // Spec v2 (owner, 2026-11-19), RB 4, SP 3: a 10 x 11 footprint (110 squares) in either orientation,
@@ -269,6 +311,7 @@ export function validateContent(content) {
   const sets = new Map();
   for (const c of entriesOf(content, 'combat')) if (typeof c.setId === 'string') sets.set(c.setId, [...(sets.get(c.setId) || []), c.letter]);
   for (const [setId, letters] of sets) if (letters.slice().sort().join('') !== 'ABC') errors.push({ category: 'combat', id: setId, message: `${setId}: a combat set needs exactly one A, one B and one C` });
+  errors.push(...monsterTypeErrors(content));
   // RB 9, SP 8: seven sleeping and one awake.
   const dragon = entriesOf(content, 'dragon');
   if (dragon.length && dragon.reduce((s, e) => s + copiesOf(e), 0) === 8) {
@@ -334,6 +377,15 @@ export function mixContent(own, fx) {
   m.specialWeapons = m.specialWeapons.filter(w => w.status !== 'FIXTURE' || w.heroIds.every(id => heroIds.has(id)));
   const weaponIds = new Set(m.specialWeapons.map(w => w.id));
   m.heroes = m.heroes.map(h => (h.status === 'FIXTURE' && h.specialWeaponId && !weaponIds.has(h.specialWeaponId) ? { ...h, specialWeaponId: null } : h));
+  // Play-test fill-in (class 4): fixture encounters name no monster type. With monster cards in rows in the deck they
+  // meet the first type every row card covers, so the owner can play-test monster rows before writing room cards.
+  const rowCards = m.monster.filter(e => e.rows && typeof e.rows === 'object');
+  const common = rowCards.length ? Object.keys(rowCards[0].rows).filter(t => rowCards.every(e => e.rows[t])).sort()[0] : null;
+  const typeFx = e => {
+    const effects = (e.effects || []).map(x => (['MONSTER_ENCOUNTER', 'REQUEST_COMBAT'].includes(x?.op) && x.monster === undefined ? { ...x, monster: common } : x));
+    return e.followUpDeck === 'MONSTER' ? { ...e, followUpDeck: null, effects: [...effects, { op: 'MONSTER_ENCOUNTER', ambush: false, monster: common }] } : { ...e, effects };
+  };
+  if (common) for (const k of CARD_KEYS) m[k] = m[k].map(e => (e.status === 'FIXTURE' ? typeFx(e) : e));
   // Fixture cards carry their generated line as `text`: say it again with the owner's chamber name.
   if (own.chamber?.name) for (const k of ALL_CARD_KEYS) m[k] = m[k].map(e => (e.status === 'FIXTURE' && e.text ? { ...e, text: shownEffectText(e, chamberName(m)) } : e));
   return m;

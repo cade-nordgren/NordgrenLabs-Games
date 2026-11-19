@@ -102,8 +102,8 @@ const OPS = {
     g.phase = 'RESOLVE_CARD';
     g.pending = { kind: 'choice', seat: g.activeSeat, options: e.options.map(o => o.label), effects: e.options.map(o => o.effects || []) };
   },
-  MONSTER_ENCOUNTER: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush }),
-  REQUEST_COMBAT: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush }),
+  MONSTER_ENCOUNTER: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush, type: e.monster ?? null }),
+  REQUEST_COMBAT: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush, type: e.monster ?? null }),
   // D11 (provisional): a secret passage may cross a printed wall; it lasts for this turn's move only.
   OPEN_TEMPORARY_PASSAGE(g, c, e, f) { g.turn.secret = e.side; logEvent(g, { kind: 'secret-passage', side: e.side }); allowContinue(g, 'secret-passage', { card: owner(g, f).card }); },
   ROTATE_TILE: (g, c, e) => rotateTile(g, active(g).coord),

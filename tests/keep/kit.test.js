@@ -218,3 +218,21 @@ test('guide: every worked example in docs/content-kit/README.md passes the check
   assert.equal(r.status, 0, r.stdout + r.stderr);
   assert.match(r.stdout, /^Play-test is on/m);
 });
+
+test('mixed: owner monster cards in rows play-test over fixture room cards, which meet a type every row card covers (class 4 fill-in; EXAMPLE ONLY data)', () => {
+  const combat = CATEGORIES.find(c => c.key === 'combat').ids.map(id => { const [, setId, letter] = id.split('_'); return { id, status: 'draft', setId, letter, owner: Number(setId.slice(1)) <= 8 ? 'hero' : 'monster-group', doubleAgainst: [] }; });
+  const r = { type: 'monster-flees', damage: null, effects: [] };
+  const row = { attack: { type: 'combat', hp: 2, damage: null, effects: [] }, wait: r, flee: r };
+  const monster = [
+    { id: 'MONSTER_001', copies: 1, status: 'draft', deck: 'MONSTER', rows: { S10: row, S09: row } },
+    { id: 'MONSTER_002', copies: 1, status: 'draft', deck: 'MONSTER', rows: { S09: row, S11: row } },
+  ];
+  const own = ownerContent({ ...Object.fromEntries(CATEGORIES.map(c => [c.key, ['board', 'chamber'].includes(c.key) ? null : []])), combat, monster });
+  assert.deepEqual(validateContent(own).errors, []);
+  assert.equal(monsterText(own.monster[0]), 'Monster type S10: Attack: it fights, HP 2. Wait: it flees. Flee: it flees. Monster type S09: Attack: it fights, HP 2. Wait: it flees. Flee: it flees.');
+  const m = mixContent(own, FX);
+  assert.deepEqual(m.room.find(e => e.id === 'FX_ROOM_MONSTER').effects, [{ op: 'MONSTER_ENCOUNTER', ambush: false, monster: 'S09' }]);
+  assert.equal(m.roomSearch.find(e => e.id === 'FX_RSEARCH_LURKER').followUpDeck, null);
+  assert.deepEqual(validateContent(m).errors, []);
+  assert.equal(contentStatus(own, FX).mixedAllowed, true);
+});

@@ -60,7 +60,9 @@ export function effectText(def, ch) {
   return `${said || 'Nothing happens'}.`;
 }
 function effectClauses(def, ch) {
-  if (def.reactions) return [['attack', 'wait', 'flee'].map(k => { const r = def.reactions[k]; return `on ${k}, ${REACTION[r.type]}${r.damage ? ` (${amountWords(r.damage, ch)} damage)` : ''}`; }).join('; ')];
+  const table = t => ['attack', 'wait', 'flee'].map(k => { const r = t[k]; return `on ${k}, ${REACTION[r.type]}${r.damage ? ` (${amountWords(r.damage, ch)} damage)` : ''}`; }).join('; ');
+  if (def.reactions) return [table(def.reactions)];
+  if (def.rows) return Object.entries(def.rows).map(([type, row]) => `monster type ${type}: ${table(row)}`);
   if (def.letter) return [def.doubleAgainst?.length ? `card ${def.letter}, hits ${def.doubleAgainst.join(', ')} twice` : `card ${def.letter}, no double hit`];
   if (def.trigger) return [`${describeEffects(def.effects, ch) || 'no effect'} (ring powers are not applied by the engine yet)`];
   if (def.heroIds) return [`${describeEffects(def.effects, ch) || 'no effect'}${def.uses ? `, ${def.uses} use${def.uses === 1 ? '' : 's'}` : ''}`];
@@ -99,6 +101,6 @@ export function mechanicsText(def) {
   return out.length ? `${out.map(capital).join('. ')}.` : '';
 }
 
-const NOUN = def => (def.reactions ? 'monster' : def.letter ? 'combat card' : def.trigger ? 'ring' : def.heroIds ? 'weapon' : 'card');
+const NOUN = def => (def.reactions || def.rows ? 'monster' : def.letter ? 'combat card' : def.trigger ? 'ring' : def.heroIds ? 'weapon' : 'card');
 // The line shown for a definition: fixture entries say they are made up.
 export const shownEffectText = (def, ch) => (def?.status === 'FIXTURE' ? `Made-up test ${NOUN(def)}. ${effectText(def, ch)}` : effectText(def, ch));

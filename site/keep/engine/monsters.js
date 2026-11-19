@@ -25,7 +25,9 @@ export function weaponOf(g, content, seat) {
 
 // RB 8.1, SP 7: the hero commits before anything about the monster exists in the state.
 // RB 8.7, SP 7: an ambush first deals D12 - Luck (floored at 0, D03), then only Attack or Flee.
-export function startEncounter(g, content, { ambush }) {
+// type: the monster type the room card names (a monster-group combat set id), read from a card's row; null
+// for a single-monster card, which is the monster itself.
+export function startEncounter(g, content, { ambush, type = null }) {
   const seat = g.activeSeat;
   const hero = g.heroes[seat];
   logEvent(g, { kind: 'encounter', seat, ambush });
@@ -38,7 +40,7 @@ export function startEncounter(g, content, { ambush }) {
   // D37 (spec v3): monster card and HP are private to the monster player: the controller, or in solo the
   // computer ('computer' matches no viewer seat, so only the debug view shows them).
   const priv = g.seats.length === 1 ? 'computer' : controller;
-  g.encounter = { seat, ambush, controller, priv, choice: null, monster: null, reaction: null, announced: false, combat: null };
+  g.encounter = { seat, ambush, type, controller, priv, choice: null, monster: null, reaction: null, announced: false, combat: null };
   g.phase = 'CHOOSE_MONSTER_RESPONSE';
   g.pending = { kind: 'monster-response', seat };
 }
@@ -62,8 +64,12 @@ export function respond(g, content, choice, item = null) {
   logEvent(g, { kind: 'commit', seat: enc.seat, choice, ...(item ? { item } : {}) });
   const inst = draw(g, 'MONSTER', 'monster encounter', enc.priv);
   const def = cardDef(content, inst);
-  enc.monster = { inst, hp: def.hp, wounds: 0, groupId: def.groupId };
-  enc.reaction = def.reactions[choice === 'special' ? 'attack' : choice];
+  // A card with rows (2023 structure): the row of the named monster type, one reaction per hero choice, and
+  // a fight's HP on that reaction. A single-monster card: its own reactions, HP and combat set.
+  const table = def.rows ? def.rows[enc.type] : def.reactions;
+  if (!table) throw new Error(`${inst} has no row for monster type ${enc.type}`); // content validation prevents this
+  enc.reaction = table[choice === 'special' ? 'attack' : choice];
+  enc.monster = { inst, hp: enc.reaction.hp ?? def.hp ?? null, wounds: 0, groupId: def.rows ? enc.type : def.groupId };
   // D37: in solo the computer reads the card and announces at once; nobody sees the card.
   if (enc.priv === 'computer') return announce(g, content);
   g.phase = 'MONSTER_REACT';
@@ -97,7 +103,7 @@ export function woundMonster(g, amount) {
   logEvent(g, { kind: 'monster-wound', amount, wounds: m.wounds, private: g.encounter.priv });
 }
 
-const monsterDead = g => g.encounter.monster.wounds >= g.encounter.monster.hp;
+const monsterDead = g => g.encounter.monster.hp !== null && g.encounter.monster.wounds >= g.encounter.monster.hp; // null: a reaction with no fight
 
 // RB 8.2: monster flees -> cards under their decks, turn ends. RB 8.6: strike then flight or combat.
 export function applyReaction(g, content) {

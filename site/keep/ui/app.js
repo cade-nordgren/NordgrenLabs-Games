@@ -1110,7 +1110,7 @@ function renderPrompt(v, la, targets) {
       p.append(el('p', '', `${nameOf(enc.seat)} chose ${chose}.`), el('p', 'last', `Its answer: ${REACTION[r.type]}${r.damage ? `, ${expr(r.damage)} damage` : ''}. Announce it to the table.`));
       for (const a of by('ANNOUNCE')) ch.append(choice('Announce to the table', null, () => act(a), 'primary'));
       const card = el('details', 'history');
-      card.append(el('summary', '', 'Whole card'), el('p', '', `${def.name}, HP ${def.hp}. ${monsterText(def)}`));
+      card.append(el('summary', '', 'Whole card'), el('p', '', `${def.name}${enc.type ? `, monster type ${enc.type}` : ''}, HP ${enc.monster.hp ?? 'none (no fight)'}. ${monsterText(def)}`));
       p.append(ch, tools(card));
       break;
     }

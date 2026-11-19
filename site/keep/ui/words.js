@@ -114,10 +114,12 @@ export function cardText(def, effectText = null, content = null) {
 
 export function monsterText(def) {
   if (def.text) return def.text;
-  return ['attack', 'wait', 'flee'].map(k => {
-    const r = def.reactions[k];
-    return `${CHOICE[k]}: ${REACTION[r.type]}${r.damage ? ` (${expr(r.damage)} damage)` : ''}.`;
+  // Shown to the monster player only (D37), so a row's fight HP may appear.
+  const table = t => ['attack', 'wait', 'flee'].map(k => {
+    const r = t[k];
+    return `${CHOICE[k]}: ${REACTION[r.type]}${r.damage ? ` (${expr(r.damage)} damage)` : ''}${r.hp ? `, HP ${r.hp}` : ''}.`;
   }).join(' ');
+  return def.rows ? Object.entries(def.rows).map(([type, row]) => `Monster type ${type}: ${table(row)}`).join(' ') : table(def.reactions);
 }
 
 export const towerName = (content, i) => towerAt(content.board.towers[i]);

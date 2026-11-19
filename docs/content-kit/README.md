@@ -142,7 +142,7 @@ Cards (and special weapons, rings and monster reactions) carry `effects`: a list
 | `SET_CONDITION` | `id: 'a name'`, `turns:` a number or `null`, `onTurnStart: [steps]` | A lasting effect on the hero. Its `onTurnStart` steps run at the start of each of their turns, for that many turns (`null`: until cleared). |
 | `CLEAR_CONDITION` | `id: 'a name'` | Ends a lasting effect with that name. |
 | `REQUEST_CHOICE` | `options: [{ label: 'words', effects: [steps] }, ...]` | The player picks one option; its steps run. |
-| `MONSTER_ENCOUNTER` / `REQUEST_COMBAT` | `ambush: true/false` | A monster: the hero commits to Attack, Wait, Flee or Special before the monster card is revealed. In an ambush the monster strikes first and Wait is not offered (RB 8.7). |
+| `MONSTER_ENCOUNTER` / `REQUEST_COMBAT` | `ambush: true/false`, `monster: 'S09'` (the monster type met) | A monster: the hero commits to Attack, Wait, Flee or Special before the monster card is revealed. In an ambush the monster strikes first (D12 minus Luck, never below 0) and Wait is not offered (RB 8.7). `monster` names the type the hero meets, a monster-group combat set `'S09'` to `'S12'`; the drawn monster card is read on that type's row ([Monster cards](#monster-cards)). It is required once your monster cards have rows. |
 | `OPEN_TEMPORARY_PASSAGE` | `side: 'N' \| 'E' \| 'S' \| 'W' \| 'any-orthogonal'` | A secret passage for this turn's move, which may cross a printed wall (D11, provisional; plan 13 #4 and #15). |
 | `ROTATE_TILE` | `degrees: 90` | Turns the hero's room a quarter turn clockwise. |
 
@@ -277,7 +277,7 @@ export default [
 
 | Field | Allowed values | Meaning |
 |---|---|---|
-| `setId` | `'S01'` to `'S12'` | The set. `S01` to `S08` are hero sets (one per hero), `S09` to `S12` monster groups (D24, provisional). |
+| `setId` | `'S01'` to `'S12'` | The set. `S01` to `S08` are hero sets (one per hero), `S09` to `S12` the four monster types (24 hero cards plus 12 monster cards, 4 types x 3, D24; 2023 rules 1.7 and 9.3: the monster's cards are sorted into a pile per monster). |
 | `owner` | `'hero'` or `'monster-group'` | `'hero'` for S01 to S08, `'monster-group'` for S09 to S12. |
 | `letter` | `'A' \| 'B' \| 'C'` | Each set has exactly one A, one B and one C. |
 | `doubleAgainst` | `[]`, or the one letter this card beats | This card hits twice when it wins against that letter. |
@@ -294,6 +294,9 @@ export default [
   { id: 'COMBAT_S09_A', copies: 1, status: 'draft', setId: 'S09', owner: 'monster-group', letter: 'A', doubleAgainst: [], art: null },
   { id: 'COMBAT_S09_B', copies: 1, status: 'draft', setId: 'S09', owner: 'monster-group', letter: 'B', doubleAgainst: [], art: null },
   { id: 'COMBAT_S09_C', copies: 1, status: 'draft', setId: 'S09', owner: 'monster-group', letter: 'C', doubleAgainst: ['A'], art: null },
+  { id: 'COMBAT_S10_A', copies: 1, status: 'draft', setId: 'S10', owner: 'monster-group', letter: 'A', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S10_B', copies: 1, status: 'draft', setId: 'S10', owner: 'monster-group', letter: 'B', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S10_C', copies: 1, status: 'draft', setId: 'S10', owner: 'monster-group', letter: 'C', doubleAgainst: [], art: null },
 ];
 ```
 
@@ -431,41 +434,52 @@ export default [
 
 `monster.js`, 15 cards, ids `MONSTER_001` to `MONSTER_015`, `deck: 'MONSTER'`.
 
+The 15 are cards, not 15 kinds of monster. The room card (or search card) says which monster type the hero meets; the top monster card is then read on that type's row, in the column of the hero's choice (2023 rules section 9; owner research 2026-11-19). The four monster types are the four monster-group combat sets `S09` to `S12` in `combat.js`, three cards each.
+
 | Field | Allowed values | Meaning |
 |---|---|---|
-| `hp` | whole number, 1 or more | The monster's hit points (hidden from the other players). |
-| `groupId` | `'S09'` to `'S12'` | The monster-group combat set it fights with. It must exist in `combat.js` with `owner: 'monster-group'`. |
-| `reactions` | `{ attack, wait, flee }` | The reaction table: what the monster does for each hero choice ([how it maps](#monster-reaction-tables)). All three are required, and nothing else. |
+| `rows` | `{ S09: { attack, wait, flee }, S10: { ... }, ... }` | One row per monster type: what that monster does for each hero choice ([how it maps](#monster-reaction-tables)). Each key must be a set in `combat.js` with `owner: 'monster-group'`. Every type a card in your decks can name needs a row on every monster card. |
 
-Each reaction is `{ type, damage, effects }`:
+Each reaction is `{ type, damage, hp, effects }`:
 
 | `type` | Means | Allowed under |
 |---|---|---|
-| `'combat'` | It fights: A/B/C combat starts. | attack, wait, flee |
+| `'combat'` | It fights: A/B/C combat starts against `hp`. | attack, wait, flee |
 | `'monster-flees'` | It runs off; the encounter ends and the turn ends. | attack, wait, flee |
-| `'strike-then-combat'` | It strikes for `damage`, then fights. | attack, wait, flee |
+| `'strike-then-combat'` | It strikes for `damage`, then fights against `hp`. | attack, wait, flee |
 | `'strike-then-flight'` | It strikes for `damage`, then the hero gets away. | flee only |
 | `'flight-succeeds'` | The hero gets away unharmed. | flee only |
 | `'other'` | Only the reaction's own `effects` run, then the encounter ends. | attack, wait, flee |
 
-`damage` is a number or dice ([section 5](#dice-and-numbers)) for the two strike types, otherwise `null`. `effects` are extra steps that run before the reaction.
+`damage` is a number or dice ([section 5](#dice-and-numbers)) for the two strike types, for example `{ die: 'D6', plus: -2 }` for "D6 minus 2", otherwise `null`. `hp` is the monster's hit points in that fight, a whole number 1 or more, required for `'combat'` and `'strike-then-combat'` and left out otherwise; only the monster player sees it. `effects` are extra steps that run before the reaction.
 
-The hero commits before the card is revealed; the seated player to the right controls the monster, even if that player is dead or escaped, and in solo the hero reveals it (D12). Fleeing goes back to the previous tile with no room card, and that tile's effects apply again (D16); it is not offered through a red-room gate that fell behind the hero (D15).
+The hero commits before the card is revealed; the seated player to the right controls the monster, even if that player is dead or escaped (D12), and in solo the computer plays the monster and never shows the card (D37). Fleeing goes back to the previous tile with no room card, and that tile's effects apply again (D16); it is not offered back through a secret passage just used or through a red-room gate that fell behind the hero (D15).
+
+**Single-monster form.** A card may instead describe one monster for any encounter: `hp`, `groupId` (its monster-group set) and one `reactions: { attack, wait, flee }` table, no `rows`. The fixtures use it; a card has either `rows` or these three, never both.
 
 **Example only, not real content, not authentic:**
 
 ```js
 export default [
-  { id: 'MONSTER_001', copies: 2, status: 'draft', name: 'Example cellar rat swarm', text: 'Example wording: a hundred small teeth.',
-    deck: 'MONSTER', hp: 3, groupId: 'S09',
-    reactions: {
-      attack: { type: 'combat', damage: null, effects: [] },
-      wait: { type: 'strike-then-combat', damage: { die: 'D6', plus: -3 }, effects: [] },
-      flee: { type: 'strike-then-flight', damage: 1, effects: [] },
+  { id: 'MONSTER_001', copies: 1, status: 'draft', name: 'Example card one', text: 'Example wording.',
+    deck: 'MONSTER',
+    rows: {
+      S09: {
+        attack: { type: 'combat', hp: 3, damage: null, effects: [] },
+        wait: { type: 'monster-flees', damage: null, effects: [] },
+        flee: { type: 'strike-then-flight', damage: 1, effects: [] },
+      },
+      S10: {
+        attack: { type: 'strike-then-combat', hp: 2, damage: { die: 'D6', plus: -2 }, effects: [] },
+        wait: { type: 'combat', hp: 2, damage: null, effects: [] },
+        flee: { type: 'flight-succeeds', damage: null, effects: [] },
+      },
     },
     art: null },
 ];
 ```
+
+And the room card that names the type, in `room.js`: `effects: [{ op: 'MONSTER_ENCOUNTER', ambush: false, monster: 'S09' }]`.
 
 ### Dragon cards
 
@@ -506,16 +520,16 @@ When a monster appears, the hero first picks Attack, Wait, Flee or Special (spec
 
 | Hero chose | The engine reads |
 |---|---|
-| Attack | `reactions.attack` |
-| Wait | `reactions.wait` (not offered in an ambush) |
-| Flee | `reactions.flee` |
-| Special (special weapon) | `reactions.attack`, after the weapon's effects (RB 8.1) |
+| Attack | `attack` in the row of the monster type met |
+| Wait | `wait` (not offered in an ambush) |
+| Flee | `flee` (not offered when the way back is gone) |
+| Special (special weapon) | `attack`, after the weapon's effects (RB 8.1) |
 
 That is why the table has no `special` key.
 
 ### Branch draws name a subdeck
 
-A card with `followUpDeck` hands over to another deck once it is done: `'SEARCH'`, `'CHEST'` or `'DOOR'` draws and plays the top card of that deck, and `'MONSTER'` starts a monster encounter (RB 7.3). Inside `effects`, `DRAW_CARD` does the same mid-card and lets you choose `then: 'keep'` to put the drawn card in the hero's hand instead of playing it.
+A card with `followUpDeck` hands over to another deck once it is done: `'SEARCH'`, `'CHEST'` or `'DOOR'` draws and plays the top card of that deck, and `'MONSTER'` starts a monster encounter with no monster type, so once your monster cards have rows use a `MONSTER_ENCOUNTER` step with `monster:` instead (RB 7.3). Inside `effects`, `DRAW_CARD` does the same mid-card and lets you choose `then: 'keep'` to put the drawn card in the hero's hand instead of playing it.
 
 ### Using kept cards
 
@@ -561,7 +575,7 @@ If the turn ends early, the hero dies or the hero flees, the card goes under its
 | **Play-test my content** | Play-test: your content plus NON-AUTHENTIC fill-in. Every one of your entries, draft and approved, plus the made-up fixture data for each slot you have not completed. | At least one entry, and no checker errors. |
 | **Test with fixtures** | Only the made-up fixture data. | Nothing. For checking the engine itself. |
 
-In a play-test, a slot you have completed (all its copies written) plays with your entries alone. A slot you have not completed gets your entries plus the whole fixture deck, so decks are larger than the real count and the odds are not the real game's. The dragon deck is the exception: until all 8 of yours are written, the play-test uses the fixture dragon deck alone, so there is always exactly one awake card. If you have no board or chamber yet, the fixture ones are used. Fixture heroes and monsters bring their own fixture combat sets. Every screen of a play-test carries the banner "Play-test: your content plus NON-AUTHENTIC fill-in", and so does its save title.
+In a play-test, a slot you have completed (all its copies written) plays with your entries alone. A slot you have not completed gets your entries plus the whole fixture deck, so decks are larger than the real count and the odds are not the real game's. The dragon deck is the exception: until all 8 of yours are written, the play-test uses the fixture dragon deck alone, so there is always exactly one awake card. If you have no board or chamber yet, the fixture ones are used. Fixture heroes and monsters bring their own fixture combat sets. Once your monster cards have rows, the fixture room and search cards meet the first monster type every one of your row cards covers, so you can play-test monster cards before writing room cards. Every screen of a play-test carries the banner "Play-test: your content plus NON-AUTHENTIC fill-in", and so does its save title.
 
 A play-test or a saved game opens only with the content it was made with. After you change your files, start a new play-test; older play-test saves will say they can't be opened.
 
@@ -582,7 +596,10 @@ Typical messages and what to do:
 | Message | Meaning |
 |---|---|
 | `ROOM_017: followUpDeck TREASURY not one of SEARCH/CHEST/DOOR/MONSTER` | A value outside the allowed list. |
-| `MONSTER_003: reaction flee missing` | The reaction table needs attack, wait and flee. |
+| `MONSTER_003: row S09: reaction flee missing` | Every row needs attack, wait and flee. |
+| `MONSTER_003: row S10: reaction attack: combat needs hp, an integer >= 1 (the monster's hit points in that fight)` | A fight needs the monster's HP on that reaction. |
+| `MONSTER_003: no row for monster type S11 (met on ROOM_020)` | A card names a monster type this monster card has no row for. |
+| `ROOM_020: names no monster type, but monster cards with rows need one (add monster: 'S09' to the step)` | Say which monster type the hero meets. |
 | `TILE_034: entrySide is a door: PENDING owner ruling on door/gate entry sides (plan 13 #8)` | See [Maze tiles](#maze-tiles). |
 | `Maze tiles: copies total 91, expected 88` | The copies add up to more than exist. |
 | `ROOM_999: id ROOM_999 is not one of ROOM_001..ROOM_060` | Use the slot's own ids. |
