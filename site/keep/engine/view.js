@@ -6,6 +6,8 @@ import { cardDef } from './decks.js';
 import { legalActions, searchUnavailable } from './phases.js';
 import { actionTests } from './movement.js';
 import { inventoryView } from './inventory.js';
+import { contentIndex } from '../content/schema.js';
+import { shownEffectText } from './describe.js';
 
 // viewer: a seat number, or null for a public screen (nobody's private cards).
 // debug (spec v2 #11, developer only): the full state, with deck orders, the RNG and every hidden card.
@@ -53,7 +55,11 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   }
   // Drawn cards marked private (treasure-chamber cards, the monster card) are blanked for others.
   // Normal mode also drops the RNG calls (shuffles); debug mode keeps them.
-  v.log = v.log.filter(e => e.kind !== 'shuffle').map(e => (e.private !== undefined && e.private !== viewer ? redact(e) : e));
+  // A visible entry naming a card instance (a draw, a kept or returned card, an item) also gets the card's name
+  // and effectText, from its data. Redacted entries keep neither.
+  const cards = contentIndex(content).cards;
+  const named = e => { const def = typeof e.value === 'string' && cards.get(e.value.split('#')[0]); return def ? { ...e, cardName: def.name, effectText: shownEffectText(def) } : e; };
+  v.log = v.log.filter(e => e.kind !== 'shuffle').map(e => (e.private !== undefined && e.private !== viewer ? redact(e) : named(e)));
   // Hidden choices in pending effects are fine to show: they are labels of the active hero's options.
   // Spec v3: every attribute test a legal action may roll, for a confirmation first (the shape of dice.testPreview).
   v.pendingTests = legal.flatMap(action => actionTests(game, content, action).map(t => ({ action, ...t })));

@@ -7,6 +7,7 @@
 import { logEvent } from './dice.js';
 import { toBottom, cardDef } from './decks.js';
 import { contentIndex } from '../content/schema.js';
+import { shownEffectText } from './describe.js';
 
 export const groupOf = def => (def.kind === 'treasure' ? 'treasure' : 'items');
 export const usesLeft = (hero, def, inst) => (def.use?.uses == null ? null : def.use.uses - (hero.itemUses?.[inst] || 0));
@@ -68,7 +69,7 @@ export function inventoryView(g, content, seat, viewer, legal) {
     const actions = mine(a => a.item === inst || a.card === inst);
     const usable = actions.some(a => a.type !== 'WELL_DISCARD');
     return {
-      inst, id: def.id, name: def.name, deck: def.deck, group, owner: seat, kind: def.kind, gold: def.gold || 0,
+      inst, id: def.id, name: def.name, effectText: shownEffectText(def), deck: def.deck, group, owner: seat, kind: def.kind, gold: def.gold || 0,
       specialWeapon: !!def.specialWeapon, use: def.use ? { timing: def.use.timing, afterUse: def.use.afterUse || 'keep', uses: def.use.uses ?? null } : null,
       usesLeft: left, pending: !!def.specialWeapon && !def.use, usable, reason: usable ? null : cardReason(def, left, group), actions,
     };
@@ -78,11 +79,11 @@ export function inventoryView(g, content, seat, viewer, legal) {
   if (w) {
     const left = w.uses == null ? null : w.uses - hero.weaponUses;
     const actions = mine(a => a.type === 'RESPOND' && a.choice === 'special' && !a.item);
-    equipment.push({ id: w.id, name: w.name, group: 'equipment', source: 'specialWeapons', owner: seat, uses: w.uses ?? null, usesLeft: left, pending: false, usable: actions.length > 0, reason: actions.length ? null : left === 0 ? 'No uses left' : TIMING_REASON['encounter-special'], actions });
+    equipment.push({ id: w.id, name: w.name, effectText: shownEffectText(w), group: 'equipment', source: 'specialWeapons', owner: seat, uses: w.uses ?? null, usesLeft: left, pending: false, usable: actions.length > 0, reason: actions.length ? null : left === 0 ? 'No uses left' : TIMING_REASON['encounter-special'], actions });
   }
   const ringId = g.seats[seat].ringId;
   const r = ringId && contentIndex(content).rings.get(ringId);
-  const ring = r ? { id: r.id, name: r.name, group: 'ring', owner: seat, trigger: r.trigger, pending: true, usable: false, reason: 'Ring power pending: ring effects are not applied by the engine yet' } : null;
+  const ring = r ? { id: r.id, name: r.name, effectText: shownEffectText(r), group: 'ring', owner: seat, trigger: r.trigger, pending: true, usable: false, reason: 'Ring power pending: ring effects are not applied by the engine yet' } : null;
   const held = hero.held.map(inst => card(groupOf(cardDef(content, inst)))(inst));
   return {
     equipment, ring,

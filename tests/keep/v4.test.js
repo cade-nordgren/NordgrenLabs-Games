@@ -107,3 +107,36 @@ test('with heroes still inside, the game runs to sunset (sun 27), not to the fir
   assert.equal(g.result.others[0].endResult, 'INSIDE_AT_SUNSET');
   assert.equal(g.result.others[0].escapeSun, null);
 });
+
+test('fixture names read as placeholders and each card says in plain words what its made-up effect does', async () => {
+  const { shownEffectText } = await import('../../site/keep/engine/describe.js');
+  for (const k of ['specialWeapons', 'combat', 'treasury', 'dragon', 'room', 'search', 'roomSearch', 'chest', 'door', 'monster', 'rings']) {
+    for (const e of FX[k]) {
+      assert.equal(e.status, 'FIXTURE', e.id);
+      assert.match(e.name, /^Test /, e.id);
+      assert.match(e.text, /^Made-up test /, e.id);
+      assert.equal(e.text, shownEffectText(e), `${e.id}: the text is generated from the data, so it cannot drift`);
+      if (e.reactions) assert.doesNotMatch(e.text, /HP/, 'D37: no monster HP in its text');
+    }
+  }
+  const salve = FX.room.find(c => c.id === 'FX_ROOM_SALVE');
+  assert.equal(salve.name, 'Test salve');
+  assert.match(salve.text, /heals 2 HP \(1 use\), then it goes to the bottom of its deck/);
+  assert.equal(FX.room.find(c => c.id === 'FX_ROOM_STOP').text, 'Made-up test card: your turn ends at once', 'nothing after END_TURN runs, so it is not described');
+});
+
+test('the view gives each inventory item and each visible drawn card an effectText; private entries keep none', () => {
+  let g = setup({ players: 2, towers: [0, 3], deckOrders: { ROOM: ['FX_ROOM_SALVE', ...EMPTY_ROOMS] } });
+  place(g, '1,0', 'FX_CROSS');
+  g = act(g, 'MOVE', { dir: 'E' });
+  const v = view(g, FX, 0);
+  const item = v.heroes[0].inventory.items[0];
+  assert.deepEqual([item.name, item.effectText], ['Test salve', FX.room.find(c => c.id === 'FX_ROOM_SALVE').text]);
+  assert.match(v.heroes[0].inventory.ring.effectText, /^Made-up test ring/);
+  const drawn = v.log.find(e => e.kind === 'draw' && e.deck === 'ROOM');
+  assert.deepEqual([drawn.cardName, drawn.effectText], [item.name, item.effectText]);
+  g.log.push({ seq: 999, kind: 'draw', deck: 'TREASURY', value: 'FX_TREASURY_A#1', private: 0 });
+  const other = view(g, FX, 1).log.at(-1);
+  assert.equal(other.effectText, undefined);
+  assert.equal(other.cardName, undefined);
+});
