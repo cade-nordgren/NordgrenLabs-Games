@@ -47,7 +47,7 @@ export function spendUse(g, content, seat, inst) {
 
 const TIMING_REASON = {
   'turn-action': 'Only as your action at the start of your turn',
-  'encounter-special': 'Only as a special weapon, before a monster is revealed (not in an ambush)',
+  'encounter-special': 'Only as a special weapon, before a monster is revealed',
 };
 function cardReason(def, left, group, content) {
   if (group === 'chamber') return `${capital(chamberCards(content, 1))}: no use; its gold counts if you escape, and each one adds 1 to a well jump`;

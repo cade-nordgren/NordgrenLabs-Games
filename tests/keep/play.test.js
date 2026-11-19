@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createGame, reduce } from '../../site/keep/engine/reducer.js';
 import { legalActions } from '../../site/keep/engine/phases.js';
 import { view, canUndoTo } from '../../site/keep/engine/view.js';
-import { entries, lines, undoLabel, cardText, monsterText } from '../../site/keep/ui/words.js';
+import { entries, lines, undoLabel, cardText, monsterText, fightRowModel } from '../../site/keep/ui/words.js';
 import { cellInfo, cellLabel, actionSquare } from '../../site/keep/ui/board.js';
 import { squareKind, exits, exitFor, neighbour, key } from '../../site/keep/engine/board.js';
 import { FX, setup, place, putHero, EMPTY_ROOMS } from './helpers.js';
@@ -22,9 +22,23 @@ function checkView(v, g, viewer, from) {
   const ctx = { content: FX, name: s => names[s] };
   for (const x of entries(v.log.slice(from), ctx)) { ok(x.text, `log ${x.e.kind} (viewer ${viewer})`); if (x.detail) ok(x.detail, `log detail ${x.e.kind}`); }
   if (g.status !== 'playing') return;
-  // D37: nobody but the monster player sees the monster's card, HP or damage; in solo that is the computer.
+  // D37: nobody but the monster player sees the monster's card, HP or damage; in solo the computer holds the card.
+  // Spec v4: the solo player sees the revealed monster's HP and wounds (unless the house rule hides them); the
+  // multiplayer hero, bystanders and the public view never do, in the encounter or in the log.
   const enc = v.encounter;
-  if (enc?.monster && !(viewer === enc.controller && viewer !== enc.seat)) assert.deepEqual(Object.keys(enc.monster), ['groupId'], 'monster data hidden');
+  const controller = enc && viewer === enc.controller && viewer !== enc.seat;
+  const soloHp = g.seats.length === 1 && viewer === 0 && g.rules.soloMonsterHp === 'visible';
+  if (enc?.monster && soloHp) { soloHpSeen++; assert.deepEqual(enc.monster, { groupId: g.encounter.monster.groupId, hp: g.encounter.monster.hp, wounds: g.encounter.monster.wounds }, 'solo: HP after the reveal'); }
+  else if (enc?.monster && !controller) assert.deepEqual(Object.keys(enc.monster), ['groupId'], 'monster data hidden');
+  for (const e of v.log) if ('wounds' in e) assert.equal(g.log[e.seq - 1].private, viewer, `viewer ${viewer}: a damage tally only in its own monster player's log`);
+  // The fight row (ui/app.js) shows monster HP exactly when the view carries it.
+  if (enc) {
+    const f = fightRowModel(v, enc.seat, enc, s => names[s], FX);
+    ok(`${f.who} ${f.hero.label} ${f.monster?.label ?? ''}`, 'fight row');
+    assert.equal(!!f.monster, Number.isInteger(enc.monster?.hp), 'monster HP in the fight row only when in the view');
+    if (!soloHp && !controller) assert.equal(f.monster, null, 'never for a multiplayer hero, bystander or the table');
+  }
+
   if (enc?.combat) ok(enc.combat.label, 'combat label');
   for (const t of v.pendingTests) { ok(t.success, 'test preview'); assert.ok(Number.isInteger(t.passingRolls) && Array.isArray(t.modifiers)); }
   v.heroes.forEach((h, seat) => {
@@ -69,7 +83,7 @@ function checkSquares(g, la) {
   return chamber;
 }
 
-let chamberMoves = 0;
+let chamberMoves = 0, soloHpSeen = 0;
 function playGame(players, seed, rules = {}) {
   const pick = picker(seed);
   let g = createGame({ players: Array.from({ length: players }, (_, i) => `P${i + 1}`), seed, content: FX, rules });
@@ -91,10 +105,12 @@ test('random legal play: 1, 2 and 4 players, every view reads cleanly', () => {
   // KEEP_PLAY_GAMES=300 for a long run; the default keeps the suite to a few seconds.
   for (let i = 0; i < (+process.env.KEEP_PLAY_GAMES || 36); i++) {
     const players = [1, 2, 4][i % 3];
-    const g = playGame(players, 1000 + i, players === 1 && i % 2 ? { soloCombat: 'abc-digital-variant' } : {});
+    const g = playGame(players, 1000 + i, players === 1 ? { ...(i % 2 ? { soloCombat: 'abc-digital-variant' } : {}), ...(i % 9 === 6 ? { soloMonsterHp: 'hidden-house-rule' } : {}) } : {});
     for (const e of g.log) seen.add(e.kind === 'commit' && e.item ? 'commit-item' : e.kind === 'item' ? `item-${e.action}` : e.kind);
   }
   for (const kind of ['item-obtain', 'encounter', 'exchange', 'throw', 'test', 'monster-wound', 'may-continue']) assert.ok(seen.has(kind), `random play reached ${kind}`);
+  assert.ok(soloHpSeen > 0, 'random play showed a solo player the revealed monster HP');
+
   if (+process.env.KEEP_PLAY_GAMES >= 200) assert.ok(chamberMoves > 0, 'random play moved out of the chamber'); // rare in the short run; the next test scripts it
 });
 

@@ -154,7 +154,8 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
     }
     if (def.special === 'well') {
       // RB 6.3, SP 5: Agility test on entry; failure is death, success clings to the near edge.
-      const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well entry');
+      const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well entry', 0, seat);
+
       if (!pass) return killHero(g, content, seat, 'fell into the well');
       setCondition(g, seat, { id: 'well-edge', turns: null });
       hero.roomState = { special: 'well', entryEdge: hero.enteredFrom, phase: 'AT_NEAR_EDGE' }; // spec v2

@@ -7,7 +7,7 @@ import { startTurn, endTurn } from './clock.js';
 import { initDecks, toBottom } from './decks.js';
 import { run, drawAndResolve } from './effects.js';
 import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers, allowContinue } from './movement.js';
-import { killHero, clearCondition, statOf, READY, ESCAPED } from './heroes.js';
+import { killHero, clearCondition, setCondition, statOf, READY, ESCAPED } from './heroes.js';
 import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
 import { collect, forcedMove, checkDragonReset } from './treasury.js';
@@ -16,7 +16,7 @@ import { spendUse, itemLog } from './inventory.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v4'; // v4: two-square chamber room (D39), escape sun, continue reasons; older saves are refused
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v5'; // v5: spec v4 (solo monster HP, dragon awake state, ambush special weapon, well far side); older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
@@ -27,6 +27,9 @@ export const DEFAULT_RULES = {
   soloCombat: 'target', // D17: 'target' (original, manual result entry) or 'abc-digital-variant' (class 4, labelled)
   towerAtSunsetCountsAsEscape: false, // D32: a hero in a tower at sunset who never chose Escape is not escaped
   escapeWithoutExploring: false, // D33: a hero still in its start tower is never offered Escape
+  // D37 as amended by spec v4: solo shows the revealed monster's HP (2023 rules 11); 'hidden-house-rule' restores the
+  // old solo behaviour (no user-facing switch yet: the owner may offer it later as a labelled house rule).
+  soloMonsterHp: 'visible',
 };
 const RULE_VALUES = {
   darkRoomPolicy: ['ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', 'EVERY_ENTRY'],
@@ -34,6 +37,7 @@ const RULE_VALUES = {
   soloCombat: ['target', 'abc-digital-variant'],
   towerAtSunsetCountsAsEscape: [true, false],
   escapeWithoutExploring: [true, false],
+  soloMonsterHp: ['visible', 'hidden-house-rule'],
 };
 // Spec v2 authority levels: A explicit2023, B componentData, C legacySupported, D interpretation,
 // E houseRule, F developer assumption (forbidden), plus app-only for class 4 behaviour.
@@ -44,6 +48,7 @@ export const RULE_TAGS = {
   soloCombat: ['explicit2023', 'app-only'], // target mode explicit; the A/B/C computer variant app-only
   towerAtSunsetCountsAsEscape: ['interpretation'],
   escapeWithoutExploring: ['interpretation'],
+  soloMonsterHp: ['explicit2023', 'houseRule'], // visible explicit (2023 rules 11); hidden a house rule
   // Fixed rulings without a switch (not in DEFAULT_RULES), tagged all the same:
   towerEscapeOnLaterTurns: ['interpretation'], // plan 13 #25: after Stay, Escape stays offered on later turns
 };
@@ -197,12 +202,16 @@ const apply = {
     run(g, content);
   },
   // RB 6.3, SP 5: AGI test on D12 + held treasure-chamber cards. D08 (interpretation): a failed jump is death.
+  // D42 (spec v4): success leaves the hero on the well tile at the opposite edge (CROSSED) and ends the turn; a jump
+  // from CROSSED goes back to the near edge (interpretation), which is the clinging state again.
   WELL_JUMP(g, { seat }, content) {
     const hero = g.heroes[seat];
     g.pending = null;
+    const back = hero.roomState?.phase === 'CROSSED';
     const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', wellJumpModifiers(hero, content));
     if (!pass) killHero(g, content, seat, 'failed the well jump');
-    else { clearCondition(g, seat, 'well-edge'); hero.roomState = { ...hero.roomState, phase: 'CROSSED' }; } // plan 13 #10: across, the turn ends
+    else if (back) { setCondition(g, seat, { id: 'well-edge', turns: null }); hero.roomState = { ...hero.roomState, phase: 'AT_NEAR_EDGE' }; }
+    else { clearCondition(g, seat, 'well-edge'); hero.roomState = { ...hero.roomState, phase: 'CROSSED' }; }
     g.turn.endAfter = true;
     run(g, content);
   },

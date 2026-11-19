@@ -22,7 +22,21 @@ const OUTCOME = { 'monster-killed': 'The monster is defeated.', 'monster-fled': 
 const CONDITION = { dark: 'is in the dark', 'well-edge': 'clings to the edge of the well', rubble: 'is stuck in the rubble' };
 const CONDITION_OFF = { dark: 'leaves the dark', 'well-edge': 'is across the well', rubble: 'is free of the rubble' };
 
+// The fight row's content (ui/app.js fightRow draws it): who fights, the hero's HP, and the monster's HP only when the
+// view carries it: the monster player's view, or the solo player's once the monster is revealed (D37 as amended by
+// spec v4). enc: the encounter in view v (null once it is over); name: seat -> player name.
+export function fightRowModel(v, seat, enc, name, content) {
+  const m = enc?.monster, hero = v.heroes[seat], left = Math.max(0, hero.hp);
+  const mLeft = Number.isInteger(m?.hp) ? Math.max(0, m.hp - m.wounds) : null;
+  return {
+    who: `${name(seat)} against ${m?.inst ? cardDef(content, m.inst).name : 'the monster'}`,
+    hero: { left, max: hero.hpStart, label: `${name(seat)}: ${left} of ${hero.hpStart} HP` },
+    monster: mLeft === null ? null : { left: mLeft, max: m.hp, label: `Monster: ${mLeft} of ${m.hp} HP left` },
+  };
+}
+
 export function expr(e, content) {
+
   if (Number.isInteger(e)) return String(e);
   if (!e) return '';
   const parts = [e.die || (e.reg ? 'the roll' : '')];
@@ -219,6 +233,9 @@ export function describe(e, ctx, next) {
     case 'dragon-wakes': return `The dragon wakes. Everyone in ${theChamber(content)}, from ${who(e.waker)} clockwise.`;
     case 'dragon-reset': return ['The dragon sleeps again.', '', 'All eight dragon cards are shuffled.'];
     case 'forced-move-none': return `${who(e.seat)} has nowhere to go and stays.`;
+    case 'dragon-stays-awake': return `The dragon stays awake while anyone is still in ${theChamber(content)}.`;
+    case 'dragon-awake-no-collect': return `${who(e.seat)} is in ${theChamber(content)}, but the dragon is awake: no cards.`;
+
     case 'flight': return `${who(e.seat)} flees back.`;
     case 'secret-passage': return 'A secret passage opens.';
     case 'deck-empty': return `The ${deckWord(e.deck, content)} pile is empty.`;

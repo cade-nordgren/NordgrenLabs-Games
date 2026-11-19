@@ -168,7 +168,7 @@ test('T22b damage formulas floor at 0 (D03): D6-2 strike with 1, 2 and 6 (RB 8.6
   }
 });
 
-test('T23 ambush: D12 - Luck damage first, then Attack or Flee only (RB 8.7, SP 7, SP 12 #23)', () => {
+test('T23 ambush: D12 - Luck damage first, then Attack or Flee, or a special weapon (RB 8.7, SP 7, SP 12 #23, D41)', () => {
   const cases = [
     { cite: 'RB 8.7: 9 - LCK 4 = 5', d12: 9, lost: 5 },
     { cite: 'D03: 3 - 4 is 0', d12: 3, lost: 0 },
@@ -180,20 +180,22 @@ test('T23 ambush: D12 - Luck damage first, then Attack or Flee only (RB 8.7, SP 
     assert.deepEqual(draws(g, 'MONSTER'), [], 'monster card still unread');
   }
   const hunter = meet('FX_MON_BRUTE', { room: 'FX_ROOM_AMBUSH', script: [5], heroes: ['FX_HERO_2'] });
-  assert.deepEqual(choices(hunter), ['attack', 'flee'], 'no special weapon either (shortcut)');
+  assert.deepEqual(choices(hunter), ['attack', 'flee', 'special'], 'D41 (spec v4): the hunter may use the crossbow');
   const killed = meet('FX_MON_BRUTE', { room: 'FX_ROOM_AMBUSH', script: [12], prep: h => { h.heroes[0].hp = 8; } });
   assert.equal(killed.heroes[0].status, 'DEAD');
   assert.equal(killed.encounter, null);
 });
 
-test('T28 solo: commit before the reveal; the computer plays the monster, card and HP hidden (D37); manual target entry is the combat (RB 10, SP 9, SP 12 #28, D17)', () => {
+test('T28 solo: commit before the reveal; the computer plays the monster, its card hidden, its HP shown after the reveal (D37 as amended by spec v4); manual target entry is the combat (RB 10, SP 9, SP 12 #28, D17)', () => {
   let g = meet('FX_MON_BRUTE', { players: 1 });
   assert.equal(g.encounter.monster, null);
   assert.equal(g.encounter.priv, 'computer', 'spec v3: the computer is the monster player in solo');
   g = act(g, 'RESPOND', { choice: 'attack' });
   assert.equal(g.phase, 'COMBAT_SELECT', 'announced at once, no hand-off');
   const v = view(g, FX, 0);
-  assert.deepEqual(v.encounter.monster, { groupId: 'FX_S09' }, 'no HP, card or damage tally for the hero, solo included');
+  assert.deepEqual(v.encounter.monster, { groupId: 'FX_S09', hp: 4, wounds: 0 }, 'spec v4: solo shows the revealed monster\'s HP, not its card');
+  assert.deepEqual(view(g, FX, null).encounter.monster, { groupId: 'FX_S09' }, 'the public view still has no HP');
+
   assert.equal(v.encounter.reaction.type, 'combat', 'the announced reaction is public');
   assert.ok(!JSON.stringify(v).includes('FX_MON_'), 'no monster card id anywhere in the hero view');
   assert.equal(view(g, FX, 0, { debug: true }).encounter.monster.hp, 4, 'debug shows it');

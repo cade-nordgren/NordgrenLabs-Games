@@ -12,7 +12,8 @@ import { SUNSET } from '../engine/clock.js';
 import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL, chamberName, theChamber, chamberCards } from '../content/schema.js';
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, cardText, monsterText, expr, undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName } from './words.js';
+import { lines, entries, cardText, monsterText, fightRowModel, expr,
+ undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName } from './words.js';
 import { rollDice } from './dice.js';
 import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
 import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
@@ -43,6 +44,8 @@ const RULE_INFO = {
   soloCombat: v => ['D17', v === 'target' ? 'Solo fights use the target with results entered by hand.' : 'A, B or C against a computer pick: a digital variant, not an original rule.'],
   towerAtSunsetCountsAsEscape: v => ['D32', v ? 'A hero in a tower at sunset counts as escaped.' : 'A hero in a tower at sunset who never chose Escape is inside at sunset: not escaped, not dead.'],
   escapeWithoutExploring: v => ['D33', v ? 'A hero may escape straight from the start tower.' : 'A hero still in the start tower is never offered Escape.'],
+  soloMonsterHp: v => ['D37 (spec v4)', v === 'visible' ? "Solo: the monster's HP shows once it is revealed, as the printed rule says." : "Solo: the monster's HP stays hidden. A house rule, not the printed rule."],
+
   towerEscapeOnLaterTurns: () => ['D34', 'After Stay, Escape is offered on every later turn, the last one included.'],
 };
 const PREFS = 'nl-keep-prefs-v1'; // per-browser display preferences, not game state
@@ -866,14 +869,14 @@ function moveInfo(g, a) {
   if (ex.edge === 'gate') parts.push(`${sideWord(g, c, ex.from, dir)}, Strength ${heroDef(hero).stats.STR} test`);
   if (ex.edge === 'secret') parts.push('secret passage');
   if (kind === 'tower') parts.push('you may escape, stay or go on through it');
-  else if (kind === 'center') parts.push(`${chamberName(c)}, two secret cards then a dragon card`);
+  else if (kind === 'center') parts.push(g.dragon.awake ? `${chamberName(c)}, the dragon is awake: no cards` : `${chamberName(c)}, two secret cards then a dragon card`);
   else if (!def) parts.push('unexplored, will reveal a tile');
   else parts.push(tileWords(def), MARK_EFFECT[def.mark], def.mark === 'blue' && g.rules.darkRoomPolicy === 'EVERY_ENTRY' ? 'ends your turn, a D6 picks the way out' : '', SPECIAL_EFFECT[def.special]);
   const title = ex.edge === 'door' || ex.edge === 'gate' ? `Try ${DIR[dir]}` : kind === 'tower' ? `Enter the ${towerAt(ex.to)}` : `Go ${DIR[dir]}`;
   return { title, reason: parts.filter(Boolean).join(', ') };
 }
 // Why an adjacent square cannot be entered now (the engine's exits() reason, in words).
-const WHY = { 'door-closed': 'the door stayed shut this turn', 'tower-entry': 'that is the way you came into the tower', 'no-tiles-left': 'no tiles left to reveal', occupied: 'occupied room, one hero per room' };
+const WHY = { 'door-closed': 'the door stayed shut this turn', 'tower-entry': 'that is the way you came into the tower', 'no-tiles-left': 'no tiles left to reveal', occupied: 'occupied room, one hero per room', 'across-the-well': 'on the other side of the well, jump to reach it' };
 function whyNot(g, ex) {
   if (ex.reason !== 'wall') return WHY[ex.reason] || ex.reason;
   const w = sideWord(g, content(), ex.from, ex.dir);
@@ -896,19 +899,19 @@ function fightPanel(title, tag) {
   p.append(h);
   return p;
 }
-// Who is fighting and the hero's HP. D37 (spec v3): the monster's card name and HP only in the monster player's own
-// view (the engine strips them from everyone else's, the hero's and the table's included).
+// Who is fighting and the hero's HP. D37: the monster's card name only in the monster player's own view, its HP there
+// and (spec v4) in the solo player's view once revealed; the engine strips them from every other view.
 function fightRow(v, seat, enc) {
-  const row = el('div', 'fightrow'), m = enc?.monster, hero = v.heroes[seat];
-  row.append(el('span', 'who', `${nameOf(seat)} against ${m?.inst ? cardDef(content(), m.inst).name : 'the monster'}`));
-  const hp = el('span', 'herohp'), bar = el('span', 'hp'), fill = el('i'), left = Math.max(0, hero.hp);
-  fill.style.width = `${100 * left / hero.hpStart}%`;
+  const row = el('div', 'fightrow'), f = fightRowModel(v, seat, enc, nameOf, content());
+  row.append(el('span', 'who', f.who));
+  const hp = el('span', 'herohp'), bar = el('span', 'hp'), fill = el('i');
+  fill.style.width = `${100 * f.hero.left / f.hero.max}%`;
   bar.append(fill);
-  hp.append(bar, `${left}/${hero.hpStart}`);
+  hp.append(bar, `${f.hero.left}/${f.hero.max}`);
   hp.setAttribute('role', 'img');
-  hp.setAttribute('aria-label', `${nameOf(seat)}: ${left} of ${hero.hpStart} HP`);
+  hp.setAttribute('aria-label', f.hero.label);
   row.append(hp);
-  if (Number.isInteger(m?.hp)) row.append(hpMeter(Math.max(0, m.hp - m.wounds), m.hp));
+  if (f.monster) row.append(hpMeter(f.monster.left, f.monster.max, f.monster.label));
   return row;
 }
 function lastLine(v, enc) {
@@ -936,9 +939,10 @@ function tools(...items) {
   return t;
 }
 
-// The monster's HP for the monster player only: a heart per HP (filled left, empty lost), or above 10 the hero
-// panel's green bar.
-function hpMeter(left, max) {
+// The monster's HP for the monster player (and the solo player, spec v4): a heart per HP (filled left, empty lost), or
+// above 10 the hero panel's green bar.
+function hpMeter(left, max, label) {
+
   let m;
   if (max > 10) {
     m = el('div', 'hp');
@@ -954,7 +958,7 @@ function hpMeter(left, max) {
     }
   }
   m.setAttribute('role', 'img');
-  m.setAttribute('aria-label', `Monster: ${left} of ${max} HP left`);
+  m.setAttribute('aria-label', label);
   return m;
 }
 
@@ -1024,8 +1028,9 @@ function renderPrompt(v, la, targets) {
     case 'CHOOSE_ACTION':
     case 'CHOOSE_EXIT': {
       const inTower = hero.status === 'IN_TOWER_NOT_ESCAPED';
+      const awake = v.collectUnavailable ? 'The dragon is awake. ' : ''; // D40: on the Lair while it stays awake
       p = g.phase === 'CHOOSE_ACTION'
-        ? panel(`${name}, your move`, inTower ? `You are in the ${towerAt(hero.coord)}, not escaped.` : null)
+        ? panel(`${name}, your move`, inTower ? `You are in the ${towerAt(hero.coord)}, not escaped.` : awake ? `${awake}Leave by any free way out when there is one.` : hero.roomState?.phase === 'CROSSED' ? 'You are across the well. Leave by this side, or jump back.' : null)
         : panel('Keep moving?', 'You may go on this turn, or stop here.');
       const why = g.phase === 'CHOOSE_EXIT' && keepMovingWhy(v);
       if (why) p.append(el('p', 'why', why));
@@ -1042,6 +1047,10 @@ function renderPrompt(v, la, targets) {
       for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
       if (!by('SEARCH').length && typeof v.searchUnavailable === 'string' && v.searchUnavailable) ch.append(el('p', 'muted', `Can't search here: ${v.searchUnavailable.replace(/\.$/, '')}.`));
       for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two ${chamberCards(c)}, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
+      if (v.collectUnavailable) ch.append(el('p', 'muted', `Can't collect: ${v.collectUnavailable.replace(/\.$/, '')}.`));
+      // D42: across the well, the near side needs a jump back (chamber cards may be dropped first).
+      for (const a of by('WELL_JUMP')) ch.append(choice('Jump back across', `Agility test on the D12 plus ${hero.treasury.length} ${chamberCards(c, hero.treasury.length)} against ${heroDef(hero).stats.AGI}. A failed jump is death.`, () => tryAct(a)));
+      for (const a of by('WELL_DISCARD')) ch.append(choice(`Drop ${chamberCards(c, 1)} ${hero.treasury.indexOf(a.card) + 1}`, viewer === g.activeSeat ? `${cardDef(c, a.card).name}, ${cardDef(c, a.card).gold || 0} gold` : 'Check which with Show my cards', () => act(a)));
       for (const a of by('STOP')) ch.append(inTower ? choice('Stop in the tower', 'End your turn here, not escaped', () => act(a)) : choice('Stop here', 'End your turn', () => act(a)));
       for (const a of by('FORCED_SKIP')) ch.append(choice('No way on', 'The turn passes', () => act(a)));
       break;
@@ -1087,7 +1096,7 @@ function renderPrompt(v, la, targets) {
       break;
     }
     case 'CHOOSE_MONSTER_RESPONSE': {
-      p = fightPanel(`${name}, choose`, g.encounter.ambush ? 'ambush: attack or flee' : 'before it shows');
+      p = fightPanel(`${name}, choose`, g.encounter.ambush ? 'ambush, no waiting' : 'before it shows');
       p.append(fightRow(v, g.encounter.seat, enc));
       // One button per legal action: the hero's own special weapon and each held weapon card are separate answers.
       const weapon = (c.specialWeapons || []).find(w => w.id === heroDef(hero).specialWeaponId);
@@ -1190,7 +1199,9 @@ function renderTable(v) {
   who.append(el('span', 'turnword', "'s turn")); // on a phone only the name shows; readers still hear it
   const odds = `${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`;
   bar.append(who, sunTrack(v.sun, solo()),
-    chip('dragon', `Dragon wakes on ${odds}`, 'M12 3c.6 3.2 5 5.4 5 10a5 5 0 0 1-10 0c0-2.3 1.2-3.8 2.5-5 .2 2 1 3 2 3.4C11 9 11 6 12 3z', 'Dragon wakes on ', odds),
+    // D40: while a hero is stuck inside after a wake the dragon stays awake; the odds mean nothing then.
+    chip('dragon', v.dragon.awake ? 'The dragon is awake' : `Dragon wakes on ${odds}`, 'M12 3c.6 3.2 5 5.4 5 10a5 5 0 0 1-10 0c0-2.3 1.2-3.8 2.5-5 .2 2 1 3 2 3.4C11 9 11 6 12 3z', v.dragon.awake ? 'Dragon ' : 'Dragon wakes on ', v.dragon.awake ? 'awake' : odds),
+
     // Tiles left: on wide screens the map tools say it, so this chip is for phones (CSS).
     chip('tilesleft', `${v.board.tileBag} tiles left`, 'M4 4h16v16H4zM4 12h16M12 4v16', '', String(v.board.tileBag)));
   out.push(bar);

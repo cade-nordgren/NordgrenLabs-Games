@@ -36,7 +36,10 @@ export function legalActions(game, content) {
       const kind = squareKind(content.board, hero.coord);
       // RB 7.1, SP 6: search only in a black or red room.
       if (kind === 'maze' && ['black', 'red'].includes(contentIndex(content).tiles.get(game.board.tiles[key(hero.coord)].defId).mark)) out.push({ type: 'SEARCH', seat });
-      if (kind === 'center') out.push({ type: 'COLLECT', seat }); // RB 9.1: stay and collect
+      // RB 9.1: stay and collect. D40 (spec v4): not while the dragon is awake (view.collectUnavailable says why).
+      if (kind === 'center' && !game.dragon.awake) out.push({ type: 'COLLECT', seat });
+      // D42 (spec v4, interpretation): across the well, the near side is reached only by jumping back (cards may go first).
+      if (hero.roomState?.special === 'well' && hero.roomState.phase === 'CROSSED') out.push(...hero.treasury.map(card => ({ type: 'WELL_DISCARD', seat, card })), { type: 'WELL_JUMP', seat });
       // Spec v3 section 4: a Use action only where the item's own card data allows it now.
       out.push(...usableHeld(game, content, seat, 'turn-action').map(item => ({ type: 'USE_ITEM', seat, item })));
       // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
@@ -63,8 +66,9 @@ export function legalActions(game, content) {
     }
     case 'CHOOSE_MONSTER_RESPONSE': return [
       ...responseOptions(game, content).map(choice => ({ type: 'RESPOND', seat, choice })),
-      // Spec v3: a held special weapon card whose data allows it (not in an ambush, as the hero's own weapon).
-      ...(game.encounter.ambush ? [] : usableHeld(game, content, seat, 'encounter-special').map(item => ({ type: 'RESPOND', seat, choice: 'special', item }))),
+      // Spec v3: a held special weapon card whose data allows it. D41 (spec v4): also in an ambush, after its damage.
+      ...usableHeld(game, content, seat, 'encounter-special').map(item => ({ type: 'RESPOND', seat, choice: 'special', item })),
+
     ];
     case 'MONSTER_REACT': return [{ type: 'ANNOUNCE', seat: p.seat }];
     case 'COMBAT_SELECT': return combatActions(game);

@@ -111,7 +111,7 @@ test('T30 full-fidelity start blocked without verified content; fixtures flagged
 });
 
 test('rules config: defaults, settable values, unknown rules and values rejected, every entry tagged (plan section 9, spec v2)', () => {
-  assert.deepEqual(DEFAULT_RULES, { darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', forcedMoveTileEffects: true, soloCombat: 'target', towerAtSunsetCountsAsEscape: false, escapeWithoutExploring: false });
+  assert.deepEqual(DEFAULT_RULES, { darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', forcedMoveTileEffects: true, soloCombat: 'target', towerAtSunsetCountsAsEscape: false, escapeWithoutExploring: false, soloMonsterHp: 'visible' });
   assert.equal(createGame({ players: names(1), seed: 1, content: FX }).rules.darkRoomPolicy, 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY');
   assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomPolicy: 'EVERY_ENTRY' } }).rules.darkRoomPolicy, 'EVERY_ENTRY');
   assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomOnReentry: true } }), /Unknown rule/, 'the old flag is gone');
@@ -121,4 +121,9 @@ test('rules config: defaults, settable values, unknown rules and values rejected
   assert.deepEqual(Object.keys(RULE_TAGS).filter(k => !(k in DEFAULT_RULES)), ['towerEscapeOnLaterTurns'], 'fixed rulings tagged without a switch');
   for (const tags of Object.values(RULE_TAGS)) assert.ok(tags.length && tags.every(t => AUTHORITY_TAGS.includes(t)));
   assert.deepEqual([RULE_TAGS.towerAtSunsetCountsAsEscape, RULE_TAGS.escapeWithoutExploring, RULE_TAGS.darkRoomPolicy], [['interpretation'], ['interpretation'], ['interpretation']]);
+  // Spec v4: solo monster HP visible is the printed rule; hidden only as a house rule (no user-facing switch yet).
+  assert.deepEqual(RULE_TAGS.soloMonsterHp, ['explicit2023', 'houseRule']);
+  assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { soloMonsterHp: 'hidden-house-rule' } }).rules.soloMonsterHp, 'hidden-house-rule');
+  assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { soloMonsterHp: 'hidden' } }), /cannot be/);
+
 });

@@ -24,7 +24,8 @@ export function weaponOf(g, content, seat) {
 }
 
 // RB 8.1, SP 7: the hero commits before anything about the monster exists in the state.
-// RB 8.7, SP 7: an ambush first deals D12 - Luck (floored at 0, D03), then only Attack or Flee.
+// RB 8.7, SP 7: an ambush first deals D12 - Luck (floored at 0, D03), then Attack or Flee, and (D41, spec v4) a
+// special weapon when the hero has an applicable one; never Wait.
 // type: the monster type the room card names (a monster-group combat set id), read from a card's row; null
 // for a single-monster card, which is the monster itself.
 export function startEncounter(g, content, { ambush, type = null }) {
@@ -38,7 +39,8 @@ export function startEncounter(g, content, { ambush, type = null }) {
   }
   const controller = controllerSeat(g, seat);
   // D37 (spec v3): monster card and HP are private to the monster player: the controller, or in solo the
-  // computer ('computer' matches no viewer seat, so only the debug view shows them).
+  // computer ('computer' matches no viewer seat, so only the debug view shows the card). Solo HP: soloHpShown.
+
   const priv = g.seats.length === 1 ? 'computer' : controller;
   g.encounter = { seat, ambush, type, controller, priv, choice: null, monster: null, reaction: null, announced: false, combat: null };
   g.phase = 'CHOOSE_MONSTER_RESPONSE';
@@ -50,10 +52,14 @@ export function responseOptions(g, content) {
   const out = ['attack'];
   if (!ambush) out.push('wait');
   if (canFlee(g, content, seat)) out.push('flee');
-  // shortcut: ambush offers Attack or Flee only (RB 8.7), so the special weapon is not offered there either.
-  if (!ambush && weaponOf(g, content, seat)) out.push('special');
+  // D41 (spec v4, interpretation of 2023 rules 9.1 and 9.5): the special weapon is an alternative to Attack, ambush included.
+  if (weaponOf(g, content, seat)) out.push('special');
   return out;
 }
+
+// D37 as amended by spec v4: in solo the revealed monster's HP and damage are the player's to see (2023 rules 11),
+// unless the house rule soloMonsterHp 'hidden-house-rule' is chosen. The card itself stays with the computer.
+export const soloHpShown = g => g.seats.length === 1 && g.rules.soloMonsterHp === 'visible';
 
 // Commit, then the controller draws the top monster card privately and reads the matching reaction.
 // RB 8.1: a special weapon reads the Attack reaction.
@@ -99,8 +105,9 @@ export function woundMonster(g, amount) {
   const m = g.encounter?.monster;
   if (!m) throw new Error('No monster to damage');
   m.wounds += amount;
-  // Spec v3: the monster player tracks damage privately; the running total is theirs alone.
-  logEvent(g, { kind: 'monster-wound', amount, wounds: m.wounds, private: g.encounter.priv });
+  // Spec v3: the monster player tracks damage privately; the running total is theirs alone (in solo the player's, D37).
+  logEvent(g, { kind: 'monster-wound', amount, wounds: m.wounds, private: soloHpShown(g) ? g.encounter.seat : g.encounter.priv });
+
 }
 
 const monsterDead = g => g.encounter.monster.hp !== null && g.encounter.monster.wounds >= g.encounter.monster.hp; // null: a reaction with no fight
