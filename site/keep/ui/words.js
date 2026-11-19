@@ -31,6 +31,14 @@ export function expr(e) {
 
 const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 
+// A test entry as two plain lines: what was rolled (with each modifier and where it comes from) and what was needed.
+export function testWords(e) {
+  const mods = Array.isArray(e.modifiers) ? e.modifiers.filter(m => m.value) : e.modifier ? [{ source: 'modifier', value: e.modifier }] : [];
+  const total = e.roll + mods.reduce((s, m) => s + m.value, 0);
+  const terms = mods.map(m => ` ${m.value < 0 ? '-' : '+'} ${Math.abs(m.value)}${m.source && m.source !== 'modifier' ? ` (${m.source})` : ''}`).join('');
+  return [mods.length ? `Roll ${e.roll}${terms} = ${total}.` : `You rolled ${e.roll}.`, `You needed ${e.target} or less (${STAT[e.stat] || e.stat} ${e.target}).`];
+}
+
 // A plain summary of a card's effects, used when the content has no text of its own (plan 13 #21: the owner's
 // optional `text` field replaces it wherever it is set).
 function effectWords(list) {
@@ -60,8 +68,20 @@ function effectWords(list) {
   }).filter(Boolean).join(' ');
 }
 
+// What an item or card does, in the content's own words: effectText (engine, plain words) or the owner's text.
+export const itemText = def => def?.effectText || def?.text || null;
+
+// One A, B or C exchange (x: { hero, monster, heroDmg, monsterDmg }) as a sentence: who played what and who took it.
+export function exchangeWords(x, hero) {
+  const head = `${hero} played ${x.hero}, the monster played ${x.monster}`;
+  if (!x.heroDmg && x.monsterDmg) return `${head}: ${x.hero} beats ${x.monster}, the monster takes ${x.monsterDmg}`;
+  if (x.heroDmg && !x.monsterDmg) return `${head}: ${x.monster} beats ${x.hero}, ${hero} takes ${x.heroDmg}`;
+  return `${head}: same letter, both take ${x.heroDmg}`;
+}
+
 export function cardText(def) {
   if (def.text) return def.text;
+  if (def.effectText) return def.effectText;
   const out = [effectWords(def.effects)];
   if (def.deck === 'DOOR') out.unshift({ opens: 'The door opens.', closed: 'The door stays shut.', trap: 'The door is trapped.' }[def.kind] || '');
   if (def.followUpDeck) out.push(def.followUpDeck === 'MONSTER' ? 'A monster.' : `Then draw a ${DECK[def.followUpDeck].toLowerCase()}.`);
@@ -104,11 +124,8 @@ export function describe(e, ctx, next) {
       if (card && next?.kind === 'formula') return null; // the formula's arithmetic shows the roll
       return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} rolls ${e.value} on the ${e.die}${card ? ' for the card' : ''}.`, card ? '' : e.reason];
     }
-    case 'test': {
-      const mod = e.modifier || 0;
-      return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} ${e.pass ? 'passes' : 'fails'} the ${STAT[e.stat]} test ${TEST_WHY[e.reason] || `(${e.reason})`}.`,
-        e.arithmetic || `D12 ${e.roll}${mod ? ` + ${mod} = ${e.roll + mod}` : ''} against ${STAT[e.stat]} ${e.target}`];
-    }
+    case 'test':
+      return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} ${e.pass ? 'passes' : 'fails'} the ${STAT[e.stat]} test ${TEST_WHY[e.reason] || `(${e.reason})`}.`, testWords(e).join(' ')];
     case 'formula':
       if (next && ['damage', 'heal', 'monster-wound'].includes(next.kind)) return [null, e.arithmetic]; // carried onto that line
       return [`${capital(e.reason)} works out to ${e.value}.`, e.arithmetic];
@@ -158,7 +175,7 @@ export function describe(e, ctx, next) {
     case 'encounter-end': return e.outcome === 'hero-fled' ? 'The hero gets away.' : OUTCOME[e.outcome];
     case 'combat': return e.mode === 'target' ? 'Combat on the target.' : e.mode === 'abc' ? 'Combat begins.' : 'Combat begins (digital variant, not an original rule).';
     case 'combat-pick': return e.side === 'hero' ? 'The hero picks a card.' : 'The monster picks a card.';
-    case 'exchange': return `Exchange: hero ${e.hero}, monster ${e.monster}. Hero takes ${e.heroDmg}, monster takes ${e.monsterDmg}.`;
+    case 'exchange': return `${exchangeWords(e, e.seat !== undefined ? who(e.seat) : 'The hero')}.`;
     case 'throw': return e.rethrow ? 'Unclear throw: throw again.' : `Throw: ${PLACEMENT[e.placement].toLowerCase()}, ${FACE[e.face].toLowerCase()}. Hero takes ${e.heroDmg}, monster takes ${e.monsterDmg}.`;
     case 'damage': return [`${who(e.seat)} takes ${e.amount} damage${e.reason === 'card' ? ' from the card' : `, ${e.reason}`}. ${Math.max(0, e.hp)} HP left.`, e.raw !== e.amount ? `${e.raw} counts as 0` : ''];
     case 'heal': return `${who(e.seat)} heals ${e.amount}. ${e.hp} HP.`;

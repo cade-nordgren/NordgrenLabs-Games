@@ -65,3 +65,26 @@ test('undo label names the seat whose action it takes back', () => {
   const both = act(picked, 'COMBAT_PICK', { side: 'monster', letter: 'A' });
   assert.match(undoLabel(picked, both, FX, name), /^Undo P2's /);
 });
+
+test('the chamber is one room whether the board gives it one cell or two', async () => {
+  const { chamberRoom } = await import('../../site/keep/ui/board.js');
+  const two = chamberRoom({ center: [{ x: 4, y: 5 }, { x: 5, y: 5 }] });
+  assert.equal(two.where, 'row 6, columns 5 to 6');
+  assert.equal(two.canon('5,5'), '4,5');
+  assert.equal(two.canon('4,5'), '4,5');
+  assert.equal(two.canon('3,5'), '3,5');
+  assert.deepEqual([two.w, two.h, two.cols, two.rows], [200, 100, 2, 1]);
+  const one = chamberRoom({ center: [{ x: 4, y: 5 }] });
+  assert.equal(one.where, 'row 6, column 5');
+  assert.deepEqual([one.w, one.h], [100, 100]);
+});
+
+test('roll and exchange results read as plain words', async () => {
+  const { testWords, exchangeWords } = await import('../../site/keep/ui/words.js');
+  assert.deepEqual(testWords({ roll: 11, stat: 'STR', target: 6, modifiers: [], modifier: 0 }), ['You rolled 11.', 'You needed 6 or less (Strength 6).']);
+  assert.deepEqual(testWords({ roll: 9, stat: 'AGI', target: 8, modifiers: [{ source: 'treasure chamber cards carried', value: 2 }], modifier: 2 }),
+    ['Roll 9 + 2 (treasure chamber cards carried) = 11.', 'You needed 8 or less (Agility 8).']);
+  assert.equal(exchangeWords({ hero: 'A', monster: 'C', heroDmg: 1, monsterDmg: 0 }, 'Cade'), 'Cade played A, the monster played C: C beats A, Cade takes 1');
+  assert.equal(exchangeWords({ hero: 'A', monster: 'B', heroDmg: 0, monsterDmg: 2 }, 'Cade'), 'Cade played A, the monster played B: A beats B, the monster takes 2');
+  assert.equal(exchangeWords({ hero: 'B', monster: 'B', heroDmg: 1, monsterDmg: 1 }, 'Cade'), 'Cade played B, the monster played B: same letter, both take 1');
+});

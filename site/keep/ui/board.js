@@ -81,6 +81,12 @@ export function cellLabel(v, content, c, names, extra) {
   return [info.title, info.what, topology(info.sides), info.occupants.length ? list(info.occupants) : 'empty', extra].filter(Boolean).join(', ');
 }
 
+// The chamber's one label: "Treasure chamber, row 6, columns 5 to 6", then who is in it.
+function chamberLabel(v, content, ch, names) {
+  const who = ch.cells.flatMap(t => cellInfo(v, content, t, names).occupants);
+  return [`Treasure chamber, ${ch.where}`, v.board.chamberPlaced ? '' : 'not yet entered', who.length ? list(who) : 'empty'].filter(Boolean).join(', ');
+}
+
 // ---- Glyphs
 // The four dot types as shapes as well as colours, so colour is never the only cue.
 export function markGlyph(g, mark, cx, cy) {
@@ -196,14 +202,28 @@ export function frameView(s0, c, cells, room) {
   }
 }
 
-// opts: { v, content, names[seat], targets: [{ x, y, label, pick }], home: {x, y} | null (the active hero),
+// The treasure chamber: one cell, or two adjacent cells that are one room. Drawn as one tile at the first (top
+// left) cell, which is also its one tap and keyboard target; the other cell's key maps to it.
+export function chamberRoom(bd) {
+  const cs = bd.center || [];
+  const xs = cs.map(t => t.x), ys = cs.map(t => t.y);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const room = key({ x: x0, y: y0 }), keys = new Set(cs.map(key));
+  const span = (a, b, w) => (a === b ? `${w} ${a + 1}` : `${w}s ${a + 1} to ${b + 1}`);
+  return { x0, y0, w: (x1 - x0 + 1) * C, h: (y1 - y0 + 1) * C, cols: x1 - x0 + 1, rows: y1 - y0 + 1, cells: cs, room,
+    canon: k => (keys.has(k) ? room : k), where: `${span(y0, y1, 'row')}, ${span(x0, x1, 'column')}` };
+}
+
+// opts: { v, content, names[seat], targets: [{ x, y, label, pick }], home: {x, y} | null (the hero to centre on),
+//   homeSeat (whose hero that is, default the active one),
 //   onInspect(c), onNear(c) for a single tap on an unlit square (defaults to onInspect), tilesLeft,
 //   onFocusTarget(target | undefined) when a square takes keyboard focus }
 export function mountBoard(host, opts) {
   const { v, content, names, targets = [], home = null, onInspect } = opts;
   const bd = content.board;
   const W = bd.width * C + 2 * M, H = bd.height * C + 2 * M;
-  const tmap = new Map(targets.map(t => [key(t), t]));
+  const ch = chamberRoom(bd), canon = ch.canon;
+  const tmap = new Map(targets.map(t => [canon(key(t)), t]));
 
   const wrap = document.createElement('div');
   wrap.className = 'map';
@@ -235,15 +255,23 @@ export function mountBoard(host, opts) {
     for (let x = 0; x < bd.width; x++) {
       const c = { x, y };
       const kind = squareKind(bd, c);
+      if (kind === 'center' && key(c) !== ch.room) continue; // part of the chamber, drawn with its first cell
       const t = tmap.get(key(c));
+      const [w, h] = kind === 'center' ? [ch.w, ch.h] : [C, C];
       const g = svg('g', { transform: `translate(${x * C} ${y * C})`, class: `cell sq-${kind}`, role: 'gridcell', tabindex: -1, 'data-cell': key(c) }, row);
+      if (ch.cols > 1 && kind === 'center') g.setAttribute('aria-colspan', ch.cols);
+      if (ch.rows > 1 && kind === 'center') g.setAttribute('aria-rowspan', ch.rows);
       const inst = v.board.tiles[key(c)];
       const revealed = kind !== 'maze' || inst;
       if (kind === 'tower') {
         svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 10, class: 'tower' }, g);
         towerGlyph(g);
       } else if (kind === 'center') {
-        svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 4, class: v.board.chamberPlaced ? 'chamber' : 'reserved' }, g);
+        // One outline around the whole room, no line between its squares, one label or chest a little above the middle.
+        svg('rect', { x: 2, y: 2, width: w - 4, height: h - 4, rx: 4, class: v.board.chamberPlaced ? 'chamber' : 'reserved' }, g);
+        const lx = w / 2, ly = ch.cells.length > 1 ? 36 : h / 2;
+        if (v.board.chamberPlaced) chestGlyph(g, lx, ly);
+        else svg('text', { x: lx, y: ly + 7, class: 'reserved-label', 'text-anchor': 'middle' }, g).textContent = 'Chamber';
       } else if (inst) {
         const def = ix.tiles.get(inst.defId);
         svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 4, class: 'floor' }, g);
@@ -253,23 +281,32 @@ export function mountBoard(host, opts) {
       } else {
         svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 4, class: 'fog' }, g);
       }
-      for (const side of SIDES) {
-        const own = sideAt(v, content, c, side);
-        if (revealed && (own === 'wall' || own === 'door' || own === 'gate')) sideGlyph(g, own, EDGE[side]);
-        // Open (or unknown) here but shut from the other side, by their wall or a printed wall: a dashed bar inside.
-        const word = sideWord(v, content, c, side);
-        if (word === 'wall on their side' || word === 'printed wall') blockedGlyph(g, side);
+      for (const sq of kind === 'center' ? ch.cells : [c]) {
+        const sg = sq === c ? g : svg('g', { transform: `translate(${(sq.x - x) * C} ${(sq.y - y) * C})` }, g);
+        for (const side of SIDES) {
+          if (kind === 'center' && canon(key(neighbour(sq, side))) === ch.room) continue; // inside the room
+          const own = sideAt(v, content, sq, side);
+          if (revealed && (own === 'wall' || own === 'door' || own === 'gate')) sideGlyph(sg, own, EDGE[side]);
+          // Open (or unknown) here but shut from the other side, by their wall or a printed wall: a dashed bar inside.
+          const word = sideWord(v, content, sq, side);
+          if (word === 'wall on their side' || word === 'printed wall') blockedGlyph(sg, side);
+        }
       }
-      const here = heroes.filter(h => h.coord.x === x && h.coord.y === y);
+      const here = heroes.filter(h => canon(key(h.coord)) === key(c));
+      // In a two-square chamber the tokens line up across the room under its label; elsewhere off centre, so the
+      // room mark still shows.
+      const long = w >= h, along = (i, n) => (long ? w : h) / 2 + (i - (n - 1) / 2) * 42;
       here.forEach((h, i) => {
-        const off = here.length === 1 ? [72, 72] : [[30, 30], [70, 30], [30, 70], [70, 70]][i % 4];
+        const off = kind === 'center' && ch.cells.length > 1 ? (long ? [along(i, here.length), 72] : [72, along(i, here.length)])
+          : here.length === 1 ? [72, 72] : [[30, 30], [70, 30], [30, 70], [70, 70]][i % 4];
         const tg = svg('g', { class: `token seat-${h.seat}${h.status === ESCAPED ? ' escaped' : ''}${h.seat === v.activeSeat ? ' active' : ''}`, transform: `translate(${off[0]} ${off[1]})`, 'aria-hidden': 'true' }, g);
         svg('circle', { r: here.length === 1 ? 19 : 16, class: 'token-disc' }, tg); // off centre, so the room mark still shows
         svg('text', { y: 7, 'text-anchor': 'middle', class: 'token-num' }, tg).textContent = h.seat + 1;
       });
-      if (t) svg('rect', { x: 5, y: 5, width: C - 10, height: C - 10, rx: 9, class: 'target' }, g);
-      svg('rect', { x: 3, y: 3, width: C - 6, height: C - 6, rx: 10, class: 'focusring' }, g);
-      g.setAttribute('aria-label', t ? `${t.label}. ${cellLabel(v, content, c, names)}` : cellLabel(v, content, c, names)); // the move first
+      if (t) svg('rect', { x: 5, y: 5, width: w - 10, height: h - 10, rx: 9, class: 'target' }, g);
+      svg('rect', { x: 3, y: 3, width: w - 6, height: h - 6, rx: 10, class: 'focusring' }, g);
+      const label = kind === 'center' ? chamberLabel(v, content, ch, names) : cellLabel(v, content, c, names);
+      g.setAttribute('aria-label', t ? `${t.label}. ${label}` : label); // the move first
     }
   }
 
@@ -287,10 +324,6 @@ export function mountBoard(host, opts) {
     const [at, side] = e.split('|');
     sideGlyph(over, 'gate', shared(at, side), 'fallen');
   }
-  const [a, b = a] = bd.center; // one cell (spec v3) or the older two
-  const mid = { x: ((a.x + b.x) / 2 + 0.5) * C, y: ((a.y + b.y) / 2 + 0.5) * C };
-  if (v.board.chamberPlaced) chestGlyph(over, mid.x, mid.y);
-  else svg('text', { x: mid.x, y: mid.y + 8, class: 'reserved-label', 'text-anchor': 'middle' }, over).textContent = 'Chamber';
   svg('rect', { x: 0, y: 0, width: bd.width * C, height: bd.height * C, class: 'board-edge' }, over);
 
   // ---- Viewport maths: board units to screen pixels, translate then scale.
@@ -343,7 +376,7 @@ export function mountBoard(host, opts) {
   // When the active hero (or their square) changes, zoom in on them unless their neighbourhood is already
   // readable; on every render, reframe if a lit square is clipped or under a map button. After layout (the
   // ResizeObserver), and dropped if the user starts a gesture.
-  const zk = home && `${v.activeSeat} ${key(home)}`;
+  const zk = home && `${opts.homeSeat ?? v.activeSeat} ${key(home)}`;
   let wantZoom = !!zk && zk !== zoomKey, wantClear = !!home && targets.length > 0;
   zoomKey = zk;
   const autoZoom = () => {
@@ -375,7 +408,7 @@ export function mountBoard(host, opts) {
   tool('−', 'Zoom out', () => zoomAt(1 / 1.4, ...middle()));
   tool('+', 'Zoom in', () => zoomAt(1.4, ...middle()));
   tool('Fit board', `Fit board: all ${bd.width * bd.height} squares`, fit, 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5');
-  if (home) tool('Centre on hero', 'Centre on the active hero', () => frame(fitScale() * 2),'M12 2v4M12 18v4M2 12h4M18 12h4M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0');
+  if (home) tool('Centre on hero', 'Centre on the hero', () => frame(fitScale() * 2),'M12 2v4M12 18v4M2 12h4M18 12h4M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0');
   if (opts.tilesLeft !== undefined) {
     const s = document.createElement('span');
     s.className = 'tiles';
@@ -386,8 +419,9 @@ export function mountBoard(host, opts) {
   // ---- Focus: one roving tab stop in the grid.
   const cellAt = k => root.querySelector(`[data-cell="${k}"]`);
   const parse = k => { const [x, y] = k.split(',').map(Number); return { x, y }; };
-  if ((home && key(home)) !== lastHome) { focusKey = null; lastHome = home && key(home); } // focus follows a new turn or move
-  const start = (focusKey && cellAt(focusKey) && focusKey) || (home && key(home)) || (targets[0] && key(targets[0])) || '0,0';
+  const homeKey = home && canon(key(home));
+  if (homeKey !== lastHome) { focusKey = null; lastHome = homeKey; } // focus follows a new turn or move
+  const start = (focusKey && cellAt(focusKey) && focusKey) || homeKey || (targets[0] && canon(key(targets[0]))) || '0,0';
   cellAt(start).setAttribute('tabindex', 0);
   const setFocus = (k, move = true) => {
     for (const e of root.querySelectorAll('[data-cell][tabindex="0"]')) e.setAttribute('tabindex', -1);
@@ -409,7 +443,7 @@ export function mountBoard(host, opts) {
     setFocus(k, false);
     if (second) return onInspect(parse(k));
     if (t) { focusKey = null; return t.pick(); }
-    if (how === 'tap' && home && key(home) === k) { if (vp) { glide(true); frame(fitScale() * 2); } return; }
+    if (how === 'tap' && homeKey === k) { if (vp) { glide(true); frame(fitScale() * 2); } return; }
     (how === 'tap' && opts.onNear ? opts.onNear : onInspect)(parse(k));
   };
 
@@ -478,8 +512,10 @@ export function mountBoard(host, opts) {
     const c = parse(cell.dataset.cell);
     if (STEP[e.key]) {
       e.preventDefault();
-      const n = { x: c.x + STEP[e.key][0], y: c.y + STEP[e.key][1] };
-      if (squareKind(bd, n) !== 'off') setFocus(key(n));
+      const [dx, dy] = STEP[e.key];
+      let n = { x: c.x + dx, y: c.y + dy };
+      while (canon(key(n)) === cell.dataset.cell) n = { x: n.x + dx, y: n.y + dy }; // across the chamber's other square
+      if (squareKind(bd, n) !== 'off') setFocus(canon(key(n)));
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       activate(cell.dataset.cell, 'key');
