@@ -13,23 +13,24 @@ const pad = (n, w) => String(n).padStart(w, '0');
 const seq = (prefix, count, w = 0) => Array.from({ length: count }, (_, i) => prefix + (w ? pad(i + 1, w) : i + 1));
 const combatIds = () => seq('S', 12, 2).flatMap(s => ['A', 'B', 'C'].map(l => `COMBAT_${s}_${l}`));
 
-// key: field in the content object; ids: the placeholder slot ids (positional).
+// key: field in the content object; file: the owner's authoring file in content/original/ (the content kit);
+// ids: the placeholder slot ids (positional).
 export const CATEGORIES = [
-  { key: 'tiles', label: 'Maze tiles', ids: seq('TILE_', 88, 3) },
-  { key: 'board', label: 'Board', ids: ['BOARD_01'] },
-  { key: 'chamber', label: 'Central chamber tile', ids: ['CHAMBER_01'] },
-  { key: 'heroes', label: 'Heroes', ids: seq('HERO_', 8), card: true },
-  { key: 'specialWeapons', label: 'Special weapon cards', ids: seq('XBOW_', 2), card: true },
-  { key: 'combat', label: 'Combat cards', ids: combatIds(), card: true },
-  { key: 'treasury', label: 'Treasury cards', ids: seq('TREASURY_', 33, 3), card: true },
-  { key: 'dragon', label: 'Dragon cards', ids: seq('DRAGON_', 8), card: true },
-  { key: 'room', label: 'Room cards', ids: seq('ROOM_', 60, 3), card: true },
-  { key: 'search', label: 'Search cards', ids: seq('SEARCH_', 15, 3), card: true },
-  { key: 'roomSearch', label: 'Room search cards', ids: seq('RSEARCH_', 14, 3), card: true },
-  { key: 'chest', label: 'Chest cards', ids: seq('CHEST_', 14, 3), card: true },
-  { key: 'door', label: 'Door cards', ids: seq('DOOR_', 15, 3), card: true },
-  { key: 'monster', label: 'Monster cards', ids: seq('MONSTER_', 15, 3), card: true },
-  { key: 'rings', label: 'Ring cards', ids: seq('RING_', 4), card: true },
+  { key: 'tiles', file: 'tiles.js', label: 'Maze tiles', ids: seq('TILE_', 88, 3) },
+  { key: 'board', file: 'board.js', label: 'Board', ids: ['BOARD_01'] },
+  { key: 'chamber', file: 'chamber.js', label: 'Central chamber tile', ids: ['CHAMBER_01'] },
+  { key: 'heroes', file: 'heroes.js', label: 'Heroes', ids: seq('HERO_', 8), card: true },
+  { key: 'specialWeapons', file: 'special-weapons.js', label: 'Special weapon cards', ids: seq('XBOW_', 2), card: true },
+  { key: 'combat', file: 'combat.js', label: 'Combat cards', ids: combatIds(), card: true },
+  { key: 'treasury', file: 'treasury.js', label: 'Treasury cards', ids: seq('TREASURY_', 33, 3), card: true },
+  { key: 'dragon', file: 'dragon.js', label: 'Dragon cards', ids: seq('DRAGON_', 8), card: true },
+  { key: 'room', file: 'room.js', label: 'Room cards', ids: seq('ROOM_', 60, 3), card: true },
+  { key: 'search', file: 'search.js', label: 'Search cards', ids: seq('SEARCH_', 15, 3), card: true },
+  { key: 'roomSearch', file: 'room-search.js', label: 'Room search cards', ids: seq('RSEARCH_', 14, 3), card: true },
+  { key: 'chest', file: 'chest.js', label: 'Chest cards', ids: seq('CHEST_', 14, 3), card: true },
+  { key: 'door', file: 'door.js', label: 'Door cards', ids: seq('DOOR_', 15, 3), card: true },
+  { key: 'monster', file: 'monster.js', label: 'Monster cards', ids: seq('MONSTER_', 15, 3), card: true },
+  { key: 'rings', file: 'rings.js', label: 'Ring cards', ids: seq('RING_', 4), card: true },
 ];
 export const TILE_TOTAL = 88;
 export const CARD_TOTAL = 224;
@@ -103,7 +104,8 @@ const sidesValid = s => s && ['N', 'E', 'S', 'W'].every(k => SIDE_VALUES.include
 function fieldErrors(key, e, content) {
   const err = [];
   if (typeof e.id !== 'string' || !e.id) return ['missing id'];
-  if (!STATUS.includes(e.status)) err.push(`status ${e.status} not one of ${STATUS.join('/')}`);
+  if (!STATUS.includes(e.status)) err.push(content.mode === 'original' ? `status ${e.status} must be "draft" or "approved"` : `status ${e.status} not one of ${STATUS.join('/')}`);
+  if (e.text !== undefined && typeof e.text !== 'string') err.push('text must be words in quotes');
   if (!SOURCES.includes(e.source)) err.push(`source ${e.source} not allowed`);
   if (!Number.isInteger(copiesOf(e)) || copiesOf(e) < 1) err.push('copies must be an integer >= 1');
   if (content.mode === 'original' && e.status === 'FIXTURE') err.push('fixture data in original content');
@@ -208,12 +210,15 @@ export function validateContent(content) {
   const errors = [];
   const categories = CATEGORIES.map(cat => {
     const entries = entriesOf(content, cat.key);
-    let defined = 0, verified = 0;
+    let defined = 0, verified = 0, approved = 0, draft = 0;
     for (const e of entries) {
-      const errs = fieldErrors(cat.key, e, content);
+      // Owner content uses the slot's own placeholder ids, so every message names a real slot.
+      const errs = content.mode === 'original' && !cat.ids.includes(e.id) ? [`id ${e.id} is not one of ${cat.ids[0]}..${cat.ids.at(-1)}`, ...fieldErrors(cat.key, e, content)] : fieldErrors(cat.key, e, content);
       errs.forEach(m => errors.push({ category: cat.key, id: e.id, message: `${e.id || '(no id)'}: ${m}` }));
       defined += copiesOf(e);
       if (!errs.length && e.status === 'OWNER_APPROVED') verified += copiesOf(e);
+      if (e.status === 'OWNER_APPROVED') approved += copiesOf(e);
+      if (e.status === 'DRAFT') draft += copiesOf(e);
     }
     const seen = new Set();
     for (const e of entries) {
@@ -221,8 +226,9 @@ export function validateContent(content) {
       seen.add(e.id);
     }
     const required = cat.ids.length;
-    if (defined > required) errors.push({ category: cat.key, id: null, message: `${cat.label}: ${defined} defined, only ${required} exist` });
-    return { key: cat.key, label: cat.label, required, defined, verified, missing: cat.ids.slice(defined) };
+    // A play-test layers whole fixture decks over the owner's, so only real content is held to the count.
+    if (defined > required && content.mode !== 'mixed') errors.push({ category: cat.key, id: null, message: `${cat.label}: copies total ${defined}, expected ${required}` });
+    return { key: cat.key, label: cat.label, required, defined, verified, approved, draft, missing: cat.ids.slice(defined) };
   });
   // Plan 4.7: every combat set has exactly one A, one B and one C.
   const sets = new Map();
@@ -238,11 +244,83 @@ export function validateContent(content) {
     const squares = mazeSquares(content.board);
     if (squares > TILE_TOTAL) errors.push({ category: 'board', id: content.board.id, message: `${content.board.id}: ${squares} maze squares but only ${TILE_TOTAL} tiles` });
   }
-  const lines = categories.map(c => `${c.label} ${c.verified}/${c.required} verified`);
+  const lines = categories.map(c => `${c.label} ${c.defined}/${c.required} (${c.approved} approved, ${c.draft} draft)`);
   const fullStartAllowed = content.mode === 'original' && !errors.length && categories.every(c => c.verified === c.required);
-  // A fixture game needs every category represented and valid (M2 plays cards, combat and the dragon).
-  const fixturePlayable = content.mode === 'fixture' && categories.every(c => c.defined > 0) && !errors.length;
+  // A fixture or play-test game needs every category represented and valid (M2 plays cards, combat and the dragon).
+  const fixturePlayable = ['fixture', 'mixed'].includes(content.mode) && categories.every(c => c.defined > 0) && !errors.length;
   return { categories, errors, lines, fullStartAllowed, fixturePlayable };
+}
+
+// The content kit (docs/content-kit/README.md). Owner files say status "draft" or "approved" and leave out
+// source; this turns them into the definitions above. Board and chamber files hold one object or null.
+const SINGLE = ['board', 'chamber'];
+const STATUS_WORDS = { draft: 'DRAFT', approved: 'OWNER_APPROVED' };
+const owned = e => (e && typeof e === 'object' ? { source: 'owner-original', ...e, status: STATUS_WORDS[e.status] ?? e.status } : e);
+export function ownerContent(parts) {
+  const c = { mode: 'original' };
+  for (const cat of CATEGORIES) {
+    const v = parts[cat.key];
+    if (SINGLE.includes(cat.key)) {
+      if (v !== null && (typeof v !== 'object' || Array.isArray(v))) throw new Error(`${cat.file}: must hold one { ... } entry or null`);
+      c[cat.key] = v && owned(v);
+    } else {
+      if (!Array.isArray(v)) throw new Error(`${cat.file}: must hold a list [ ... ]`);
+      c[cat.key] = v.map(owned);
+    }
+  }
+  return c;
+}
+
+// Reads every slot file from a folder URL (index.js uses its own folder; the checker can point elsewhere).
+export async function loadSlots(base) {
+  const parts = {};
+  for (const cat of CATEGORIES) {
+    try {
+      parts[cat.key] = (await import(new URL(cat.file, base))).default;
+    } catch (err) {
+      throw new Error(`${cat.file}: ${err.message}`, { cause: err });
+    }
+  }
+  return parts;
+}
+
+export const MIXED_BANNER = 'Play-test: your content plus NON-AUTHENTIC fill-in';
+// Play-test content: every owner entry, plus the whole fixture deck for each slot the owner has not filled.
+// Fixture heroes and monsters keep their fixture combat sets; a fixture crossbow needs its fixture hero.
+export function mixContent(own, fx) {
+  const full = new Set(validateContent(own).categories.filter(c => c.defined >= c.required).map(c => c.key));
+  const m = { mode: 'mixed', label: MIXED_BANNER };
+  for (const { key } of CATEGORIES) m[key] = SINGLE.includes(key) ? own[key] || fx[key] : [...own[key], ...(full.has(key) ? [] : fx[key])];
+  const fxUsed = list => list.some(e => e.status === 'FIXTURE');
+  if (full.has('combat') && (fxUsed(m.heroes) || fxUsed(m.monster))) m.combat = [...m.combat, ...fx.combat];
+  const heroIds = new Set(m.heroes.map(h => h.id));
+  m.specialWeapons = m.specialWeapons.filter(w => w.status !== 'FIXTURE' || w.heroIds.every(id => heroIds.has(id)));
+  const weaponIds = new Set(m.specialWeapons.map(w => w.id));
+  m.heroes = m.heroes.map(h => (h.status === 'FIXTURE' && h.specialWeaponId && !weaponIds.has(h.specialWeaponId) ? { ...h, specialWeaponId: null } : h));
+  return m;
+}
+
+// The content status the title screen and `node tools/keep-content.js report` both show.
+export function contentStatus(own, fx) {
+  const report = validateContent(own);
+  const mixed = mixContent(own, fx);
+  const mixReport = validateContent(mixed);
+  const done = report.categories.filter(c => c.verified === c.required).length;
+  const gap = report.categories.findIndex(c => c.verified < c.required);
+  const written = report.categories.some(c => c.defined > 0);
+  const n = report.errors.length;
+  const mixedAllowed = written && !n && mixReport.fixturePlayable;
+  return {
+    report, mixed, mixedAllowed,
+    note: `${done} of ${report.categories.length} content categories verified. The full game unlocks when every slot holds approved original content.`,
+    lines: report.lines,
+    start: report.fullStartAllowed ? 'Start is on: every slot holds approved original content.'
+      : `Start is off until the content is complete: ${n ? `${n} content ${n === 1 ? 'error' : 'errors'} to fix` : report.lines[gap]}.`,
+    play: mixedAllowed ? `Play-test is on: your ${report.categories.reduce((s, c) => s + c.defined, 0)} written slots plus NON-AUTHENTIC fill-in.`
+      : !written ? 'Play-test is off until you write some entries.'
+      : n ? `Play-test is off until the ${n} content ${n === 1 ? 'error is' : 'errors are'} fixed.`
+      : `Play-test is off: ${mixReport.errors[0]?.message || 'a slot has nothing in it'}.`,
+  };
 }
 
 // Lookup maps, built once per content object.

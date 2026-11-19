@@ -20,6 +20,7 @@ export const MARK_WORD = { black: 'room', red: 'red room', yellow: 'corridor', b
 export const SPECIAL_WORD = { well: 'well', rotating: 'rotating room', rubble: 'rubble', none: '' };
 export function tileWords(def) {
   if (!def) return 'unexplored';
+  if (def.text) return def.text;
   const parts = [SPECIAL_WORD[def.special], def.special === 'none' || def.mark !== 'none' ? MARK_WORD[def.mark] : ''].filter(Boolean);
   return parts.join(', ') || 'passage';
 }

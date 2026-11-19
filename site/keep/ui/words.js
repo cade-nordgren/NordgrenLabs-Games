@@ -30,8 +30,8 @@ export function expr(e) {
 
 const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 
-// A plain summary of a card's effects, used when the content has no text of its own.
-// shortcut: no content slot carries card wording yet, so this reads the effect data; prefer def.text once the owner's content has it (M4).
+// A plain summary of a card's effects, used when the content has no text of its own (plan 13 #21: the owner's
+// optional `text` field replaces it wherever it is set).
 function effectWords(list) {
   return (list || []).map(e => {
     switch (e.op) {
@@ -72,6 +72,7 @@ export function cardText(def) {
 }
 
 export function monsterText(def) {
+  if (def.text) return def.text;
   return ['attack', 'wait', 'flee'].map(k => {
     const r = def.reactions[k];
     return `${CHOICE[k]}: ${REACTION[r.type]}${r.damage ? ` (${expr(r.damage)} damage)` : ''}.`;

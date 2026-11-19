@@ -12,7 +12,7 @@ import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
 import { collect, forcedMove, checkDragonReset } from './treasury.js';
 import { legalActions, sameAction } from './phases.js';
-import { validateContent, contentIndex, contentHash } from '../content/schema.js';
+import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
 export const MECHANICS_VERSION = 'rb-0.2/sp-1.0';
@@ -37,7 +37,7 @@ export function createGame({ players, seed, content, rules = {}, diceScript = nu
   if (!Array.isArray(players) || players.length < 1 || players.length > MAX_PLAYERS) throw new RangeError(`Players must be 1 to ${MAX_PLAYERS}`);
   const report = validateContent(content);
   if (content.mode === 'original' && !report.fullStartAllowed) throw new Error('Full-fidelity start blocked: content incomplete or unverified');
-  if (content.mode === 'fixture' && !report.fixturePlayable) throw new Error('Fixture content invalid: ' + report.errors.map(e => e.message).join('; '));
+  if (['fixture', 'mixed'].includes(content.mode) && !report.fixturePlayable) throw new Error('Fixture content invalid: ' + report.errors.map(e => e.message).join('; '));
   if (content.heroes.length < players.length || content.rings.length < players.length) throw new Error('Not enough heroes or rings');
   for (const [k, v] of Object.entries(rules)) {
     if (!(k in DEFAULT_RULES)) throw new Error(`Unknown rule ${k}`);
@@ -52,7 +52,7 @@ export function createGame({ players, seed, content, rules = {}, diceScript = nu
     schemaVersion: SCHEMA_VERSION,
     mechanicsVersion: MECHANICS_VERSION,
     contentMode: content.mode,
-    banner: content.mode === 'fixture' ? 'NON-AUTHENTIC TEST DATA' : null,
+    banner: content.mode === 'fixture' ? 'NON-AUTHENTIC TEST DATA' : content.mode === 'mixed' ? MIXED_BANNER : null,
     contentHash: contentHash(content),
     rules: { ...DEFAULT_RULES, ...rules },
     phase: 'SETUP',

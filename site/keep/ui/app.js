@@ -8,7 +8,7 @@ import { view, canUndoTo, screenOwner } from '../engine/view.js';
 import { neighbour, edgeKind, squareKind, key } from '../engine/board.js';
 import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
-import { validateContent, contentIndex } from '../content/schema.js';
+import { validateContent, contentIndex, contentStatus } from '../content/schema.js';
 import { drawBoard, svg, place, tileWords } from './board.js';
 import { lines, cardText, monsterText, expr, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, towerName } from './words.js';
 
@@ -23,8 +23,9 @@ const listOf = names => new Intl.ListFormat('en', { type: 'conjunction' }).forma
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
-const CONTENT = { fixture: FIXTURES, original: ORIGINAL };
-const REPORT = validateContent(ORIGINAL);
+const STATUS = contentStatus(ORIGINAL, FIXTURES); // the same status `node tools/keep-content.js report` prints
+const REPORT = STATUS.report;
+const CONTENT = { fixture: FIXTURES, original: ORIGINAL, mixed: STATUS.mixed };
 const FX_REPORT = validateContent(FIXTURES);
 const KEY = 'nl-keep-v1';
 const HIST_CAP = 20; // shortcut: full snapshots, at most 20 and cleared at every commit point; store diffs if long uncommitted runs ever matter
@@ -378,16 +379,17 @@ function renderTitle() {
   $('soloNote').textContent = S.soloCombat === 'target'
     ? 'The original solo fight: throw the combat die at the printed target and enter where it lands.'
     : 'Digital variant, not an original rule: you pick A, B or C and the computer picks for the monster.';
-  const verified = REPORT.categories.filter(c => c.verified === c.required).length;
-  $('statusNote').textContent = `${verified} of ${REPORT.categories.length} content categories verified. The full game unlocks when every slot holds approved original content.`;
-  $('status').replaceChildren(...REPORT.categories.map(c => {
+  $('statusNote').textContent = STATUS.note;
+  $('status').replaceChildren(...REPORT.categories.map((c, i) => {
     const li = el('li');
-    li.append(el('span', '', c.label), el('span', '', `${c.verified}/${c.required} verified`));
+    li.append(el('span', '', c.label), el('span', '', STATUS.lines[i].slice(c.label.length + 1)));
     return li;
   }));
   $('start').disabled = !REPORT.fullStartAllowed;
-  $('startReason').textContent = REPORT.fullStartAllowed ? '' : `Start is off until the content is complete: ${REPORT.lines.find(l => !/ (\d+)\/\1 /.test(l)) || 'content incomplete'}.`;
+  $('startReason').textContent = REPORT.fullStartAllowed ? '' : STATUS.start;
   $('fixtures').disabled = !FX_REPORT.fixturePlayable;
+  $('mixed').disabled = !STATUS.mixedAllowed;
+  $('mixedReason').textContent = STATUS.play;
   drawSaves();
 }
 
@@ -415,6 +417,7 @@ function heroCard(def, extra) {
   for (const k of ['STR', 'AGI', 'ARM', 'LCK']) line.append(el('span', '', `${STAT[k]} ${def.stats?.[k] ?? 'pending'}`));
   line.append(el('span', '', `HP ${def.hp ?? 'pending'}`));
   box.append(line);
+  if (def.text) box.append(el('p', '', def.text));
   const eq = pendingText(def.equipment, 'Equipment');
   box.append(eq || el('div', 'stats', `Equipment: ${def.equipment.join(', ')}`));
   if (def.specialWeaponId) box.append(el('div', 'stats', `Special weapon: ${(content().specialWeapons || []).find(w => w.id === def.specialWeaponId)?.name || 'pending'}`));
@@ -467,7 +470,7 @@ function renderDraft(v) {
     for (const r of c.rings) {
       const a = la.find(x => x.ringId === r.id);
       const takenBy = g.seats.find(s => s.ringId === r.id);
-      const b = choice(r.name || r.id, takenBy ? `${r.power || 'Power pending'}. Taken by ${takenBy.name}.` : r.power || 'Power pending', a ? () => act(a) : null);
+      const b = choice(r.name || r.id, takenBy ? `${r.text || r.power || 'Power pending'}. Taken by ${takenBy.name}.` : r.text || r.power || 'Power pending', a ? () => act(a) : null);
       b.disabled = !a;
       ch.append(b);
     }
@@ -882,6 +885,7 @@ function renderResults(v) {
 // ---- Wiring
 $('start').onclick = () => newGame('original');
 $('fixtures').onclick = () => newGame('fixture');
+$('mixed').onclick = () => newGame('mixed');
 $('undo').onclick = undo;
 // Back to the title at once with the save in the list; the upload finishes in the background.
 $('saveExit').onclick = async () => {

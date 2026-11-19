@@ -19,12 +19,12 @@ test('T01 manifest: 88 tiles plus one chamber, 224 cards in 12 categories (RB 2,
   for (const c of CATEGORIES) assert.equal(new Set(c.ids).size, c.ids.length, `${c.key} ids unique`);
 });
 
-test('T01 empty original content reports every slot missing (SP 11 "Maze tiles 0/88 verified")', () => {
+test('T01 empty original content reports every slot missing (SP 11, as "Maze tiles 0/88 (0 approved, 0 draft)")', () => {
   const r = validateContent(ORIGINAL);
-  assert.ok(r.lines.includes('Maze tiles 0/88 verified'));
-  assert.ok(r.lines.includes('Room cards 0/60 verified'));
-  assert.ok(r.lines.includes('Heroes 0/8 verified'));
-  assert.ok(r.lines.includes('Monster cards 0/15 verified'));
+  assert.ok(r.lines.includes('Maze tiles 0/88 (0 approved, 0 draft)'));
+  assert.ok(r.lines.includes('Room cards 0/60 (0 approved, 0 draft)'));
+  assert.ok(r.lines.includes('Heroes 0/8 (0 approved, 0 draft)'));
+  assert.ok(r.lines.includes('Monster cards 0/15 (0 approved, 0 draft)'));
   const tiles = r.categories.find(c => c.key === 'tiles');
   assert.equal(tiles.missing.length, 88);
   assert.equal(tiles.missing[0], 'TILE_001');
@@ -49,7 +49,7 @@ test('T01 validation errors name the exact id (SP 11, plan 4.7)', () => {
     { cite: 'plan 4.7: entry side must not be a wall', content: tile({ id: 'BAD_T1', entrySide: 'N', sides: { N: 'wall', E: 'open', S: 'open', W: 'open' } }), match: /^BAD_T1: entrySide/ },
     { cite: 'RB 6.2: dark room has 2 or 3 exits', content: tile({ id: 'BAD_T2', mark: 'blue' }), match: /^BAD_T2: blue/ },
     { cite: 'plan 4.7: enum values only', content: tile({ id: 'BAD_T3', mark: 'green' }), match: /^BAD_T3: mark green/ },
-    { cite: 'RB 2: 88 tiles exist', content: tile({ copies: 13 }), match: /Maze tiles: 89 defined, only 88 exist/ },
+    { cite: 'RB 2: 88 tiles exist', content: tile({ copies: 13 }), match: /Maze tiles: copies total 89, expected 88/ },
     { cite: 'RB 3: stats 1..12', content: { ...FX, heroes: [{ ...FX.heroes[0], id: 'BAD_H', stats: { STR: 13, AGI: 4, ARM: 9, LCK: 4 } }, ...FX.heroes.slice(1)] }, match: /^BAD_H: stats/ },
     { cite: 'plan 4.7: duplicate ids', content: { ...FX, rings: [FX.rings[0], FX.rings[0]] }, match: /FX_RING_1: duplicate id/ },
     { cite: 'RB 4: towers on the corners', content: { ...FX, board: { ...FX.board, towers: [{ ...FX.board.towers[0], x: 1 }, ...FX.board.towers.slice(1)] } }, match: /FX_BOARD: towers must be the four corners/ },
@@ -97,7 +97,7 @@ test('T30 full Start opens only when every slot is OWNER_APPROVED and valid (SP 
   c.board = { ...c.board, width: 10, height: 9, towers: [[0, 0], [9, 0], [0, 8], [9, 8]].map(([x, y]) => ({ x, y, sides: c.board.towers[0].sides })), center: [{ x: 4, y: 4 }, { x: 5, y: 4 }] };
   const r = validateContent(c);
   assert.deepEqual(r.errors, []);
-  assert.ok(r.lines.includes('Maze tiles 88/88 verified'));
+  assert.ok(r.lines.includes('Maze tiles 88/88 (88 approved, 0 draft)'));
   assert.equal(r.fullStartAllowed, true);
   assert.equal(createGame({ players: ['A'], seed: 1, content: c }).banner, null);
   // One slot back to DRAFT closes the gate again.
