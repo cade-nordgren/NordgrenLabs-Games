@@ -58,7 +58,9 @@ export function legalActions(game, content) {
       // D42 (spec v4, interpretation): across the well, the near side is reached only by jumping back (cards may go first).
       if (hero.roomState?.special === 'well' && hero.roomState.phase === 'CROSSED') out.push(...hero.treasury.map(card => ({ type: 'WELL_DISCARD', seat, card })), { type: 'WELL_JUMP', seat });
       // Spec v3 section 4: a Use action only where the item's own card data allows it now. D53: 'free' items too.
-      out.push(...['turn-action', 'free'].flatMap(t => usableHeld(game, content, seat, t)).map(item => ({ type: 'USE_ITEM', seat, item })));
+      out.push(...usableHeld(game, content, seat, 'turn-action').map(item => ({ type: 'USE_ITEM', seat, item })));
+      // D53: a 'free' item (the flask) is never the turn's action, so it never stands in for a forced skip either.
+      const free = usableHeld(game, content, seat, 'free').map(item => ({ type: 'USE_ITEM', seat, item }));
       // Spec v5: the Strength Ring skips this turn (turn-action); the Opening Ring at a door or portcullis.
       out.push(...ringAt(game, content, seat, 'turn-action'), ...ringPassages(game, content, seat));
       // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
@@ -66,7 +68,7 @@ export function legalActions(game, content) {
       // Plan 13 #25 (interpretation): a hero who stayed in a tower after exploring may escape on any later turn.
       if (hero.status === 'IN_TOWER_NOT_ESCAPED') out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
       // D20: no voluntary pass; a forced skip exists only when no legal action does.
-      return out.length ? out : [{ type: 'FORCED_SKIP', seat }];
+      return [...(out.length ? out : [{ type: 'FORCED_SKIP', seat }]), ...free];
     }
     case 'CHOOSE_EXIT': return [...moves(game, content, seat), ...ringPassages(game, content, seat), ...usableHeld(game, content, seat, 'free').map(item => ({ type: 'USE_ITEM', seat, item })), { type: 'STOP', seat }];
     case 'TURN_START': {

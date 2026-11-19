@@ -261,6 +261,16 @@ test('catalogue: small flask: kept, drunk on the hero\'s own turn without using 
   assertCensus(assert, u, T);
 });
 
+test('catalogue: a flask never stands in for the forced skip of a hero with no way on (D20, D53)', () => {
+  const g = setup({ players: 1, content: T, deckOrders: { ROOM: EMPTY } });
+  place(g, '1,1', 'FX_STRAIGHT'); // a yellow corridor: no search; both neighbours unexplored and no tiles left
+  putHero(g, 0, '1,1');
+  g.board.tileBag = [];
+  give(g, 0, 'SEARCH', 'SEARCH_007');
+  g.seats[0].ringId = 'RING_4'; // a ring with no turn-start use
+  assert.deepEqual(acts(g, T).map(a => a.type).sort(), ['FORCED_SKIP', 'USE_ITEM']);
+});
+
 test('catalogue: torch goes out: kept; each later turn name three numbers; a match relights it, a miss ends the turn', () => {
   let g = enter('ROOM_004');
   assert.deepEqual(g.heroes[0].held, ['ROOM_004#1']);
