@@ -1,6 +1,6 @@
 // Movement, tile entry, dot types, special rooms, doors and gates (system 3; RB 5, RB 6, SP 4, SP 5).
 // Dot and special behaviour come from engine rules keyed on the tile's mark and special fields.
-import { roll, testStat, logEvent } from './dice.js';
+import { roll, testStat, testPreview, logEvent } from './dice.js';
 import { key, squareKind, exits, edgeKey } from './board.js';
 import { SIDES, OPPOSITE, rotationFor, sideOnBoard } from './tiles.js';
 import { contentIndex } from '../content/schema.js';
@@ -185,6 +185,30 @@ export function rollDarkExit(g, content) {
     return;
   }
   attemptMove(g, content, dir, { noDetour: true });
+}
+
+// RB 6.3, spec v3 section 4: +1 on the jump per treasure-chamber card carried.
+export const wellJumpModifiers = hero => [{ source: 'treasure chamber cards carried', value: hero.treasury.length }];
+
+// Spec v3: the attribute tests an action may roll, for a confirmation before it (view.pendingTests).
+// Only what the engine knows in advance: a portcullis on the edge (RB 6.7: only a fallen or printed one,
+// never because the room ahead is red), a revealed well being entered, the well jump, forcing rubble.
+// A card's CHECK_STAT is known only once the card is drawn; its result is the same 'test' log entry.
+export function actionTests(g, content, action) {
+  const hero = g.heroes[action.seat];
+  const stat = s => statOf(content, hero, s);
+  const dir = action.type === 'MOVE' ? action.dir : ['WELL_RETURN', 'RUBBLE_RETURN'].includes(action.type) ? hero.enteredFrom : null;
+  if (dir) {
+    const ex = exits(g, content, action.seat).find(e => e.dir === dir);
+    const out = [];
+    if (ex.edge === 'gate') out.push(testPreview('STR', stat('STR'), 'portcullis'));
+    const inst = squareKind(content.board, ex.to) === 'maze' && g.board.tiles[key(ex.to)];
+    if (inst && contentIndex(content).tiles.get(inst.defId).special === 'well') out.push(testPreview('AGI', stat('AGI'), 'well entry'));
+    return out;
+  }
+  if (action.type === 'WELL_JUMP') return [testPreview('AGI', stat('AGI'), 'well jump', wellJumpModifiers(hero))];
+  if (action.type === 'RUBBLE_FORCE') return [testPreview('AGI', stat('AGI'), 'force rubble')];
+  return [];
 }
 
 // Legal sides for MOVE_HERO adjacent-choice.

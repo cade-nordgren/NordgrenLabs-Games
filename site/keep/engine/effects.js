@@ -54,7 +54,7 @@ const OPS = {
   CHECK_STAT(g, c, e) {
     const hero = active(g);
     const mod = evalExpr(g, c, e.modifier ?? 0, hero);
-    const { pass } = testStat(g, e.stat, statOf(c, hero, e.stat), 'card test', mod);
+    const { pass } = testStat(g, e.stat, statOf(c, hero, e.stat), 'card test', [{ source: 'card', value: mod }]);
     g.stack.push({ effects: (pass ? e.onPass : e.onFail) || [], i: 0 });
   },
   DEAL_DAMAGE(g, c, e) {

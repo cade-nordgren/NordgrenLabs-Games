@@ -6,7 +6,7 @@ import { tileSlots } from './tiles.js';
 import { startTurn, endTurn } from './clock.js';
 import { initDecks, toBottom } from './decks.js';
 import { run, drawAndResolve } from './effects.js';
-import { attemptMove, rollDarkExit, enterTile } from './movement.js';
+import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers } from './movement.js';
 import { killHero, clearCondition, statOf, READY, ESCAPED } from './heroes.js';
 import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
@@ -192,7 +192,7 @@ const apply = {
   WELL_JUMP(g, { seat }, content) {
     const hero = g.heroes[seat];
     g.pending = null;
-    const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', hero.treasury.length);
+    const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', wellJumpModifiers(hero));
     if (!pass) killHero(g, content, seat, 'failed the well jump');
     else { clearCondition(g, seat, 'well-edge'); hero.roomState = { ...hero.roomState, phase: 'CROSSED' }; } // plan 13 #10: across, the turn ends
     g.turn.endAfter = true;

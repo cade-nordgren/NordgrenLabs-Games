@@ -3,6 +3,8 @@
 import { wakeOdds } from './treasury.js';
 import { heroGold } from './heroes.js';
 import { cardDef } from './decks.js';
+import { legalActions } from './phases.js';
+import { actionTests } from './movement.js';
 
 // viewer: a seat number, or null for a public screen (nobody's private cards).
 // debug (spec v2 #11, developer only): the full state, with deck orders, the RNG and every hidden card.
@@ -40,6 +42,8 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   // Normal mode also drops the RNG calls (shuffles); debug mode keeps them.
   v.log = v.log.filter(e => e.kind !== 'shuffle').map(e => (e.private !== undefined && e.private !== viewer ? redact(e) : e));
   // Hidden choices in pending effects are fine to show: they are labels of the active hero's options.
+  // Spec v3: every attribute test a legal action may roll, for a confirmation first (the shape of dice.testPreview).
+  v.pendingTests = game.status === 'playing' ? legalActions(game, content).flatMap(action => actionTests(game, content, action).map(t => ({ action, ...t }))) : [];
   return v;
 }
 
