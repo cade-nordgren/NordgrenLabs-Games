@@ -25,7 +25,7 @@ export function evalExpr(g, content, e, hero, reason = 'formula') {
   if (e.plus) add('', e.plus);
   if (e.minusStat) add(e.minusStat, -statOf(content, hero, e.minusStat));
   if (e.plusCount === 'treasuryCards') add('treasury cards', hero.treasury.length);
-  if (e.div) { const whole = v; v = Math.floor(v / e.div); parts.splice(0, parts.length, `floor((${parts.join(' ')}) / ${e.div})`); if (!Number.isInteger(whole)) v = 0; }
+  if (e.div) { v = Math.floor(v / e.div); parts.splice(0, parts.length, `floor((${parts.join(' ')}) / ${e.div})`); } // spec v5: rounded down
   logEvent(g, { kind: 'formula', reason, value: v, arithmetic: `${parts.join(' ').replace(/ {2,}/g, ' ')} = ${v}` });
   return v;
 }
