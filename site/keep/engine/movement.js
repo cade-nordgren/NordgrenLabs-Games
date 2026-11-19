@@ -6,6 +6,7 @@ import { SIDES, OPPOSITE, rotationFor, sideOnBoard } from './tiles.js';
 import { contentIndex, chamberCards } from '../content/schema.js';
 import { killHero, setCondition, clearCondition, statOf, TILE_CONDITIONS, hasCondition, EXPLORING, IN_TOWER } from './heroes.js';
 import { drawAndResolve, run } from './effects.js';
+import { cardDef } from './decks.js';
 import { collect } from './treasury.js';
 
 const tileDefAt = (g, content, c) => contentIndex(content).tiles.get(g.board.tiles[key(c)].defId);
@@ -27,7 +28,7 @@ export function allowContinue(g, reason, extra = {}) {
 
 // Turn-scoped state: set at TURN_START, read by exits() and the resolution loop.
 export function freshTurn(seat) {
-  return { seat, stage: 'start', mayContinue: false, endAfter: false, endNow: false, openedDoor: null, triedDoors: [], secret: null, transitFrom: null };
+  return { seat, stage: 'start', mayContinue: false, endAfter: false, endNow: false, openedDoor: null, triedDoors: [], secret: null, transitFrom: null, resume: null };
 }
 
 // SP 4 step 2, RB 5 step 1: carry-over effects resolve before a fresh action. Card conditions with
@@ -37,8 +38,12 @@ export function beginTurn(g, content) {
   g.stack = [];
   g.pending = null;
   const hero = g.heroes[g.activeSeat];
-  for (const c of [...hero.conditions]) {
+  // Skipped turns (D54) are pushed last so they run first: a skipped turn does nothing else.
+  for (const c of [...hero.conditions].sort((a, b) => (a.id === 'skip-turns') - (b.id === 'skip-turns'))) {
     if (!c.onTurnStart?.length) continue;
+    // D55: a kept card whose data frees the hero from this effect (the rope and the trapdoor) does so, untested, unspent.
+    const item = hero.held.find(inst => cardDef(content, inst).frees?.includes(c.id));
+    if (item) { clearCondition(g, hero.seat, c.id); logEvent(g, { kind: 'freed', seat: hero.seat, id: c.id, item }); continue; }
     g.stack.push({ effects: c.onTurnStart, i: 0 });
     if (c.turns !== null && --c.turns <= 0) clearCondition(g, hero.seat, c.id);
   }

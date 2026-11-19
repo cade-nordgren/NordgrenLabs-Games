@@ -24,4 +24,14 @@
 // SKELETON END
 
 export default [
+  { id: 'DOOR_001', copies: 7, status: 'draft', name: 'Door opens', text: '', deck: 'DOOR', kind: 'opens',
+    notes: 'Owner catalogue 2026-11-19 (DR-001, 7 copies). The hero goes through; it relocks behind them (R47, R50). Draft until the owner approves.' },
+  { id: 'DOOR_002', copies: 5, status: 'draft', name: 'Door stays shut', text: '', deck: 'DOOR', kind: 'closed',
+    notes: 'Owner catalogue 2026-11-19 (DR-002, 5 copies). The hero may try another way this turn (R48). Draft until the owner approves.' },
+  { id: 'DOOR_003', copies: 1, status: 'draft', name: 'Door trap', text: '', deck: 'DOOR', kind: 'trap', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D12', minusStat: 'LCK' } }],
+    notes: 'Owner catalogue 2026-11-19 (DR-003). Called a trap by the catalogue: D12 minus Luck; the door stays shut and the turn ends (R49). Draft until the owner approves.' },
+  { id: 'DOOR_004', copies: 1, status: 'draft', name: 'Door trap', text: '', deck: 'DOOR', kind: 'trap', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D6' } }],
+    notes: 'Owner catalogue 2026-11-19 (DR-004). Called a trap by the catalogue: D6; the door stays shut and the turn ends (R49). Draft until the owner approves.' },
+  { id: 'DOOR_005', copies: 1, status: 'draft', name: 'Shuffle again', text: '', deck: 'DOOR', kind: 'reshuffle', cardDisposition: 'RESHUFFLE_DECK',
+    notes: 'Owner catalogue 2026-11-19 (DR-005). Reshuffles its own deck, existing rule R62 (2023 rules box after 8.1). NEEDS OWNER CONFIRMATION: the door does not open and is handled as stays shut (plan D62). Draft until the owner approves.' },
 ];

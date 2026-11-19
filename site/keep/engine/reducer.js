@@ -4,7 +4,7 @@
 import { newRng, roll, testStat, shuffle, logEvent } from './dice.js';
 import { tileSlots } from './tiles.js';
 import { startTurn, endTurn } from './clock.js';
-import { initDecks, toBottom } from './decks.js';
+import { initDecks, toBottom, cardDef } from './decks.js';
 import { run, drawAndResolve } from './effects.js';
 import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers, allowContinue } from './movement.js';
 import { killHero, clearCondition, setCondition, statOf, READY, ESCAPED } from './heroes.js';
@@ -16,7 +16,7 @@ import { spendUse, itemLog, consumeRing } from './inventory.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v6'; // v6: spec v5 (ring uses and hero.ringUsed, crossbow tables, a monster killed outright); older saves are refused
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v7'; // v7: the owner's card catalogue (named numbers, skipped turns, free item use, rotating corridors); older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
@@ -197,8 +197,22 @@ const apply = {
     itemLog(g, seat, 'discard', card, 'chamber', { to: 'bottom of TREASURY' });
   },
   // Spec v3 section 4: a held card whose own `use` data allows it, as the turn's action (timing 'turn-action').
+  // D53: an item whose use timing is 'free' (the flask) does not use the turn: the turn goes on where it was.
   USE_ITEM(g, { seat, item }, content) {
+    if (cardDef(content, item).use.timing === 'free') g.turn.resume = g.phase;
     g.stack.push({ effects: spendUse(g, content, seat, item), i: 0 });
+    run(g, content);
+  },
+  // D56, D58, D59: the named numbers (a sorted list such as '1,3,5'), then one D6; a match runs the card's onMatch.
+  NAME_NUMBERS(g, { seat, numbers }, content) {
+    const p = g.pending;
+    g.pending = null;
+    const named = numbers.split(',').map(Number);
+    const value = roll(g, 'D6', `named roll${p.label ? ` (${p.label})` : ''}`);
+    const match = named.includes(value);
+    if (p.store) g.registers[p.store] = value;
+    logEvent(g, { kind: 'named-roll', seat, numbers: named, value, match, label: p.label, card: p.card });
+    g.stack.push({ effects: match ? p.onMatch : p.onMiss, i: 0 });
     run(g, content);
   },
   // Spec v5: the seat's ring, at the one moment its card data allows (phases.js offers it only then). It is consumed;

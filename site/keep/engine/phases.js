@@ -20,6 +20,14 @@ const ringPassages = (game, content, seat) => {
   return exits(game, content, seat).filter(e => e.legal && (e.edge === 'door' || e.edge === 'gate')).map(e => ({ type: 'USE_RING', seat, dir: e.dir, ...(room ? { from: key(e.from) } : {}) }));
 };
 
+// Every set of count different D6 numbers, as sorted lists '1,2,3' (20 sets of three, 6 of one).
+const numberSets = count => {
+  const out = [];
+  const pick = (from, chosen) => { if (chosen.length === count) return out.push(chosen.join(',')); for (let n = from; n <= 6; n++) pick(n + 1, [...chosen, n]); };
+  pick(1, []);
+  return out;
+};
+
 export function legalActions(game, content) {
   if (game.status === 'setup') {
     const { step, order, index } = game.setup;
@@ -49,8 +57,8 @@ export function legalActions(game, content) {
       if (kind === 'center' && !game.dragon.awake) out.push({ type: 'COLLECT', seat });
       // D42 (spec v4, interpretation): across the well, the near side is reached only by jumping back (cards may go first).
       if (hero.roomState?.special === 'well' && hero.roomState.phase === 'CROSSED') out.push(...hero.treasury.map(card => ({ type: 'WELL_DISCARD', seat, card })), { type: 'WELL_JUMP', seat });
-      // Spec v3 section 4: a Use action only where the item's own card data allows it now.
-      out.push(...usableHeld(game, content, seat, 'turn-action').map(item => ({ type: 'USE_ITEM', seat, item })));
+      // Spec v3 section 4: a Use action only where the item's own card data allows it now. D53: 'free' items too.
+      out.push(...['turn-action', 'free'].flatMap(t => usableHeld(game, content, seat, t)).map(item => ({ type: 'USE_ITEM', seat, item })));
       // Spec v5: the Strength Ring skips this turn (turn-action); the Opening Ring at a door or portcullis.
       out.push(...ringAt(game, content, seat, 'turn-action'), ...ringPassages(game, content, seat));
       // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
@@ -60,7 +68,7 @@ export function legalActions(game, content) {
       // D20: no voluntary pass; a forced skip exists only when no legal action does.
       return out.length ? out : [{ type: 'FORCED_SKIP', seat }];
     }
-    case 'CHOOSE_EXIT': return [...moves(game, content, seat), ...ringPassages(game, content, seat), { type: 'STOP', seat }];
+    case 'CHOOSE_EXIT': return [...moves(game, content, seat), ...ringPassages(game, content, seat), ...usableHeld(game, content, seat, 'free').map(item => ({ type: 'USE_ITEM', seat, item })), { type: 'STOP', seat }];
     case 'TURN_START': {
       if (p.kind === 'dark') return [{ type: 'ROLL_DARK_EXIT', seat }];
       const back = exits(game, content, seat).find(e => e.dir === hero.enteredFrom)?.legal;
@@ -72,6 +80,7 @@ export function legalActions(game, content) {
     case 'RESOLVE_CARD':
       // Spec v5: a trap card just drawn, with the Protection Ring unused: use it, or let the trap happen.
       if (p.kind === 'trap-ring') return [{ type: 'USE_RING', seat: p.seat }, { type: 'DECLINE_RING', seat: p.seat }];
+      if (p.kind === 'name-numbers') return numberSets(p.count).map(numbers => ({ type: 'NAME_NUMBERS', seat: p.seat, numbers }));
       return p.options.map((_, option) => ({ type: 'CHOOSE', seat: p.seat, option }));
     case 'TOWER_CHOICE': {
       // Continue only through another legal tower passage (not back the way in).

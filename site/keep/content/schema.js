@@ -41,16 +41,19 @@ const ALL_CARD_KEYS = [...CARD_KEYS, 'monster', 'dragon', 'combat', 'specialWeap
 const DECK_OF = { room: 'ROOM', search: 'SEARCH', roomSearch: 'ROOM_SEARCH', chest: 'CHEST', door: 'DOOR', treasury: 'TREASURY', monster: 'MONSTER' };
 const DRAW_DECKS = Object.values(DECK_OF);
 const KINDS = {
-  ROOM: ['empty', 'treasure', 'item', 'monster', 'trap', 'branch'],
-  DOOR: ['opens', 'closed', 'trap'],
-  other: ['treasure', 'item', 'trap', 'secret-door', 'empty', 'branch', 'reshuffle'],
+  // 'event': a hazard or happening the card does not call a trap (owner catalogue 2026-11-19; only 'trap' meets the
+  // Protection Ring, D50, D63). 'reshuffle': a "shuffle again" card (R62).
+  ROOM: ['empty', 'treasure', 'item', 'monster', 'trap', 'branch', 'event', 'reshuffle'],
+  DOOR: ['opens', 'closed', 'trap', 'reshuffle'],
+  other: ['treasure', 'item', 'trap', 'secret-door', 'empty', 'branch', 'reshuffle', 'event'],
 };
 const FOLLOW_UP = ['SEARCH', 'CHEST', 'DOOR', 'MONSTER'];
 const TURN_DISP = ['continue', 'end-turn', 'ongoing'];
 const CARD_DISP = ['UNDER_SAME_DECK', 'RETAIN_HELD', 'RETAIN_TREASURY', 'REMOVE', 'RESHUFFLE_DECK'];
 const PRIVACY = ['public', 'private-to-holder'];
 // Spec v3 section 4: a kept card is usable only through its own `use` block (never a universal use action).
-const USE_TIMINGS = ['turn-action', 'encounter-special'];
+// 'free' (owner catalogue, D53): on the hero's own turn while choosing an action or a way on; it does not use the turn.
+const USE_TIMINGS = ['turn-action', 'encounter-special', 'free'];
 const AFTER_USE = ['keep', 'bottom', 'remove'];
 const REACTIONS = ['monster-flees', 'combat', 'strike-then-flight', 'strike-then-combat', 'flight-succeeds', 'other'];
 const RING_TRIGGERS = ['passive', 'once-per-game', 'on-test', 'on-encounter'];
@@ -69,6 +72,7 @@ export function exprErrors(x) {
   if (x.plus !== undefined && !Number.isInteger(x.plus)) err.push('plus must be an integer');
   if (x.minusStat !== undefined && x.minusStat !== null && !STATS.includes(x.minusStat)) err.push(`minusStat ${x.minusStat} not a stat`);
   if (x.plusCount !== undefined && x.plusCount !== null && x.plusCount !== 'treasuryCards') err.push(`plusCount ${x.plusCount} not allowed`);
+  if (x.minusReg !== undefined && (typeof x.minusReg !== 'string' || !x.minusReg)) err.push('minusReg must be a register name');
   if (x.div !== undefined && (!Number.isInteger(x.div) || x.div < 1)) err.push('div must be a whole number 1 or more (the total is divided by it, rounded down)');
   return err;
 }
@@ -81,7 +85,18 @@ const OP_ARGS = {
   ROLL_D12: e => (typeof e.store === 'string' ? [] : ['store must be a name']),
   ROLL_D6: e => (typeof e.store === 'string' ? [] : ['store must be a name']),
   CHECK_STAT: e => [...(STATS.includes(e.stat) ? [] : [`stat ${e.stat} not a stat`]), ...exprErrors(e.modifier ?? 0), ...effectErrors(e.onPass || []), ...effectErrors(e.onFail || [])],
-  DEAL_DAMAGE: e => [...(['hero', 'monster'].includes(e.target) ? [] : ['target must be hero or monster']), ...exprErrors(e.amount)],
+  DEAL_DAMAGE: e => [...(['hero', 'monster'].includes(e.target) ? [] : ['target must be hero or monster']), ...exprErrors(e.amount), ...(e.store === undefined || (typeof e.store === 'string' && e.store) ? [] : ['store must be a name'])],
+  // Owner catalogue (D53): one net change of HP; a gain heals (D04 cap unless uncapped), a loss is damage.
+  ADJUST_HP: e => [...exprErrors(e.amount), ...(bool(e.uncapped) ? [] : ['uncapped must be true/false'])],
+  // D54: the hero's next turns pass; turns may be an expression (one per damage point); 0 or less skips none.
+  SKIP_TURNS: e => [...exprErrors(e.turns), ...labelErrors(e)],
+  // D56, D58, D59: the hero names count different D6 numbers, then a D6 is rolled; a match runs onMatch, else onMiss.
+  NAME_NUMBERS: e => [...([1, 3].includes(e.count) ? [] : ['count must be 1 or 3']), ...(e.store === undefined || typeof e.store === 'string' ? [] : ['store must be a name']), ...labelErrors(e), ...effectErrors(e.onMatch || []), ...effectErrors(e.onMiss || [])],
+  KILL_HERO: () => [],
+  // D58: flight back the way the hero came (RB 8.6), when that way exists.
+  FLEE: () => [],
+  // D57: every placed tile of this mark turns by degrees clockwise (270 is a quarter counter-clockwise).
+  ROTATE_TILES: e => [...(MARKS.includes(e.mark) ? [] : [`mark ${e.mark} not allowed`]), ...([90, 180, 270].includes(e.degrees) ? [] : ['degrees must be 90, 180 or 270'])],
   HEAL: e => [...exprErrors(e.amount), ...(bool(e.uncapped) ? [] : ['uncapped must be true/false'])],
   DRAW_CARD: e => [...(DRAW_DECKS.includes(e.deck) ? [] : [`deck ${e.deck} not a draw deck`]), ...(['resolve', 'keep'].includes(e.then) ? [] : ['then must be resolve or keep'])],
   RETAIN_CARD: e => (['held', 'treasury'].includes(e.into) ? [] : ['into must be held or treasury']),
@@ -92,9 +107,9 @@ const OP_ARGS = {
   MOVE_HERO: e => [...(['prev', 'adjacent-choice', ...SIDE_NAMES].includes(e.to) ? [] : [`to ${e.to} not allowed`]), ...(bool(e.drawRoom) && bool(e.applyTile) ? [] : ['drawRoom/applyTile must be true/false'])],
   END_TURN: () => [],
   CONTINUE_MOVEMENT: () => [],
-  SET_CONDITION: e => [...(typeof e.id === 'string' && e.id ? [] : ['condition id required']), ...(e.turns === undefined || e.turns === null || (Number.isInteger(e.turns) && e.turns > 0) ? [] : ['turns must be a positive integer or null']), ...effectErrors(e.onTurnStart || [])],
+  SET_CONDITION: e => [...(typeof e.id === 'string' && e.id ? [] : ['condition id required']), ...labelErrors(e), ...(e.turns === undefined || e.turns === null || (Number.isInteger(e.turns) && e.turns > 0) ? [] : ['turns must be a positive integer or null']), ...effectErrors(e.onTurnStart || [])],
   CLEAR_CONDITION: e => (typeof e.id === 'string' && e.id ? [] : ['condition id required']),
-  REQUEST_CHOICE: e => (Array.isArray(e.options) && e.options.length ? e.options.flatMap(o => [...(typeof o.label === 'string' ? [] : ['option label required']), ...effectErrors(o.effects || [])]) : ['options required']),
+  REQUEST_CHOICE: e => (Array.isArray(e.options) && e.options.length ? e.options.flatMap(o => [...(typeof o.label === 'string' ? [] : ['option label required']), ...(o.requires === undefined || o.requires === 'can-flee' ? [] : ['option requires must be can-flee']), ...effectErrors(o.effects || [])]) : ['options required']),
   REQUEST_COMBAT: e => encounterArgErrors(e),
   MONSTER_ENCOUNTER: e => encounterArgErrors(e),
   OPEN_TEMPORARY_PASSAGE: e => ([...SIDE_NAMES, 'any-orthogonal'].includes(e.side) ? [] : [`side ${e.side} not allowed`]),
@@ -106,6 +121,7 @@ const OP_ARGS = {
   MONSTER_FLEES: () => [],
   IGNORE_TRAP: () => [],
 };
+const labelErrors = e => (e.label === undefined || (typeof e.label === 'string' && e.label.trim()) ? [] : ['label must be words in quotes']);
 function tableErrors(e) {
   const faces = { D6: 6, D12: 12 }[e.die];
   if (!faces) return [`die ${e.die} not D6/D12`];
@@ -113,6 +129,13 @@ function tableErrors(e) {
   if (!Array.isArray(e.rows) || !e.rows.length) return ['rows required: [{ min, max, effects }, ...]'];
   const err = [], hit = Array(faces + 1).fill(0);
   for (const r of e.rows) {
+    // Owner catalogue (bones, D60): a row may take every odd or every even face instead of min/max.
+    if (r?.parity !== undefined) {
+      if (!['odd', 'even'].includes(r.parity) || r.min !== undefined || r.max !== undefined) { err.push("parity must be 'odd' or 'even', without min/max"); continue; }
+      for (let v = r.parity === 'odd' ? 1 : 2; v <= faces; v += 2) hit[v]++;
+      err.push(...effectErrors(r.effects || []));
+      continue;
+    }
     if (!Number.isInteger(r?.min) || !Number.isInteger(r?.max) || r.min < 1 || r.max > faces || r.min > r.max) { err.push(`row min/max must be whole numbers 1 to ${faces}, min <= max`); continue; }
     for (let v = r.min; v <= r.max; v++) hit[v]++;
     err.push(...effectErrors(r.effects || []));
@@ -174,6 +197,8 @@ function fieldErrors(key, e, content) {
       if (!bool(e.specialWeapon)) err.push('specialWeapon must be true/false');
       err.push(...effectErrors(e.effects || []));
       if (e.use !== undefined) err.push(...useErrors(e));
+      // D55: a kept item that frees the hero from a lasting effect at the start of a turn (the rope and the trapdoor).
+      if (e.frees !== undefined && (!Array.isArray(e.frees) || e.frees.some(x => typeof x !== 'string' || !x))) err.push('frees must be a list of condition ids');
     }
   }
   if (key === 'monster') err.push(...monsterErrors(e, content));
@@ -283,7 +308,7 @@ function monsterTypeErrors(content) {
   const named = [];
   const walk = (id, list) => (Array.isArray(list) ? list : []).forEach(e => {
     if (['MONSTER_ENCOUNTER', 'REQUEST_COMBAT'].includes(e?.op)) named.push({ id, type: e.monster });
-    walk(id, e?.onPass); walk(id, e?.onFail); walk(id, e?.onTurnStart);
+    walk(id, e?.onPass); walk(id, e?.onFail); walk(id, e?.onTurnStart); walk(id, e?.onMatch); walk(id, e?.onMiss);
     (Array.isArray(e?.rows) ? e.rows : []).forEach(r => walk(id, r?.effects));
     (Array.isArray(e?.options) ? e.options : []).forEach(o => walk(id, o?.effects));
   });

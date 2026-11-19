@@ -64,6 +64,7 @@ export function spendUse(g, content, seat, inst) {
 const TIMING_REASON = {
   'turn-action': 'Only as your action at the start of your turn',
   'encounter-special': 'Only as a special weapon, before a monster is revealed',
+  free: 'Only on your own turn, when choosing a move or whether to keep moving',
 };
 const RING_REASON = {
   'turn-action': 'Only at the start of your turn, in place of your turn',

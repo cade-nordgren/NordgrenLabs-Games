@@ -4,17 +4,19 @@
 // move) sets game.pending and the loop stops until the matching action arrives.
 import { roll, testStat, logEvent } from './dice.js';
 import { draw, toBottom, reshuffle, cardDef } from './decks.js';
-import { damageHero, healHero, statOf, setCondition, clearCondition, returnTreasury, isActive } from './heroes.js';
-import { enterTile, rotateTile, moveChoices, beginCarryOver, allowContinue, passBarrier } from './movement.js';
+import { damageHero, healHero, statOf, setCondition, clearCondition, returnTreasury, isActive, killHero } from './heroes.js';
+import { enterTile, rotateTile, moveChoices, beginCarryOver, allowContinue, passBarrier, canFlee, flee } from './movement.js';
 import { startEncounter, woundMonster, applyReaction, killMonster, revealReaction, endEncounter } from './monsters.js';
 import { continueWake } from './treasury.js';
 import { itemLog, groupOf, ringFor } from './inventory.js';
 import { endTurn } from './clock.js';
-import { neighbour } from './board.js';
+import { neighbour, key } from './board.js';
+import { contentIndex } from '../content/schema.js';
 
 const active = g => g.heroes[g.activeSeat];
 
-// Expr: an integer, or { die, plus, minusStat, plusCount, reg } (plan 4.6). D12 - LCK, D6 - 2, D12 + treasure cards.
+// Expr: an integer, or { die, plus, minusStat, plusCount, reg, minusReg } (plan 4.6). D12 - LCK, D6 - 2, D12 + treasure cards,
+// the flask's D12 gain minus its D6 loss (D53).
 export function evalExpr(g, content, e, hero, reason = 'formula') {
   if (Number.isInteger(e)) return e;
   const parts = [];
@@ -22,6 +24,7 @@ export function evalExpr(g, content, e, hero, reason = 'formula') {
   const add = (label, n) => { v += n; parts.push(parts.length ? `${n < 0 ? '-' : '+'} ${label} ${Math.abs(n)}` : `${label} ${n}`); };
   if (e.die) add(e.die, roll(g, e.die, reason));
   if (e.reg) add(e.reg, g.registers[e.reg] ?? 0);
+  if (e.minusReg) add(e.minusReg, -(g.registers[e.minusReg] ?? 0));
   if (e.plus) add('', e.plus);
   if (e.minusStat) add(e.minusStat, -statOf(content, hero, e.minusStat));
   if (e.plusCount === 'treasuryCards') add('treasury cards', hero.treasury.length);
@@ -63,7 +66,7 @@ const OPS = {
   ROLL_TABLE(g, c, e) {
     const v = roll(g, e.die, `table roll${e.store ? ` ${e.store}` : ''}`);
     if (e.store) g.registers[e.store] = v;
-    const row = e.rows.find(r => v >= r.min && v <= r.max);
+    const row = e.rows.find(r => (r.parity ? v % 2 === (r.parity === 'odd' ? 1 : 0) : v >= r.min && v <= r.max));
     logEvent(g, { kind: 'table-row', value: v, row: e.rows.indexOf(row), empty: !row.effects?.length });
     g.stack.push({ effects: row.effects || [], i: 0, table: true });
   },
@@ -87,7 +90,40 @@ const OPS = {
   DEAL_DAMAGE(g, c, e) {
     const amount = evalExpr(g, c, e.amount, active(g), 'damage formula');
     if (e.target === 'monster') woundMonster(g, Math.max(0, amount)); // D03 floor
-    else damageHero(g, c, g.activeSeat, amount, 'card');
+    else {
+      const dealt = damageHero(g, c, g.activeSeat, amount, 'card');
+      if (e.store) g.registers[e.store] = dealt; // the damage actually taken, after the D03 floor
+    }
+  },
+  // D53: one net change; a gain heals (capped at starting HP unless uncapped, D04), a loss is damage and may kill.
+  ADJUST_HP(g, c, e) {
+    const v = evalExpr(g, c, e.amount, active(g), 'net HP change');
+    if (v > 0) healHero(g, g.activeSeat, v, !!e.uncapped);
+    else if (v < 0) damageHero(g, c, g.activeSeat, -v, 'card');
+  },
+  // D54: the hero's next turns pass (more turns add to any already owed); none for 0 or less.
+  SKIP_TURNS(g, c, e) {
+    const n = evalExpr(g, c, e.turns, active(g), 'turns skipped');
+    if (n <= 0) return;
+    const had = active(g).conditions.find(x => x.id === 'skip-turns');
+    setCondition(g, g.activeSeat, { id: 'skip-turns', turns: n + (had?.turns || 0), label: e.label || had?.label || null, onTurnStart: [{ op: '_SKIP' }] });
+  },
+  // The hero picks the numbers (NAME_NUMBERS action, reducer.js); the D6 and the branch follow there.
+  NAME_NUMBERS(g, c, e, f) {
+    g.phase = 'RESOLVE_CARD';
+    g.pending = { kind: 'name-numbers', seat: g.activeSeat, count: e.count, label: e.label || null, store: e.store || null, onMatch: e.onMatch || [], onMiss: e.onMiss || [], card: owner(g, f).card ?? null };
+  },
+  KILL_HERO: (g, c, e, f) => killHero(g, c, g.activeSeat, `card ${owner(g, f).card ?? ''}`.trim()),
+  FLEE(g, c) {
+    if (canFlee(g, c, g.activeSeat)) flee(g, c, g.activeSeat);
+    else logEvent(g, { kind: 'flight-blocked', seat: g.activeSeat });
+  },
+  // D57: every placed maze tile with this mark turns; heroes stay on their squares, fallen portcullises stay on their edges.
+  ROTATE_TILES(g, c, e) {
+    const tiles = contentIndex(c).tiles;
+    const turned = Object.values(g.board.tiles).filter(t => tiles.get(t.defId)?.mark === e.mark);
+    for (const t of turned) { t.rotation = (t.rotation + e.degrees) % 360; logEvent(g, { kind: 'rotate', at: key(t.coord), rotation: t.rotation }); }
+    logEvent(g, { kind: 'tiles-rotated', mark: e.mark, degrees: e.degrees, at: turned.map(t => key(t.coord)) });
   },
   HEAL: (g, c, e) => healHero(g, g.activeSeat, evalExpr(g, c, e.amount, active(g)), !!e.uncapped),
   DRAW_CARD(g, c, e) {
@@ -124,9 +160,11 @@ const OPS = {
   END_TURN: g => { g.turn.endNow = true; },
   SET_CONDITION: (g, c, e) => setCondition(g, g.activeSeat, { id: e.id, turns: e.turns ?? null, onTurnStart: e.onTurnStart || [] }),
   CLEAR_CONDITION: (g, c, e) => clearCondition(g, g.activeSeat, e.id),
+  // An option may require a way back (requires 'can-flee', D58); one the hero cannot take is not offered.
   REQUEST_CHOICE(g, c, e) {
+    const open = e.options.filter(o => o.requires !== 'can-flee' || canFlee(g, c, g.activeSeat));
     g.phase = 'RESOLVE_CARD';
-    g.pending = { kind: 'choice', seat: g.activeSeat, options: e.options.map(o => o.label), effects: e.options.map(o => o.effects || []) };
+    g.pending = { kind: 'choice', seat: g.activeSeat, options: open.map(o => o.label), effects: open.map(o => o.effects || []) };
   },
   MONSTER_ENCOUNTER: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush, type: e.monster ?? null }),
   REQUEST_COMBAT: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush, type: e.monster ?? null }),
@@ -137,6 +175,11 @@ const OPS = {
   // Internal (not allowed in content): announce the monster's reaction if it survived, then apply it.
   _REVEAL: (g, c) => revealReaction(g, c),
   _REACT: (g, c) => applyReaction(g, c),
+  _SKIP(g) {
+    const left = active(g).conditions.find(x => x.id === 'skip-turns')?.turns ?? 0;
+    logEvent(g, { kind: 'turn-skipped', seat: g.activeSeat, left });
+    g.turn.endNow = true;
+  },
 };
 export const EFFECT_OPS = Object.keys(OPS).filter(k => !k.startsWith('_'));
 
@@ -185,7 +228,7 @@ function doorOutcome(g, content, f) {
   if (f.kind === 'opens') {
     g.turn.openedDoor = edge; // RB 6.6: same-turn flight back may still pass before it relocks
     enterTile(g, content, g.activeSeat, neighbour(active(g).coord, dir), { dir, via: 'door' });
-  } else if (f.kind === 'closed') {
+  } else if (f.kind === 'closed' || f.kind === 'reshuffle') { // D62 (to confirm): a door-deck "shuffle again" leaves it shut
     g.turn.triedDoors.push(edge);
     if (noDetour) g.turn.endAfter = true; // dark-room exit or a return move: D07, stay and retry
     else allowContinue(g, 'door-stayed-closed', { edge });
@@ -215,6 +258,7 @@ function afterResolution(g, content) {
   const t = g.turn;
   if (!isActive(active(g)) || t.endNow) return endTurn(g, content);
   if (t.stage === 'start') { t.stage = 'act'; return beginCarryOver(g, content); }
+  if (t.resume) { g.phase = t.resume; t.resume = null; return; } // D53: a free item use leaves the turn where it was
   if (t.endAfter || !t.mayContinue) return endTurn(g, content);
   g.phase = 'CHOOSE_EXIT';
 }
