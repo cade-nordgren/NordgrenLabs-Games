@@ -1,11 +1,12 @@
 // Slot manifest, validation and the start gate. T01, T30.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CATEGORIES, TILE_TOTAL, CARD_TOTAL, validateContent } from '../../site/keep/content/schema.js';
+import { CATEGORIES, TILE_TOTAL, CARD_TOTAL, validateContent, ownerContent } from '../../site/keep/content/schema.js';
 import { createGame } from '../../site/keep/engine/reducer.js';
-import ORIGINAL from '../../site/keep/content/original/index.js';
 import { FX } from './helpers.js';
 
+// An empty owner template set, built here so these tests do not depend on what the shipped files hold.
+const EMPTY = ownerContent(Object.fromEntries(CATEGORIES.map(c => [c.key, ['board', 'chamber'].includes(c.key) ? null : []])));
 const errorsFor = content => validateContent(content).errors.map(e => e.message);
 
 test('T01 manifest: 88 tiles plus one chamber, 224 cards in 12 categories (RB 2, SP 2, SP 12 #1)', () => {
@@ -19,8 +20,8 @@ test('T01 manifest: 88 tiles plus one chamber, 224 cards in 12 categories (RB 2,
   for (const c of CATEGORIES) assert.equal(new Set(c.ids).size, c.ids.length, `${c.key} ids unique`);
 });
 
-test('T01 empty original content reports every slot missing (SP 11, as "Maze tiles 0/88 (0 approved, 0 draft)")', () => {
-  const r = validateContent(ORIGINAL);
+test('T01 empty owner content reports every slot missing (SP 11, as "Maze tiles 0/88 (0 approved, 0 draft)")', () => {
+  const r = validateContent(EMPTY);
   assert.ok(r.lines.includes('Maze tiles 0/88 (0 approved, 0 draft)'));
   assert.ok(r.lines.includes('Room cards 0/60 (0 approved, 0 draft)'));
   assert.ok(r.lines.includes('Heroes 0/8 (0 approved, 0 draft)'));
@@ -49,7 +50,7 @@ test('T01 validation errors name the exact id (SP 11, plan 4.7)', () => {
     { cite: 'plan 4.7: entry side must not be a wall', content: tile({ id: 'BAD_T1', entrySide: 'N', sides: { N: 'wall', E: 'open', S: 'open', W: 'open' } }), match: /^BAD_T1: entrySide/ },
     { cite: 'RB 6.2: dark room has 2 or 3 exits', content: tile({ id: 'BAD_T2', mark: 'blue' }), match: /^BAD_T2: blue/ },
     { cite: 'plan 4.7: enum values only', content: tile({ id: 'BAD_T3', mark: 'green' }), match: /^BAD_T3: mark green/ },
-    { cite: 'RB 2: 88 tiles exist', content: { ...ORIGINAL, tiles: [{ id: 'TILE_001', status: 'DRAFT', source: 'owner-original', copies: 89, sides: { N: 'open', E: 'open', S: 'open', W: 'open' }, entrySide: 'S', mark: 'black', special: 'none' }] }, match: /Maze tiles: copies total 89, expected 88/ },
+    { cite: 'RB 2: 88 tiles exist', content: { ...EMPTY, tiles: [{ id: 'TILE_001', status: 'DRAFT', source: 'owner-original', copies: 89, sides: { N: 'open', E: 'open', S: 'open', W: 'open' }, entrySide: 'S', mark: 'black', special: 'none' }] }, match: /Maze tiles: copies total 89, expected 88/ },
     { cite: 'NON-AUTHENTIC fixture tiles stop at one per maze square', content: tile({ copies: 22 }), match: /Maze tiles: copies total 106, expected 104/ },
     { cite: 'RB 3: stats 1..12', content: { ...FX, heroes: [{ ...FX.heroes[0], id: 'BAD_H', stats: { STR: 13, AGI: 4, ARM: 9, LCK: 4 } }, ...FX.heroes.slice(1)] }, match: /^BAD_H: stats/ },
     { cite: 'plan 4.7: duplicate ids', content: { ...FX, rings: [FX.rings[0], FX.rings[0]] }, match: /FX_RING_1: duplicate id/ },
@@ -58,8 +59,8 @@ test('T01 validation errors name the exact id (SP 11, plan 4.7)', () => {
     { cite: 'D39: the chamber is two squares', content: { ...FX, board: { ...FX.board, center: [{ x: 4, y: 5 }] } }, match: /FX_BOARD: center must be exactly two squares/ },
     { cite: 'D39: the two chamber squares are side by side', content: { ...FX, board: { ...FX.board, center: [{ x: 4, y: 5 }, { x: 4, y: 5 }] } }, match: /FX_BOARD: center squares must be side by side/ },
     { cite: 'spec v2: 110 squares', content: { ...FX, board: { ...FX.board, width: 6, height: 5 } }, match: /FX_BOARD: board must be 110 squares, 10 x 11 or 11 x 10 \(width 6, height 5\)/ },
-    { cite: 'SP 11: fixture data never in original content', content: { ...ORIGINAL, heroes: [FX.heroes[0]] }, match: /FX_HERO_1: fixture data in original content/ },
-    { cite: 'RB 9: 7 sleeping, 1 awake', content: { ...ORIGINAL, dragon: [{ id: 'D_S', status: 'DRAFT', source: 'rulebook-structure', kind: 'sleeping', copies: 6 }, { id: 'D_A', status: 'DRAFT', source: 'rulebook-structure', kind: 'awake', copies: 2 }] }, match: /need exactly 7 sleeping and 1 awake/ },
+    { cite: 'SP 11: fixture data never in original content', content: { ...EMPTY, heroes: [FX.heroes[0]] }, match: /FX_HERO_1: fixture data in original content/ },
+    { cite: 'RB 9: 7 sleeping, 1 awake', content: { ...EMPTY, dragon: [{ id: 'D_S', status: 'DRAFT', source: 'rulebook-structure', kind: 'sleeping', copies: 6 }, { id: 'D_A', status: 'DRAFT', source: 'rulebook-structure', kind: 'awake', copies: 2 }] }, match: /need exactly 7 sleeping and 1 awake/ },
   ];
   for (const c of cases) assert.ok(errorsFor(c.content).some(m => c.match.test(m)), `${c.cite}: ${errorsFor(c.content).join(' | ')}`);
 });

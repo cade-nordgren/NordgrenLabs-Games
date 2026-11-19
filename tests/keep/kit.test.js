@@ -17,30 +17,37 @@ import { FX } from './helpers.js';
 const LIVE = 'site/keep/content/original';
 const SAMPLES = 'tests/keep/content-samples';
 const tool = (...args) => spawnSync(process.execPath, ['tools/keep-content.js', ...args], { encoding: 'utf8' });
-// A temporary copy of the live templates with sample files laid over them.
+// A temporary copy of the live slot files with every list emptied (so the shipped owner entries never matter), sample files laid over them.
 const made = [];
 after(() => made.forEach(d => rmSync(d, { recursive: true, force: true })));
 function folder(sample) {
   const dir = mkdtempSync(join(tmpdir(), 'keep-kit-'));
   made.push(dir);
   cpSync(LIVE, dir, { recursive: true });
+  for (const c of CATEGORIES) {
+    const file = join(dir, c.file), src = readFileSync(file, 'utf8');
+    writeFileSync(file, src.replace(/^export default \[[\s\S]*$/m, 'export default [\n];\n'));
+  }
   if (sample) cpSync(join(SAMPLES, sample), dir, { recursive: true });
   return dir;
 }
 const load = async dir => ownerContent(await loadSlots(pathToFileURL(dir + '/')));
 
-test('kit: the shipped files are templates with zero entries and a skeleton each', () => {
+test('kit: every shipped file keeps its skeleton, parses, and whatever entries exist validate', () => {
   for (const c of CATEGORIES) {
     const src = readFileSync(join(LIVE, c.file), 'utf8');
     assert.match(src, /^\/\/ SKELETON START[\s\S]*^\/\/ SKELETON END/m, c.file);
     assert.match(src, /^\/\/ {3}text: /m, `${c.file} skeleton shows the text field`);
-    assert.deepEqual([ORIGINAL[c.key]].flat().filter(Boolean), [], `${c.file} has no entries`);
   }
+  const r = tool('check');
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^No errors\.$/m);
+  assert.deepEqual(validateContent(ORIGINAL).errors, []);
   assert.equal(readdirSync(LIVE).length, CATEGORIES.length + 1, 'one file per slot type plus index.js');
 });
 
 test('kit: checker on the empty templates reports every slot at zero and exits 0', () => {
-  const r = tool('check');
+  const r = tool('check', '--dir', folder());
   assert.equal(r.status, 0, r.stderr);
   for (const c of CATEGORIES) assert.match(r.stdout, new RegExp(`^${c.label} 0/${c.ids.length} \\(0 approved, 0 draft\\)$`, 'm'));
   assert.match(r.stdout, /^No errors\.$/m);
@@ -126,7 +133,18 @@ test('mixed: owner entries layered over the fixtures, fill-in only where a slot 
   // Owner errors switch the play-test off; an empty kit has nothing to play-test.
   assert.equal(contentStatus(own, FX).mixedAllowed, true);
   assert.equal(contentStatus(await load(folder('bad')), FX).mixedAllowed, false);
-  assert.equal(contentStatus(ORIGINAL, FX).mixedAllowed, false);
+  assert.equal(contentStatus(await load(folder()), FX).mixedAllowed, false);
+});
+
+test('mixed: the shipped content as it is (88 draft maze tiles, the rest empty) loads in play-test mode; tiles are real, the rest synthetic', () => {
+  const s = contentStatus(ORIGINAL, FX);
+  assert.equal(s.mixedAllowed, true, s.play);
+  assert.equal(s.mixed.mode, 'mixed');
+  assert.deepEqual(s.mixed.tiles, ORIGINAL.tiles, 'owner maze tiles play alone: the fixture tiles are not layered in');
+  assert.ok(!s.synthetic.includes('Maze tiles: synthetic'));
+  for (const c of CATEGORIES.filter(c => c.key !== 'tiles')) assert.ok(s.synthetic.includes(`${c.label}: synthetic`), c.label);
+  assert.equal(s.synthetic.length, CATEGORIES.length - 1);
+  assert.deepEqual(validateContent(s.mixed).errors, []);
 });
 
 test('text: the owner\'s wording replaces the generated summary (plan 13 #21)', async () => {
