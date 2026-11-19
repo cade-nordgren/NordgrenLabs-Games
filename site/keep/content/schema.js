@@ -291,6 +291,8 @@ export function mixContent(own, fx) {
   const full = new Set(validateContent(own).categories.filter(c => c.defined >= c.required).map(c => c.key));
   const m = { mode: 'mixed', label: MIXED_BANNER };
   for (const { key } of CATEGORIES) m[key] = SINGLE.includes(key) ? own[key] || fx[key] : [...own[key], ...(full.has(key) ? [] : fx[key])];
+  // The dragon deck is never layered: mixing could hold two awake cards and break the 7 sleeping / 1 awake odds (RB 9.3).
+  m.dragon = full.has('dragon') ? own.dragon : fx.dragon;
   const fxUsed = list => list.some(e => e.status === 'FIXTURE');
   if (full.has('combat') && (fxUsed(m.heroes) || fxUsed(m.monster))) m.combat = [...m.combat, ...fx.combat];
   const heroIds = new Set(m.heroes.map(h => h.id));

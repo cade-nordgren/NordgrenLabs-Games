@@ -105,6 +105,9 @@ test('mixed: owner entries layered over the fixtures, fill-in only where a slot 
   assert.equal(m.room.length, 2 + FX.room.length);
   assert.ok(m.monster.some(e => e.id === 'MONSTER_001') && m.monster.some(e => e.id === 'FX_MON_BRUTE'));
   assert.equal(m.board, FX.board, 'no owner board: the fixture board fills in');
+  // RB 9.3: a part-written dragon deck is never layered, so there is always exactly one awake card in 8.
+  const partDragon = mixContent({ ...own, dragon: [{ id: 'DRAGON_1', copies: 1, status: 'DRAFT', awake: true }] }, FX).dragon;
+  assert.equal(partDragon, FX.dragon, 'incomplete owner dragon deck: the fixture deck plays alone');
   const r = validateContent(m);
   assert.deepEqual(r.errors, []);
   assert.equal(r.fixturePlayable, true);
