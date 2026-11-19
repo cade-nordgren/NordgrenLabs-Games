@@ -32,7 +32,7 @@ A fully digital, playable dungeon board game for 1 to 4 players in local hot-sea
 
 Consequence for SP's milestones: SP defines "component data complete" as transcription of the real set. Under this boundary it becomes "owner-original content complete and validated". The finished game is mechanically faithful with original content; it cannot claim the published set's exact encounter odds, and the UI and docs will not say "100% recreated" (SP 0).
 
-**BUILD-GUIDE amendment (pending owner approval).** BG's decisions log says "Original designs only." Proposed replacement:
+**BUILD-GUIDE amendment (approved and applied 2026-11-18).** BG's decisions log says "Original designs only." Proposed replacement:
 
 > **Original expression, faithful mechanics where asked.** Games are original in everything expressive: names, art, characters, card and screen wording, map art, narrative. A game may implement the documented procedures of an existing tabletop game (turn structure, dice formulas, deck sizes, probabilities) in our own code when the owner asks for it, with its content slots filled by the owner's original content, never a transcription of a published set's cards, tiles, board or characters. Bank shares only folk rules; Dusk Keep follows this rule.
 
@@ -112,7 +112,7 @@ BG says game code stays inline in the game's `index.html`, with `console.assert`
 
 Tests live outside the served folder, at repo root `tests/keep/*.test.js`, importing `../../site/keep/engine/*.js` (the `site/` move has landed). Run: `node --test "tests/keep/*.test.js"` (Node 24 takes a glob, not a folder). Node 22+ detects ES module syntax in `.js` without a `package.json`; if that warns, add a two-line `tests/package.json` `{ "type": "module" }` (not served). No new dependency.
 
-Proposed BG amendment to "Layout" and "Per-game contract" (pending owner approval):
+BG amendment to "Layout" and "Per-game contract" (approved and applied 2026-11-18):
 
 > A game may keep its rules engine in plain ES module files under its folder (`<game>/engine/*.js`, with its screen code in `<game>/ui/*.js`, loaded with `<script type="module">`, no build) when the rules need tests under `node --test`; tests go in `tests/<game>/` at the repo root, outside the served site. Bank, Tidevault and the companion stay inline.
 
@@ -323,7 +323,7 @@ Design for it:
 | Keys | Autosave `nl-keep-v1`; save `game: "keep"`. No collision with `nl-bank-v2`, `nl-tidevault-v1`, `nl-dungeon-v1`, `nl-games-saves-v1`, `nl-games-theme`, or ids `bank`, `tidevault`, `dungeon`. Optional per-browser UI prefs under `nl-keep-prefs-v1`. |
 | Shared code | Reuse `style.css` tokens, glass, buttons, menu, sheets, segmented control, dice tokens; `NL.menu`, `NL.saves`, `NL.identity`, `NL.account`, `NL.theme`. No changes to shared files. |
 | Untouched | `tidevault/` (`a414084`), `dungeon/` (`becd950`), `bank/`, `server/`, `platform.js`, `style.css`. |
-| BUILD-GUIDE | Two amendments for approval: the content boundary line (section 2) and the ES-module engine exception (section 4.2). Also add a "Dusk Keep specifics" decisions entry and the `keep/` layout line when the game lands. BG is also stale about the `site/` and Worker move; that is the owner's in-progress change, not this plan's. |
+| BUILD-GUIDE | Two amendments, approved and applied 2026-11-18: the content boundary line (section 2) and the ES-module engine exception (section 4.2). Also add a "Dusk Keep specifics" decisions entry and the `keep/` layout line when the game lands. BG is also stale about the `site/` and Worker move; that is the owner's in-progress change, not this plan's. |
 | Quality floor | BG checklist: keyboard focus, 44px targets, reduced motion and transparency, 375px no scroll, landscape 667x375, light and dark, 3:1 contrast on pieces, names via `textContent`, no `alert/confirm/prompt`. |
 
 ## 7. Rules-to-engine traceability matrix
@@ -586,7 +586,7 @@ Also the BG browser checks: console clean, every action, undo, reload mid-game, 
 3. When convenient: verify the provisional rulings (D06 re-entry, D07, D11, D19, D24) and the open points in section 13 against the Swedish rulebook and the components.
 4. Original content for every slot in section 8.2, or approval of drafts we write to the documented structure; original art direction.
 5. Final name, route id and theme (placeholders: "Dusk Keep", `keep`).
-6. Approve the two BUILD-GUIDE amendments (content boundary line; ES-module engine exception with `tests/<game>/`, now also covering the `ui/*.js` modules). Still pending after M3; not applied to BG.
+6. ~~Approve the two BUILD-GUIDE amendments.~~ Approved and applied to BG on 2026-11-18, with the `keep/` layout line and a "Dusk Keep specifics" decisions entry.
 7. Done: the `site/` and Worker move is on `main` (`11f85ee`); the game lives at `site/keep/`.
 8. Decide the fate of the companion (`dungeon/`, `becd950`) and Tidevault (`a414084`); this plan leaves both untouched.
 9. Get independent IP advice before any public distribution.
