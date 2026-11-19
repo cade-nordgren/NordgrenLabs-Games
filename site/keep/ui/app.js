@@ -1501,7 +1501,7 @@ function renderResults(v) {
   group('Inside at sunset', inside.map(e => `${hero(e)}: ${e.status === 'IN_TOWER_NOT_ESCAPED' ? 'in a tower, never chose Escape' : 'still in the keep'}, ${e.gold} gold not counted`));
   group('Other', r.others.filter(e => !dead.includes(e) && !inside.includes(e)).map(e => `${hero(e)}: ${STATUS_WORD[e.status] || e.status}`));
   const again = el('div', 'again');
-  const go = el('button', 'btn primary', 'New game');
+  const go = el('button', 'btn primary', 'Return to menu');
   go.onclick = toTitle;
   const see = el('button', 'btn', 'See the event log');
   see.onclick = openLog;
@@ -1516,13 +1516,13 @@ $('fixtures').onclick = () => newGame('fixture');
 $('mixed').onclick = () => newGame('mixed');
 $('undo').onclick = undo;
 // Exit, as in Bank: Save and exit, Exit without saving, or Keep playing (Esc and a backdrop tap keep playing too).
-// On the results there is nothing to save: New game (back to the title) or Back to results.
+// On the results there is nothing to save: Return to menu (the title) or Back to results.
 $('exitBtn').onclick = () => {
   const fin = S.game.status === 'over';
   $('exitTitle').textContent = fin ? 'Leave the results?' : 'Exit this game?';
   $('exitNote').textContent = 'Save it to pick up later from Saved games.';
   $('exitNote').hidden = $('saveExit').hidden = fin;
-  $('discard').textContent = fin ? 'New game' : 'Exit without saving';
+  $('discard').textContent = fin ? 'Return to menu' : 'Exit without saving';
   $('discard').className = fin ? 'btn primary' : 'btn danger';
   $('keepPlaying').textContent = fin ? 'Back to results' : 'Keep playing';
   $('exitSheet').showModal();
