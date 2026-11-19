@@ -48,3 +48,62 @@ test('random play: searchUnavailable is null exactly when SEARCH is offered', ()
     }
   }
 });
+
+// Seat 0 next to tower 0 (0,0), exploring; seat 1 in tower 3.
+function besideTower(players = 2) {
+  const g = setup({ players, towers: [0, 3, 3, 3] });
+  place(g, '1,0', 'FX_CROSS');
+  putHero(g, 0, '1,0');
+  g.heroes[0].status = 'EXPLORING';
+  return g;
+}
+const turnSeats = g => g.log.filter(e => e.kind === 'turn').map(e => e.seat);
+
+test('one hero escaping does not end the game: the others play on, the escaped hero is skipped, its escape sun is kept', () => {
+  let g = besideTower();
+  g = act(g, 'MOVE', { dir: 'W' });
+  g = act(g, 'TOWER_CHOICE', { choice: 'ESCAPE' });
+  assert.equal(g.status, 'playing', 'seat 1 is still inside');
+  assert.deepEqual([g.heroes[0].status, g.heroes[0].escapeSun], ['ESCAPED', 1]);
+  assert.equal(g.activeSeat, 1);
+  g = act(g, 'MOVE', { dir: 'N' }); // sun 1, seat 1
+  assert.equal(g.sun, 2);
+  assert.equal(g.activeSeat, 1, 'sun 2 starts with seat 1: the escaped seat 0 is skipped');
+  assert.deepEqual(turnSeats(g), [0, 1, 1]);
+});
+
+test('turn order skips dead heroes too', () => {
+  let g = besideTower(3);
+  g.heroes[1].status = 'DEAD';
+  g = act(g, 'MOVE', { dir: 'E' }); // seat 0 into an unexplored square
+  assert.equal(g.activeSeat, 2, 'seat 1 is dead: seat 2 next');
+});
+
+test('the game ends early only when no hero is still in play (all escaped or dead); results keep each escape sun', () => {
+  let g = besideTower();
+  g = act(g, 'MOVE', { dir: 'W' });
+  g = act(g, 'TOWER_CHOICE', { choice: 'ESCAPE' }); // seat 0 escapes at sun 1
+  place(g, '9,9', 'FX_CROSS');
+  putHero(g, 1, '9,9');
+  g.heroes[1].status = 'EXPLORING';
+  g.sun = 4; // seat 1 gets out later
+  g = act(g, 'MOVE', { dir: 'S' });
+  g = act(g, 'TOWER_CHOICE', { choice: 'ESCAPE' });
+  assert.equal(g.status, 'over');
+  assert.equal(g.phase, 'GAME_OVER');
+  assert.deepEqual(g.result.escaped.map(e => [e.seat, e.escapeSun]).sort(), [[0, 1], [1, 4]]);
+  assert.deepEqual(view(g, FX).result.escaped.map(e => e.escapeSun).sort(), [1, 4], 'the results view shows it');
+  assert.deepEqual(g.result.winners, [0, 1], 'D01 unchanged: equal gold (0 and 0) still shares the win');
+});
+
+test('with heroes still inside, the game runs to sunset (sun 27), not to the first escape', () => {
+  let g = besideTower();
+  g = act(g, 'MOVE', { dir: 'W' });
+  g = act(g, 'TOWER_CHOICE', { choice: 'ESCAPE' });
+  g.sun = 26; // seat 1's last turn
+  g = act(g, 'MOVE', { dir: 'N' });
+  assert.equal(g.status, 'over');
+  assert.equal(g.phase, 'SUNSET_GAME_OVER');
+  assert.equal(g.result.others[0].endResult, 'INSIDE_AT_SUNSET');
+  assert.equal(g.result.others[0].escapeSun, null);
+});

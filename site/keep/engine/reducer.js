@@ -137,7 +137,7 @@ const apply = {
   PICK_HERO(g, { seat, heroId }, content) {
     const def = contentIndex(content).heroes.get(heroId);
     g.seats[seat].heroId = heroId;
-    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0, itemUses: {} };
+    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0, itemUses: {}, escapeSun: null };
     logEvent(g, { kind: 'pick-hero', seat, heroId });
     if (++g.setup.index === n(g)) nextPick(g, 'rings', [...g.setup.order].reverse());
   },
@@ -229,7 +229,8 @@ const apply = {
     logEvent(g, { kind: 'tower-choice', seat, choice, at: `${hero.coord.x},${hero.coord.y}` });
     if (choice === 'ESCAPE') {
       hero.status = ESCAPED;
-      logEvent(g, { kind: 'escape', seat, at: `${hero.coord.x},${hero.coord.y}` });
+      hero.escapeSun = g.sun; // kept for a later tiebreak on equal gold (owner question 2026-11-19; D01 unchanged)
+      logEvent(g, { kind: 'escape', seat, at: `${hero.coord.x},${hero.coord.y}`, sun: g.sun });
       g.turn.endNow = true;
     } else if (choice === 'STAY') g.turn.endAfter = true;
     else { allowContinue(g, 'tower-transit'); g.turn.transitFrom = hero.enteredFrom; }
