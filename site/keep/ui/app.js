@@ -465,6 +465,7 @@ function render() {
   if (need === null) viewer = null;
   if (need !== viewer) { say(''); return showCover(need); }
   $('cover').hidden = true;
+  if ($(screen).hidden) scrollTo(0, 0); // a new screen starts at its top, not where the last one was scrolled
   for (const id of ['title', 'draft', 'table', 'results']) $(id).hidden = id !== screen;
   for (const id of ['draft', 'table', 'results']) if (id !== screen) $(id).replaceChildren();
   const v = view(g, content(), viewer);
