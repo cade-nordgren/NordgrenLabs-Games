@@ -1122,23 +1122,21 @@ function renderPrompt(v, la, targets) {
         const last = lastLine(v, enc);
         if (last) p.append(last);
         p.append(el('h3', '', 'Where it landed'));
-        const pl = el('div', 'choices grid2');
-        for (const k of Object.keys(PLACEMENT)) {
-          const b = choice(PLACEMENT[k], null, () => { target.placement = k; render(); });
-          b.setAttribute('aria-pressed', target.placement === k);
-          pl.append(b);
-        }
-        p.append(pl, el('h3', '', 'Face up'));
-        const fc = el('div', 'choices grid3');
-        for (const k of Object.keys(FACE)) {
-          const b = choice(FACE[k], null, () => { target.face = k; render(); });
-          b.setAttribute('aria-pressed', target.face === k);
-          fc.append(b);
-        }
-        p.append(fc);
-        const a = la.find(x => x.placement === target.placement && x.face === target.face);
-        const go = choice('Enter the result', null, () => a && act(a), 'primary');
-        go.disabled = !a;
+        // Picking an option only marks it in place, never a re-render: scroll and focus stay where they are.
+        const picked = () => la.find(x => x.placement === target.placement && x.face === target.face);
+        const go = choice('Enter the result', null, () => { const a = picked(); if (a) act(a); }, 'primary');
+        const options = (labels, field, cls) => {
+          const box = el('div', cls);
+          const mark = () => { for (const b of box.children) b.setAttribute('aria-pressed', target[field] === b.dataset.k); go.disabled = !picked(); };
+          for (const k of Object.keys(labels)) {
+            const b = choice(labels[k], null, () => { target[field] = k; mark(); });
+            b.dataset.k = k;
+            box.append(b);
+          }
+          mark();
+          return box;
+        };
+        p.append(options(PLACEMENT, 'placement', 'choices grid2'), el('h3', '', 'Face up'), options(FACE, 'face', 'choices grid3'));
         ch.append(go);
         p.append(ch, tools(history(enc)));
       } else {
@@ -1553,7 +1551,7 @@ $('logBtn').onclick = openLog;
 $('logDone').onclick = () => $('logSheet').close();
 $('logEnd').onclick = () => { const last = $('log').lastElementChild; if (last) { last.tabIndex = -1; last.scrollIntoView({ block: 'end' }); last.focus({ preventScroll: true }); } };
 for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
-const showDebug = NL.segmented($('debugSeg'), v => { prefs.debugLog = v === 'on'; savePrefs(); showDebug(v); if (S.game) render(); });
+const showDebug = NL.segmented($('debugSeg'), v => { prefs.debugLog = v === 'on'; savePrefs(); showDebug(v); }); // only the Event log reads it, so no re-render
 $('settingsBtn').onclick = () => {
   showTheme(NL.theme.get());
   showDebug(prefs.debugLog ? 'on' : 'off');
