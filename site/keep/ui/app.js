@@ -118,6 +118,44 @@ function act(a) {
   S.game = next;
   render();
   if (!showRolls(added) && $('roll').open) $('roll').close();
+  outcome = encounterOutcome(prev, added);
+  showOutcome();
+}
+
+// ---- The end of a fight (owner, 2026-11-19): when an encounter ends with the monster dead or fled, or the hero
+// away or dead, a short card over the dimmed board says so. It is public: the table hears these, and it holds no
+// monster HP or card. It waits for the roll card and the Reveal, and shows over a hand-over cover rather than after
+// it. Set only here, from the entries this action added, and never saved: a re-render, reload or undo cannot repeat it.
+let outcome = null; // { title, line } until shown
+function encounterOutcome(prev, added) {
+  const start = added.find(e => e.kind === 'encounter');
+  const seat = prev.encounter?.seat ?? start?.seat;
+  if (seat === undefined) return null;
+  const end = added.find(e => e.kind === 'encounter-end');
+  const died = added.some(e => e.kind === 'death' && e.seat === seat);
+  const killed = added.some(e => e.kind === 'monster-dead') || end?.outcome === 'monster-killed';
+  const said = [];
+  if (died) said.push(`${nameOf(seat)} dies.`);
+  if (killed) said.push(died ? 'The monster is dead too.' : 'The monster is dead.');
+  else if (end?.outcome === 'monster-fled') said.push('The monster flees.');
+  else if (end?.outcome === 'hero-fled' && !died) said.push(`${nameOf(seat)} gets away.`);
+  if (!said.length) return null;
+  // One line of what follows, from the public log: the flight, the next turn or the end of the game.
+  const after = prev.log.at(-1)?.seq ?? -1, last = added.findLast(e => ['encounter-end', 'death', 'monster-dead'].includes(e.kind)).seq;
+  const pub = entries(view(S.game, content(), null).log.filter(e => e.seq > after), ctx());
+  const next = pub.find(x => x.e.seq > last && ['move', 'turn', 'game-over', 'lost-at-sunset'].includes(x.e.kind));
+  return { title: said[0], line: [...said.slice(1), next?.text].filter(Boolean).join(' ') };
+}
+function showOutcome() {
+  if (!outcome || S.reveal || $('roll').open || $('outcome').open) return;
+  const { title, line } = outcome;
+  outcome = null;
+  $('outcomeTitle').textContent = title;
+  $('outcomeLine').textContent = line;
+  $('outcomeLine').hidden = !line;
+  $('outcome').showModal();
+  $('outcomeGo').focus();
+  say(`${title} ${line}`.trim());
 }
 
 // ---- Dice over the board: a roll card for every test or die roll the player sets off.
@@ -234,6 +272,7 @@ function undo() {
   S.game = S.hist.pop();
   S.seen = Math.min(S.seen, S.game.log.length);
   S.reveal = null;
+  outcome = null;
   S.peek = null;
   render();
   if (here) document.querySelector('main:not([hidden]) .undo-here')?.focus(); // press again for one more step
@@ -249,6 +288,7 @@ function newGame(mode) {
   }
   Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
   viewer = players.length === 1 ? 0 : null;
+  outcome = null;
   resetView();
   render();
   window.scrollTo(0, 0);
@@ -257,6 +297,7 @@ function newGame(mode) {
 function toTitle() {
   Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
   viewer = null;
+  outcome = null;
   shown = NL.saves.cached('keep') ?? shown; // this browser's copy of a save just made shows at once
   render();
   window.scrollTo(0, 0);
@@ -296,6 +337,7 @@ async function resume(id) {
     saveId: r.id, createdAt: r.createdAt, finishedSaved: r.status === 'finished', seen: game.log.length, reveal: null, peek: null,
   });
   viewer = game.seats.length === 1 ? 0 : null;
+  outcome = null;
   resetView();
   render();
   window.scrollTo(0, 0);
@@ -488,7 +530,7 @@ function render() {
   // redacts more than any seat's view, so the last private holder sees nothing new. A cover still hands the
   // screen TO a seat.
   if (need === null) viewer = null;
-  if (need !== viewer) { say(''); return showCover(need); }
+  if (need !== viewer) { say(''); showCover(need); return showOutcome(); } // public, so over the cover
   $('cover').hidden = true;
   if ($(screen).hidden) scrollTo(0, 0); // a new screen starts at its top, not where the last one was scrolled
   for (const id of ['title', 'draft', 'table', 'results']) $(id).hidden = id !== screen;
@@ -499,6 +541,7 @@ function render() {
   else if (screen === 'table') renderTable(v);
   else renderResults(v);
   refocus(onCell);
+  showOutcome(); // after the Reveal's Continue, say
 }
 // Focus that a re-render (or a closed roll card) took away goes back to the map grid if it was there, else for
 // keyboard players to the first choice.
@@ -1448,7 +1491,10 @@ $('settingsDone').onclick = () => $('settings').close();
 const rollOpenToClose = () => ['ask', 'result'].includes($('roll').dataset.mode);
 $('roll').onclick = e => { if (e.target === $('roll') && rollOpenToClose()) $('roll').close(); };
 $('roll').addEventListener('cancel', e => { if (!rollOpenToClose()) e.preventDefault(); });
-$('roll').addEventListener('close', () => { $('roll').dataset.mode = ''; refocus(rollFromCell); });
+$('roll').addEventListener('close', () => { $('roll').dataset.mode = ''; refocus(rollFromCell); showOutcome(); });
+// The fight's end card: Continue, Enter or Space on it, Esc, or a tap anywhere.
+$('outcome').onclick = () => $('outcome').close();
+$('outcome').addEventListener('close', () => refocus(false));
 $('inspectDone').onclick = () => $('inspect').close();
 $('itemsDone').onclick = () => $('items').close();
 for (const id of ['appLabel', 'appLabelSettings']) $(id).textContent = APP_LABEL;

@@ -228,7 +228,12 @@ details li + li { margin-top: 6px; }
 .d12 .face.mark { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
 
 /* The roll card: over the dimmed board, its buttons at the bottom in thumb reach. */
-#roll::backdrop { background: rgba(0, 0, 0, .55); }
+#roll::backdrop, #outcome::backdrop { background: rgba(0, 0, 0, .55); }
+/* The end of a fight: the roll card's family, centred on the screen. */
+#outcome { margin: auto; width: min(100% - 48px, 340px); text-align: center; }
+#outcome > div { padding: 24px 18px 18px; gap: 12px; }
+#outcome h2 { font: 700 26px/1.2 var(--num); }
+#outcome p { margin: 0; color: var(--ink); font-size: 16px; }
 #roll h2:focus { outline: none; } /* focused only while the dice turn, so nothing reads as a button */
 #roll .facts { margin: 0; }
 #roll .facts div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; border-top: 1px solid var(--hair); font-size: 15px; }
@@ -549,6 +554,14 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
     <h2 id="rollTitle" tabindex="-1"></h2>
     <div id="rollBody"></div>
     <div class="rollbtns" id="rollBtns"></div>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="outcome" aria-labelledby="outcomeTitle" aria-describedby="outcomeLine">
+  <div>
+    <h2 id="outcomeTitle"></h2>
+    <p id="outcomeLine"></p>
+    <button class="btn primary" id="outcomeGo">Continue</button>
   </div>
 </dialog>
 
