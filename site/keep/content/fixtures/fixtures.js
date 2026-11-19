@@ -135,7 +135,7 @@ const FIXTURES = {
   ],
 };
 
-// One plain line per card, from the data the engine runs ("Made-up test card: ...").
+// One plain line per card, from the data the engine runs ("Made-up test card. ...").
 for (const k of ['specialWeapons', 'combat', 'treasury', 'dragon', 'room', 'search', 'roomSearch', 'chest', 'door', 'monster', 'rings']) FIXTURES[k] = FIXTURES[k].map(e => ({ ...e, text: shownEffectText(e) }));
 
 export default FIXTURES;
