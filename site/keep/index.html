@@ -54,6 +54,11 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
 .panel > p.why, .panel > p.exchange { color: var(--ink); font-weight: 600; }
 .tapdice { cursor: pointer; }
 .panel > p.firstres { font-weight: 700; color: var(--ink); font-size: 17px; }
+/* Setup after "Pick heroes": who goes first in one small line under the title, no dice. The tower board leaves room
+   for the title, that line, the pick's heading and text, the map buttons, the tower buttons and Undo (about 470px),
+   so at 390x844 the whole pick is on screen. */
+.firstline { margin: -2px 0 12px; font-size: 14px; color: var(--ink2); }
+#draft .viewport { max-height: max(220px, calc(100dvh - 470px)); }
 .applabel { margin: -4px 0 14px; font-size: 15px; color: var(--ink2); }
 
 /* Title */

@@ -697,6 +697,7 @@ function firstRolls(g) {
 
 // The first-player roll is a step of its own: "?" dice and Roll (or a tap on the dice); once they land, the result
 // and "Pick heroes", which brings in the hero picker. Never saved: a reload or resume goes straight to the picker.
+// From then on (owner, 2026-11-19) the dice are gone: one small line says who goes first and the order of play.
 let firstRolled = false; // just rolled: the dice tumble on the next draw
 let firstWait = false; // the result shows on its own until "Pick heroes"
 function renderDraft(v) {
@@ -704,7 +705,6 @@ function renderDraft(v) {
   const out = [el('h1', '', 'Setting up')];
   const { step } = g.setup;
   const seat = la[0].seat;
-  let tumble = null;
   if (step === 'first-player') {
     const p = panel('Who goes first', 'Everyone rolls a D12. The highest goes first; tied highest roll again.');
     const dice = el('div', 'tapdice');
@@ -715,10 +715,10 @@ function renderDraft(v) {
     ch.append(choice('Roll', `${g.seats.length} D12s`, go, 'primary'));
     p.append(dice, ch);
     out.push(p);
-  } else {
+  } else if (firstWait && step === 'heroes') {
     // Every player's die, rerolls for a tie included, landing on what the engine rolled: animated once, just
     // after the roll, and the result said once it has landed.
-    const p = panel(firstWait ? 'Who goes first' : 'First player');
+    const p = panel('Who goes first');
     const dice = el('div'), seen = new Set();
     const items = g.log.filter(e => e.kind === 'roll' && /^first player, seat \d+$/.test(e.reason)).map(e => {
       const s = +e.reason.split(' ').pop(), again = seen.has(s);
@@ -729,29 +729,25 @@ function renderDraft(v) {
     const res = el('p', 'firstres', `${nameOf(g.firstSeat)} goes first.`);
     const rolls = el('p', '', `${firstRolls(g)}.${tie ? ' Tied highest rolled again.' : ''}`);
     const order = el('p', '', `Order of play, clockwise: ${listOf(g.seats.map((_, k) => nameOf((g.firstSeat + k) % g.seats.length)))}.`);
-    p.append(dice, res, rolls, order);
-    const shown = [res, rolls, order];
-    if (firstWait && step === 'heroes') {
-      const ch = el('div', 'choices');
-      ch.append(choice('Pick heroes', null, () => { firstWait = false; render(); }, 'primary'));
-      p.append(ch);
-      shown.push(ch);
-    }
+    const ch = el('div', 'choices');
+    ch.append(choice('Pick heroes', null, () => { firstWait = false; render(); }, 'primary'));
+    p.append(dice, res, rolls, order, ch);
+    const shown = [res, rolls, order, ch];
     out.push(p);
     const animate = firstRolled;
     firstRolled = false;
     if (animate) for (const x of shown) x.style.visibility = 'hidden';
-    tumble = () => rollDice(dice, items, { animate }).then(() => {
+    $('draft').replaceChildren(...out);
+    return rollDice(dice, items, { animate }).then(() => {
       if (!animate) return;
       for (const x of shown) x.style.visibility = '';
       say(`${res.textContent} ${rolls.textContent} ${order.textContent}`);
       p.querySelector('.choice')?.focus();
     });
-    if (firstWait && step === 'heroes') {
-      $('draft').replaceChildren(...out);
-      return tumble();
-    }
+  } else {
     firstWait = false; // past the hero step (an undo, or another device): the picker as usual
+    const n = g.seats.length;
+    if (n > 1) out.push(el('p', 'firstline', `${nameOf(g.firstSeat)} goes first. Order: ${g.seats.map((_, k) => nameOf((g.firstSeat + k) % n)).join(', ')}.`));
   }
   if (step === 'heroes') {
     const p = panel(`${nameOf(seat)}, pick your hero`, 'Heroes are picked clockwise from the first player.');
@@ -792,7 +788,7 @@ function renderDraft(v) {
     p.append(ch);
     out.push(p);
   }
-  if (step !== 'first-player') out[2]?.append(...undoHere(v, false)); // under the pick: [h1, first player, pick, ...]
+  if (step !== 'first-player') out.find(x => x.matches('section.panel'))?.append(...undoHere(v, false)); // under the pick
   if (step !== 'first-player') {
     const p = panel('Picks so far');
     const ul = el('ul');
@@ -804,7 +800,6 @@ function renderDraft(v) {
     out.push(p);
   }
   $('draft').replaceChildren(...out);
-  tumble?.(); // once the dice are in the page, so the turn has a start to run from
 }
 
 // Why the hero may go on (the Keep moving prompt): the latest 'may-continue' entry the engine logged this turn.
