@@ -64,7 +64,7 @@ test('every die roll and draw is in the event log (plan 4.3, SP 11)', () => {
 test('random full games: every card copy stays accounted for, no action ever throws, games end, saves stay small (RB 7.4, SP 11, plan 4.8)', () => {
   for (let seed = 1; seed <= 12; seed++) {
     const players = 1 + (seed % 4);
-    let g = createGame({ players: Array.from({ length: players }, (_, i) => `P${i}`), seed, content: FX, rules: seed % 3 ? {} : { soloCombat: 'abc-digital-variant', darkRoomOnReentry: false } });
+    let g = createGame({ players: Array.from({ length: players }, (_, i) => `P${i}`), seed, content: FX, rules: seed % 3 ? {} : { soloCombat: 'abc-digital-variant', darkRoomPolicy: 'EVERY_ENTRY' } });
     let steps = 0;
     while (g.status !== 'over') {
       const legal = legalActions(g, FX);

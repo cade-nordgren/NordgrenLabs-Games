@@ -1,7 +1,7 @@
 // Setup: player count, first player, drafts, towers, rules config. T02, T03, T03b, T30 (start gate part).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, reduce, DEFAULT_RULES } from '../../site/keep/engine/reducer.js';
+import { createGame, reduce, DEFAULT_RULES, RULE_TAGS, AUTHORITY_TAGS } from '../../site/keep/engine/reducer.js';
 import { legalActions } from '../../site/keep/engine/phases.js';
 import ORIGINAL from '../../site/keep/content/original/index.js';
 import { FX, setup } from './helpers.js';
@@ -96,9 +96,14 @@ test('T30 full-fidelity start blocked without verified content; fixtures flagged
   assert.equal(g.banner, 'NON-AUTHENTIC TEST DATA');
 });
 
-test('rules config: D06 re-entry flag defaults on, can be set, unknown rules rejected (plan section 9)', () => {
-  assert.equal(DEFAULT_RULES.darkRoomOnReentry, true);
-  assert.equal(createGame({ players: names(1), seed: 1, content: FX }).rules.darkRoomOnReentry, true);
-  assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomOnReentry: false } }).rules.darkRoomOnReentry, false);
+test('rules config: defaults, settable values, unknown rules and values rejected, every entry tagged (plan section 9, spec v2)', () => {
+  assert.deepEqual(DEFAULT_RULES, { darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', forcedMoveTileEffects: true, soloCombat: 'target', towerAtSunsetCountsAsEscape: false, escapeWithoutExploring: false });
+  assert.equal(createGame({ players: names(1), seed: 1, content: FX }).rules.darkRoomPolicy, 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY');
+  assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomPolicy: 'EVERY_ENTRY' } }).rules.darkRoomPolicy, 'EVERY_ENTRY');
+  assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomOnReentry: true } }), /Unknown rule/, 'the old flag is gone');
+  assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomPolicy: 'NEVER' } }), /cannot be/);
   assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { voluntaryPass: true } }), /Unknown rule/);
+  assert.deepEqual(Object.keys(RULE_TAGS).sort(), Object.keys(DEFAULT_RULES).sort(), 'every rules-config entry has an authority tag');
+  for (const tags of Object.values(RULE_TAGS)) assert.ok(tags.length && tags.every(t => AUTHORITY_TAGS.includes(t)));
+  assert.deepEqual([RULE_TAGS.towerAtSunsetCountsAsEscape, RULE_TAGS.escapeWithoutExploring, RULE_TAGS.darkRoomPolicy], [['interpretation'], ['interpretation'], ['interpretation']]);
 });

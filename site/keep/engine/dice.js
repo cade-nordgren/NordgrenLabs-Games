@@ -22,8 +22,10 @@ function next(rng) {
   return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
 }
 
+// Spec v2 #11: semantic entries. Every entry carries the round and, during a turn, the active seat
+// (an entry about another hero names its own seat).
 export function logEvent(game, event) {
-  game.log.push({ seq: game.log.length + 1, ...event });
+  game.log.push({ seq: game.log.length + 1, round: game.round, ...(game.activeSeat === null || game.activeSeat === undefined ? {} : { seat: game.activeSeat }), ...event });
 }
 
 export function roll(game, die, reason) {
@@ -47,7 +49,7 @@ export const statPasses = (d12, stat, modifier = 0) => d12 + modifier <= stat;
 export function testStat(game, statName, stat, reason, modifier = 0) {
   const d12 = roll(game, 'D12', reason);
   const pass = statPasses(d12, stat, modifier);
-  logEvent(game, { kind: 'test', stat: statName, target: stat, roll: d12, modifier, pass, reason });
+  logEvent(game, { kind: 'test', stat: statName, target: stat, roll: d12, modifier, pass, reason, arithmetic: `D12 ${d12}${modifier ? ` + ${modifier}` : ''} = ${d12 + modifier} ${pass ? '<=' : '>'} ${statName} ${stat}: ${pass ? 'pass' : 'fail'}` });
   return { roll: d12, pass };
 }
 

@@ -4,7 +4,7 @@
 // move) sets game.pending and the loop stops until the matching action arrives.
 import { roll, testStat, logEvent } from './dice.js';
 import { draw, toBottom, reshuffle, cardDef } from './decks.js';
-import { damageHero, healHero, statOf, setCondition, clearCondition, returnTreasury } from './heroes.js';
+import { damageHero, healHero, statOf, setCondition, clearCondition, returnTreasury, isActive } from './heroes.js';
 import { enterTile, rotateTile, moveChoices, beginCarryOver } from './movement.js';
 import { startEncounter, woundMonster, applyReaction } from './monsters.js';
 import { continueWake } from './treasury.js';
@@ -16,11 +16,15 @@ const active = g => g.heroes[g.activeSeat];
 // Expr: an integer, or { die, plus, minusStat, plusCount, reg } (plan 4.6). D12 - LCK, D6 - 2, D12 + treasure cards.
 export function evalExpr(g, content, e, hero, reason = 'formula') {
   if (Number.isInteger(e)) return e;
-  let v = e.die ? roll(g, e.die, reason) : 0;
-  if (e.reg) v += g.registers[e.reg] ?? 0;
-  v += e.plus || 0;
-  if (e.minusStat) v -= statOf(content, hero, e.minusStat);
-  if (e.plusCount === 'treasuryCards') v += hero.treasury.length;
+  const parts = [];
+  let v = 0;
+  const add = (label, n) => { v += n; parts.push(parts.length ? `${n < 0 ? '-' : '+'} ${label} ${Math.abs(n)}` : `${label} ${n}`); };
+  if (e.die) add(e.die, roll(g, e.die, reason));
+  if (e.reg) add(e.reg, g.registers[e.reg] ?? 0);
+  if (e.plus) add('', e.plus);
+  if (e.minusStat) add(e.minusStat, -statOf(content, hero, e.minusStat));
+  if (e.plusCount === 'treasuryCards') add('treasury cards', hero.treasury.length);
+  logEvent(g, { kind: 'formula', reason, value: v, arithmetic: `${parts.join(' ').replace(/ {2,}/g, ' ')} = ${v}` });
   return v;
 }
 
@@ -145,7 +149,7 @@ function finishFrame(g, content, f, aborted) {
 // trap -> its effects ran, the turn ends.
 function doorOutcome(g, content, f) {
   const { dir, edge, noDetour } = f.door;
-  logEvent(g, { kind: 'door', result: f.kind, edge });
+  logEvent(g, { kind: 'door', result: f.kind, edge, card: f.card });
   if (f.kind === 'opens') {
     g.turn.openedDoor = edge; // RB 6.6: same-turn flight back may still pass before it relocks
     enterTile(g, content, g.activeSeat, neighbour(active(g).coord, dir), { dir, via: 'door' });
@@ -177,7 +181,7 @@ export function run(g, content) {
 function afterResolution(g, content) {
   if (g.wake) return continueWake(g, content);
   const t = g.turn;
-  if (active(g).status !== 'inside' || t.endNow) return endTurn(g, content);
+  if (!isActive(active(g)) || t.endNow) return endTurn(g, content);
   if (t.stage === 'start') { t.stage = 'act'; return beginCarryOver(g, content); }
   if (t.endAfter || !t.mayContinue) return endTurn(g, content);
   g.phase = 'CHOOSE_EXIT';

@@ -1,7 +1,7 @@
 // Central treasure chamber and the shared dragon deck (system 8; RB 9, SP 8).
 import { roll, shuffle, logEvent } from './dice.js';
 import { draw } from './decks.js';
-import { damageHero, returnTreasury } from './heroes.js';
+import { damageHero, returnTreasury, isActive } from './heroes.js';
 import { key, squareKind, neighbour, occupiedBy } from './board.js';
 import { SIDES } from './tiles.js';
 import { enterTile } from './movement.js';
@@ -9,7 +9,7 @@ import { run } from './effects.js';
 import { contentIndex } from '../content/schema.js';
 
 const isAwake = (content, inst) => contentIndex(content).cards.get(inst.split('#')[0]).kind === 'awake';
-export const inChamber = (g, content) => g.heroes.filter(h => h && h.status === 'inside' && squareKind(content.board, h.coord) === 'center');
+export const inChamber = (g, content) => g.heroes.filter(h => isActive(h) && squareKind(content.board, h.coord) === 'center');
 
 // RB 9.3, SP 8: odds from the cards actually remaining, "1 in N".
 export function wakeOdds(g, content) {
@@ -62,12 +62,12 @@ export function continueWake(g, content) {
     if (g.pending) return;
     const seat = w.queue[0];
     const hero = g.heroes[seat];
-    if (!w.burned && hero.status === 'inside') {
+    if (!w.burned && isActive(hero)) {
       w.burned = true;
       returnTreasury(g, seat);
       damageHero(g, content, seat, roll(g, 'D12', 'dragon fire'), 'dragon fire (D12)');
     }
-    if (hero.status !== 'inside') { w.queue.shift(); w.burned = false; continue; }
+    if (!isActive(hero)) { w.queue.shift(); w.burned = false; continue; }
     const targets = forcedMoveTargets(g, content);
     if (!targets.length) {
       logEvent(g, { kind: 'forced-move-none', seat }); // D19 stay-put exception (house rule, provisional)

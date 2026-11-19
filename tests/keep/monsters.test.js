@@ -118,7 +118,7 @@ test('D14 hero and monster reach 0 in the same exchange: both die (D14); T04c th
   const held = g.heroes[0].held[0], chamber = g.heroes[0].treasury[0];
   g = pick(g, 'B', 'B');
   assert.ok(g.log.some(e => e.kind === 'monster-dead'));
-  assert.equal(g.heroes[0].status, 'dead');
+  assert.equal(g.heroes[0].status, 'DEAD');
   assert.deepEqual([g.heroes[0].held, g.heroes[0].treasury], [[], []]);
   assert.ok(g.decks.ROOM.order.includes(held), 'D28: room loot under the room deck');
   assert.equal(g.decks.TREASURY.order.at(-1), chamber, 'D28: treasure-chamber card under the treasury deck');
@@ -179,7 +179,7 @@ test('T23 ambush: D12 - Luck damage first, then Attack or Flee only (RB 8.7, SP 
   const hunter = meet('FX_MON_BRUTE', { room: 'FX_ROOM_AMBUSH', script: [5], heroes: ['FX_HERO_2'] });
   assert.deepEqual(choices(hunter), ['attack', 'flee'], 'no special weapon either (shortcut)');
   const killed = meet('FX_MON_BRUTE', { room: 'FX_ROOM_AMBUSH', script: [12], prep: h => { h.heroes[0].hp = 8; } });
-  assert.equal(killed.heroes[0].status, 'dead');
+  assert.equal(killed.heroes[0].status, 'DEAD');
   assert.equal(killed.encounter, null);
 });
 

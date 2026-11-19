@@ -57,7 +57,9 @@ test('M-B day-26 near escape: one hero reaches a tower on the last turn, the oth
       ...shuttle,                                                  // rounds 2-25: rows 7 and 8, ending on row 8
       g => { assert.equal(g.sun, 26); assert.deepEqual([g.heroes[0].coord.y, g.heroes[1].coord.y], [8, 8]); },
       S, S,                                                        // seat 0: (0,9), then into tower (0,10)
-      g => assert.equal(g.heroes[0].status, 'escaped'),
+      g => assert.deepEqual([g.phase, g.sun], ['TOWER_CHOICE', 26], 'the choice comes before sunset closes the turn'),
+      ['TOWER_CHOICE', { choice: 'ESCAPE' }],
+      g => assert.equal(g.heroes[0].status, 'ESCAPED'),
       S, ['STOP'],                                                 // seat 1: reaches (9,9), one short of (9,10)
     ],
   });
@@ -65,7 +67,7 @@ test('M-B day-26 near escape: one hero reaches a tower on the last turn, the oth
   assert.equal(g.sun, 27);
   assert.equal(Math.max(...turns(g).map(t => t.sun)), 26, 'no turn at sun 27');
   assert.deepEqual(turns(g).filter(t => t.seat === 1).length, 26);
-  assert.deepEqual([g.heroes[0].status, g.heroes[1].status], ['escaped', 'lost-at-sunset']);
+  assert.deepEqual([g.heroes[0].status, g.heroes[1].status, g.heroes[1].endResult], ['ESCAPED', 'EXPLORING', 'INSIDE_AT_SUNSET']);
   assert.deepEqual(g.heroes[1].coord, { x: 9, y: 9 });
   assert.deepEqual(g.result.winners, [0]);
 });
@@ -124,10 +126,11 @@ test('acceptance: solo run from tower to chamber and out to a tower; gold is the
       ['MOVE', { dir: 'N' }],                                                // leaving: nothing drawn; chamber empty, deck resets (D22)
       g => assert.equal(g.dragon.remaining.length, 8),
       ['MOVE', { dir: 'N' }], ['MOVE', { dir: 'N' }], ['MOVE', { dir: 'N' }], ['MOVE', { dir: 'N' }], // up the corridors to (4,0)
-      ['MOVE', { dir: 'W' }], ['MOVE', { dir: 'W' }], ['MOVE', { dir: 'W' }], ['MOVE', { dir: 'W' }], // back to tower (0,0): escape
+      ['MOVE', { dir: 'W' }], ['MOVE', { dir: 'W' }], ['MOVE', { dir: 'W' }], ['MOVE', { dir: 'W' }], // back to tower (0,0)
+      ['TOWER_CHOICE', { choice: 'ESCAPE' }],
     ],
   });
-  assert.equal(g.heroes[0].status, 'escaped');
+  assert.equal(g.heroes[0].status, 'ESCAPED');
   assert.deepEqual(g.heroes[0].held, ['FX_ROOM_COINS#1']);
   assert.equal(g.heroes[0].treasury.length, 4);
   assert.deepEqual(g.result.winners, [0]);

@@ -5,7 +5,9 @@ import { heroGold } from './heroes.js';
 import { cardDef } from './decks.js';
 
 // viewer: a seat number, or null for a public screen (nobody's private cards).
-export function view(game, content, viewer = null) {
+// debug (spec v2 #11, developer only): the full state, with deck orders, the RNG and every hidden card.
+export function view(game, content, viewer = null, { debug = false } = {}) {
+  if (debug) return { ...structuredClone(game), debug: true };
   const v = structuredClone(game);
   const solo = game.seats.length === 1;
   delete v.rng; // seed, PRNG state and any scripted dice or orders are the future
@@ -34,7 +36,8 @@ export function view(game, content, viewer = null) {
     }
   }
   // Drawn cards marked private (treasure-chamber cards, the monster card) are blanked for others.
-  v.log = v.log.map(e => (e.private !== undefined && e.private !== viewer ? { ...e, value: 'hidden' } : e));
+  // Normal mode also drops the RNG calls (shuffles); debug mode keeps them.
+  v.log = v.log.filter(e => e.kind !== 'shuffle').map(e => (e.private !== undefined && e.private !== viewer ? { ...e, value: 'hidden' } : e));
   // Hidden choices in pending effects are fine to show: they are labels of the active hero's options.
   return v;
 }

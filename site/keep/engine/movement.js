@@ -4,7 +4,7 @@ import { roll, testStat, logEvent } from './dice.js';
 import { key, squareKind, exits, edgeKey } from './board.js';
 import { SIDES, OPPOSITE, rotationFor, sideOnBoard } from './tiles.js';
 import { contentIndex } from '../content/schema.js';
-import { killHero, setCondition, clearCondition, statOf, TILE_CONDITIONS, hasCondition } from './heroes.js';
+import { killHero, setCondition, clearCondition, statOf, TILE_CONDITIONS, hasCondition, EXPLORING, IN_TOWER } from './heroes.js';
 import { drawAndResolve, run } from './effects.js';
 import { collect } from './treasury.js';
 
@@ -12,7 +12,7 @@ const tileDefAt = (g, content, c) => contentIndex(content).tiles.get(g.board.til
 
 // Turn-scoped state: set at TURN_START, read by exits() and the resolution loop.
 export function freshTurn(seat) {
-  return { seat, stage: 'start', mayContinue: false, endAfter: false, endNow: false, openedDoor: null, triedDoors: [], secret: null };
+  return { seat, stage: 'start', mayContinue: false, endAfter: false, endNow: false, openedDoor: null, triedDoors: [], secret: null, transitFrom: null };
 }
 
 // SP 4 step 2, RB 5 step 1: carry-over effects resolve before a fresh action. Card conditions with
@@ -40,7 +40,9 @@ export function beginCarryOver(g, content) {
 }
 
 // Try to leave the active hero's square through side dir. noDetour: a compulsory move (dark-room
-// exit, well or rubble retreat), where a closed door ends the turn instead of offering another exit.
+// exit, well or rubble retreat), where a closed door ends the turn instead of offering another exit
+// (plan 13 #14, D07 extended; compulsory moves only: on a voluntary move a closed door leaves the
+// other free passages open this turn, RB 6.6).
 export function attemptMove(g, content, dir, { noDetour = false } = {}) {
   const seat = g.activeSeat;
   const hero = g.heroes[seat];
@@ -57,6 +59,7 @@ export function attemptMove(g, content, dir, { noDetour = false } = {}) {
     // RB 6.7, SP 5: Strength test; failure ends the turn; success crosses and the gate drops again.
     g.phase = 'REQUIRED_STAT_TEST';
     const { pass } = testStat(g, 'STR', statOf(content, hero, 'STR'), 'portcullis');
+    logEvent(g, { kind: 'gate', edge: edgeKey(hero.coord, dir), pass });
     if (!pass) { g.turn.endAfter = true; return; }
     return enterTile(g, content, seat, ex.to, { dir, via: 'gate' });
   }
@@ -95,19 +98,26 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
     logEvent(g, { kind: 'place-chamber' });
   }
   hero.conditions = hero.conditions.filter(c => !TILE_CONDITIONS.includes(c.id)); // leaving the old room
+  hero.roomState = null;
+  const from = hero.coord;
   hero.prevCoord = hero.coord;
   hero.coord = to;
   hero.enteredFrom = OPPOSITE[dir];
   hero.enteredVia = via;
-  if (own) g.turn.secret = null; // RB 6.8: a temporary passage is gone once used (or the hero moved on)
-  logEvent(g, { kind: 'move', seat, dir, to: key(to), via });
+  if (own) { g.turn.secret = null; g.turn.transitFrom = null; } // RB 6.8: a temporary passage is gone once used
+  const mark = kind === 'maze' ? tileDefAt(g, content, to).mark : kind;
+  logEvent(g, { kind: 'move', seat, dir, from: key(from), to: key(to), via, mark });
   if (kind === 'tower') {
-    // D23: a hero starts in a tower and must leave it first, so entering any tower is escape.
-    hero.status = 'escaped';
-    logEvent(g, { kind: 'escape', seat });
-    if (own || via === 'flight') g.turn.endNow = true;
+    // Spec v2 and the owner's tower ruling (interpretation; replaces D23): towers are shared rooms. Being
+    // in one is not escaping; entering one from the castle offers Escape, Stay or Continue (transit).
+    hero.status = IN_TOWER;
+    if (seat === g.activeSeat) {
+      g.phase = 'TOWER_CHOICE';
+      g.pending = { kind: 'tower', seat, transit: via !== 'flight' }; // a flight ends the turn: no transit
+    }
     return;
   }
+  hero.status = EXPLORING;
   // D31: no room card in the chamber. D18: collect on the entry turn; a forced move never targets it.
   if (kind === 'center') return collect(g, content, seat);
 
@@ -128,15 +138,20 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
       const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well entry');
       if (!pass) return killHero(g, content, seat, 'fell into the well');
       setCondition(g, seat, { id: 'well-edge', turns: null });
+      hero.roomState = { special: 'well', entryEdge: hero.enteredFrom, phase: 'AT_NEAR_EDGE' }; // spec v2
     }
-    if (def.special === 'rubble') setCondition(g, seat, { id: 'rubble', turns: null });
-    // RB 6.2, D06: dark on first discovery; a retreat keeps the effect; ordinary re-entry per darkRoomOnReentry.
-    if (def.mark === 'blue' && (first || retreat || g.rules.darkRoomOnReentry)) setCondition(g, seat, { id: 'dark', turns: null });
+    if (def.special === 'rubble') {
+      setCondition(g, seat, { id: 'rubble', turns: null });
+      hero.roomState = { special: 'rubble', entryEdge: hero.enteredFrom, arrivalDir: dir }; // spec v2
+    }
+    // RB 6.2, D06 (interpretation): dark on the initial reveal and on a retreat back into it (special rooms
+    // apply when fleeing); ordinary re-entry only under darkRoomPolicy EVERY_ENTRY.
+    if (def.mark === 'blue' && (first || retreat || g.rules.darkRoomPolicy === 'EVERY_ENTRY')) setCondition(g, seat, { id: 'dark', turns: null });
     if (own && ['well', 'rubble'].includes(def.special)) g.turn.endAfter = true;
     if (own && def.mark === 'blue' && hasCondition(hero, 'dark')) g.turn.endAfter = true;
   }
   // RB 5 step 4, SP 6: every black or red entry draws one room card, revisits included.
-  if ((def.mark === 'black' || def.mark === 'red') && drawRoom && hero.status === 'inside') {
+  if ((def.mark === 'black' || def.mark === 'red') && drawRoom && hero.status === EXPLORING) {
     g.phase = 'DRAW_ROOM';
     drawAndResolve(g, content, 'ROOM', 'room entry');
   }

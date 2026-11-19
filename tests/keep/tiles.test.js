@@ -37,8 +37,8 @@ test('T09 red room: room card and a gate drops behind the entrant (RB 6.1, RB 6.
   g = run(g, [move(g, 'W')]);
   assert.equal(at(g), '1,0');
   assert.equal(g.sun, 3);
-  g = run(g, [move(g, 'W')]);
-  assert.equal(g.heroes[0].status, 'escaped');
+  g = run(g, [move(g, 'W'), { type: 'TOWER_CHOICE', seat: 0, choice: 'ESCAPE' }]);
+  assert.equal(g.heroes[0].status, 'ESCAPED');
   assert.deepEqual(g.log.filter(e => e.kind === 'test').map(e => [e.stat, e.roll, e.pass]), [['STR', 7, false], ['STR', 6, true]]);
 });
 
@@ -56,8 +56,8 @@ test('T10 yellow corridor: no room card, movement continues the same turn, chain
   assert.equal(draws(g, 'ROOM').length, 0);
   const stopped = run(g, [stop(g)]);
   assert.equal(stopped.sun, 2);
-  const escaped = run(g, [move(g, 'S')]);
-  assert.equal(escaped.heroes[0].status, 'escaped', 'a ten-square chain into a tower in one turn');
+  const escaped = run(g, [move(g, 'S'), { type: 'TOWER_CHOICE', seat: 0, choice: 'ESCAPE' }]);
+  assert.equal(escaped.heroes[0].status, 'ESCAPED', 'a ten-square chain into a tower in one turn');
   assert.equal(escaped.log.filter(e => e.kind === 'turn').length, 1);
 });
 
@@ -107,7 +107,7 @@ test('T11b blocked rolled exit: wall beyond or an occupied room; the hero stays 
   ];
   for (const c of cases) {
     const content = withWalledTowers([0, 1]);
-    let g = setup({ players: 2, towers: [0, 1], content, script: [4, 1] });
+    let g = setup({ players: 2, towers: [0, 1], content, script: [4, 1], rules: { darkRoomPolicy: 'EVERY_ENTRY' } });
     place(g, '1,1', 'FX_DARK'); // exits N and S, dot S
     place(g, '1,2', 'FX_CROSS');
     if (c.occupant) {
@@ -115,7 +115,7 @@ test('T11b blocked rolled exit: wall beyond or an occupied room; the hero stays 
       putHero(g, 1, '1,0');
     } else place(g, '1,0', 'FX_DEADEND', 180); // opens N only: a wall toward the dark room
     putHero(g, 0, '1,2');
-    g = act(g, 'MOVE', { dir: 'N' }, content); // re-entry, darkRoomOnReentry on
+    g = act(g, 'MOVE', { dir: 'N' }, content); // re-entry, darkRoomPolicy EVERY_ENTRY
     g = act(g, 'FORCED_SKIP', {}, content);
     assert.equal(g.activeSeat, 0, c.cite);
     g = act(g, 'ROLL_DARK_EXIT', {}, content); // 4: the non-dot exit, N
@@ -125,9 +125,9 @@ test('T11b blocked rolled exit: wall beyond or an occupied room; the hero stays 
   }
 });
 
-test('T11c ordinary re-entry follows darkRoomOnReentry, both values (D06, provisional)', () => {
+test('T11c dark room on the initial reveal only by default; ordinary re-entry triggers it only under EVERY_ENTRY (D06, spec v2)', () => {
   for (const flag of [true, false]) {
-    let g = setup({ rules: { darkRoomOnReentry: flag } });
+    let g = setup({ rules: flag ? { darkRoomPolicy: 'EVERY_ENTRY' } : {} });
     place(g, '1,0', 'FX_CROSS');
     place(g, '1,1', 'FX_DARK'); // already revealed: not a discovery
     putHero(g, 0, '1,0');
@@ -138,8 +138,8 @@ test('T11c ordinary re-entry follows darkRoomOnReentry, both values (D06, provis
   }
 });
 
-test('T11 retreat into a dark room keeps the effect, even with darkRoomOnReentry off (D06, RB 8.6)', () => {
-  let g = setup({ rules: { darkRoomOnReentry: false }, tileOrder: [...slotsOf('FX_DARK').slice(0, 1), ...slotsOf('FX_CROSS').slice(0, 1)], script: [5], deckOrders: { ROOM: ['FX_ROOM_MONSTER'], MONSTER: ['FX_MON_SHY'] } });
+test('T11 retreat into a dark room keeps the effect under the default policy (D06, RB 8.6)', () => {
+  let g = setup({ tileOrder: [...slotsOf('FX_DARK').slice(0, 1), ...slotsOf('FX_CROSS').slice(0, 1)], script: [5], deckOrders: { ROOM: ['FX_ROOM_MONSTER'], MONSTER: ['FX_MON_SHY'] } });
   g = run(g, [move(g, 'S')]);
   g = act(g, 'ROLL_DARK_EXIT');
   assert.equal(g.phase, 'CHOOSE_MONSTER_RESPONSE');
@@ -160,10 +160,10 @@ function wellAt(script, prep = () => {}) {
 
 test('T12 well entry: AGI test, failure kills, success strands the hero at the near edge (RB 6.3, SP 5, SP 12 #12)', () => {
   const dead = wellAt([5]); // knight AGI 4
-  assert.equal(dead.heroes[0].status, 'dead');
+  assert.equal(dead.heroes[0].status, 'DEAD');
   assert.equal(dead.status, 'over');
   const ok = wellAt([4]);
-  assert.equal(ok.heroes[0].status, 'inside');
+  assert.equal(ok.heroes[0].status, 'EXPLORING');
   assert.equal(ok.sun, 2, 'the turn stops at the edge');
   assert.equal(ok.phase, 'TURN_START');
   assert.deepEqual(types(ok), ['WELL_RETURN', 'WELL_JUMP']);
@@ -191,7 +191,7 @@ test('T12, T12b well jump: D12 + treasure-chamber cards vs AGI; discards lower i
     const t = g.log.filter(e => e.kind === 'test').at(-1);
     assert.equal(t.modifier, c.treasury - c.discard, c.cite);
     assert.equal(t.pass, c.pass, c.cite);
-    assert.equal(g.heroes[0].status, c.pass ? 'inside' : 'dead', c.cite);
+    assert.equal(g.heroes[0].status, c.pass ? 'EXPLORING' : 'DEAD', c.cite);
     if (c.pass) { assert.equal(g.sun, 3, c.cite); assert.equal(g.phase, 'CHOOSE_ACTION', 'free next turn'); }
     assertCensus(assert, g);
   }

@@ -93,9 +93,9 @@ test('T09b heal is capped at starting HP (D04); T04b death at exactly 0 HP (RB 3
   assert.equal(low.heroes[0].hp, 13);
   const dead = enterRoom(['FX_ROOM_TEST'], { script: [12], prep: g => { g.heroes[0].hp = 2; } });
   assert.equal(dead.heroes[0].hp, 0);
-  assert.equal(dead.heroes[0].status, 'dead', 'T04b: 0 HP is death');
+  assert.equal(dead.heroes[0].status, 'DEAD', 'T04b: 0 HP is death');
   const alive = enterRoom(['FX_ROOM_TEST'], { script: [12], prep: g => { g.heroes[0].hp = 3; } });
-  assert.equal(alive.heroes[0].status, 'inside');
+  assert.equal(alive.heroes[0].status, 'EXPLORING');
 });
 
 test('REQUEST_CHOICE waits for the player; RETAIN_CARD and RETURN_CARD_TO_BOTTOM (plan 4.6)', () => {
@@ -127,7 +127,7 @@ test('SET_CONDITION runs at the start of the hero\'s next turns; CLEAR_CONDITION
   g = act(g, 'SEARCH');
   assert.equal(g.heroes[0].hp, 15, 'expired');
   const killed = enterRoom(['FX_ROOM_CURSE'], { prep: h => { h.heroes[0].hp = 1; } });
-  assert.equal(killed.heroes[0].status, 'dead', 'a turn-start effect can kill');
+  assert.equal(killed.heroes[0].status, 'DEAD', 'a turn-start effect can kill');
   assert.equal(killed.status, 'over', 'and the dead hero gets no action');
   let b = enterRoom(['FX_ROOM_CURSE', 'FX_ROOM_BLESSING']);
   b = act(b, 'MOVE', { dir: 'S' }); // the blessing card clears it
@@ -167,7 +167,7 @@ test('card data validation: effect ops, expressions, decks, reactions, combat se
 });
 
 test('T30 no PvP, trading, revival or shared-turn actions exist (SP 9, SP 12 #30)', () => {
-  const allowed = new Set(['MOVE', 'STOP', 'SEARCH', 'COLLECT', 'FORCED_SKIP', 'ROLL_DARK_EXIT', 'WELL_RETURN', 'WELL_DISCARD', 'WELL_JUMP', 'RUBBLE_RETURN', 'RUBBLE_FORCE', 'CHOOSE', 'RESPOND', 'ANNOUNCE', 'COMBAT_PICK', 'TARGET_RESULT', 'FORCED_MOVE']);
+  const allowed = new Set(['MOVE', 'STOP', 'SEARCH', 'COLLECT', 'FORCED_SKIP', 'ROLL_DARK_EXIT', 'WELL_RETURN', 'WELL_DISCARD', 'WELL_JUMP', 'RUBBLE_RETURN', 'RUBBLE_FORCE', 'CHOOSE', 'RESPOND', 'ANNOUNCE', 'COMBAT_PICK', 'TARGET_RESULT', 'FORCED_MOVE', 'TOWER_CHOICE']);
   const seen = new Set();
   for (const seed of [3, 11, 19, 27]) {
     let g = createGame({ players: ['A', 'B', 'C', 'D'], seed, content: FX });

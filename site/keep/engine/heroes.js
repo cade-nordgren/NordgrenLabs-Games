@@ -6,6 +6,11 @@ import { contentIndex } from '../content/schema.js';
 
 export const TILE_CONDITIONS = ['dark', 'well-edge', 'rubble'];
 
+// Spec v2 hero statuses. A hero at setup is never escaped; escape is an explicit choice on tower entry.
+export const READY = 'READY_IN_START_TOWER', EXPLORING = 'EXPLORING', IN_TOWER = 'IN_TOWER_NOT_ESCAPED', ESCAPED = 'ESCAPED', DEAD = 'DEAD';
+// Active heroes take turns (RB 5): everyone not escaped and not dead, towers included.
+export const isActive = h => !!h && (h.status === READY || h.status === EXPLORING || h.status === IN_TOWER);
+
 export const statOf = (content, hero, stat) => contentIndex(content).heroes.get(hero.heroId).stats[stat];
 
 // RB 1, SP 10: gold is the sum of the gold values printed on held loot and treasure-chamber cards.
@@ -13,12 +18,12 @@ export function heroGold(hero, content) {
   return [...hero.held, ...hero.treasury].reduce((sum, inst) => sum + (cardDef(content, inst).gold || 0), 0);
 }
 
-// D03 (house rule): a negative damage result is 0 and never heals. RB 3, SP 7: 0 HP is death.
+// D03 (legacySupported, spec v2): a negative damage result is 0 and never heals. RB 3, SP 7: 0 HP is death.
 export function damageHero(g, content, seat, amount, reason) {
   const hero = g.heroes[seat];
   const dmg = Math.max(0, amount);
   hero.hp -= dmg;
-  logEvent(g, { kind: 'damage', seat, raw: amount, amount: dmg, hp: hero.hp, reason });
+  logEvent(g, { kind: 'damage', seat, raw: amount, amount: dmg, hp: hero.hp, reason, arithmetic: `max(0, ${amount}) = ${dmg}; HP ${hero.hp + dmg} - ${dmg} = ${hero.hp}` });
   if (hero.hp <= 0) killHero(g, content, seat, reason);
   return dmg;
 }
@@ -44,7 +49,7 @@ export function returnTreasury(g, seat, insts = g.heroes[seat].treasury) {
 // their own decks. Hero, combat and ring cards are never in held, so they never become loot.
 export function killHero(g, content, seat, reason) {
   const hero = g.heroes[seat];
-  hero.status = 'dead';
+  hero.status = DEAD;
   hero.hp = Math.min(hero.hp, 0);
   logEvent(g, { kind: 'death', seat, reason });
   for (const inst of hero.held) toBottom(g, cardDef(content, inst).deck, inst);

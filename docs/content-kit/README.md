@@ -174,7 +174,11 @@ Rulings named here (D01 to D31) are in the plan's decision register, section 9. 
 | `width`, `height` | 10 and 11, or 11 and 10 | Squares across and down: the board is always 110 squares. Columns count from 0 in the west, rows from 0 in the north. |
 | `towers` | four `{ x, y, sides }` | The four corner towers, one on each corner. `sides` gives `N`, `E`, `S`, `W`, each `'wall'`, `'open'`, `'door'` or `'gate'`. |
 | `center` | two `{ x, y }` | The two squares of the treasure chamber, side by side, in the exact middle of the board. |
+| `chamberSides` | `{ a: { N, E, S, W }, b: { N, E, S, W } }` | Optional. The chamber's outer sides as printed on the board, for the first and second `center` square. When given, it wins over `chamber.js`. |
 | `walls` | list of `'x,y\|SIDE'` | Printed walls between squares, for example `'3,2\|E'` is a wall on the east side of column 3, row 2. Optional. |
+| `edges` | `{ 'x,y\|SIDE': 'wall' \| 'door' \| 'gate' }` | Other fixed edges printed on the board, for example a door between two squares. Optional. |
+
+The board is the authority for movement geometry: the engine reads tower openings, the chamber's outer sides, printed walls and fixed edges only from here, and every square outside `width` x `height` is off the board. Correcting the map from the real board is a data edit, never a code change. An edge is blocked if either side, a printed wall or a fixed edge says `'wall'`.
 
 Rules the checker applies (owner specification v2): 110 squares, 10 x 11 or 11 x 10; towers on the four corners (RB 4); the chamber is exactly two side-by-side squares in the exact middle, so on a 10-wide, 11-deep board it is `{ x: 4, y: 5 }` and `{ x: 5, y: 5 }`, and on an 11-wide, 10-deep board `{ x: 5, y: 4 }` and `{ x: 5, y: 5 }`. That leaves 104 ordinary squares for 88 tiles: squares left without a tile are impassable once the bag runs out (D27). There are no room cards in towers or the chamber, and tower sides come from this entry (D31). Towers are shared rooms: any hero may enter any tower, and entering one from the castle offers a choice to escape, stay, or continue through another passage (spec v2, replacing D23).
 
@@ -192,6 +196,7 @@ export default {
   ],
   center: [{ x: 4, y: 5 }, { x: 5, y: 5 }],
   walls: ['2,3|E'],
+  edges: { '6,7|S': 'door' },
 };
 ```
 

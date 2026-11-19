@@ -27,7 +27,10 @@ export default {
       { x: 9, y: 10, sides: { N: o, E: w, S: w, W: o } },
     ],
     center: [{ x: 4, y: 5 }, { x: 5, y: 5 }],
-    walls: [],
+    // Plausible NON-AUTHENTIC geometry: the chamber's outer sides, one printed wall, one fixed door.
+    chamberSides: { a: { N: o, E: o, S: o, W: w }, b: { N: w, E: o, S: o, W: o } },
+    walls: ['7,2|S'],
+    edges: { '7,8|E': d },
   },
   chamber: { ...F, id: 'FX_CHAMBER', sides: { a: { N: o, E: o, S: o, W: w }, b: { N: w, E: o, S: o, W: o } } },
   // Reference orientation: entry dot on S. Copies total 104, one per maze square, so a whole board

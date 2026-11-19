@@ -32,6 +32,10 @@ export function legalActions(game, content) {
       // RB 7.1, SP 6: search only in a black or red room.
       if (kind === 'maze' && ['black', 'red'].includes(contentIndex(content).tiles.get(game.board.tiles[key(hero.coord)].defId).mark)) out.push({ type: 'SEARCH', seat });
       if (kind === 'center') out.push({ type: 'COLLECT', seat }); // RB 9.1: stay and collect
+      // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
+      if (hero.status === 'READY_IN_START_TOWER' && game.rules.escapeWithoutExploring) out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
+      // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
+      if (hero.status === 'READY_IN_START_TOWER' && game.rules.escapeWithoutExploring) out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
       // D20: no voluntary pass; a forced skip exists only when no legal action does.
       return out.length ? out : [{ type: 'FORCED_SKIP', seat }];
     }
@@ -45,6 +49,16 @@ export function legalActions(game, content) {
       return [...(back ? [{ type: 'RUBBLE_RETURN', seat }] : []), { type: 'RUBBLE_FORCE', seat }];
     }
     case 'RESOLVE_CARD': return p.options.map((_, option) => ({ type: 'CHOOSE', seat: p.seat, option }));
+    case 'TOWER_CHOICE': {
+      // Continue only through another legal tower passage (not back the way in).
+      const onward = p.transit && exits(game, content, seat).some(e => e.legal && e.dir !== hero.enteredFrom);
+      return ['ESCAPE', 'STAY', ...(onward ? ['CONTINUE'] : [])].map(choice => ({ type: 'TOWER_CHOICE', seat, choice }));
+    }
+    case 'TOWER_CHOICE': {
+      // Continue only through another legal tower passage (not back the way in).
+      const onward = p.transit && exits(game, content, seat).some(e => e.legal && e.dir !== hero.enteredFrom);
+      return ['ESCAPE', 'STAY', ...(onward ? ['CONTINUE'] : [])].map(choice => ({ type: 'TOWER_CHOICE', seat, choice }));
+    }
     case 'CHOOSE_MONSTER_RESPONSE': return responseOptions(game, content).map(choice => ({ type: 'RESPOND', seat, choice }));
     case 'MONSTER_REACT': return [{ type: 'ANNOUNCE', seat: p.seat }];
     case 'COMBAT_SELECT': return combatActions(game);

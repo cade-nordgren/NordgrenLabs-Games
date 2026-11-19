@@ -7,7 +7,7 @@ import { startTurn, endTurn } from './clock.js';
 import { initDecks, toBottom } from './decks.js';
 import { run, drawAndResolve } from './effects.js';
 import { attemptMove, rollDarkExit, enterTile } from './movement.js';
-import { killHero, clearCondition, statOf } from './heroes.js';
+import { killHero, clearCondition, statOf, READY, ESCAPED } from './heroes.js';
 import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
 import { collect, forcedMove, checkDragonReset } from './treasury.js';
@@ -18,13 +18,32 @@ export const SCHEMA_VERSION = 1;
 export const MECHANICS_VERSION = 'rb-0.2/sp-1.0';
 export const MAX_PLAYERS = 4;
 
-// Rules config: provisional rulings that may flip after verification (plan section 9).
+// Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
 export const DEFAULT_RULES = {
-  darkRoomOnReentry: true, // D06 (interpretation, provisional): ordinary re-entry into a dark room triggers it
+  // D06: the dark effect on the initial reveal and on a flee back in, not on ordinary re-entry; or 'EVERY_ENTRY'.
+  darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY',
   forcedMoveTileEffects: true, // plan 13 #3 default: tile effects at the post-wake forced-move target apply as for flight (D16)
   soloCombat: 'target', // D17: 'target' (original, manual result entry) or 'abc-digital-variant' (class 4, labelled)
+  towerAtSunsetCountsAsEscape: false, // D32: a hero in a tower at sunset who never chose Escape is not escaped
+  escapeWithoutExploring: false, // D33: a hero still in its start tower is never offered Escape
 };
-const RULE_VALUES = { darkRoomOnReentry: [true, false], forcedMoveTileEffects: [true, false], soloCombat: ['target', 'abc-digital-variant'] };
+const RULE_VALUES = {
+  darkRoomPolicy: ['ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', 'EVERY_ENTRY'],
+  forcedMoveTileEffects: [true, false],
+  soloCombat: ['target', 'abc-digital-variant'],
+  towerAtSunsetCountsAsEscape: [true, false],
+  escapeWithoutExploring: [true, false],
+};
+// Spec v2 authority levels: A explicit2023, B componentData, C legacySupported, D interpretation,
+// E houseRule, F developer assumption (forbidden), plus app-only for class 4 behaviour.
+export const AUTHORITY_TAGS = ['explicit2023', 'componentData', 'legacySupported', 'interpretation', 'houseRule', 'app-only'];
+export const RULE_TAGS = {
+  darkRoomPolicy: ['interpretation'],
+  forcedMoveTileEffects: ['interpretation'],
+  soloCombat: ['explicit2023', 'app-only'], // target mode explicit; the A/B/C computer variant app-only
+  towerAtSunsetCountsAsEscape: ['interpretation'],
+  escapeWithoutExploring: ['interpretation'],
+};
 
 // D21 (application-only): an action that rolled, drew, shuffled or revealed is a commit point;
 // a later undo (M3) may only step back over actions after the last commit.
@@ -115,7 +134,7 @@ const apply = {
   PICK_HERO(g, { seat, heroId }, content) {
     const def = contentIndex(content).heroes.get(heroId);
     g.seats[seat].heroId = heroId;
-    g.heroes[seat] = { heroId, seat, status: 'inside', coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0 };
+    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0 };
     logEvent(g, { kind: 'pick-hero', seat, heroId });
     if (++g.setup.index === n(g)) nextPick(g, 'rings', [...g.setup.order].reverse());
   },
@@ -167,13 +186,13 @@ const apply = {
     toBottom(g, 'TREASURY', card, seat);
     logEvent(g, { kind: 'well-discard', seat });
   },
-  // RB 6.3, SP 5: AGI test on D12 + held treasure-chamber cards. D08: a failed jump is death.
+  // RB 6.3, SP 5: AGI test on D12 + held treasure-chamber cards. D08 (interpretation): a failed jump is death.
   WELL_JUMP(g, { seat }, content) {
     const hero = g.heroes[seat];
     g.pending = null;
     const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', hero.treasury.length);
     if (!pass) killHero(g, content, seat, 'failed the well jump');
-    else clearCondition(g, seat, 'well-edge'); // plan 13 #10: across the well, the turn ends
+    else { clearCondition(g, seat, 'well-edge'); hero.roomState = { ...hero.roomState, phase: 'CROSSED' }; } // plan 13 #10: across, the turn ends
     g.turn.endAfter = true;
     run(g, content);
   },
@@ -191,6 +210,20 @@ const apply = {
     g.pending = null;
     if (p.kind === 'choice') g.stack.push({ effects: p.effects[option], i: 0 });
     else enterTile(g, content, p.seat, neighbour(g.heroes[p.seat].coord, p.options[option]), { ...p.opts, dir: p.options[option] });
+    run(g, content);
+  },
+  // Spec v2, owner tower ruling: only ESCAPE sets ESCAPED (final, the hero leaves the turn order); STAY ends
+  // the turn in the tower; CONTINUE goes on through another legal tower passage this turn (transit).
+  TOWER_CHOICE(g, { seat, choice }, content) {
+    const hero = g.heroes[seat];
+    g.pending = null;
+    logEvent(g, { kind: 'tower-choice', seat, choice, at: `${hero.coord.x},${hero.coord.y}` });
+    if (choice === 'ESCAPE') {
+      hero.status = ESCAPED;
+      logEvent(g, { kind: 'escape', seat, at: `${hero.coord.x},${hero.coord.y}` });
+      g.turn.endNow = true;
+    } else if (choice === 'STAY') g.turn.endAfter = true;
+    else { g.turn.mayContinue = true; g.turn.transitFrom = hero.enteredFrom; }
     run(g, content);
   },
   RESPOND(g, { choice }, content) { respond(g, content, choice); },

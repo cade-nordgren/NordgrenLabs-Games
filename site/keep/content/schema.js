@@ -202,6 +202,15 @@ function boardErrors(b) {
   const c = b.center;
   if (!Array.isArray(c) || c.length !== 2 || Math.abs(c[0].x - c[1].x) + Math.abs(c[0].y - c[1].y) !== 1) err.push('center must be two orthogonally adjacent squares');
   else if ((c[0].x + c[1].x) / 2 !== (b.width - 1) / 2 || (c[0].y + c[1].y) / 2 !== (b.height - 1) / 2) err.push('center must sit in the middle of the board');
+  // Movement geometry (owner ruling): printed walls, fixed edges and the chamber's outer sides.
+  const edgeRef = /^(\d+),(\d+)\|[NESW]$/;
+  const onBoard = k => { const m = edgeRef.exec(k); return m && +m[1] < b.width && +m[2] < b.height; };
+  if (b.walls !== undefined && (!Array.isArray(b.walls) || b.walls.some(k => !onBoard(k)))) err.push("walls must be a list of 'x,y|SIDE' on the board");
+  if (b.edges !== undefined) {
+    if (!b.edges || typeof b.edges !== 'object' || Array.isArray(b.edges)) err.push("edges must be { 'x,y|SIDE': 'wall' | 'door' | 'gate' }");
+    else for (const [k, v] of Object.entries(b.edges)) if (!onBoard(k) || !['wall', 'door', 'gate'].includes(v)) err.push(`edge ${k}: must be 'x,y|SIDE' on the board, set to 'wall', 'door' or 'gate'`);
+  }
+  if (b.chamberSides !== undefined && !(sidesValid(b.chamberSides?.a) && sidesValid(b.chamberSides?.b))) err.push('chamberSides a and b must give N/E/S/W');
   return err;
 }
 

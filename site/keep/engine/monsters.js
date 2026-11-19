@@ -30,7 +30,7 @@ export function startEncounter(g, content, { ambush }) {
   if (ambush) {
     const d12 = roll(g, 'D12', 'ambush');
     damageHero(g, content, seat, d12 - statOf(content, hero, 'LCK'), 'ambush (D12 - Luck)');
-    if (hero.status !== 'inside') return;
+    if (hero.status === 'DEAD') return;
   }
   g.encounter = { seat, ambush, controller: controllerSeat(g, seat), choice: null, monster: null, reaction: null, announced: false, combat: null };
   g.phase = 'CHOOSE_MONSTER_RESPONSE';

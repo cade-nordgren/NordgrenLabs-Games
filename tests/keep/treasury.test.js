@@ -128,7 +128,7 @@ test('T26b no legal adjacent tile: the hero stays put; a D12 can kill (D19 stay-
   let k = nearChamber({ dragon: ['FX_DRAGON_AWAKE'], script: [12] });
   k.heroes[0].hp = 5;
   k = act(k, 'MOVE', { dir: 'S' });
-  assert.equal(k.heroes[0].status, 'dead', 'dragon fire 12 kills a 5-HP hero');
+  assert.equal(k.heroes[0].status, 'DEAD', 'dragon fire 12 kills a 5-HP hero');
   assert.ok(!k.log.some(e => e.kind === 'forced-move-none'), 'no forced move for the dead');
   assert.equal(k.status, 'over');
 });
