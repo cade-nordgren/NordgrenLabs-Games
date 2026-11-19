@@ -11,7 +11,7 @@ import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
 import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
 import { mountBoard, resetView, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, cardText, monsterText, expr, undoLabel, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, towerName } from './words.js';
+import { lines, entries, cardText, monsterText, expr, undoLabel, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, DECK, towerName } from './words.js';
 import { rollDice } from './dice.js';
 
 const $ = id => document.getElementById(id);
@@ -108,7 +108,7 @@ function act(a) {
   const ex = added.find(e => e.kind === 'exchange');
   S.reveal = multi && ex ? { seat: prev.encounter.seat, hero: ex.hero, monster: ex.monster, heroDmg: ex.heroDmg, monsterDmg: ex.monsterDmg } : null;
   const priv = added.find(e => (e.kind === 'draw' || e.kind === 'retain') && e.private !== undefined && e.deck !== 'MONSTER');
-  S.peek = multi && priv ? { seat: priv.private, from: prev.log.length } : null;
+  S.peek = multi && Number.isInteger(priv?.private) ? { seat: priv.private, from: prev.log.length } : null;
   target = { placement: null, face: null };
   S.game = next;
   render();
@@ -128,7 +128,7 @@ function testInfo(v, a) {
   const [t, ...then] = tests; // a portcullis into a well room: the well test follows a pass
   return {
     title: ROLL_TITLE[t.reason] || `${STAT[t.stat]} test`, die: t.die, stat: t.stat, value: t.target, need: t.passingRolls, cancel: true,
-    why: [ROLL_WHY[t.reason], ...then.map(x => `Then ${x.reason === 'well entry' ? 'an Agility test on entering the well room' : `a ${STAT[x.stat]} test`}.`)].filter(Boolean).join(' '),
+    why: [ROLL_WHY[t.reason], t.reason === 'well jump' && legalActions(S.game, content()).some(x => x.type === 'WELL_DISCARD') ? 'Each treasure chamber card you carry adds 1 to the roll. Go back to drop cards first.' : '', ...then.map(x => `Then ${x.reason === 'well entry' ? 'an Agility test on entering the well room' : `a ${STAT[x.stat]} test`}.`)].filter(Boolean).join(' '),
     mods: t.modifiers.map(m => ({ label: capital(m.source), n: m.value })),
   };
 }
@@ -179,10 +179,10 @@ function showRolls(added) {
   for (const e of shown) {
     const box = el('div');
     if (e.kind === 'test') {
-      const mod = e.modifier || 0;
+      const mod = e.modifier || 0, it = said.find(x => x.e === e);
       box.append(el('p', `verdict ${e.pass ? 'pass' : 'fail'}`, e.pass ? 'Pass' : 'Fail'),
-        el('p', 'sum', `D12 ${e.roll}${mod ? ` + ${mod} = ${e.roll + mod}` : ''}, ${e.pass ? 'at or under' : 'over'} ${STAT[e.stat]} ${e.target}`));
-      const line = said.find(x => x.e === e)?.text;
+        el('p', 'sum', it?.detail || `D12 ${e.roll}${mod ? ` + ${mod} = ${e.roll + mod}` : ''}, ${e.pass ? 'at or under' : 'over'} ${STAT[e.stat]} ${e.target}`));
+      const line = it?.text;
       if (line) box.append(el('p', '', line));
       summary.push(`${e.pass ? 'Pass' : 'Fail'}. ${line || ''}`);
     } else {
@@ -677,8 +677,6 @@ function sunClock(sun) {
   return s;
 }
 
-function heldNames(h) { return h.held.map(inst => cardDef(content(), inst).name); }
-
 // A move as a title and a reason line, read from the engine's exits (BoardDefinition geometry) and the tile data.
 const MARK_EFFECT = { black: 'draws a room card', red: 'draws a room card, a portcullis drops behind you', yellow: 'you may keep moving', blue: '', none: '' };
 const SPECIAL_EFFECT = { well: 'Agility test on entry, a fall is death', rubble: 'ends your turn', rotating: 'turns a quarter on entry', none: '' };
@@ -714,14 +712,20 @@ function logLine({ text, detail }) {
   return li;
 }
 
+// D37 (spec v3): the monster's card, HP and damage taken appear only in the monster player's own view
+// (the engine strips them from everyone else's, the hero's and the table's included).
 function combatBox(v, enc) {
   const box = el('div', 'cardface');
   const m = enc.monster;
-  const wounds = el('span', 'pips');
-  for (let i = 0; i < (m?.wounds || 0); i++) wounds.append(el('i'));
-  const line = el('p');
-  line.append(`Monster wounds: ${m?.wounds || 0}${m?.hp ? ` of ${m.hp} HP` : ''} `, wounds);
-  box.append(el('strong', '', m?.inst ? cardDef(content(), m.inst).name : 'The monster'), line);
+  if (enc.combat?.label) box.append(el('p', 'mode', enc.combat.label));
+  box.append(el('strong', '', m?.inst ? cardDef(content(), m.inst).name : 'The monster'));
+  if (Number.isInteger(m?.hp)) {
+    const wounds = el('span', 'pips');
+    for (let i = 0; i < m.wounds; i++) wounds.append(el('i'));
+    const line = el('p');
+    line.append(`Only you see this: ${m.wounds} damage taken of ${m.hp} HP `, wounds);
+    box.append(line);
+  }
   const hero = v.heroes[enc.seat];
   box.append(el('p', '', `${nameOf(enc.seat)}: ${Math.max(0, hero.hp)} of ${hero.hpStart} HP`));
   const ex = enc.combat?.exchanges || [];
@@ -801,6 +805,7 @@ function renderPrompt(v, la, targets) {
         targets.push({ ...neighbour(hero.coord, a.dir), label: `${m.title}, ${m.reason}`, pick: () => tryAct(a) });
       }
       for (const a of by('TOWER_CHOICE')) ch.append(choice('Escape the castle', "End this hero's run with their treasure. Final: no way back in.", () => act(a), 'primary'));
+      for (const a of by('USE_ITEM')) ch.append(choice(`Use ${cardDef(c, a.item).name}`, 'Its card allows it now', () => tryAct(a)));
       for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
       for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two treasure chamber cards, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
       for (const a of by('STOP')) ch.append(inTower ? choice('Stop in the tower', 'End your turn here, not escaped', () => act(a)) : choice('Stop here', 'End your turn', () => act(a)));
@@ -852,21 +857,28 @@ function renderPrompt(v, la, targets) {
     }
     case 'CHOOSE_MONSTER_RESPONSE': {
       p = panel(g.encounter.ambush ? 'Ambush' : 'Something stirs', `${name}, choose before the monster shows itself.${g.encounter.ambush ? ' In an ambush you may only attack or flee.' : ''}`);
+      // One button per legal action: the hero's own special weapon and each held weapon card are separate answers.
       const weapon = (c.specialWeapons || []).find(w => w.id === heroDef(hero).specialWeaponId);
-      for (const a of by('RESPOND')) ch.append(choice(a.choice === 'special' && weapon ? `${CHOICE.special}: ${weapon.name}` : CHOICE[a.choice], a.choice === 'flee' ? 'Back to the square you came from' : null, () => act(a), a.choice === 'attack' ? 'primary' : ''));
+      const SUB = { flee: 'Back to the square you came from', special: "Resolved with the monster's Attack reaction" };
+      for (const a of by('RESPOND')) {
+        const label = a.choice !== 'special' ? CHOICE[a.choice] : `Use ${a.item ? cardDef(c, a.item).name : weapon?.name || 'your special weapon'}`;
+        ch.append(choice(label, SUB[a.choice] || null, () => act(a), a.choice === 'attack' ? 'primary' : ''));
+      }
       break;
     }
     case 'MONSTER_REACT': {
+      // Multiplayer only: in solo the computer is the monster player and the engine announces at once (D37).
       const def = cardDef(c, enc.monster.inst);
-      p = panel(solo() ? 'The monster' : `${nameOf(enc.controller)}, you play the monster`, solo() ? null : 'Read the card, then announce its answer to the table.');
+      p = panel(`${nameOf(enc.controller)}, you play the monster`, 'Read the card, then announce its answer to the table.');
       const f = el('div', 'cardface');
       f.append(el('strong', '', def.name), el('p', '', `HP ${def.hp}. ${monsterText(def)}`));
       p.append(f);
       const r = enc.reaction;
       const ans = el('div', 'cardface');
-      ans.append(el('p', '', `${nameOf(enc.seat)} chose ${CHOICE[enc.choice]}.`), el('strong', '', `Its answer: ${REACTION[r.type]}${r.damage ? `, ${expr(r.damage)} damage` : ''}.`));
+      const chose = enc.choice === 'special' ? `a special weapon${enc.item ? `, ${cardDef(c, enc.item).name}` : ''} (its Attack reaction)` : CHOICE[enc.choice];
+      ans.append(el('p', '', `${nameOf(enc.seat)} chose ${chose}.`), el('strong', '', `Its answer: ${REACTION[r.type]}${r.damage ? `, ${expr(r.damage)} damage` : ''}.`));
       p.append(ans);
-      for (const a of by('ANNOUNCE')) ch.append(choice(solo() ? 'Continue' : 'Announce to the table', null, () => act(a), 'primary'));
+      for (const a of by('ANNOUNCE')) ch.append(choice('Announce to the table', null, () => act(a), 'primary'));
       break;
     }
     case 'COMBAT_SELECT': {
@@ -922,6 +934,8 @@ function renderPrompt(v, la, targets) {
       p = panel('Waiting', `Phase ${g.phase}.`);
   }
   if (enc && g.phase !== 'COMBAT_SELECT' && g.phase !== 'MONSTER_REACT' && enc.monster) p.append(combatBox(v, enc));
+  // Thumb reach: the active hero's inventory, one tap from the prompt (not while the monster player is looking).
+  if (viewer === null || viewer === g.activeSeat) ch.append(itemsButton(v, g.activeSeat, 'choice'));
   if (targets.length) {
     p.append(el('p', 'movehint', 'Tap a highlighted square to move. Press and hold any square to see what is there.'));
     // The reason line of the focused lit square (the cell's own label already says it, so hidden from readers).
@@ -1134,9 +1148,7 @@ function heroesPanel(v) {
     if (room) body.append(el('div', 'meta room', room));
     const end = h.endResult === 'INSIDE_AT_SUNSET' ? ', inside at sunset' : '';
     body.append(el('div', 'meta', `${whereWords(v, h)} · ${STATUS_WORD[h.status]}${end}`));
-    const held = heldNames(h);
-    if (held.length) body.append(el('div', 'meta', `Holds: ${held.join(', ')}`));
-    if (Array.isArray(h.treasury) && h.treasury.length && n === 1) body.append(el('div', 'meta', `Chamber cards: ${h.treasury.map(i => cardDef(c, i).name).join(', ')}`));
+    body.append(itemsButton(v, seat, 'btn'));
     if (n > 1 && chamberCount > 0 && isActive(h)) {
       const b = el('button', 'btn', 'Show my cards');
       b.setAttribute('aria-label', `Show ${g.seats[seat].name}'s treasure chamber cards`);
@@ -1148,6 +1160,55 @@ function heroesPanel(v) {
   }
   p.append(ul);
   return p;
+}
+
+// ---- Inventory (spec v3 section 4): what a hero carries in five groups, what is usable now and why not.
+// Read from the current viewer's view: another seat's chamber cards are a count, never their names.
+const allItems = inv => [...inv.equipment, ...(inv.ring ? [inv.ring] : []), ...inv.items, ...inv.treasure, ...(Array.isArray(inv.chamber) ? inv.chamber : [])];
+const useActions = item => (item.actions || []).filter(a => a.type !== 'WELL_DISCARD');
+function itemsButton(v, seat, cls) {
+  const inv = v.heroes[seat].inventory, usable = allItems(inv).filter(x => x.usable).length;
+  const name = () => S.game.seats[seat].name;
+  const sub = usable ? `${usable} usable now` : 'Nothing usable now';
+  let b;
+  if (cls === 'choice') b = choice('Items', `${name()}'s inventory: ${sub.toLowerCase()}`, () => openItems(seat));
+  else { b = el('button', 'btn', usable ? `Items, ${usable} usable` : 'Items'); b.onclick = () => openItems(seat); }
+  b.setAttribute('aria-label', `Show ${name()}'s items, ${sub.toLowerCase()}`);
+  return b;
+}
+const SOURCE = { hero: 'Hero equipment', specialWeapons: 'Special weapon card' };
+const ITEM_GROUPS = [['equipment', 'Starting equipment'], ['ring', 'Magic ring'], ['items', 'Weapons and useful items'], ['treasure', 'Treasure'], ['chamber', 'Treasure chamber cards']];
+function openItems(seat) {
+  const g = S.game, v = view(g, content(), viewer), inv = v.heroes[seat].inventory;
+  $('itemsTitle').textContent = `${nameOf(seat)}'s items`;
+  const out = [];
+  for (const [k, title] of ITEM_GROUPS) {
+    out.push(el('h3', '', title));
+    const list = k === 'ring' ? (inv.ring ? [inv.ring] : []) : inv[k];
+    if (typeof list === 'number') { out.push(el('p', 'meta', list ? `${list} ${list === 1 ? 'card' : 'cards'}, kept secret by ${nameOf(seat)}` : 'None')); continue; }
+    if (!list.length) { out.push(el('p', 'meta', 'None')); continue; }
+    const ul = el('ul', 'inv');
+    for (const item of list) {
+      const li = el('li');
+      li.append(el('strong', '', item.name || item.id || 'Unnamed'));
+      const facts = [item.deck ? DECK[item.deck] : SOURCE[item.source] || (k === 'ring' ? 'Ring' : '')];
+      if (item.gold) facts.push(`${item.gold} gold`);
+      if (Number.isInteger(item.usesLeft)) facts.push(`${item.usesLeft} ${item.usesLeft === 1 ? 'use' : 'uses'} left`);
+      li.append(el('span', 'meta', facts.filter(Boolean).join(' · ')));
+      if (item.pending) li.append(el('span', 'pending', 'Effect pending'));
+      const acts = item.usable ? useActions(item) : [];
+      for (const a of acts) {
+        const b = el('button', 'btn primary', `Use ${item.name}`);
+        b.onclick = () => { $('items').close(); tryAct(a); };
+        li.append(b);
+      }
+      if (!acts.length) li.append(el('span', 'meta', `Not usable now: ${item.reason || 'its card does not allow it'}`));
+      ul.append(li);
+    }
+    out.push(ul);
+  }
+  $('itemsBody').replaceChildren(...out);
+  if (!$('items').open) $('items').showModal();
 }
 
 // A single tap on an unlit square: one line, why the active hero cannot go there or else what the square is.
@@ -1259,6 +1320,7 @@ $('roll').onclick = e => { if (e.target === $('roll') && rollOpenToClose()) $('r
 $('roll').addEventListener('cancel', e => { if (!rollOpenToClose()) e.preventDefault(); });
 $('roll').addEventListener('close', () => { $('roll').dataset.mode = ''; refocus(rollFromCell); });
 $('inspectDone').onclick = () => $('inspect').close();
+$('itemsDone').onclick = () => $('items').close();
 for (const id of ['appLabel', 'appLabelSettings']) $(id).textContent = APP_LABEL;
 // The synthetic list starts folded on every screen; the toggle opens and closes it (the banner itself stays).
 $('bannerToggle').onclick = () => {

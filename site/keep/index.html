@@ -258,6 +258,12 @@ details li + li { margin-top: 6px; }
 #rules span { display: block; color: var(--ink2); font-size: 14px; }
 .sides { margin: 0; padding-left: 20px; font-size: 15px; }
 dialog.sheet p.why { color: var(--ink); font-weight: 600; }
+#items h3 { margin: 16px 0 4px; font-size: 16px; }
+#items .meta { display: block; margin: 0; font-size: 14px; color: var(--ink2); }
+.inv { list-style: none; margin: 0; padding: 0; }
+.inv li { padding: 8px 0; border-top: 1px solid var(--hair); display: grid; gap: 2px; }
+.inv .btn.primary { margin-top: 6px; }
+.cardface p.mode { margin: 0 0 4px; font-size: 14px; }
 
 @media (max-width: 480px) { .board-panel { padding: 8px; } }
 @media (min-width: 820px) {
@@ -446,6 +452,14 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
     <h2 id="inspectTitle"></h2>
     <div id="inspectBody"></div>
     <button class="btn" id="inspectDone">Close</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="items" aria-labelledby="itemsTitle">
+  <div>
+    <h2 id="itemsTitle"></h2>
+    <div id="itemsBody"></div>
+    <button class="btn" id="itemsDone">Close</button>
   </div>
 </dialog>
 
