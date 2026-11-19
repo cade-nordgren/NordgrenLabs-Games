@@ -148,7 +148,7 @@ test('mixed: the shipped content as it is loads in play-test mode; complete owne
   const fxHeroes = s.mixed.heroes.some(h => h.status === 'FIXTURE');
   const bare = list => list.map(({ combatSetId, specialWeaponId, ...h }) => h);
   for (const c of s.report.categories) {
-    const synthetic = s.synthetic.includes(`${c.label}: synthetic`);
+    const synthetic = s.synthetic.some(x => x.startsWith(`${c.label}: `)); // synthetic, or partly synthetic (spec v5)
     // The fixture crossbow belongs to a fixture hero, so it is dropped when the owner's heroes play alone.
     if (c.defined < c.required) { assert.ok(synthetic || (c.key === 'specialWeapons' && !fxHeroes), `${c.label} is incomplete: fill-in is layered in`); continue; }
     if (c.key === 'combat') { assert.deepEqual(s.mixed.combat.slice(0, ORIGINAL.combat.length), ORIGINAL.combat); continue; } // fixture heroes may bring their sets

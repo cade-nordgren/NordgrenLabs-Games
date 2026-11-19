@@ -20,4 +20,28 @@
 // SKELETON END
 
 export default [
+  { id: 'COMBAT_S01_A', copies: 1, status: 'draft', name: 'Sir Edric Vale, card A', setId: 'S01', owner: 'hero', letter: 'A', doubleAgainst: ['B'], art: null },
+  { id: 'COMBAT_S01_B', copies: 1, status: 'draft', name: 'Sir Edric Vale, card B', setId: 'S01', owner: 'hero', letter: 'B', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S01_C', copies: 1, status: 'draft', name: 'Sir Edric Vale, card C', setId: 'S01', owner: 'hero', letter: 'C', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S02_A', copies: 1, status: 'draft', name: 'Dame Elira Voss, card A', setId: 'S02', owner: 'hero', letter: 'A', doubleAgainst: ['B'], art: null },
+  { id: 'COMBAT_S02_B', copies: 1, status: 'draft', name: 'Dame Elira Voss, card B', setId: 'S02', owner: 'hero', letter: 'B', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S02_C', copies: 1, status: 'draft', name: 'Dame Elira Voss, card C', setId: 'S02', owner: 'hero', letter: 'C', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S03_A', copies: 1, status: 'draft', name: 'Halvar Ironfall, card A', setId: 'S03', owner: 'hero', letter: 'A', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S03_B', copies: 1, status: 'draft', name: 'Halvar Ironfall, card B', setId: 'S03', owner: 'hero', letter: 'B', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S03_C', copies: 1, status: 'draft', name: 'Halvar Ironfall, card C', setId: 'S03', owner: 'hero', letter: 'C', doubleAgainst: ['A'], art: null },
+  { id: 'COMBAT_S04_A', copies: 1, status: 'draft', name: 'Brynja Stonehand, card A', setId: 'S04', owner: 'hero', letter: 'A', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S04_B', copies: 1, status: 'draft', name: 'Brynja Stonehand, card B', setId: 'S04', owner: 'hero', letter: 'B', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S04_C', copies: 1, status: 'draft', name: 'Brynja Stonehand, card C', setId: 'S04', owner: 'hero', letter: 'C', doubleAgainst: ['A'], art: null },
+  { id: 'COMBAT_S05_A', copies: 1, status: 'draft', name: 'Rowan Fenmark, card A', setId: 'S05', owner: 'hero', letter: 'A', doubleAgainst: ['B'], art: null },
+  { id: 'COMBAT_S05_B', copies: 1, status: 'draft', name: 'Rowan Fenmark, card B', setId: 'S05', owner: 'hero', letter: 'B', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S05_C', copies: 1, status: 'draft', name: 'Rowan Fenmark, card C', setId: 'S05', owner: 'hero', letter: 'C', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S06_A', copies: 1, status: 'draft', name: 'Mira Quickthorn, card A', setId: 'S06', owner: 'hero', letter: 'A', doubleAgainst: ['B'], art: null },
+  { id: 'COMBAT_S06_B', copies: 1, status: 'draft', name: 'Mira Quickthorn, card B', setId: 'S06', owner: 'hero', letter: 'B', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S06_C', copies: 1, status: 'draft', name: 'Mira Quickthorn, card C', setId: 'S06', owner: 'hero', letter: 'C', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S07_A', copies: 1, status: 'draft', name: 'Corin Ashveil, card A', setId: 'S07', owner: 'hero', letter: 'A', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S07_B', copies: 1, status: 'draft', name: 'Corin Ashveil, card B', setId: 'S07', owner: 'hero', letter: 'B', doubleAgainst: ['C'], art: null },
+  { id: 'COMBAT_S07_C', copies: 1, status: 'draft', name: 'Corin Ashveil, card C', setId: 'S07', owner: 'hero', letter: 'C', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S08_A', copies: 1, status: 'draft', name: 'Talia Greyveil, card A', setId: 'S08', owner: 'hero', letter: 'A', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S08_B', copies: 1, status: 'draft', name: 'Talia Greyveil, card B', setId: 'S08', owner: 'hero', letter: 'B', doubleAgainst: ['C'], art: null },
+  { id: 'COMBAT_S08_C', copies: 1, status: 'draft', name: 'Talia Greyveil, card C', setId: 'S08', owner: 'hero', letter: 'C', doubleAgainst: [], art: null },
 ];
