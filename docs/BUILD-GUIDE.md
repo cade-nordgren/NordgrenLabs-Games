@@ -29,7 +29,7 @@ brand/                   the icon master (pinned by sha256) and make_icon.py, wh
 migrations/              D1 schema, forward only
 wrangler.jsonc           Cloudflare Worker configuration
 tests/<game>/            node --test suites for games with module engines, outside the published site
-tools/                   developer scripts, outside the published site (keep-content.js: the Dusk Keep content checker)
+tools/                   developer scripts, outside the published site (keep-content.js: the Dusk Keep content checker; keep-soak.js: its soak exposure counts)
 docs/BUILD-GUIDE.md      this file
 docs/content-kit/        the Dusk Keep content kit guide, for the owner writing original content
 docs/decisions/          decision records (0001: platform adoption, 0002: Cloudflare hosting, 0003: sign-in required)

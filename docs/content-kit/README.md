@@ -111,7 +111,7 @@ The new entry is a valid `draft` with neutral values. Change the values, then ch
 | `status` | yes | `'draft'` while you work on it, `'approved'` when it is final. Only approved entries count towards the full game. |
 | `name` | most slots | Your own name for the card, tile or hero. |
 | `text` | no | Your own wording. When it is set, the game shows it instead of the summary it would otherwise generate from the mechanics (for cards, monsters, tiles, heroes and rings). Leave it out, or `''`, to use the generated summary. |
-| `notes` | no | Notes to yourself. Never shown in the game. |
+| `notes` | no | Notes to yourself. Never shown in the game. A flagged entry names its evidence status here as `Status: ` followed by one of `DIRECT 2023 RULE`, `DIRECT 2023 CARD`, `1985-SUPPORTED INTERPRETATION`, `PROVISIONAL/INFERRED`, `OWNER DECISION REQUIRED` (owner spec v6); the checker groups entries by it. None of them means approved: only `status: 'approved'` does. |
 | `art` | where the skeleton has it | Leave `null` for now. Art comes later. |
 
 You don't write `source`; the kit marks every entry in these files as your original content.
@@ -129,7 +129,7 @@ Cards (and special weapons, rings and monster reactions) carry `effects`: a list
 | `ROLL_D12` / `ROLL_D6` | `store: 'a name'` | Rolls the die and remembers the result under that name, for a later step to use (see `reg` below). |
 | `CHECK_STAT` | `stat: 'STR' \| 'AGI' \| 'ARM' \| 'LCK'`, `modifier:` dice or number, `onPass: [steps]`, `onFail: [steps]` | A stat test: roll a D12, add the modifier; at or under the hero's stat passes. Then runs `onPass` or `onFail`. |
 | `DEAL_DAMAGE` | `target: 'hero' \| 'monster'`, `amount:` dice or number, `store: 'a name'` (optional) | Damage. A result below 0 counts as 0 (ruling D03). `store` remembers the damage actually taken, for a later step (one skipped turn per point, for example). |
-| `ADJUST_HP` | `amount:` dice or number, `uncapped: true` (optional) | One net change of HP: above 0 heals (never above starting HP, D04, unless `uncapped`), below 0 is damage and can kill. The flask: a D12 gained and a D6 lost at once (D53). |
+| `ADJUST_HP` | `amount:` dice or number, `uncapped: true` (optional) | One net change of HP: above 0 heals (never above starting HP, D04, unless `uncapped`), below 0 is damage and can kill. The flask: a D12 gained and a D6 lost at once, `uncapped: true` (D53, spec v6: the 2023 rules print no maximum). |
 | `SKIP_TURNS` | `turns:` dice or number, `label: 'words'` (optional) | The hero misses that many of their next turns (more add to any already owed; 0 or less: none, D54). `label` is the short reason players read, for example `'Unconscious'`. |
 | `NAME_NUMBERS` | `count: 1 \| 3`, `label: 'words'`, `store: 'a name'` (optional), `onMatch: [steps]`, `onMiss: [steps]` | The hero names that many different numbers from 1 to 6, then a D6 is rolled: a named number runs `onMatch`, any other `onMiss`. `store` remembers the roll. |
 | `KILL_HERO` | none | The hero dies. |
@@ -139,6 +139,7 @@ Cards (and special weapons, rings and monster reactions) carry `effects`: a list
 | `DRAW_CARD` | `deck: 'ROOM' \| 'SEARCH' \| 'ROOM_SEARCH' \| 'CHEST' \| 'DOOR' \| 'TREASURY' \| 'MONSTER'`, `then: 'resolve' \| 'keep'` | Draws from another deck: `resolve` plays that card now, `keep` puts it in the hero's hand unplayed (a treasury card goes to their private treasury). |
 | `RETAIN_CARD` | `into: 'held' \| 'treasury'` | The hero keeps this card (its gold counts at the end). `treasury` keeps it private. |
 | `GRANT_TREASURE` | none | Same as keeping the card in hand: its `gold` counts. |
+| `RETURN_HELD` | `card: 'ROOM_004'` (a card id) | One kept card with that id leaves the hero for the bottom of its own deck: a kept card whose lasting effect is over (the relit torch, D56, spec v6). Usually inside a condition's `onTurnStart` branch. |
 | `RETURN_CARD_TO_BOTTOM` | `card: 'self'` | This card goes under its deck now (the usual ending, written out, for example in one choice of a `REQUEST_CHOICE`). |
 | `SHUFFLE_DECK` | `deck:` a deck name (optional) | Shuffles this card's deck after it is done, or the named deck now. |
 | `REMOVE_TREASURY_CARDS` | `who: 'hero'` | The hero loses their treasure chamber cards, to the bottom of the treasury deck. |
@@ -333,7 +334,7 @@ export default [
 
 Rings are drafted in reverse seat order at setup (RB 4) and are never loot (D28). Every ring is single-use: its use consumes it, it leaves the hero's inventory (removed from play) and the log says so. A ring without `use` shows as pending.
 
-**What counts as a trap** (Protection Ring, `'trap-drawn'`): a drawn card whose `kind` is `'trap'`, in the room, door, search, room-search, chest or treasury deck. Nothing else is a trap to the engine: not wells, portcullises, rubble, dark or rotating rooms, not monsters, and not a damage card you have not marked `kind: 'trap'` (owner, spec v5; plan section 13 #41). Mark your trap cards with `kind: 'trap'`.
+**What counts as a trap** (Protection Ring, `'trap-drawn'`): a drawn card whose `kind` is `'trap'`, in the room, door, search, room-search, chest or treasury deck. Nothing else is a trap to the engine: not wells, portcullises, rubble, dark or rotating rooms, not monsters, and not a damage card you have not marked `kind: 'trap'` (owner, spec v5; plan section 13 #41). Mark your trap cards with `kind: 'trap'`. The owner's list (spec v6, D63): poisonous snakes, poisonous mist, explosion, arrow trap, ceiling collapses, trapdoor, both door traps and the chest trap; vampire bats, giant spider, centipede, scorpion and monsters are not traps. The ring is offered before anything of the trap happens (before its first roll or test), and using it skips the whole card's effects. Whether the rotating room counts is not decided yet (plan 13 #41a); it does not now.
 
 **Example only, not real content, not authentic:**
 
@@ -421,7 +422,7 @@ These four decks share the card fields of room cards above, with their own `deck
 The checker holds values to their kind: a `'treasure'` card needs `gold` of 1 or more and is kept (`'RETAIN_HELD'`, or `'RETAIN_TREASURY'` in `treasury.js`); every treasury card is a treasure; a `'reshuffle'` card needs `cardDisposition: 'RESHUFFLE_DECK'`; a card with `use` or `frees` needs `cardDisposition: 'RETAIN_HELD'`.
 
 - **Secret doors** (room search): `kind: 'secret-door'` with `OPEN_TEMPORARY_PASSAGE`. They may cross printed walls; use and timing follow your card (D11, provisional; plan 13 #4 and #15).
-- **Reshuffle cards:** `kind: 'reshuffle'` with `cardDisposition: 'RESHUFFLE_DECK'`: the card goes back and its deck is shuffled.
+- **Reshuffle cards:** `kind: 'reshuffle'` with `cardDisposition: 'RESHUFFLE_DECK'`: the card goes back and its deck is shuffled. Nothing else is drawn in these decks (R62); only the door deck draws a replacement (D62). Whether these decks should also draw a replacement is an open owner decision (plan 13 #51).
 - **Treasury cards** are private: `privacy: 'private-to-holder'` and `cardDisposition: 'RETAIN_TREASURY'`. Their gold counts at the end only if the hero escapes. When the dragon wakes they go to the bottom of the treasury deck (RB 9.2). Effects printed on treasury cards are not run at collection yet (section 10).
 
 **Example only, not real content, not authentic:**
@@ -445,7 +446,7 @@ export default [
 
 `door.js`, 15 cards, ids `DOOR_001` to `DOOR_015`, `deck: 'DOOR'`. Same fields as room cards. A door card is drawn whenever a hero tries a door (RB 6.6).
 
-`kind` decides the door here: `'opens'` (the hero goes through into the next square), `'closed'` (it stays shut; the hero may use another free passage this turn), `'trap'` (the card's `effects` run and the turn ends), `'reshuffle'` (the door deck is shuffled and the door stays shut, as `'closed'`; D62, to confirm). The door locks again behind the hero. A door that stays closed during a forced move ends the turn (plan 13 #14).
+`kind` decides the door here: `'opens'` (the hero goes through into the next square), `'closed'` (it stays shut; the hero may use another free passage this turn), `'trap'` (the card's `effects` run and the turn ends), `'reshuffle'` (the card goes back, the door deck is shuffled, and the hero at once draws another door card, which decides the door; again if it is another shuffle card; no extra turn; D62, spec v6). The door locks again behind the hero. A door that stays closed during a forced move ends the turn (plan 13 #14).
 
 **Example only, not real content, not authentic:**
 
@@ -480,7 +481,7 @@ Each reaction is `{ type, damage, hp, effects }`:
 | `'flight-succeeds'` | The hero gets away unharmed. | flee only |
 | `'other'` | Only the reaction's own `effects` run, then the encounter ends. | attack, wait, flee |
 
-`damage` is a number or dice ([section 5](#dice-and-numbers)) for the two strike types, for example `{ die: 'D6', plus: -2 }` for "D6 minus 2", otherwise `null`. `hp` is the monster's hit points in that fight, a whole number 1 or more, required for `'combat'` and `'strike-then-combat'` and left out otherwise; only the monster player sees it. `effects` are extra steps that run before the reaction.
+`damage` is a number or dice ([section 5](#dice-and-numbers)) for the two strike types, for example `{ die: 'D6', plus: -2 }` for "D6 minus 2", otherwise `null`. `hp` is the monster's hit points in that fight, a whole number 1 or more, required for `'combat'` and `'strike-then-combat'` and left out otherwise; only the monster player sees it. `effects` are extra steps that run before the reaction. `printedStat: 'FP'` (optional, the only value allowed) records that the physical card prints FP where the others print KP; the `hp` is still read as the monster's HP, and the engine and players never see the field (owner spec v6: four cells, probable printing errors, D51).
 
 The hero commits before the card is revealed; the seated player to the right controls the monster, even if that player is dead or escaped (D12), and in solo the computer plays the monster and never shows the card, but once the monster is revealed the player sees its HP and the damage it has taken, as the printed rule says (D37 as amended by the owner). In multiplayer only the monster's player sees its HP. Fleeing goes back to the previous tile with no room card, and that tile's effects apply again (D16); it is not offered back through a secret passage just used or through a red-room gate that fell behind the hero (D15).
 
@@ -604,7 +605,7 @@ If the turn ends early, the hero dies or the hero flees, the card goes under its
 | **Play-test my content** | Play-test: your content plus NON-AUTHENTIC fill-in. Every one of your entries, draft and approved, plus the made-up fixture data for each slot you have not completed. | At least one entry, and no checker errors. |
 | **Test with fixtures** | Only the made-up fixture data. | Nothing. For checking the engine itself. |
 
-In a play-test, a slot you have completed (all its copies written) plays with your entries alone. A slot you have not completed gets your entries plus the whole fixture deck, so decks are larger than the real count and the odds are not the real game's. The dragon deck is the exception: until all 8 of yours are written, the play-test uses the fixture dragon deck alone, so there is always exactly one awake card. If you have no board or chamber yet, the fixture ones are used. Fixture heroes and monsters bring their own fixture combat sets. Once all 8 of your heroes are written, only yours are offered; a hero whose combat set you have not written yet fights with the fixture hero set of the same number (your `S03` hero uses the fixture set `FX_S03`), and a hero whose weapon card you have not written yet has no special weapon. The fixture crossbow belongs to a fixture hero, so it leaves with the fixture heroes. Once your monster cards have rows, the fixture room and search cards meet the first monster type every one of your row cards covers, so you can play-test monster cards before writing room cards. Every screen of a play-test carries the banner "Play-test: your content plus NON-AUTHENTIC fill-in", and so does its save title. Once every slot holds your own entries there is no fill-in: the banner then says "Play-test: your own draft content, not approved yet", and its Details list which categories are still draft and how many entries carry NEEDS OWNER CONFIRMATION in their notes (the checker prints the same count). It stays until the full game unlocks.
+In a play-test, a slot you have completed (all its copies written) plays with your entries alone. A slot you have not completed gets your entries plus the whole fixture deck, so decks are larger than the real count and the odds are not the real game's. The dragon deck is the exception: until all 8 of yours are written, the play-test uses the fixture dragon deck alone, so there is always exactly one awake card. If you have no board or chamber yet, the fixture ones are used. Fixture heroes and monsters bring their own fixture combat sets. Once all 8 of your heroes are written, only yours are offered; a hero whose combat set you have not written yet fights with the fixture hero set of the same number (your `S03` hero uses the fixture set `FX_S03`), and a hero whose weapon card you have not written yet has no special weapon. The fixture crossbow belongs to a fixture hero, so it leaves with the fixture heroes. Once your monster cards have rows, the fixture room and search cards meet the first monster type every one of your row cards covers, so you can play-test monster cards before writing room cards. Every screen of a play-test carries the banner "Play-test: your content plus NON-AUTHENTIC fill-in", and so does its save title. Once every slot holds your own entries there is no fill-in: the banner then says "Play-test: your own draft content, not approved yet", and its Details list which categories are still draft how many entries wait on a ruling (`Status: OWNER DECISION REQUIRED` in their notes) and how many more are interpretations or provisional (the checker lists the same entries, grouped by status). It stays until the full game unlocks.
 
 A play-test or a saved game opens only with the content it was made with. After you change your files, start a new play-test; older play-test saves will say they can't be opened.
 
@@ -638,6 +639,8 @@ Typical messages and what to do:
 | `HERO_1: combatSetId S09 is not a hero combat set` | The set is a monster group's, or (once all 36 combat cards are written) it doesn't exist. |
 | `ROOM_004: status aproved must be "draft" or "approved"` | A typo in the status. |
 | `Could not read the content: door.js: Unexpected token ...` followed by a line | A notation slip (a missing comma, quote or bracket) on the line shown. |
+
+After the errors, `check` lists flagged entries by evidence status, one line each, for example `1 entry with status OWNER DECISION REQUIRED: ROOM_007`. These are not errors and do not stop anything; an entry still marked `NEEDS OWNER CONFIRMATION` (the older flag) is listed as such.
 
 Approved entries with errors don't count as verified. The checker uses the same validation as the game, so if it says "No errors", the game agrees.
 
