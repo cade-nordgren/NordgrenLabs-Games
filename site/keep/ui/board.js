@@ -146,10 +146,22 @@ let focusKey = null;
 let lastHome = null;
 let lastTap = { at: '', t: 0 };
 let ro = null;
-export function resetView() { vp = null; focusKey = null; }
+let zoomKey = null; // the active hero and square the map last auto-zoomed for
+export function resetView() { vp = null; focusKey = null; zoomKey = null; }
+
+// Auto-zoom: is the 3x3 around c (clipped to the board) fully on screen at MIN_CELL px a square or more?
+// view: { s, x, y } as in vp; size: [vw, vh] in px; bd: the BoardDefinition.
+export const MIN_CELL = 48;
+export function nearInView(view, c, [vw, vh], bd) {
+  if (C * view.s < MIN_CELL - 0.01) return false;
+  const px = x => view.x + (M + x * C) * view.s, py = y => view.y + (M + y * C) * view.s;
+  const x0 = Math.max(0, c.x - 1), x1 = Math.min(bd.width, c.x + 2), y0 = Math.max(0, c.y - 1), y1 = Math.min(bd.height, c.y + 2);
+  return px(x0) >= -0.5 && py(y0) >= -0.5 && px(x1) <= vw + 0.5 && py(y1) <= vh + 0.5;
+}
 
 // opts: { v, content, names[seat], targets: [{ x, y, label, pick }], home: {x, y} | null (the active hero),
-//   onInspect(c), tilesLeft, onFocusTarget(target | undefined) when a square takes keyboard focus }
+//   onInspect(c), onNear(c) for a single tap on an unlit square (defaults to onInspect), tilesLeft,
+//   onFocusTarget(target | undefined) when a square takes keyboard focus }
 export function mountBoard(host, opts) {
   const { v, content, names, targets = [], home = null, onInspect } = opts;
   const bd = content.board;
@@ -283,26 +295,42 @@ export function mountBoard(host, opts) {
     if (x0 < 0 || y0 < 0 || x0 + d > vw || y0 + d > vh) centreOn(c);
   };
   if (vp) apply();
+  // When the active hero (or their square) changes, zoom in on them unless their neighbourhood is already
+  // readable. Once per change, after layout (the ResizeObserver), and dropped if the user starts a gesture.
+  const zk = home && `${v.activeSeat} ${key(home)}`;
+  let wantZoom = !!zk && zk !== zoomKey;
+  zoomKey = zk;
+  const autoZoom = () => {
+    if (!wantZoom || !vp) return;
+    wantZoom = false;
+    if (!nearInView(vp, home, size(), bd)) { glide(true); centreOn(home, MIN_CELL / C); }
+  };
   ro?.disconnect();
-  ro = new ResizeObserver(() => { if (!view.clientWidth) return; if (!vp || vp.fit) fit(); else clamp(); });
+  ro = new ResizeObserver(() => { if (!view.clientWidth) return; if (!vp || vp.fit) fit(); else clamp(); autoZoom(); });
   ro.observe(view);
 
   // ---- Tools: buttons, so they work by touch, mouse and keyboard alike.
   const middle = () => { const [vw, vh] = size(); return [vw / 2, vh / 2]; };
-  const tool = (text, label, fn) => {
+  // icon: an SVG path drawn in place of the text where the tools float over the map (phone portrait, CSS).
+  const tool = (text, label, fn, icon) => {
     const btn = document.createElement('button');
     btn.className = 'btn';
     btn.textContent = text;
+    if (icon) {
+      btn.replaceChildren(svg('svg', { viewBox: '0 0 24 24', class: 'ico', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' }), Object.assign(document.createElement('span'), { className: 'tool-text', textContent: text }));
+      svg('path', { d: icon }, btn.firstChild);
+    }
     btn.setAttribute('aria-label', label);
     btn.onclick = () => { if (!vp) return; glide(true); fn(); };
     tools.append(btn);
   };
   tool('−', 'Zoom out', () => zoomAt(1 / 1.4, ...middle()));
   tool('+', 'Zoom in', () => zoomAt(1.4, ...middle()));
-  tool('Fit board', `Fit board: all ${bd.width * bd.height} squares`, fit);
-  if (home) tool('Centre on hero', 'Centre on the active hero', () => centreOn(home, fitScale() * 2));
+  tool('Fit board', `Fit board: all ${bd.width * bd.height} squares`, fit, 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5');
+  if (home) tool('Centre on hero', 'Centre on the active hero', () => centreOn(home, fitScale() * 2), 'M12 2v4M12 18v4M2 12h4M18 12h4M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0');
   if (opts.tilesLeft !== undefined) {
     const s = document.createElement('span');
+    s.className = 'tiles';
     s.textContent = `${opts.tilesLeft} tiles left`;
     tools.append(s);
   }
@@ -322,8 +350,9 @@ export function mountBoard(host, opts) {
   };
   root.addEventListener('focusin', e => { const cell = e.target.closest?.('[data-cell]'); if (cell) { focusKey = cell.dataset.cell; opts.onFocusTarget?.(tmap.get(focusKey)); } });
 
-  // A choice on a square: a lit square takes its move; a tap on the active hero recentres; anything else
-  // (a second tap within 350 ms, or Enter on an unlit square) opens the description.
+  // A choice on a square: a lit square takes its move; a tap on the active hero recentres; a single tap on
+  // anything else gives its one-line reason (onNear); a second tap within 350 ms, a long press or Enter on an
+  // unlit square opens the description.
   const activate = (k, how) => {
     const now = performance.now();
     const second = how === 'tap' && lastTap.at === k && now - lastTap.t < 350;
@@ -333,7 +362,7 @@ export function mountBoard(host, opts) {
     if (second) return onInspect(parse(k));
     if (t) { focusKey = null; return t.pick(); }
     if (how === 'tap' && home && key(home) === k) { if (vp) { glide(true); centreOn(home, fitScale() * 2); } return; }
-    onInspect(parse(k));
+    (how === 'tap' && opts.onNear ? opts.onNear : onInspect)(parse(k));
   };
 
   // ---- Pointer gestures: one finger or the mouse drags; two fingers pinch; a long press inspects.
@@ -342,6 +371,7 @@ export function mountBoard(host, opts) {
   view.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') { if (e.button !== 0) return; pts.clear(); }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    wantZoom = false; // the user has the map now: never zoom under their fingers
     glide(false);
     clearTimeout(press);
     if (pts.size === 1) {

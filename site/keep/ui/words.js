@@ -1,6 +1,7 @@
 // Words for the screen: the event log, card summaries and action labels. Display only: every
 // sentence is read from an engine event or a content definition, never decided here.
 import { cardDef } from '../engine/decks.js';
+import { legalActions } from '../engine/phases.js';
 import { contentIndex } from '../content/schema.js';
 import { tileWords, place, DIR, towerAt, MARK_WORD } from './board.js';
 
@@ -162,6 +163,17 @@ export function describe(e, ctx, next) {
     case 'game-over': return 'The game is over.';
     default: return null; // shuffle, bottom, resolve-card, monster-dead, pick bookkeeping
   }
+}
+
+// The thumb-reach undo button: whose action it takes back and, where the log says, what kind. prev is the undo
+// snapshot, next the game now. The actor is the seat the engine offered actions to at prev; in an A, B or C
+// fight both sides may be offered at once, and the screen always asks the hero first.
+const UNDO_WORD = { move: 'move', stop: 'stop', 'tower-choice': 'tower choice', commit: 'choice', 'combat-pick': 'card', 'well-discard': 'card drop', 'pick-hero': 'hero pick', 'pick-ring': 'ring pick', 'pick-tower': 'tower pick' };
+export function undoLabel(prev, next, content, name) {
+  const la = legalActions(prev, content);
+  const seat = (la.find(a => a.side !== 'monster') ?? la[0])?.seat ?? prev.activeSeat;
+  const what = next.log.slice(prev.log.length).map(e => UNDO_WORD[e.kind]).find(Boolean);
+  return `Undo ${name(seat)}'s ${what || 'last action'}`;
 }
 
 // Each line with its entry, so the log can show the round and the debug log the raw fields.
