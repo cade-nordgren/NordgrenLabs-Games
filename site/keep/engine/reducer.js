@@ -15,7 +15,7 @@ import { legalActions, sameAction } from './phases.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0';
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v2'; // v2: shared towers and new hero statuses; older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
