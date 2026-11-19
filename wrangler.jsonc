@@ -1,7 +1,7 @@
 // NordgrenLabs Games on Cloudflare Workers, free plan only (docs/decisions/0002).
 //
 // No secrets. Every value here is public. Any other CLERK_ variable makes the Worker answer 503 misconfigured
-// (server/worker.js), and server/config.test.js fails on a secret-looking name or a binding beyond DB.
+// (server/worker.js), and server/config.test.js fails on a secret-looking name or a binding beyond DB and ASSETS.
 // The authorized party is not a var: the `define` below selects it at build time. Top level is production;
 // `env.dev` is local development, signed out.
 {
@@ -21,7 +21,9 @@
   "send_metrics": false,
   "assets": {
     "directory": "./site",
-    "run_worker_first": ["/api/*", "/config.js"]
+    // The Worker runs first for every path so the sign-in gate sees every request (docs/decisions/0003).
+    "binding": "ASSETS",
+    "run_worker_first": true
   },
   "define": {
     "__GAMES_BUILD_MODE__": "\"production\""

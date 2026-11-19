@@ -1,10 +1,11 @@
 // Shared platform layer for every game: saves, identity, theme, and the small UI behaviours behind style.css.
-// Saves are async on purpose: signed out they live in localStorage, signed in on the games server, same four methods.
+// Saves are async on purpose: they are written to this browser first and, for a signed-in person the games server knows,
+// uploaded from there (the outbox), with the same four methods either way.
 (() => {
   const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
   const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 
-  // ---- Saves. Stored data is a trust boundary: anything not shaped like a v1 record is dropped.
+  // ---- Saves in this browser. Stored data is a trust boundary: anything not shaped like a v1 record is dropped.
   const SAVES = 'nl-games-saves-v1';
   const valid = r => !!r && typeof r === 'object' && r.schemaVersion === 1 && UUID.test(r.id)
     && typeof r.game === 'string' && (r.personPublicId === null || UUID.test(r.personPublicId))
@@ -17,26 +18,49 @@
     } catch { return []; }
   };
   const write = all => localStorage.setItem(SAVES, JSON.stringify(all)); // throws when storage is full or blocked; callers reject
-
-  const local = {
-    list: async game => read().filter(r => r.game === game).sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
-    get: async id => read().find(r => r.id === id) || null,
-    put: async record => {
-      if (!valid(record)) throw new Error('Invalid save record');
-      write([...read().filter(r => r.id !== record.id), record]);
-      return record;
-    },
-    remove: async id => { write(read().filter(r => r.id !== id)); },
-  };
+  const newest = (a, b) => b.updatedAt.localeCompare(a.updatedAt);
 
   // ---- Identity. With a publishable key from the server (config.js) this is the ClerkJS session;
   // without one, a host page may define window.NL_IDENTITY (the local test path).
   const key = window.NL_CONFIG?.clerkPublishableKey;
-  let clerk = null, me = null, unlinked = false;
-  const token = async () => { try { return (await clerk?.session?.getToken()) || null; } catch { return null; } };
+  const signInOn = typeof key === 'string';
+  const payload = t => { try { return JSON.parse(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))); } catch { return null; } };
+  const personIn = t => { const id = payload(t ?? '')?.nl_person_id; return UUID.test(id) ? id : null; };
+  // The Worker let this page through on ClerkJS's __session cookie (docs/decisions/0003), so its person is known before
+  // ClerkJS loads. Unverified here, it only chooses whose cached data to show; the server verifies every call.
+  const cookiePerson = signInOn ? personIn(/(?:^|;\s*)__session=([^;]*)/.exec(document.cookie)?.[1]) : null;
+
+  // Last known saves lists and name for one person, shown at once on the next load and then refreshed. Untrusted when read.
+  const CACHE = 'nl-games-cache-v1';
+  const cacheRead = who => {
+    try {
+      const c = JSON.parse(localStorage.getItem(CACHE));
+      if (!UUID.test(who) || !c || c.personPublicId !== who) return null;
+      const lists = {};
+      for (const [game, list] of Object.entries(c.lists && typeof c.lists === 'object' ? c.lists : {})) {
+        if (Array.isArray(list)) lists[game] = list.filter(r => valid(r) && r.personPublicId === who && r.game === game);
+      }
+      return { personPublicId: who, displayName: typeof c.displayName === 'string' ? c.displayName.slice(0, 100) : '', lists };
+    } catch { return null; }
+  };
+  const cacheWrite = (who, change) => {
+    if (!UUID.test(who)) return;
+    try {
+      const c = cacheRead(who) || { personPublicId: who, displayName: '', lists: {} };
+      change(c);
+      localStorage.setItem(CACHE, JSON.stringify(c));
+    } catch {}
+  };
+  const cacheClear = () => { try { localStorage.removeItem(CACHE); } catch {} };
+
+  let clerk = null, unlinked = false, leaving = false, settled = !signInOn;
+  const early = cacheRead(cookiePerson);
+  let me = early?.displayName ? { displayName: early.displayName, personPublicId: cookiePerson } : null;
+  const token = async fresh => { try { return (await clerk?.session?.getToken(fresh ? { skipCache: true } : undefined)) || null; } catch { return null; } };
   const signedIn = async () => {
     if (!window.Clerk) await new Promise((ok, fail) => {
       const s = document.createElement('script');
+      // Same pinned URL as site/signin.html, so the browser cache is shared; keep the two equal.
       s.src = `https://${atob(key.split('_')[2]).slice(0, -1)}/npm/@clerk/clerk-js@5.128.1/dist/clerk.browser.js`; // the key encodes "<frontend api host>$"
       s.crossOrigin = 'anonymous';
       s.dataset.clerkPublishableKey = key;
@@ -46,88 +70,179 @@
     await window.Clerk.load();
     clerk = window.Clerk;
     const at = clerk.user?.id ?? null;
-    clerk.addListener(({ user }) => { if ((user?.id ?? null) !== at) location.reload(); }); // sign-in, sign-out or switch: start clean
+    clerk.addListener(({ user }) => { // sign-in, sign-out or switch, here or in another tab: forget the cache and start clean
+      if (leaving || (user?.id ?? null) === at) return;
+      cacheClear();
+      location.reload();
+    });
     if (!clerk.user) return null;
-    let personPublicId = null;
-    try {
-      const t = await token(), r = t && await fetch('/api/me', { headers: { Authorization: `Bearer ${t}` } });
-      const id = r?.ok ? (await r.json()).personPublicId : null;
-      unlinked = r?.status === 403; // signed in, but the Control Center has not linked a person yet
-      if (UUID.test(id)) personPublicId = id; // 401, 403 or offline: no server saves
-    } catch {}
+    const t = await token();
+    const personPublicId = personIn(t); // the server checks the same claim on every call
+    unlinked = !!t && !personPublicId; // signed in, but the Control Center has not linked a person yet
     return { displayName: (clerk.user.firstName || clerk.user.username || '').trim(), personPublicId };
   };
   const identity = () => {
-    if (typeof key === 'string') return me && { ...me };
+    if (signInOn) return me && { ...me };
     const i = window.NL_IDENTITY;
     if (!i || typeof i.displayName !== 'string' || !i.displayName.trim()) return null;
     return { displayName: i.displayName.trim(), personPublicId: UUID.test(i.personPublicId) ? i.personPublicId : null };
   };
   // Always resolves, never rejects: any failure or a 10 second wait counts as signed out.
-  const ready = typeof key !== 'string' ? Promise.resolve(identity())
-    : Promise.race([signedIn().catch(() => null), new Promise(ok => setTimeout(ok, 10000, null))]).then(i => { me = i; return identity(); });
+  const ready = !signInOn ? Promise.resolve(identity())
+    : Promise.race([signedIn().catch(() => null), new Promise(ok => setTimeout(ok, 10000, null))]).then(i => {
+      me = i;
+      settled = true;
+      if (i?.personPublicId) cacheWrite(i.personPublicId, c => { c.displayName = i.displayName; });
+      return identity();
+    });
+  // Whose saves this browser shows and writes now; known from the cookie before ClerkJS answers.
+  const person = () => signInOn ? (me?.personPublicId ?? cookiePerson) : identity()?.personPublicId ?? null;
+  const remoteOn = () => settled && !!clerk && !!me?.personPublicId;
+  // Signed in as a person, the copies here are an outbox for the server rather than the store.
+  const outbox = () => signInOn && person() !== null;
+  const mine = r => r.personPublicId === null || r.personPublicId === person();
 
-  // ---- Server saves, for a signed-in person the server knows. A failure rejects; it never falls back to this
-  // browser, which would split one person's saves in two.
-  const api = async (path, init) => {
-    const t = await token();
-    if (!t) throw new Error('Not signed in');
-    const r = await fetch('/api/saves' + path, { ...init, headers: { Authorization: `Bearer ${t}` } });
-    if (r.status === 404) return null;
-    if (!r.ok) throw new Error(`Saves request failed (${r.status})`);
-    return r.status === 204 ? null : r.json();
+  // ---- The games server, for a signed-in person it knows. Calls run one at a time, so an upload and a delete of the
+  // same save can never cross. A 401 means the cached token expired: refresh it and try once more.
+  const api = async (path, init = {}) => {
+    for (let attempt = 0; ; attempt++) {
+      const t = await token(attempt > 0);
+      if (!t) throw new Error('Not signed in');
+      const r = await fetch('/api/saves' + path, { ...init, headers: { Authorization: `Bearer ${t}` } });
+      if (r.status === 401 && attempt === 0) continue;
+      if (r.status === 404) return null;
+      if (!r.ok) throw Object.assign(new Error(`Saves request failed (${r.status})`), { status: r.status });
+      return r.status === 204 ? null : r.json();
+    }
   };
-  const remote = {
-    list: async game => (await api('?game=' + encodeURIComponent(game))).filter(valid),
-    get: async id => { const r = UUID.test(id) ? await api('/' + id) : null; return valid(r) ? r : null; },
+  let queue = Promise.resolve();
+  const serial = fn => { const run = queue.then(fn); queue = run.catch(() => {}); return run; };
+
+  // Why the server refused the last upload of a save, by id; a pending save without one is simply not uploaded yet.
+  const refused = {};
+  const flagged = r => ({ ...r, pending: refused[r.id] || true });
+  const withLocal = (game, server) => {
+    const all = new Map(server.map(r => [r.id, r]));
+    for (const r of read()) {
+      if (r.game === game && mine(r) && !(all.get(r.id)?.updatedAt >= r.updatedAt)) all.set(r.id, flagged(r));
+    }
+    return [...all.values()].sort(newest);
+  };
+  const localList = game => read().filter(r => r.game === game && mine(r)).sort(newest);
+
+  // Uploads this browser's copies for the signed-in person: saves not yet confirmed, and saves made here before any
+  // sign-in, which go to the first account. Another person's copies wait for that person. A copy is dropped only once
+  // the server holds it or something newer, and only if no newer save replaced it here meanwhile.
+  const sync = () => ready.then(async () => {
+    if (!remoteOn()) return;
+    const who = me.personPublicId;
+    try { if (read().some(r => r.personPublicId === null)) write(read().map(r => r.personPublicId === null ? { ...r, personPublicId: who } : r)); } catch {}
+    let changed = false;
+    for (const { id } of read().filter(r => r.personPublicId === who)) await serial(async () => {
+      const r = read().find(x => x.id === id && x.personPublicId === who);
+      if (!r) return; // deleted meanwhile
+      try {
+        const kept = await api('/' + id);
+        const stored = valid(kept) && kept.updatedAt >= r.updatedAt ? kept
+          : await api('/' + id, { method: 'PUT', body: JSON.stringify(r) });
+        if (!valid(stored)) throw new Error('Save was not stored');
+        try { write(read().filter(x => !(x.id === id && x.updatedAt === r.updatedAt))); } catch {}
+        delete refused[id];
+        cacheWrite(who, c => {
+          const list = c.lists[stored.game];
+          if (list) c.lists[stored.game] = [stored, ...list.filter(x => x.id !== id)].sort(newest);
+        });
+      } catch (e) {
+        const why = { 400: 'refused', 409: 'save_limit', 413: 'too_large' }[e.status];
+        if (why) refused[id] = why; else delete refused[id];
+      }
+      changed = true;
+    });
+    if (changed) dispatchEvent(new Event('nl-saves'));
+  });
+
+  const saves = {
+    // The server's list with this browser's pending copies on top, each marked `pending`. Rejects when the server
+    // cannot be reached; `cached` has the last known list for that case.
+    list: async game => {
+      await ready;
+      if (!remoteOn()) return localList(game);
+      const server = (await serial(() => api('?game=' + encodeURIComponent(game)))).filter(valid);
+      cacheWrite(me.personPublicId, c => { c.lists[game] = server; });
+      return withLocal(game, server);
+    },
+    // At once, without the network: the last known list for this person plus pending copies, or null when nothing is
+    // known yet (never an invented empty list).
+    cached: game => {
+      if (!outbox()) return localList(game);
+      const list = cacheRead(person())?.lists[game];
+      return list ? withLocal(game, list) : null;
+    },
+    get: async id => {
+      const here = read().find(r => r.id === id && mine(r)) || null;
+      await ready;
+      if (!remoteOn() || !UUID.test(id)) return here;
+      try {
+        const there = await serial(() => api('/' + id));
+        if (!valid(there)) return here;
+        return here && here.updatedAt > there.updatedAt ? here : there;
+      } catch (e) {
+        const known = here || Object.values(cacheRead(person())?.lists ?? {}).flat().find(r => r.id === id);
+        if (known) return known;
+        throw e;
+      }
+    },
+    // Written here first and uploaded in the background, so a save survives a failed upload, a closed tab or no network.
     put: async record => {
       if (!valid(record)) throw new Error('Invalid save record');
-      const r = await api('/' + record.id, { method: 'PUT', body: JSON.stringify(record) });
-      if (!valid(r)) throw new Error('Save was not stored');
+      const r = outbox() ? { ...record, personPublicId: person() } : record;
+      write([...read().filter(x => x.id !== r.id), r]);
+      delete refused[r.id];
+      sync();
       return r;
     },
-    remove: async id => { if (UUID.test(id)) await api('/' + id, { method: 'DELETE' }); },
+    // Signed in, a delete must reach the server, or the save would come back from there; it rejects if it cannot.
+    remove: async id => {
+      await ready;
+      if (outbox() && !remoteOn()) throw new Error('Not signed in');
+      await serial(async () => { // in the queue, so no upload of this save can start after it
+        if (remoteOn() && UUID.test(id)) await api('/' + id, { method: 'DELETE' });
+        write(read().filter(r => !(r.id === id && mine(r))));
+      });
+      delete refused[id];
+      if (remoteOn()) cacheWrite(me.personPublicId, c => { for (const g in c.lists) c.lists[g] = c.lists[g].filter(r => r.id !== id); });
+    },
   };
-  // On sign-in, saves made in this browser while signed out move to the account. One that fails stays here for next time.
-  const moved = ready.then(async i => {
-    if (!i?.personPublicId) return false;
-    for (const r of read()) try {
-      const kept = await remote.get(r.id);
-      if (!kept || kept.updatedAt < r.updatedAt) await remote.put(r); // never overwrite a newer copy on the server
-      write(read().filter(x => x.id !== r.id));
-    } catch {}
-    return true;
-  });
-  const saves = Object.fromEntries(Object.keys(local).map(m => [m, async (...a) => ((await moved) ? remote : local)[m](...a)]));
+  sync(); // whatever an earlier visit could not upload
+  addEventListener('online', sync);
 
-  // Shared account control: renders nothing without a key, so the plain static preview stays as it was.
+  // ---- Shared account control: renders nothing without a key, so the plain static preview stays as it was.
+  // It shows the cached name at once, a skeleton when there is none, and never waits forever.
   const account = async box => {
     box.hidden = true;
-    if (typeof key !== 'string') return;
+    if (!signInOn) return;
+    const keep = [...box.children];
+    const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text) e.textContent = text; return e; };
+    const fill = (...nodes) => { box.replaceChildren(...keep, ...nodes); box.hidden = false; };
+    const named = n => el('p', '', n ? `Signed in as ${n}` : 'Signed in');
+    const button = (text, onclick) => { const b = el('button', 'btn', text); b.onclick = onclick; b.disabled = !onclick; return b; };
+    box.setAttribute('aria-busy', 'true');
+    if (me) fill(named(me.displayName), button('Sign out'));
+    else fill(el('p', 'skeleton line'), el('div', 'skeleton button'));
     const i = await ready;
-    if (!clerk) return; // ClerkJS did not load, so there is nothing to sign in with
-    const p = text => { const e = document.createElement('p'); e.textContent = text; return e; };
-    const b = document.createElement('button');
-    b.className = 'btn';
-    if (!clerk.user) {
-      b.textContent = 'Sign in';
-      b.onclick = () => { box.closest('dialog')?.close(); clerk.openSignIn(); }; // Clerk's modal would sit under an open sheet
-      box.append(p('Sign in to keep saved games across devices.'), b);
-    } else {
-      b.textContent = 'Sign out';
-      b.onclick = () => clerk.signOut();
-      box.append(p(i?.displayName ? `Signed in as ${i.displayName}` : 'Signed in'));
-      if (unlinked) {
-        const a = document.createElement('a');
-        a.href = 'https://admin.nordgrenlabs.com/';
-        a.textContent = 'Control Center';
-        const setup = p('Finish setting up your account in the ');
-        setup.append(a, ' to keep saved games across devices.');
-        box.append(setup);
-      }
-      box.append(b);
+    box.removeAttribute('aria-busy');
+    if (!clerk) return fill(el('p', '', 'Could not load your account.'), button('Try again', () => location.reload()));
+    if (!clerk.user) { box.hidden = true; return; }
+    const extra = [];
+    if (unlinked) {
+      const a = el('a', '', 'Control Center');
+      a.href = 'https://admin.nordgrenlabs.com/';
+      const setup = el('p', '', 'Finish setting up your account in the ');
+      setup.append(a, ' to keep saved games across devices.');
+      extra.push(setup);
     }
-    box.hidden = false;
+    // Back to this same address signed out, where the Worker shows the sign-in page.
+    fill(named(i?.displayName), ...extra, button('Sign out', () => { leaving = true; cacheClear(); clerk.signOut({ redirectUrl: location.href }); }));
   };
 
   // ---- Theme. Preference system|light|dark in localStorage; the resolved light|dark lives on <html data-theme>.
@@ -145,6 +260,19 @@
   if (stored() !== null && stored() !== get()) set('system'); // a corrupt stored value heals to system
   dark.addEventListener('change', apply);
   apply();
+
+  // ---- Tap feedback: :active ends the moment a finger lifts, so the pressed look (.tapped in style.css) lingers a moment.
+  const lingering = new WeakMap();
+  document.addEventListener('pointerdown', e => {
+    const t = e.target.closest?.('button, a, summary');
+    if (!t || t.matches(':disabled')) return;
+    clearTimeout(lingering.get(t));
+    t.classList.add('tapped');
+    const done = new AbortController();
+    const lift = () => { done.abort(); lingering.set(t, setTimeout(() => t.classList.remove('tapped'), 350)); };
+    addEventListener('pointerup', lift, { signal: done.signal });
+    addEventListener('pointercancel', lift, { signal: done.signal });
+  });
 
   // ---- Menu: the trigger opens and closes the items; Esc, a tap outside or choosing an item closes it,
   // except items marked data-keep-open (Undo, so several steps can be undone in a row).
@@ -181,5 +309,5 @@
     });
   };
 
-  window.NL = { saves, identity, ready, account, theme: { get, set }, menu, segmented };
+  window.NL = { saves, identity, ready, person, get settled() { return settled; }, account, theme: { get, set }, menu, segmented };
 })();

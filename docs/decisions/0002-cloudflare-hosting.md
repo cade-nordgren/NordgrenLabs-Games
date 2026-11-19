@@ -52,3 +52,13 @@ There is no VM backup any more. D1 Time Travel is the first line, within whateve
 ## 8. The VM container
 
 A container of Games was started on the home VM on 2026-11-18 from commit `226b9b7`. It was never made public, so it holds no player's saves. It is to be removed, with its volume, image, config directory and deploy key, by the steps in `docs/runbooks/deploy.md` under "Retire the VM container".
+
+## 9. First deploy, 2026-11-18
+
+- Database `games` created with `wrangler d1 create games` (id `fca7723e-47e4-483f-b173-4a176b98396a`, region WNAM); `0001_saves.sql` applied.
+- Deployed from branch `release/bank-only` at `8b0e2a3`: `main` at `78c3f77` without Tidevault and Dungeon companion, which another session was still working on. Version ID `7f29e51d-3614-445f-8689-606a08209558`. The deploy created the custom domain `games.nordgrenlabs.com`.
+- Checked on the live origin, signed out: `/` and `/bank/` answer 200; `/config.js` carries the publishable key; `/api/me` and `/api/saves` answer 401 with `no-store`; `/server/worker.js`, `/wrangler.jsonc`, `/docs/BUILD-GUIDE.md` and `/_headers` answer 404.
+- Log check before any sign-in (section 6): one request with a made-up `Authorization` header, a made-up cookie, a plain header and a query string, watched with `wrangler tail --format json`. The tail showed `authorization` and `cookie` as `REDACTED`. It showed the plain header and the full URL, query string included, so a token must never be put in a URL (none is). The stored Workers Logs view in the dashboard has not been inspected.
+- Owner check, 2026-11-18: signing in on the live origin worked and the signed-in first name pre-filled Bank's roster. No Clerk Dashboard change was needed for the new origin.
+- Not yet confirmed: the rest of the acceptance list in `docs/runbooks/deploy.md` (save carried into the account, second device, idle then save, arriving from the Control Center, cookie scope, the stored Workers Logs view).
+- VM container retired by the owner on 2026-11-18: the Compose project, its volume and network, the image, `/etc/nordgren-labs/games`, `/srv/nordgren-labs/games` and the deploy key files on the guest were removed and checked gone. RideLab and the Control Center were not touched.

@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sign in · NordgrenLabs Games</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Games">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f2f7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
+<!-- The Worker serves this page in place of any page, signed out, so it is self-contained: inline CSS, absolute paths,
+     and the config below, which the Worker fills in. Only the icons and the manifest are public files. -->
+<script>window.NL_CONFIG = null;</script>
+<script>
+// Start ClerkJS at once. Same pinned URL as site/platform.js, so the browser cache is shared; keep the two equal.
+(() => {
+  const key = window.NL_CONFIG?.clerkPublishableKey;
+  if (!key) return;
+  const host = 'https://' + atob(key.split('_')[2]).slice(0, -1); // the key encodes "<frontend api host>$"
+  const warm = document.createElement('link');
+  warm.rel = 'preconnect'; warm.href = host; // no crossorigin: warms the credentialed connection Clerk.load() uses
+  const s = document.createElement('script');
+  s.src = host + '/npm/@clerk/clerk-js@5.128.1/dist/clerk.browser.js';
+  s.crossOrigin = 'anonymous'; s.async = true; s.dataset.clerkPublishableKey = key;
+  window.NL_CLERK = new Promise((ok, fail) => { s.onload = ok; s.onerror = fail; });
+  document.head.append(warm, s);
+})();
+</script>
+<style>
+:root { color-scheme: light dark; --canvas: #f2f2f7; --ink: #1d1d1f; --ink2: #6e6e73; --primary: #0071e3; --fill: rgba(120, 120, 128, .13); }
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; --canvas: #000; --ink: #f5f5f7; --ink2: #a1a1a6; --primary: #0a84ff; --fill: rgba(120, 120, 128, .26); }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; min-height: 100dvh; display: grid; place-items: center; background: var(--canvas); color: var(--ink);
+  font: 17px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased;
+  padding: max(24px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left)); }
+main { width: min(100%, 320px); display: grid; justify-items: center; gap: 12px; text-align: center; }
+img { border-radius: 22%; }
+h1 { margin: 10px 0 0; font: 700 32px/1.15 ui-rounded, -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+p { margin: 0; color: var(--ink2); }
+.state { display: grid; justify-items: center; gap: 12px; width: 100%; }
+button { width: 100%; min-height: 54px; margin-top: 10px; border: 0; border-radius: 999px; background: var(--primary); color: #fff;
+  font-family: inherit; font-size: 18px; font-weight: 600; cursor: pointer; touch-action: manipulation; }
+button:active { filter: brightness(.85); }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--primary) 60%, transparent); outline-offset: 2px; }
+/* Skeleton for the brief resume hop: the same footprint as the signed-out state, so nothing jumps. */
+.bone { border-radius: 999px; background: var(--fill); }
+.bone.title { width: 72%; height: 37px; margin-top: 10px; border-radius: 10px; }
+.bone.line { width: 50%; height: 24px; }
+.bone.button { width: 100%; height: 54px; margin-top: 10px; }
+.bone { animation: shimmer 1.4s ease-in-out infinite; }
+@keyframes shimmer { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .bone { animation: none; } }
+</style>
+</head>
+<body>
+<main>
+  <img src="/icons/icon-192.png" width="88" height="88" alt="">
+  <div class="state" id="wait" aria-busy="true" aria-label="Loading"><div class="bone title"></div><div class="bone line"></div><div class="bone button"></div></div>
+  <div class="state" id="signedOut" hidden>
+    <h1>Sign in to play</h1>
+    <p>NordgrenLabs Games</p>
+    <button id="signIn">Sign in</button>
+  </div>
+  <div class="state" id="stuck" hidden>
+    <h1>Could not verify your session</h1>
+    <p id="why">Check your connection and try again.</p>
+    <button id="retry">Try again</button>
+  </div>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+const show = id => { for (const s of document.querySelectorAll('.state')) s.hidden = s.id !== id; };
+// Back to the address that was asked for. This file's own address is not a page, so that one goes to the games list.
+const target = /^\/signin(\.html)?$/.test(location.pathname) ? '/' : location.href;
+// Resumes less than a minute apart count as one run; a third means the Worker keeps refusing the cookie.
+const KEY = 'nl-gate-resumes';
+const tries = () => { try { const t = JSON.parse(sessionStorage.getItem(KEY)); return t && Date.now() - t.at < 60000 ? t.n : 0; } catch { return 0; } };
+let giveUp = setTimeout(() => show('stuck'), 15000);
+const stop = () => { clearTimeout(giveUp); show('stuck'); };
+$('retry').onclick = () => { try { sessionStorage.removeItem(KEY); } catch {} location.replace(target); };
+
+// Signed in: a fresh token writes a fresh __session cookie, then the same address loads again and the Worker lets it in.
+async function resume(clerk) {
+  const n = tries();
+  if (n >= 2) return stop();
+  try { sessionStorage.setItem(KEY, JSON.stringify({ n: n + 1, at: Date.now() })); } catch { return stop(); }
+  try { if (!await clerk.session.getToken({ skipCache: true })) return stop(); } catch { return stop(); }
+  location.replace(target);
+}
+
+if (!window.NL_CLERK) {
+  clearTimeout(giveUp);
+  show('stuck');
+  $('why').textContent = 'Sign-in is off in this preview.';
+  $('retry').hidden = true;
+} else {
+  window.NL_CLERK.then(() => window.Clerk.load()).then(() => {
+    const clerk = window.Clerk;
+    if (clerk.session) return resume(clerk);
+    clearTimeout(giveUp);
+    show('signedOut');
+    $('signIn').onclick = () => clerk.openSignIn({ forceRedirectUrl: target });
+    clerk.addListener(({ session }) => { if (session) resume(clerk); });
+  }).catch(stop);
+}
+</script>
+</body>
+</html>

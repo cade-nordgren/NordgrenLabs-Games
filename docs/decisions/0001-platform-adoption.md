@@ -1,6 +1,6 @@
 # 0001: Adoption of NordgrenLabs platform law
 
-**Status:** Accepted 2026-11-18. The owner accepted the seven recommended answers in `docs/PLATFORM-INTEGRATION-PLAN.md`.
+**Status:** Accepted 2026-11-18. The owner accepted the seven recommended answers in `docs/PLATFORM-INTEGRATION-PLAN.md`. Decision 2 (anonymous play) is superseded by `0003-sign-in-required.md`.
 **Scope:** How Games becomes a platform app: identity, saves, hosting, and its relationship to the Control Center. Documentation only.
 **Authorizes:** the repo-only build steps 2 to 6 of the plan, each as its own reviewed change. It authorizes no deployment, DNS or Cloudflare change, Clerk Dashboard change, or change to any other repository. Each of those needs its own explicit go-ahead from the owner.
 
