@@ -647,11 +647,11 @@ function renderPrompt(v, la, targets) {
     case 'CHOOSE_EXIT': {
       const inTower = hero.status === 'IN_TOWER_NOT_ESCAPED';
       p = g.phase === 'CHOOSE_ACTION'
-        ? panel(`${name}, your move`, `${inTower ? `You are in the ${towerAt(hero.coord)}, not escaped. ` : ''}Pick a lit square on the map, or choose below. Tap or press Enter on any other square to see why it is shut.`)
+        ? panel(`${name}, your move`, inTower ? `You are in the ${towerAt(hero.coord)}, not escaped.` : null)
         : panel('Keep moving?', 'You may go on this turn, or stop here.');
+      // Phone first: moves are the lit squares on the map (their labels carry the reason); only other actions are buttons.
       for (const a of by('MOVE')) {
         const m = moveInfo(g, a.dir);
-        ch.append(choice(m.title, m.reason, () => act(a)));
         targets.push({ ...neighbour(hero.coord, a.dir), label: `${m.title}, ${m.reason}`, pick: () => act(a) });
       }
       for (const a of by('TOWER_CHOICE')) ch.append(choice('Escape the castle', "End this hero's run with their treasure. Final: no way back in.", () => act(a), 'primary'));
@@ -692,7 +692,6 @@ function renderPrompt(v, la, targets) {
         p = panel('Move', 'Pick a neighbouring square.');
         for (const a of by('CHOOSE')) {
           const dir = pend.options[a.option];
-          ch.append(choice(`Go ${DIR[dir]}`, null, () => act(a)));
           targets.push({ ...neighbour(hero.coord, dir), label: `Go ${DIR[dir]}`, pick: () => act(a) });
         }
       }
@@ -769,7 +768,6 @@ function renderPrompt(v, la, targets) {
       p = panel('The dragon drives you out', `${nameOf(seat)} must move to an explored room next to the chamber. No room card is drawn.`);
       for (const a of by('FORCED_MOVE')) {
         const [x, y] = a.to.split(',').map(Number);
-        ch.append(choice(`Room at ${place({ x, y })}`, null, () => act(a)));
         targets.push({ x, y, label: `${nameOf(seat)} moves to ${place({ x, y })}`, pick: () => act(a) });
       }
       break;
@@ -778,6 +776,14 @@ function renderPrompt(v, la, targets) {
       p = panel('Waiting', `Phase ${g.phase}.`);
   }
   if (enc && g.phase !== 'COMBAT_SELECT' && g.phase !== 'MONSTER_REACT' && enc.monster) p.append(combatBox(v, enc));
+  if (targets.length) {
+    p.append(el('p', 'movehint', 'Tap a highlighted square to move. Press and hold any square to see what is there.'));
+    // The reason line of the focused lit square (the cell's own label already says it, so hidden from readers).
+    const why = el('small', 'movewhy', 'Arrow keys and Enter move from the keyboard.');
+    why.id = 'moveWhy';
+    why.setAttribute('aria-hidden', 'true');
+    p.append(why);
+  }
   p.append(ch);
   p.setAttribute('aria-live', 'polite');
   return p;
@@ -801,7 +807,8 @@ function renderTable(v) {
   bp.setAttribute('aria-label', 'Map');
   const host = el('div');
   bp.append(host, mapKey());
-  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[g.activeSeat].coord, onInspect: inspect, tilesLeft: v.board.tileBag });
+  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[g.activeSeat].coord, onInspect: inspect, tilesLeft: v.board.tileBag,
+    onFocusTarget: t => { if (t && $('moveWhy')) $('moveWhy').textContent = t.label; } });
 
   const side = el('div');
   side.append(prompt);
@@ -1043,7 +1050,12 @@ $('settingsBtn').onclick = () => {
 $('settingsDone').onclick = () => $('settings').close();
 $('inspectDone').onclick = () => $('inspect').close();
 for (const id of ['appLabel', 'appLabelSettings']) $(id).textContent = APP_LABEL;
-if (matchMedia('(min-width: 820px)').matches) $('banner').open = true; // phones start with the list folded
+// The synthetic list starts folded on every screen; the toggle opens and closes it (the banner itself stays).
+$('bannerToggle').onclick = () => {
+  const open = $('bannerToggle').getAttribute('aria-expanded') !== 'true';
+  $('bannerToggle').setAttribute('aria-expanded', open);
+  $('synthetic').hidden = !open;
+};
 
 // Esc cancels an uncommitted choice (the target placement and face, before Enter the result); sheets close natively.
 document.addEventListener('keydown', e => {

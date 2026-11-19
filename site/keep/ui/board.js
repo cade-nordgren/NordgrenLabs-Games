@@ -149,7 +149,7 @@ let ro = null;
 export function resetView() { vp = null; focusKey = null; }
 
 // opts: { v, content, names[seat], targets: [{ x, y, label, pick }], home: {x, y} | null (the active hero),
-//   onInspect(c), tilesLeft }
+//   onInspect(c), tilesLeft, onFocusTarget(target | undefined) when a square takes keyboard focus }
 export function mountBoard(host, opts) {
   const { v, content, names, targets = [], home = null, onInspect } = opts;
   const bd = content.board;
@@ -220,7 +220,7 @@ export function mountBoard(host, opts) {
       });
       if (t) svg('rect', { x: 5, y: 5, width: C - 10, height: C - 10, rx: 9, class: 'target' }, g);
       svg('rect', { x: 3, y: 3, width: C - 6, height: C - 6, rx: 10, class: 'focusring' }, g);
-      g.setAttribute('aria-label', cellLabel(v, content, c, names, t ? `lit: ${t.label}` : null));
+      g.setAttribute('aria-label', t ? `${t.label}. ${cellLabel(v, content, c, names)}` : cellLabel(v, content, c, names)); // the move first
     }
   }
 
@@ -320,7 +320,7 @@ export function mountBoard(host, opts) {
     focusKey = k;
     if (move) { e.focus({ preventScroll: true }); if (vp) { glide(true); reveal(parse(k)); } }
   };
-  root.addEventListener('focusin', e => { const cell = e.target.closest?.('[data-cell]'); if (cell) focusKey = cell.dataset.cell; });
+  root.addEventListener('focusin', e => { const cell = e.target.closest?.('[data-cell]'); if (cell) { focusKey = cell.dataset.cell; opts.onFocusTarget?.(tmap.get(focusKey)); } });
 
   // A choice on a square: a lit square takes its move; a tap on the active hero recentres; anything else
   // (a second tap within 350 ms, or Enter on an unlit square) opens the description.
