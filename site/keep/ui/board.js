@@ -149,14 +149,51 @@ let ro = null;
 let zoomKey = null; // the active hero and square the map last auto-zoomed for
 export function resetView() { vp = null; focusKey = null; zoomKey = null; }
 
-// Auto-zoom: is the 3x3 around c (clipped to the board) fully on screen at MIN_CELL px a square or more?
-// view: { s, x, y } as in vp; size: [vw, vh] in px; bd: the BoardDefinition.
+// ---- Viewport geometry, pure (tests/keep/viewport.test.js). view: { s, x, y } as in vp; size: [vw, vh] in px.
+// room: { size, inset, avoid: [{ x, y, w, h }] (the floating map buttons, in viewport px), pad, board: [W, H], lo, hi }.
 export const MIN_CELL = 48;
-export function nearInView(view, c, [vw, vh], bd) {
+export const INSET = 8; // px at the viewport edge that count as not visible: a square there is hard to tap
+const cellRect = (view, c) => ({ x: view.x + (M + c.x * C) * view.s, y: view.y + (M + c.y * C) * view.s, w: C * view.s, h: C * view.s });
+const hits = (r, a) => r.x < a.x + a.w - 0.5 && a.x < r.x + r.w - 0.5 && r.y < a.y + a.h - 0.5 && a.y < r.y + r.h - 0.5;
+// A square is clear when it is wholly inside the inset viewport and under no floating button.
+export function cellClear(view, c, { size: [vw, vh], inset = 0, avoid = [] }) {
+  const r = cellRect(view, c);
+  return r.x >= inset - 0.5 && r.y >= inset - 0.5 && r.x + r.w <= vw - inset + 0.5 && r.y + r.h <= vh - inset + 0.5 && !avoid.some(a => hits(r, a));
+}
+
+// Auto-zoom: is the 3x3 around c (clipped to the board) fully on screen at MIN_CELL px a square or more, and is
+// every square in opts.cells (the lit moves) clear? opts: { inset, avoid, cells } as in room.
+export function nearInView(view, c, [vw, vh], bd, opts = {}) {
   if (C * view.s < MIN_CELL - 0.01) return false;
+  const i = opts.inset || 0;
   const px = x => view.x + (M + x * C) * view.s, py = y => view.y + (M + y * C) * view.s;
   const x0 = Math.max(0, c.x - 1), x1 = Math.min(bd.width, c.x + 2), y0 = Math.max(0, c.y - 1), y1 = Math.min(bd.height, c.y + 2);
-  return px(x0) >= -0.5 && py(y0) >= -0.5 && px(x1) <= vw + 0.5 && py(y1) <= vh + 0.5;
+  return px(x0) >= i - 0.5 && py(y0) >= i - 0.5 && px(x1) <= vw - i + 0.5 && py(y1) <= vh - i + 0.5
+    && (opts.cells || []).every(t => cellClear(view, t, { ...opts, size: [vw, vh] }));
+}
+
+// Pan limits. Without pad a board smaller than the viewport is centred and a larger one stops at its edges; pad
+// lets it go that many px past them, so an edge or corner square can be brought out from under a button.
+export function clampView(view, { size: [vw, vh], board: [W, H], pad = 0 }) {
+  const axis = (p, b, v) => (!pad && b <= v ? (v - b) / 2 : Math.min(Math.max(0, v - b) + pad, Math.max(Math.min(0, v - b) - pad, p)));
+  return { ...view, x: axis(view.x, W * view.s, vw), y: axis(view.y, H * view.s, vh) };
+}
+
+// Where to look so that c and every square in cells are clear: centred in the whole viewport, then in the space
+// left of and below each floating button, at scale s0 and then a step (1.25x) smaller each time down to room.lo,
+// where it falls back to centring on them.
+export function frameView(s0, c, cells, room) {
+  const [vw, vh] = room.size, want = [c, ...cells];
+  const mx = (Math.min(...want.map(t => t.x)) + Math.max(...want.map(t => t.x)) + 1) / 2;
+  const my = (Math.min(...want.map(t => t.y)) + Math.max(...want.map(t => t.y)) + 1) / 2;
+  const areas = [[0, 0, vw, vh], ...(room.avoid || []).flatMap(a => [[0, 0, a.x, vh], [0, a.y + a.h, vw, vh]])];
+  for (let s = Math.min(room.hi, Math.max(room.lo, s0)); ; s = Math.max(room.lo, s / 1.25)) {
+    for (const [x0, y0, x1, y1] of areas) {
+      const v = clampView({ s, x: (x0 + x1) / 2 - (M + mx * C) * s, y: (y0 + y1) / 2 - (M + my * C) * s }, room);
+      if (want.every(t => cellClear(v, t, room))) return v;
+    }
+    if (s <= room.lo) return clampView({ s, x: vw / 2 - (M + mx * C) * s, y: vh / 2 - (M + my * C) * s }, room);
+  }
 }
 
 // opts: { v, content, names[seat], targets: [{ x, y, label, pick }], home: {x, y} | null (the active hero),
@@ -250,7 +287,7 @@ export function mountBoard(host, opts) {
     const [at, side] = e.split('|');
     sideGlyph(over, 'gate', shared(at, side), 'fallen');
   }
-  const [a, b] = bd.center;
+  const [a, b = a] = bd.center; // one cell (spec v3) or the older two
   const mid = { x: ((a.x + b.x) / 2 + 0.5) * C, y: ((a.y + b.y) / 2 + 0.5) * C };
   if (v.board.chamberPlaced) chestGlyph(over, mid.x, mid.y);
   else svg('text', { x: mid.x, y: mid.y + 8, class: 'reserved-label', 'text-anchor': 'middle' }, over).textContent = 'Chamber';
@@ -261,16 +298,22 @@ export function mountBoard(host, opts) {
   const fitScale = () => { const [vw, vh] = size(); return Math.min(vw / W, vh / H) || 0.3; };
   const limits = () => { const f = fitScale(); return [f, Math.max(f * 1.01, 1.4)]; };
   const apply = () => { root.style.transform = `translate(${vp.x}px, ${vp.y}px) scale(${vp.s})`; };
-  const clamp = () => {
+  // The viewport as frameView sees it, measured now: the map buttons count only where they float over the map.
+  const room = () => {
     const [vw, vh] = size(), [lo, hi] = limits();
+    const vr = view.getBoundingClientRect(), tr = tools.getBoundingClientRect();
+    const a = { x: tr.left - vr.left - INSET, y: tr.top - vr.top - INSET, w: tr.width + 2 * INSET, h: tr.height + 2 * INSET };
+    const avoid = tr.width && hits(a, { x: 0, y: 0, w: vw, h: vh }) ? [a] : [];
+    return { size: [vw, vh], inset: INSET, avoid, pad: avoid.length ? a.w + INSET : 0, board: [W, H], lo, hi };
+  };
+  const clamp = () => {
+    const [lo, hi] = limits();
     vp.s = Math.min(hi, Math.max(lo, vp.s));
-    const bw = W * vp.s, bh = H * vp.s;
-    vp.x = bw <= vw ? (vw - bw) / 2 : Math.min(0, Math.max(vw - bw, vp.x));
-    vp.y = bh <= vh ? (vh - bh) / 2 : Math.min(0, Math.max(vh - bh, vp.y));
+    Object.assign(vp, clampView(vp, room()));
     apply();
   };
   const glide = on => root.classList.toggle('glide', on); // a CSS transition; style.css turns it off under reduced motion
-  const fit = () => { vp = { s: fitScale(), x: 0, y: 0, fit: true }; clamp(); };
+  const fit = () => { const [vw, vh] = size(), s = fitScale(); vp = { s, x: (vw - W * s) / 2, y: (vh - H * s) / 2, fit: true }; clamp(); };
   const zoomAt = (f, px, py) => {
     const s0 = vp.s, [lo, hi] = limits();
     const s = Math.min(hi, Math.max(lo, s0 * f));
@@ -288,6 +331,8 @@ export function mountBoard(host, opts) {
     vp.fit = false;
     clamp();
   };
+  // The hero and every lit square clear of the edges and the buttons, zoomed to at least minScale where that fits.
+  const frame = (minScale = 0) => { Object.assign(vp, frameView(Math.max(vp.s, minScale), home, targets, room()), { fit: false }); apply(); };
   // Keep a square in view when keyboard focus moves off the visible part.
   const reveal = c => {
     const [vw, vh] = size();
@@ -296,14 +341,17 @@ export function mountBoard(host, opts) {
   };
   if (vp) apply();
   // When the active hero (or their square) changes, zoom in on them unless their neighbourhood is already
-  // readable. Once per change, after layout (the ResizeObserver), and dropped if the user starts a gesture.
+  // readable; on every render, reframe if a lit square is clipped or under a map button. After layout (the
+  // ResizeObserver), and dropped if the user starts a gesture.
   const zk = home && `${v.activeSeat} ${key(home)}`;
-  let wantZoom = !!zk && zk !== zoomKey;
+  let wantZoom = !!zk && zk !== zoomKey, wantClear = !!home && targets.length > 0;
   zoomKey = zk;
   const autoZoom = () => {
-    if (!wantZoom || !vp) return;
-    wantZoom = false;
-    if (!nearInView(vp, home, size(), bd)) { glide(true); centreOn(home, MIN_CELL / C); }
+    if (!vp || !(wantZoom || wantClear)) return;
+    const r = room();
+    const ok = wantZoom ? nearInView(vp, home, r.size, bd, { ...r, cells: targets }) : targets.every(t => cellClear(vp, t, r));
+    if (!ok) { glide(true); frame(wantZoom ? MIN_CELL / C : 0); }
+    wantZoom = wantClear = false;
   };
   ro?.disconnect();
   ro = new ResizeObserver(() => { if (!view.clientWidth) return; if (!vp || vp.fit) fit(); else clamp(); autoZoom(); });
@@ -327,7 +375,7 @@ export function mountBoard(host, opts) {
   tool('−', 'Zoom out', () => zoomAt(1 / 1.4, ...middle()));
   tool('+', 'Zoom in', () => zoomAt(1.4, ...middle()));
   tool('Fit board', `Fit board: all ${bd.width * bd.height} squares`, fit, 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5');
-  if (home) tool('Centre on hero', 'Centre on the active hero', () => centreOn(home, fitScale() * 2), 'M12 2v4M12 18v4M2 12h4M18 12h4M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0');
+  if (home) tool('Centre on hero', 'Centre on the active hero', () => frame(fitScale() * 2),'M12 2v4M12 18v4M2 12h4M18 12h4M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0');
   if (opts.tilesLeft !== undefined) {
     const s = document.createElement('span');
     s.className = 'tiles';
@@ -361,7 +409,7 @@ export function mountBoard(host, opts) {
     setFocus(k, false);
     if (second) return onInspect(parse(k));
     if (t) { focusKey = null; return t.pick(); }
-    if (how === 'tap' && home && key(home) === k) { if (vp) { glide(true); centreOn(home, fitScale() * 2); } return; }
+    if (how === 'tap' && home && key(home) === k) { if (vp) { glide(true); frame(fitScale() * 2); } return; }
     (how === 'tap' && opts.onNear ? opts.onNear : onInspect)(parse(k));
   };
 
@@ -371,7 +419,7 @@ export function mountBoard(host, opts) {
   view.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') { if (e.button !== 0) return; pts.clear(); }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    wantZoom = false; // the user has the map now: never zoom under their fingers
+    wantZoom = wantClear = false; // the user has the map now: never zoom under their fingers
     glide(false);
     clearTimeout(press);
     if (pts.size === 1) {
