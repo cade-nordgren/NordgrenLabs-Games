@@ -98,11 +98,20 @@ export function describe(e, ctx, next) {
       if (next && next.kind === 'test' && next.roll === e.value) return null; // the test line says it
       const m = /^first player, seat (\d+)$/.exec(e.reason);
       if (m) return `${who(+m[1])} rolls ${e.value} on the D12.`;
-      if (e.reason === 'dark room exit' || e.reason === 'ambush' || e.reason === 'dragon fire') return null; // their own lines follow
-      return `${e.die}: ${e.value} (${e.reason}).`;
+      if (e.reason === 'dark room exit') return null; // its own line follows
+      if (e.reason === 'ambush' || e.reason === 'dragon fire') return [null, `${e.die} ${e.value}`]; // the damage line carries it
+      const card = /^card roll /.test(e.reason);
+      if (card && next?.kind === 'formula') return null; // the formula's arithmetic shows the roll
+      return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} rolls ${e.value} on the ${e.die}${card ? ' for the card' : ''}.`, card ? '' : e.reason];
     }
-    case 'test': return `${STAT[e.stat]} test (${e.reason}): ${e.arithmetic || `D12 ${e.roll}${e.modifier ? ` + ${e.modifier}` : ''} against ${e.target}, ${e.pass ? 'pass' : 'fail'}`}.`;
-    case 'formula': return `${capital(e.reason)}: ${e.arithmetic}.`;
+    case 'test': {
+      const mod = e.modifier || 0;
+      return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} ${e.pass ? 'passes' : 'fails'} the ${STAT[e.stat]} test ${TEST_WHY[e.reason] || `(${e.reason})`}.`,
+        `D12 ${e.roll}${mod ? ` + ${mod} = ${e.roll + mod}` : ''} against ${STAT[e.stat]} ${e.target}`];
+    }
+    case 'formula':
+      if (next && ['damage', 'heal', 'monster-wound'].includes(next.kind)) return [null, e.arithmetic]; // carried onto that line
+      return [`${capital(e.reason)} works out to ${e.value}.`, e.arithmetic];
     case 'gate': return `Portcullis on ${edgeWords(e.edge)}: ${e.pass ? 'lifted' : 'it holds'}.`;
     case 'tower-choice': return `${who(e.seat)} ${TOWER_CHOICE[e.choice]} at ${place(xy(e.at))}.`;
     case 'pick-hero': return `${who(e.seat)} takes ${contentIndex(content).heroes.get(e.heroId).name}.`;
@@ -124,7 +133,7 @@ export function describe(e, ctx, next) {
     case 'gate-falls': return `A portcullis drops behind, on ${edgeWords(e.edge)}.`;
     case 'condition': return `${who(e.seat)} ${CONDITION[e.id] || 'is under a lasting effect'}.`;
     case 'condition-cleared': return `${who(e.seat)} ${CONDITION_OFF[e.id] || 'is free of a lasting effect'}.`;
-    case 'dark-exit': return `Dark room: the D6 shows ${e.roll}, the way out is ${DIR[e.dir]}.`;
+    case 'dark-exit': return [`Dark room: the way out is ${DIR[e.dir]}.`, `D6 ${e.roll}`];
     case 'dark-blocked': return 'That way is blocked. The hero stays and rolls again next turn.';
     case 'draw': {
       if (e.deck === 'TILE') return null;
@@ -149,7 +158,7 @@ export function describe(e, ctx, next) {
     case 'combat-pick': return e.side === 'hero' ? 'The hero picks a card.' : 'The monster picks a card.';
     case 'exchange': return `Exchange: hero ${e.hero}, monster ${e.monster}. Hero takes ${e.heroDmg}, monster takes ${e.monsterDmg}.`;
     case 'throw': return e.rethrow ? 'Unclear throw: throw again.' : `Throw: ${PLACEMENT[e.placement].toLowerCase()}, ${FACE[e.face].toLowerCase()}. Hero takes ${e.heroDmg}, monster takes ${e.monsterDmg}.`;
-    case 'damage': return `${who(e.seat)} takes ${e.amount}, ${e.reason}${e.arithmetic ? ` (${e.arithmetic})` : e.raw !== e.amount ? ` (${e.raw} counts as 0)` : ''}. ${Math.max(0, e.hp)} HP left.`;
+    case 'damage': return [`${who(e.seat)} takes ${e.amount} damage${e.reason === 'card' ? ' from the card' : `, ${e.reason}`}. ${Math.max(0, e.hp)} HP left.`, e.raw !== e.amount ? `${e.raw} counts as 0` : ''];
     case 'heal': return `${who(e.seat)} heals ${e.amount}. ${e.hp} HP.`;
     case 'death': return `${who(e.seat)} dies: ${e.reason}.`;
     case 'dragon-odds': return `The dragon wakes on ${e.awake} in ${e.remaining}.`;
@@ -176,8 +185,24 @@ export function undoLabel(prev, next, content, name) {
   return `Undo ${name(seat)}'s ${what || 'last action'}`;
 }
 
-// Each line with its entry, so the log can show the round and the debug log the raw fields.
+// Each line with its entry, so the log can show the round and the debug log the raw fields. text is the plain
+// sentence; detail the dice arithmetic behind it, shown smaller (a dropped roll or formula line hands its
+// arithmetic to the next line). Card registers and stat codes read as the die and the stat's name.
 export function entries(events, ctx) {
-  return events.map((e, i) => ({ e, text: describe(e, ctx, events[i + 1]) })).filter(x => x.text).map(x => ({ e: x.e, text: capital(x.text) }));
+  const regs = {}, out = [];
+  let carry = [];
+  events.forEach((e, i) => {
+    const m = e.kind === 'roll' && /^card roll (\S+)$/.exec(e.reason);
+    if (m) regs[m[1]] = e.die;
+    const r = describe(e, ctx, events[i + 1]);
+    let [text, detail] = Array.isArray(r) ? r : [r, ''];
+    if (detail) detail = detail.replace(/[A-Za-z_]\w*/g, w => (Object.hasOwn(regs, w) ? regs[w] : Object.hasOwn(STAT, w) ? STAT[w] : w)).replace(/ {2,}/g, ' ');
+    if (!text) { if (detail) carry.push(detail); return; }
+    out.push({ e, text: capital(text), detail: [...carry, detail].filter(Boolean).join('; ') });
+    carry = [];
+  });
+  return out;
 }
+// Why a test is rolled, after "passes the Strength test".
+export const TEST_WHY = { portcullis: 'to lift the portcullis', 'well entry': 'on entering the well', 'well jump': 'to jump the well', 'force rubble': 'to force through the rubble', 'card test': 'for the card' };
 export const lines = (events, ctx) => entries(events, ctx).map(x => x.text);
