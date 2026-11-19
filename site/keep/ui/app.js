@@ -50,7 +50,7 @@ const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs
 
 // ---- State. The engine game plus what the screen needs; saved on every change. It belongs to whoever was signed in
 // (owner), so a game in progress never shows to the next person on this browser.
-const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null, owner: NL.person() });
+const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, dropSave: null, seen: 0, reveal: null, peek: null, owner: NL.person() });
 let S = fresh();
 let viewer = null; // the seat looking now; never saved, so a refresh always covers a private screen
 let target = { placement: null, face: null }; // solo target entry, before it is sent
@@ -65,6 +65,7 @@ function load() {
   if ([1, 2, 3, 4].includes(s.count)) b.count = s.count;
   if (Array.isArray(s.names)) b.names = b.names.map((n, i) => (typeof s.names[i] === 'string' ? s.names[i].slice(0, 20) : ''));
   if (['target', 'abc-digital-variant'].includes(s.soloCombat)) b.soloCombat = s.soloCombat;
+  if (UUID.test(s.dropSave)) b.dropSave = s.dropSave;
   // Stored data is a trust boundary: the engine's restore() checks versions, content and shape.
   if (s.game && CONTENT[s.mode]) {
     try {
@@ -74,7 +75,6 @@ function load() {
       b.hist = Array.isArray(s.hist) ? s.hist.filter(h => okSnap(h, c)).slice(-HIST_CAP) : [];
       if (UUID.test(s.saveId)) b.saveId = s.saveId;
       if (ISO.test(s.createdAt)) b.createdAt = s.createdAt;
-      b.finishedSaved = s.finishedSaved === true;
       b.seen = Number.isInteger(s.seen) && s.seen <= b.game.log.length ? s.seen : b.game.log.length;
       const r = s.reveal;
       if (r && Number.isInteger(r.seat) && r.seat >= 0 && r.seat < b.game.seats.length && ['A', 'B', 'C'].includes(r.hero) && ['A', 'B', 'C'].includes(r.monster) && Number.isInteger(r.heroDmg) && Number.isInteger(r.monsterDmg)) b.reveal = r;
@@ -115,6 +115,7 @@ function act(a) {
   const priv = added.find(e => (e.kind === 'draw' || e.kind === 'retain') && e.private !== undefined && e.deck !== 'MONSTER');
   S.peek = multi && Number.isInteger(priv?.private) ? { seat: priv.private, from: prev.log.length } : null;
   target = { placement: null, face: null };
+  if (prev.status !== 'over' && next.status === 'over' && S.saveId) Object.assign(S, { dropSave: S.saveId, saveId: null, createdAt: null });
   S.game = next;
   render();
   if (!showRolls(added) && $('roll').open) $('roll').close();
@@ -286,7 +287,7 @@ function newGame(mode) {
     $('startReason').textContent = err.message;
     return;
   }
-  Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
+  Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null });
   viewer = players.length === 1 ? 0 : null;
   outcome = null;
   resetView();
@@ -295,7 +296,7 @@ function newGame(mode) {
 }
 
 function toTitle() {
-  Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
+  Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null });
   viewer = null;
   outcome = null;
   shown = NL.saves.cached('keep') ?? shown; // this browser's copy of a save just made shows at once
@@ -313,6 +314,7 @@ function saveTitle(g) {
 // put() writes to this browser at once and uploads in the background for a signed-in person.
 async function saveGame() {
   const g = S.game;
+  if (g.status === 'over') throw new Error('A finished game is not saved');
   const now = new Date().toISOString();
   if (!S.saveId) Object.assign(S, { saveId: crypto.randomUUID(), createdAt: now }); // before any await, so a double tap updates one record
   if (!S.createdAt) S.createdAt = (await NL.saves.get(S.saveId).catch(() => null))?.createdAt || now;
@@ -321,11 +323,29 @@ async function saveGame() {
   const state = { mode: S.mode, game: g, hist: fitHist(S.hist, JSON.stringify({ mode: S.mode, game: g, hist: [] }).length, 240000) };
   return NL.saves.put({
     schemaVersion: 1, id: S.saveId, game: 'keep', personPublicId: NL.person(),
-    title: saveTitle(g), status: g.status === 'over' ? 'finished' : 'in_progress',
+    title: saveTitle(g), status: 'in_progress',
     createdAt: S.createdAt, updatedAt: now, state,
   });
 }
 const okRecord = r => !!r?.state && CONTENT[r.state.mode] && !!r.state.game && typeof r.state.game === 'object';
+
+// Finished games are not saved (owner, 2026-11-19). When a saved game ends, act() moves its id to S.dropSave and the
+// record is removed here, so it can neither be resumed nor linger in the list (Bank, too, writes a save only when
+// asked). Signed in, remove() must reach the server (decision 0003) and rejects offline: S.dropSave is autosaved and
+// tried again on a later render, at most every 15 seconds, and when the network comes back. Meanwhile the list hides it.
+let dropping = false, dropAt = 0;
+function dropFinished() {
+  const id = S.dropSave;
+  if (!id || dropping || Date.now() - dropAt < 15000) return;
+  dropping = true;
+  dropAt = Date.now();
+  NL.saves.remove(id).then(() => {
+    if (S.dropSave === id) { S.dropSave = null; persist(); }
+    shown = shown && shown.filter(r => r.id !== id);
+    if (!S.game) drawSaves();
+  }, () => {}).finally(() => { dropping = false; });
+}
+addEventListener('online', () => { dropAt = 0; dropFinished(); });
 
 async function resume(id) {
   const r = await NL.saves.get(id).catch(() => null); // a signed-in save can fail to load when the server is unreachable
@@ -334,7 +354,7 @@ async function resume(id) {
   try { c = CONTENT[r.state.mode]; game = restore(JSON.stringify(r.state.game), c); } catch { return toast('That save cannot be opened.'); }
   Object.assign(S, {
     mode: r.state.mode, game, hist: Array.isArray(r.state.hist) ? r.state.hist.filter(h => okSnap(h, c)).slice(-HIST_CAP) : [],
-    saveId: r.id, createdAt: r.createdAt, finishedSaved: r.status === 'finished', seen: game.log.length, reveal: null, peek: null,
+    saveId: r.id, createdAt: r.createdAt, seen: game.log.length, reveal: null, peek: null,
   });
   viewer = game.seats.length === 1 ? 0 : null;
   outcome = null;
@@ -373,7 +393,7 @@ try { $('savedGroup').open = sessionStorage.getItem(OPEN_KEY) === '1'; } catch {
 $('savedGroup').ontoggle = () => { try { sessionStorage.setItem(OPEN_KEY, $('savedGroup').open ? '1' : '0'); } catch {} };
 
 function drawSaves() {
-  const recs = (shown || []).filter(okRecord), group = $('savedGroup');
+  const recs = (shown || []).filter(r => okRecord(r) && r.id !== S.dropSave), group = $('savedGroup');
   group.hidden = !loadingSaves && !savesNote && !recs.length;
   group.setAttribute('aria-busy', loadingSaves);
   $('savedSummary').replaceChildren('Saved games', loadingSaves ? el('span', 'skeleton count') : recs.length ? ` (${recs.length})` : '');
@@ -492,6 +512,7 @@ function keepAwake(on) {
 let boardApi = null; // the mounted map, to put keyboard focus back on its grid after a re-render
 function render() {
   persist();
+  dropFinished();
   const g = S.game;
   const screen = !g ? 'title' : g.status === 'setup' ? 'draft' : g.status === 'over' ? 'results' : 'table';
   const onCell = !!document.activeElement?.closest?.('[data-cell]');
@@ -517,12 +538,6 @@ function render() {
     for (const id of ['draft', 'table', 'results']) { $(id).hidden = true; $(id).replaceChildren(); }
     $('title').hidden = false;
     return renderTitle();
-  }
-  if (g.status === 'over' && !S.finishedSaved) {
-    // A finished game saves itself once, reusing the record of a resumed or saved game.
-    S.finishedSaved = true;
-    persist();
-    saveGame().catch(() => toast('Could not save the finished game.'));
   }
   if (solo()) viewer = 0;
   const need = needViewer();
@@ -1445,11 +1460,14 @@ $('fixtures').onclick = () => newGame('fixture');
 $('mixed').onclick = () => newGame('mixed');
 $('undo').onclick = undo;
 // Exit, as in Bank: Save and exit, Exit without saving, or Keep playing (Esc and a backdrop tap keep playing too).
+// On the results there is nothing to save: New game (back to the title) or Back to results.
 $('exitBtn').onclick = () => {
   const fin = S.game.status === 'over';
   $('exitTitle').textContent = fin ? 'Leave the results?' : 'Exit this game?';
-  $('exitNote').textContent = fin ? 'A finished game saves itself to Saved games.' : 'Save it to pick up later from Saved games.';
-  $('discard').textContent = 'Exit without saving';
+  $('exitNote').textContent = 'Save it to pick up later from Saved games.';
+  $('exitNote').hidden = $('saveExit').hidden = fin;
+  $('discard').textContent = fin ? 'New game' : 'Exit without saving';
+  $('discard').className = fin ? 'btn primary' : 'btn danger';
   $('keepPlaying').textContent = fin ? 'Back to results' : 'Keep playing';
   $('exitSheet').showModal();
 };
