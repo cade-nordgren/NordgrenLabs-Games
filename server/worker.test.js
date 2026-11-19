@@ -310,7 +310,7 @@ test('all three empty is the signed-out dev environment: null config, every API 
   const env = { ...main.env, CLERK_PUBLISHABLE_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '' };
   assert.equal((await get('/config.js', {}, 'GET', undefined, env)).body, 'window.NL_CONFIG = null;\n');
   assert.equal((await get('/api/me', { authorization: bearer(sign(claims())) }, 'GET', undefined, env)).status, 401);
-  for (const p of ['/', '/bank/', '/style.css', '/tidevault/']) {
+  for (const p of ['/', '/bank/', '/style.css']) { // only Bank and shared files: other games may be absent from a release
     const r = await get(p, {}, 'GET', undefined, env);
     assert.equal(r.status, 200, p);
     assert.doesNotMatch(r.headers['cache-control'], /private/);
