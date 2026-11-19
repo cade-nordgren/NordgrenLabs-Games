@@ -312,6 +312,11 @@ details li + li { margin-top: 6px; }
 .cover .banner { margin: 0; width: 100%; }
 #toast { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); translate: -50% 0; z-index: 21; padding: 10px 16px; border-radius: 999px; background: var(--ink); color: var(--canvas); font-size: 15px; }
 
+/* The round X at the top right of a sheet (the menu's close glyph), beside Close or Done and Esc. */
+.sheet-x { position: absolute; top: 10px; right: 10px; z-index: 1; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--ink); }
+.sheet-x svg { width: 20px; height: 20px; }
+.sheet-x + h2 { padding-right: 44px; overflow-wrap: anywhere; }
+
 /* Settings */
 .appearance { display: flex; align-items: center; gap: 12px; }
 .appearance .segmented { flex: 1; margin: 0; }
@@ -516,6 +521,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 
 <dialog class="sheet glass" id="inspect" aria-labelledby="inspectTitle">
   <div>
+    <button class="sheet-x" aria-label="Close details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <h2 id="inspectTitle"></h2>
     <div id="inspectBody"></div>
     <button class="btn" id="inspectDone">Close</button>
@@ -524,6 +530,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 
 <dialog class="sheet glass" id="items" aria-labelledby="itemsTitle">
   <div>
+    <button class="sheet-x" aria-label="Close items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <h2 id="itemsTitle"></h2>
     <div id="itemsBody"></div>
     <button class="btn" id="itemsDone">Close</button>
@@ -532,6 +539,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 
 <dialog class="sheet glass" id="logSheet" aria-labelledby="logTitle">
   <div>
+    <button class="sheet-x" aria-label="Close event log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <h2 id="logTitle">Event log</h2>
     <button class="btn" id="logEnd" hidden>Jump to the end</button>
     <ol id="log"></ol>
@@ -567,6 +575,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 
 <dialog class="sheet glass" id="settings" aria-labelledby="settingsTitle">
   <div>
+    <button class="sheet-x" aria-label="Close settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <h2 id="settingsTitle">Settings</h2>
     <h3 id="themeTitle">Appearance</h3>
     <div class="appearance">

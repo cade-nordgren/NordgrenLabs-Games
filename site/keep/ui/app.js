@@ -1515,6 +1515,7 @@ $('outcome').onclick = () => $('outcome').close();
 $('outcome').addEventListener('close', () => refocus(false));
 $('inspectDone').onclick = () => $('inspect').close();
 $('itemsDone').onclick = () => $('items').close();
+for (const b of document.querySelectorAll('.sheet-x')) b.onclick = () => b.closest('dialog').close();
 for (const id of ['appLabel', 'appLabelSettings']) $(id).textContent = APP_LABEL;
 // The synthetic list starts folded on every screen; the toggle opens and closes it (the banner itself stays).
 $('bannerToggle').onclick = () => {
