@@ -5,7 +5,7 @@
 import { roll, testStat, logEvent } from './dice.js';
 import { draw, toBottom, reshuffle, cardDef } from './decks.js';
 import { damageHero, healHero, statOf, setCondition, clearCondition, returnTreasury, isActive } from './heroes.js';
-import { enterTile, rotateTile, moveChoices, beginCarryOver } from './movement.js';
+import { enterTile, rotateTile, moveChoices, beginCarryOver, allowContinue } from './movement.js';
 import { startEncounter, woundMonster, applyReaction } from './monsters.js';
 import { continueWake } from './treasury.js';
 import { itemLog, groupOf } from './inventory.js';
@@ -105,9 +105,9 @@ const OPS = {
   MONSTER_ENCOUNTER: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush }),
   REQUEST_COMBAT: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush }),
   // D11 (provisional): a secret passage may cross a printed wall; it lasts for this turn's move only.
-  OPEN_TEMPORARY_PASSAGE(g, c, e) { g.turn.secret = e.side; g.turn.mayContinue = true; logEvent(g, { kind: 'secret-passage', side: e.side }); },
+  OPEN_TEMPORARY_PASSAGE(g, c, e, f) { g.turn.secret = e.side; logEvent(g, { kind: 'secret-passage', side: e.side }); allowContinue(g, 'secret-passage', { card: owner(g, f).card }); },
   ROTATE_TILE: (g, c, e) => rotateTile(g, active(g).coord),
-  CONTINUE_MOVEMENT: g => { g.turn.mayContinue = true; },
+  CONTINUE_MOVEMENT: (g, c, e, f) => allowContinue(g, 'card', { card: owner(g, f).card ?? null }),
   // Internal (not allowed in content): apply the announced monster reaction.
   _REACT: (g, c) => applyReaction(g, c),
 };
@@ -143,7 +143,7 @@ function finishFrame(g, content, f, aborted) {
     if (!aborted && (d === 'RESHUFFLE_DECK' || f.reshuffle)) reshuffle(g, f.deck);
   } else if (f.card && f.reshuffle && !aborted) reshuffle(g, f.deck);
   if (aborted) return;
-  if (f.card && f.turnDisposition === 'continue') g.turn.mayContinue = true;
+  if (f.card && f.turnDisposition === 'continue') allowContinue(g, 'card', { card: f.card });
   if (f.door) return doorOutcome(g, content, f);
   // RB 7.3, SP 6: a branch draws from the named sub-deck; a monster branch is an encounter.
   if (f.followUp === 'MONSTER') startEncounter(g, content, { ambush: false });
@@ -161,7 +161,7 @@ function doorOutcome(g, content, f) {
   } else if (f.kind === 'closed') {
     g.turn.triedDoors.push(edge);
     if (noDetour) g.turn.endAfter = true; // dark-room exit or a return move: D07, stay and retry
-    else g.turn.mayContinue = true;
+    else allowContinue(g, 'door-stayed-closed', { edge });
   } else g.turn.endAfter = true;
 }
 

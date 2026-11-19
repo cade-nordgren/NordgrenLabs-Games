@@ -6,7 +6,7 @@ import { tileSlots } from './tiles.js';
 import { startTurn, endTurn } from './clock.js';
 import { initDecks, toBottom } from './decks.js';
 import { run, drawAndResolve } from './effects.js';
-import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers } from './movement.js';
+import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers, allowContinue } from './movement.js';
 import { killHero, clearCondition, statOf, READY, ESCAPED } from './heroes.js';
 import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
@@ -210,7 +210,7 @@ const apply = {
     const hero = g.heroes[seat];
     g.pending = null;
     const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'force rubble');
-    if (pass) { clearCondition(g, seat, 'rubble'); g.turn.mayContinue = true; } else g.turn.endAfter = true;
+    if (pass) { clearCondition(g, seat, 'rubble'); allowContinue(g, 'rubble-forced'); } else g.turn.endAfter = true;
     run(g, content);
   },
   // REQUEST_CHOICE and MOVE_HERO adjacent-choice answers.
@@ -232,7 +232,7 @@ const apply = {
       logEvent(g, { kind: 'escape', seat, at: `${hero.coord.x},${hero.coord.y}` });
       g.turn.endNow = true;
     } else if (choice === 'STAY') g.turn.endAfter = true;
-    else { g.turn.mayContinue = true; g.turn.transitFrom = hero.enteredFrom; }
+    else { allowContinue(g, 'tower-transit'); g.turn.transitFrom = hero.enteredFrom; }
     run(g, content);
   },
   RESPOND(g, { choice, item }, content) { respond(g, content, choice, item); run(g, content); },

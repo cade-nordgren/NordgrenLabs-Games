@@ -10,6 +10,21 @@ import { collect } from './treasury.js';
 
 const tileDefAt = (g, content, c) => contentIndex(content).tiles.get(g.board.tiles[key(c)].defId);
 
+// Every way a hero may keep moving after a move this turn, with the rule that allows it. allowContinue is the
+// only place that sets turn.mayContinue, and it logs a 'may-continue' entry saying why (for the UI and tests).
+export const CONTINUE_REASONS = {
+  'yellow-corridor': 'RB 6.1, SP 5 (R34): a yellow corridor lets the hero keep moving',
+  'door-stayed-closed': 'RB 6.6, SP 5 (R48): the door stayed shut, another free passage may be used this turn',
+  'secret-passage': 'RB 7.1, SP 6 (R56, D11): a secret passage was found, the hero may move through it this turn',
+  card: "the drawn card's own data says continue (turnDisposition 'continue' or CONTINUE_MOVEMENT)",
+  'tower-transit': 'spec v2 #2 (R111): continuing through the tower to another passage',
+  'rubble-forced': 'RB 6.5, SP 5: the rubble was forced, the hero may leave through any exit this turn',
+};
+export function allowContinue(g, reason, extra = {}) {
+  g.turn.mayContinue = true;
+  logEvent(g, { kind: 'may-continue', seat: g.activeSeat, reason, rule: CONTINUE_REASONS[reason], ...extra });
+}
+
 // Turn-scoped state: set at TURN_START, read by exits() and the resolution loop.
 export function freshTurn(seat) {
   return { seat, stage: 'start', mayContinue: false, endAfter: false, endNow: false, openedDoor: null, triedDoors: [], secret: null, transitFrom: null };
@@ -115,7 +130,9 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
     hero.status = IN_TOWER;
     if (seat === g.activeSeat) {
       g.phase = 'TOWER_CHOICE';
-      g.pending = { kind: 'tower', seat, transit: via !== 'flight' }; // a flight ends the turn: no transit
+      // A flight ends the turn: no transit. A card's move (MOVE_HERO) follows that card's turnDisposition, so no
+      // transit either (owner play-test 2026-11-19: a room card never grants more movement unless it says so).
+      g.pending = { kind: 'tower', seat, transit: via !== 'flight' && via !== 'card' };
     }
     return;
   }
@@ -157,8 +174,10 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
     g.phase = 'DRAW_ROOM';
     drawAndResolve(g, content, 'ROOM', 'room entry');
   }
-  // RB 6.1, SP 5: a yellow corridor lets the hero keep moving this turn.
-  if (def.mark === 'yellow' && own && !retreat && effects) g.turn.mayContinue = true;
+  // RB 6.1, SP 5: a yellow corridor lets the hero keep moving this turn, on the hero's own move only. A move a
+  // card made (MOVE_HERO) follows that card's turnDisposition instead: no rule lets a card push into a corridor
+  // grant more movement (owner play-test, 2026-11-19).
+  if (def.mark === 'yellow' && own && !retreat && via !== 'card' && effects) allowContinue(g, 'yellow-corridor');
 }
 
 // RB 6.2, SP 5: compulsory dark-room exit from a D6. exitSides: the tile's non-wall board sides.
