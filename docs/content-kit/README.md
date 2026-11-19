@@ -145,6 +145,11 @@ Cards (and special weapons, rings and monster reactions) carry `effects`: a list
 | `MONSTER_ENCOUNTER` / `REQUEST_COMBAT` | `ambush: true/false`, `monster: 'S09'` (the monster type met) | A monster: the hero commits to Attack, Wait, Flee or Special before the monster card is revealed. In an ambush the monster strikes first (D12 minus Luck, never below 0) and Wait is not offered (RB 8.7); a special weapon still is (D41). `monster` names the type the hero meets, a monster-group combat set `'S09'` to `'S12'`; the drawn monster card is read on that type's row ([Monster cards](#monster-cards)). It is required once your monster cards have rows. |
 | `OPEN_TEMPORARY_PASSAGE` | `side: 'N' \| 'E' \| 'S' \| 'W' \| 'any-orthogonal'` | A secret passage for this turn's move, which may cross a printed wall (D11, provisional; plan 13 #4 and #15). |
 | `ROTATE_TILE` | `degrees: 90` | Turns the hero's room a quarter turn clockwise. |
+| `ROLL_TABLE` | `die: 'D6' \| 'D12'`, `store: 'a name'` (optional), `rows: [{ min, max, effects: [steps] }, ...]` | Rolls the die and runs the steps of the row the result falls in (`min` to `max`, both included). Every face must be in exactly one row. A row with no steps does nothing (for a weapon the game says "Miss."). |
+| `KILL_MONSTER` | none | The monster met dies at once, whatever its HP. It gives no reaction. |
+| `OPEN_PASSAGE` | none | Ring use only: the door or portcullis the ring was used at opens, and the hero goes through as through an opened door or lifted portcullis. |
+| `MONSTER_FLEES` | none | Ring use only: the monster met flees; no reaction, no damage; the encounter ends as when a monster flees. |
+| `IGNORE_TRAP` | none | Ring use only: the trap card just drawn does nothing (its `effects` are skipped; the rest of the card is unchanged). |
 
 ### Dice and numbers
 
@@ -158,6 +163,7 @@ Wherever a step asks for an amount or a modifier you can write:
 | `{ die: 'D12', minusStat: 'LCK' }` | D12 minus the hero's luck |
 | `{ die: 'D12', plusCount: 'treasuryCards' }` | D12 plus the number of treasury cards the hero holds |
 | `{ reg: 'a name', plus: -3 }` | a roll remembered earlier by `ROLL_D6` or `ROLL_D12` with `store: 'a name'`, minus 3 |
+| `{ reg: 'a name', div: 2 }` | that roll divided by 2, rounded down (`div` divides the whole total, after `plus` and the rest) |
 
 There is no free-form code: if what you want can't be said with these steps, note it and raise it, rather than bending a card to fit.
 
@@ -256,7 +262,7 @@ export default [
 | `class` | text | Your own class word. |
 | `stats` | `{ STR, AGI, ARM, LCK }`, each a whole number 1 to 12 | Strength, agility, armour, luck. A stat test passes when a D12 (plus any modifier) is at or under the stat. |
 | `hp` | whole number, 1 or more | Starting hit points (also the healing cap, D04). |
-| `equipment` | list of text | What they carry, as words. |
+| `equipment` | list of text | What they carry, as words. Words only: equipment has no rules of its own. A word naming the hero's special weapon card (for example `'crossbow'`) is shown once, as that card. |
 | `combatSetId` | `'S01'` to `'S08'` | The hero's own A/B/C combat set in `combat.js`. It must be a hero set (not a monster-group set); it may be one you have not written yet (below). |
 | `specialWeaponId` | `null`, `'XBOW_1'` or `'XBOW_2'` | The special weapon card this hero may use, if any. It must be in `special-weapons.js`, or one you have not written yet (below). |
 
@@ -285,6 +291,8 @@ export default [
 | `letter` | `'A' \| 'B' \| 'C'` | Each set has exactly one A, one B and one C. |
 | `doubleAgainst` | `[]`, or the one letter this card beats | This card hits twice when it wins against that letter. |
 
+The checker counts the two kinds apart: `Combat cards 24/36: hero sets 24/24, monster sets 0/12 (0 approved, 24 draft)`. In Play-test, missing monster sets are filled with NON-AUTHENTIC fixture sets (the banner says combat cards are partly synthetic and names them); your heroes always fight with their own sets once written, never with fixture hero cards.
+
 **Matchups (RB 8.4):** A beats B, B beats C, C beats A. The winner deals 1 damage, or 2 if its card lists the losing letter in `doubleAgainst`. So an A card may only list `['B']`, a B card only `['C']`, a C card only `['A']`. The same letter on both sides is a tie: 1 damage each, always, even if a card lists a double (D13). Hero and monster can both reach 0 in one exchange; then both die (D14). Solo play uses the target with results entered by hand; A/B/C against a computer pick is a labelled digital variant (D17).
 
 **Example only, not real content, not authentic:**
@@ -309,18 +317,22 @@ export default [
 
 | Field | Allowed values | Meaning |
 |---|---|---|
-| `power` | text | Your own words for the ring's power, shown during the draft (your `text`, if set, is shown instead). |
-| `trigger` | `'passive' \| 'once-per-game' \| 'on-test' \| 'on-encounter'` | When the power applies. |
-| `effects` | list of steps | The power as steps (stored, not run yet: see section 10). |
+| `power` | text | Optional: your own words for the ring's power, shown during the draft (your `text`, if set, is shown instead; with neither, the game says what the `use` does in its own plain words). |
+| `trigger` | `'passive' \| 'once-per-game' \| 'on-test' \| 'on-encounter'` | When the power applies (stored; the `use` block below is what runs). |
+| `effects` | list of steps | Stored, not run (see section 10). |
+| `use` | `{ timing, effects }` | The ring's one use. `timing` is when it is offered, and only then: `'turn-action'` (at the start of the hero's turn, in place of the turn), `'door-or-portcullis'` (when the hero could try a door or portcullis, in place of the door card or the Strength test), `'encounter-choice'` (when a monster appears, beside Attack / Wait / Flee, never in an ambush), `'trap-drawn'` (when a card the hero has just drawn has `kind: 'trap'`). `effects` are the steps it runs. |
 
-Rings are drafted in reverse seat order at setup (RB 4) and are never loot (D28).
+Rings are drafted in reverse seat order at setup (RB 4) and are never loot (D28). Every ring is single-use: its use consumes it, it leaves the hero's inventory (removed from play) and the log says so. A ring without `use` shows as pending.
+
+**What counts as a trap** (Protection Ring, `'trap-drawn'`): a drawn card whose `kind` is `'trap'`, in the room, door, search, room-search, chest or treasury deck. Nothing else is a trap to the engine: not wells, portcullises, rubble, dark or rotating rooms, not monsters, and not a damage card you have not marked `kind: 'trap'` (owner, spec v5; plan section 13 #41). Mark your trap cards with `kind: 'trap'`.
 
 **Example only, not real content, not authentic:**
 
 ```js
 export default [
   { id: 'RING_1', copies: 1, status: 'draft', name: 'Example ring of small mercies',
-    power: 'Example wording: once per game, heal 2.', trigger: 'once-per-game', effects: [{ op: 'HEAL', amount: 2 }] },
+    power: 'Example wording: once, heal 2 instead of your turn.', trigger: 'once-per-game', effects: [],
+    use: { timing: 'turn-action', effects: [{ op: 'HEAL', amount: 2 }, { op: 'END_TURN' }] } },
 ];
 ```
 
@@ -332,9 +344,11 @@ export default [
 |---|---|---|
 | `heroIds` | list of hero ids | The heroes who may use it. They must exist in `heroes.js`. |
 | `effects` | list of steps | What happens when the hero declares the special weapon at a monster. |
-| `uses` | `null` or a whole number | `null` for no limit, otherwise uses per game. |
+| `uses` | `null` or a whole number | `null` for no limit, otherwise uses per game (each hero keeps their own count; no reload). |
+| `verb` | text (optional) | The encounter button's word, for example `'Shoot'`; without it the button says "Use" and the name. |
+| `unit` | text (optional) | What one use is called, for example `'shot'` ("3 shots left"); without it, "use". |
 
-Declaring the special weapon is answered by the monster's **attack** reaction (RB 8.1). It is offered during an ambush too, after the ambush damage (D41, owner ruling).
+Declaring the special weapon is answered by the monster's **attack** reaction (RB 8.1), unless the weapon kills it first (`KILL_MONSTER`, or enough damage): then there is no reaction. It is offered during an ambush too, after the ambush damage (D41, owner ruling). Combat cards and their double hits never apply to a weapon's damage.
 
 **Example only, not real content, not authentic:**
 
@@ -608,6 +622,7 @@ Typical messages and what to do:
 | `ROOM_999: id ROOM_999 is not one of ROOM_001..ROOM_060` | Use the slot's own ids. |
 | `S01: a combat set needs exactly one A, one B and one C` | Finish the set. |
 | `Heroes: waiting on combat sets S01-S08 (Combat cards 0/36)` | Not an error: your heroes name sets you have not written yet. Write the combat cards when you are ready. |
+| `XBOW_1: ROLL_TABLE: rows must cover each face 1 to 6 exactly once` | A result table leaves a face out or lists one twice. |
 | `HERO_1: combatSetId S09 is not a hero combat set` | The set is a monster group's, or (once all 36 combat cards are written) it doesn't exist. |
 | `ROOM_004: status aproved must be "draft" or "approved"` | A typo in the status. |
 | `Could not read the content: door.js: Unexpected token ...` followed by a line | A notation slip (a missing comma, quote or bracket) on the line shown. |
@@ -619,8 +634,8 @@ Approved entries with errors don't count as verified. The checker uses the same 
 These fields are checked and saved, but the engine does not act on them yet. Fill them in anyway; they are ready for when it does:
 
 - tile `effects` (dot and special behaviour come from the rules, not data);
-- ring `trigger` and `effects` (rings are drafted and shown by their `power` or `text`);
-- hero `equipment` (shown in the hero's inventory, effect pending);
+- ring `trigger` and `effects` (a ring's `use` block is what the engine runs);
+- hero `equipment` (shown in the hero's inventory as words; it has no rules of its own);
 - effects printed on treasury cards, which are kept as drawn (plan section 13, M2 shortcuts);
 - `turnDisposition: 'ongoing'` (use `SET_CONDITION` for lasting effects);
 - `art` everywhere.
