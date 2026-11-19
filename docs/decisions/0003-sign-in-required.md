@@ -53,4 +53,5 @@ Every request now invokes the Worker and counts toward the free plan's 100,000 r
 - Checked on the live origin, signed out: `/`, `/bank/`, `/bank/index.html`, `/style.css`, `/platform.js`, `/signin`, an unpublished game path, an unknown path and look-alike paths under `/icons/` all answer 401 with the sign-in page and `no-store`; the six install files and `/config.js` answer 200; `/api/me` answers 401 with no header and with a cookie; a junk or unsigned `__session` cookie on a page answers 401.
 - Changed in review before deploy: the gate accepts ClerkJS's suffixed cookie name (`__session_<suffix>`) as well as `__session`, checking at most four candidates.
 - Owner check, 2026-11-18: a real sign-in through the gate reached the site ("Yes, I'm in"), so ClerkJS's session cookie is accepted by the Worker on the live origin.
-- Not yet confirmed: the resume after the token expires, sign-out, the two-step delete on an iPhone, and the installed home-screen app. These are the owner's checks in `docs/runbooks/deploy.md`.
+- Owner check, 2026-11-18: deleting a saved game works on an iPhone (the two-step confirm no longer depends on focus).
+- Not yet confirmed: the resume after the token expires, sign-out, and the installed home-screen app. These are the owner's checks in `docs/runbooks/deploy.md`.
