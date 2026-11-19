@@ -1,12 +1,15 @@
 // Plain words for what a card does, generated from the same structured data the engine executes, so the
 // wording cannot drift from the behaviour (owner play-test 2026-11-19). Fixture cards carry this as their `text`
 // with a "Made-up test ..." prefix; the view gives it as `effectText` on inventory items and drawn cards.
+// Players never read deck bookkeeping (owner, 2026-11-19): where a card goes afterwards and shuffles are left out
+// of these lines and said by mechanicsText instead, which only the debug event log shows.
 const STAT = { STR: 'Strength', AGI: 'Agility', ARM: 'Armour', LCK: 'Luck' };
 const DECK = { ROOM: 'room', SEARCH: 'search', ROOM_SEARCH: 'room search', CHEST: 'chest', DOOR: 'door', MONSTER: 'monster', TREASURY: 'treasure chamber' };
 const DIR = { N: 'north', E: 'east', S: 'south', W: 'west' };
 const REACTION = { 'monster-flees': 'it flees', combat: 'a fight', 'strike-then-flight': 'it strikes, then you get away', 'strike-then-combat': 'it strikes, then a fight', 'flight-succeeds': 'you get away', other: 'something else happens' };
 const TIMING = { 'turn-action': "as your turn's action", 'encounter-special': 'as a special weapon before a monster is revealed' };
-const AFTER = { keep: 'is kept', bottom: 'goes to the bottom of its deck', remove: 'is removed from the game' };
+const AFTER = { bottom: 'goes to the bottom of its deck', remove: 'is removed from the game' };
+const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 // An amount: an integer, or { die, reg, plus, minusStat, plusCount } (plan 4.6).
 export function amountWords(x) {
@@ -34,16 +37,14 @@ export function describeEffects(list = []) {
       case 'ROLL_D12': return 'roll a D12';
       case 'MONSTER_ENCOUNTER': case 'REQUEST_COMBAT': return e.ambush ? 'a monster ambushes you' : 'a monster appears';
       case 'DRAW_CARD': return `draw a ${DECK[e.deck]} card${e.then === 'keep' ? ' and keep it' : ''}`;
-      case 'RETAIN_CARD': case 'GRANT_TREASURE': return 'you keep this card';
-      case 'RETURN_CARD_TO_BOTTOM': return 'this card goes to the bottom of its deck';
-      case 'SHUFFLE_DECK': return e.deck ? `the ${DECK[e.deck]} deck is shuffled` : 'its deck is shuffled';
+      case 'RETAIN_CARD': case 'GRANT_TREASURE': return 'you keep it';
       case 'REMOVE_TREASURY_CARDS': return 'you lose your treasure chamber cards';
       case 'MOVE_HERO': return `${e.to === 'prev' ? 'you are pushed back to the square you came from' : e.to === 'adjacent-choice' ? 'you must move to a neighbouring square' : `you are moved ${DIR[e.to]}`}${e.drawRoom === false ? ' (no room card there)' : ''}`;
       case 'END_TURN': return 'your turn ends at once';
       case 'CONTINUE_MOVEMENT': return 'you may keep moving this turn';
       case 'SET_CONDITION': return `a lasting effect${e.turns ? ` for ${e.turns} turns` : ''}${e.onTurnStart?.length ? `: at the start of each turn ${describeEffects(e.onTurnStart)}` : ''}`;
       case 'CLEAR_CONDITION': return 'a lasting effect ends';
-      case 'REQUEST_CHOICE': return `choose: ${e.options.map(o => `${o.label} (${nothing(o.effects)})`).join(' or ')}`;
+      case 'REQUEST_CHOICE': return `choose ${e.options.map(o => { const d = describeEffects(o.effects); return d ? `${o.label} (${d})` : o.label; }).join(' or ')}`;
       case 'OPEN_TEMPORARY_PASSAGE': return e.side === 'any-orthogonal' ? 'a secret passage: you may move to any neighbouring square this turn, even through a wall' : `a secret passage on the ${DIR[e.side]} side, this turn`;
       case 'ROTATE_TILE': return 'the room turns a quarter clockwise';
       default: return '';
@@ -51,30 +52,52 @@ export function describeEffects(list = []) {
   }).filter(Boolean).join(', ');
 }
 
-// What a definition does, in one line. Monster HP is never part of it (D37: the hero must not see it).
+// What a definition does, as short sentences. Monster HP is never part of it (D37: the hero must not see it).
 export function effectText(def) {
   if (!def) return '';
-  if (def.reactions) return ['attack', 'wait', 'flee'].map(k => { const r = def.reactions[k]; return `on ${k}, ${REACTION[r.type]}${r.damage ? ` (${amountWords(r.damage)} damage)` : ''}`; }).join('; ');
-  if (def.letter) return def.doubleAgainst?.length ? `card ${def.letter}, hits ${def.doubleAgainst.join(', ')} twice` : `card ${def.letter}, no double hit`;
-  if (def.trigger) return `${describeEffects(def.effects) || 'no effect'} (ring powers are not applied by the engine yet)`;
-  if (def.heroIds) return `${describeEffects(def.effects) || 'no effect'}${def.uses ? `, ${def.uses} use${def.uses === 1 ? '' : 's'}` : ''}`;
-  if (def.kind === 'sleeping') return 'the dragon sleeps';
-  if (def.kind === 'awake') return 'the dragon wakes';
+  const said = effectClauses(def).filter(Boolean).map(capital).join('. ');
+  return `${said || 'Nothing happens'}.`;
+}
+function effectClauses(def) {
+  if (def.reactions) return [['attack', 'wait', 'flee'].map(k => { const r = def.reactions[k]; return `on ${k}, ${REACTION[r.type]}${r.damage ? ` (${amountWords(r.damage)} damage)` : ''}`; }).join('; ')];
+  if (def.letter) return [def.doubleAgainst?.length ? `card ${def.letter}, hits ${def.doubleAgainst.join(', ')} twice` : `card ${def.letter}, no double hit`];
+  if (def.trigger) return [`${describeEffects(def.effects) || 'no effect'} (ring powers are not applied by the engine yet)`];
+  if (def.heroIds) return [`${describeEffects(def.effects) || 'no effect'}${def.uses ? `, ${def.uses} use${def.uses === 1 ? '' : 's'}` : ''}`];
+  if (def.kind === 'sleeping') return ['the dragon sleeps'];
+  if (def.kind === 'awake') return ['the dragon wakes'];
   const out = [];
   if (def.deck === 'DOOR') out.push({ opens: 'the door opens', closed: 'the door stays shut', trap: 'the door is trapped' }[def.kind]);
   out.push(describeEffects(def.effects));
   if (def.followUpDeck) out.push(def.followUpDeck === 'MONSTER' ? 'a monster appears' : `draw a ${DECK[def.followUpDeck]} card next`);
   if (def.cardDisposition === 'RETAIN_HELD' || def.cardDisposition === 'RETAIN_TREASURY') out.push('you keep it');
-  if (def.cardDisposition === 'RESHUFFLE_DECK') out.push('its deck is shuffled afterwards');
   if (def.turnDisposition === 'continue') out.push('you may keep moving this turn');
   if (def.use) {
     const u = def.use;
-    out.push(`when used ${TIMING[u.timing]}: ${nothing(u.effects)}${u.uses ? ` (${u.uses} use${u.uses === 1 ? '' : 's'})` : ''}, then it ${AFTER[u.afterUse || 'keep']}`);
+    out.push(`when used ${TIMING[u.timing]}: ${nothing(u.effects)}${u.uses ? ` (${u.uses} use${u.uses === 1 ? '' : 's'})` : ''}`);
   } else if (def.specialWeapon) out.push('a special weapon whose effect is not written yet');
   if (def.gold) out.push(`worth ${def.gold} gold`);
-  return out.filter(Boolean).join(', ') || 'nothing happens';
+  return out;
+}
+
+// The deck bookkeeping a card does (where it goes afterwards, shuffles), for the debug event log only; '' if none.
+function mechanics(list = [], where = '') {
+  return list.flatMap(e => {
+    if (e.op === 'RETURN_CARD_TO_BOTTOM') return [`${where}the card goes to the bottom of its deck`];
+    if (e.op === 'SHUFFLE_DECK') return [`${where}${e.deck ? `the ${DECK[e.deck]} deck` : 'its deck'} is shuffled`];
+    if (e.op === 'REQUEST_CHOICE') return e.options.flatMap(o => mechanics(o.effects, `${o.label}: `));
+    if (e.op === 'CHECK_STAT') return [...mechanics(e.onPass, 'on a pass, '), ...mechanics(e.onFail, 'on a fail, ')];
+    return [];
+  });
+}
+export function mechanicsText(def) {
+  if (!def) return '';
+  const out = mechanics(def.effects);
+  if (def.cardDisposition === 'RESHUFFLE_DECK') out.push('its deck is shuffled afterwards');
+  if (AFTER[def.use?.afterUse]) out.push(`after use it ${AFTER[def.use.afterUse]}`);
+  if (def.use) out.push(...mechanics(def.use.effects, 'when used, '));
+  return out.length ? `${out.map(capital).join('. ')}.` : '';
 }
 
 const NOUN = def => (def.reactions ? 'monster' : def.letter ? 'combat card' : def.trigger ? 'ring' : def.heroIds ? 'weapon' : 'card');
 // The line shown for a definition: fixture entries say they are made up.
-export const shownEffectText = def => (def?.status === 'FIXTURE' ? `Made-up test ${NOUN(def)}: ${effectText(def)}` : effectText(def));
+export const shownEffectText = def => (def?.status === 'FIXTURE' ? `Made-up test ${NOUN(def)}. ${effectText(def)}` : effectText(def));

@@ -109,7 +109,7 @@ test('with heroes still inside, the game runs to sunset (sun 27), not to the fir
 });
 
 test('fixture names read as placeholders and each card says in plain words what its made-up effect does', async () => {
-  const { shownEffectText } = await import('../../site/keep/engine/describe.js');
+  const { shownEffectText, mechanicsText } = await import('../../site/keep/engine/describe.js');
   for (const k of ['specialWeapons', 'combat', 'treasury', 'dragon', 'room', 'search', 'roomSearch', 'chest', 'door', 'monster', 'rings']) {
     for (const e of FX[k]) {
       assert.equal(e.status, 'FIXTURE', e.id);
@@ -117,12 +117,17 @@ test('fixture names read as placeholders and each card says in plain words what 
       assert.match(e.text, /^Made-up test /, e.id);
       assert.equal(e.text, shownEffectText(e), `${e.id}: the text is generated from the data, so it cannot drift`);
       if (e.reactions) assert.doesNotMatch(e.text, /HP/, 'D37: no monster HP in its text');
+      assert.doesNotMatch(e.text, /bottom of|shuffle|removed from|discarded|RB \d|#\d/i, `${e.id}: no deck bookkeeping, ids or rule citations for players`);
     }
   }
   const salve = FX.room.find(c => c.id === 'FX_ROOM_SALVE');
   assert.equal(salve.name, 'Test salve');
-  assert.match(salve.text, /heals 2 HP \(1 use\), then it goes to the bottom of its deck/);
-  assert.equal(FX.room.find(c => c.id === 'FX_ROOM_STOP').text, 'Made-up test card: your turn ends at once', 'nothing after END_TURN runs, so it is not described');
+  assert.match(salve.text, /heals 2 HP \(1 use\)\./);
+  assert.equal(mechanicsText(salve), 'After use it goes to the bottom of its deck.', 'where it goes is for the debug log');
+  const fork = FX.room.find(c => c.id === 'FX_ROOM_FORK');
+  assert.equal(fork.text, 'Made-up test card. Choose Take it (you keep it) or Leave it. Worth 4 gold.');
+  assert.equal(mechanicsText(fork), 'Leave it: the card goes to the bottom of its deck.');
+  assert.equal(FX.room.find(c => c.id === 'FX_ROOM_STOP').text, 'Made-up test card. Your turn ends at once.', 'nothing after END_TURN runs, so it is not described');
 });
 
 test('the view gives each inventory item and each visible drawn card an effectText; private entries keep none', () => {

@@ -3,6 +3,7 @@
 import { cardDef } from '../engine/decks.js';
 import { legalActions } from '../engine/phases.js';
 import { contentIndex } from '../content/schema.js';
+import { mechanicsText } from '../engine/describe.js';
 import { tileWords, place, DIR, towerAt, MARK_WORD } from './board.js';
 
 export { DIR };
@@ -61,7 +62,6 @@ function effectWords(list) {
       case 'OPEN_TEMPORARY_PASSAGE': return 'A secret passage opens.';
       case 'REMOVE_TREASURY_CARDS': return 'Lose your treasure chamber cards.';
       case 'ROTATE_TILE': return 'The room turns.';
-      case 'SHUFFLE_DECK': return 'Shuffle the deck.';
       case 'RETAIN_CARD': case 'GRANT_TREASURE': return 'Keep this card.';
       default: return '';
     }
@@ -87,7 +87,6 @@ export function cardText(def, effectText = null) {
   if (def.deck === 'DOOR') out.unshift({ opens: 'The door opens.', closed: 'The door stays shut.', trap: 'The door is trapped.' }[def.kind] || '');
   if (def.followUpDeck) out.push(def.followUpDeck === 'MONSTER' ? 'A monster.' : `Then draw a ${DECK[def.followUpDeck].toLowerCase()}.`);
   if (['RETAIN_HELD', 'RETAIN_TREASURY'].includes(def.cardDisposition)) out.push('Keep this card.');
-  if (def.cardDisposition === 'RESHUFFLE_DECK') out.push('Shuffle the deck.');
   if (def.turnDisposition === 'continue') out.push('You may keep moving.');
   if (def.gold) out.push(`Worth ${def.gold} gold.`);
   return out.filter(Boolean).join(' ') || 'Nothing happens.';
@@ -113,11 +112,13 @@ const MAY_CONTINUE = {
   'secret-passage': 'a secret passage was found', card: 'the card says so', 'tower-transit': 'passing through the tower', 'rubble-forced': 'the rubble forces a move',
 };
 
-// ctx: { content, name(seat) }. Returns null for bookkeeping events that need no line.
+// ctx: { content, name(seat) }. Returns null for bookkeeping events that need no line, a string, or
+// [text, detail, mechanics]: detail is the dice arithmetic shown small under the line, mechanics the deck bookkeeping
+// (where a card went, shuffles) that only the debug event log shows (owner, 2026-11-19).
 export function describe(e, ctx, next) {
   const { content } = ctx;
   const who = s => ctx.name(s);
-  const card = inst => (inst === 'hidden' ? null : cardDef(content, inst));
+  const card = inst => (typeof inst !== 'string' || inst === 'hidden' ? null : cardDef(content, inst));
   switch (e.kind) {
     case 'first-player': return `${who(e.seat)} goes first.`;
     case 'roll': {
@@ -166,11 +167,13 @@ export function describe(e, ctx, next) {
       if (e.deck === 'TILE') return null;
       if (e.deck === 'DRAGON') return `Dragon card: ${e.card === 'awake' ? 'awake' : 'asleep'}.`;
       const def = card(e.value);
-      return def ? `${DECK[e.deck]}: ${e.cardName || def.name}. ${e.deck === 'MONSTER' ? '' : cardText(def, e.effectText)}`.trim() : `${DECK[e.deck]} drawn, kept secret.`;
+      return def ? [`${DECK[e.deck]}: ${e.cardName || def.name}. ${e.deck === 'MONSTER' ? '' : cardText(def, e.effectText)}`.trim(), '', e.deck === 'MONSTER' ? '' : mechanicsText(def)] : `${DECK[e.deck]} drawn, kept secret.`;
     }
     case 'retain': return null; // the 'item' obtain entry beside it says it
     case 'item': return itemWords(e, ctx);
-    case 'remove-card': return `${card(e.value).name} leaves the game.`;
+    case 'remove-card': return [null, '', `${card(e.value)?.name || 'A card'} leaves the game.`];
+    case 'bottom': return [null, '', `${card(e.value)?.name || 'A card'} goes to the bottom of the ${TO_DECK[e.deck] || e.deck} pile.`];
+    case 'shuffle': return [null, '', `The ${TO_DECK[e.deck] || String(e.deck).toLowerCase()} pile is shuffled.`];
     case 'door': return `${{ opens: 'The door opens', closed: 'The door stays shut', trap: 'The door was trapped' }[e.result]}${e.edge ? `, on ${edgeWords(e.edge)}` : ''}${e.card && e.card !== 'hidden' ? ` (door card: ${card(e.card).name})` : ''}.`;
     case 'stop': return `${who(e.seat)} stops.`;
     case 'search': return `${who(e.seat)} searches the room.`;
@@ -192,14 +195,14 @@ export function describe(e, ctx, next) {
     case 'death': return `${who(e.seat)} dies: ${e.reason}.`;
     case 'dragon-odds': return `The dragon wakes on ${e.awake} in ${e.remaining}.`;
     case 'dragon-wakes': return `The dragon wakes. Everyone in the chamber, from ${who(e.waker)} clockwise.`;
-    case 'dragon-reset': return 'The dragon sleeps again. All eight dragon cards are shuffled.';
+    case 'dragon-reset': return ['The dragon sleeps again.', '', 'All eight dragon cards are shuffled.'];
     case 'forced-move-none': return `${who(e.seat)} has nowhere to go and stays.`;
     case 'flight': return `${who(e.seat)} flees back.`;
     case 'secret-passage': return 'A secret passage opens.';
     case 'deck-empty': return `The ${DECK[e.deck].toLowerCase()} pile is empty.`;
     case 'lost-at-sunset': return `${who(e.seat)} is inside at sunset: not escaped${e.status === 'IN_TOWER_NOT_ESCAPED' ? ', though in a tower' : ''}.`;
     case 'game-over': return 'The game is over.';
-    default: return null; // shuffle, bottom, resolve-card, pick bookkeeping
+    default: return null; // resolve-card, pick bookkeeping
   }
 }
 
@@ -216,12 +219,12 @@ function itemWords(e, ctx) {
   const who = ctx.name(e.seat), what = itemName(e, ctx.content);
   const m = /^bottom of (\w+)$/.exec(e.to || '');
   const dest = m ? `the bottom of the ${TO_DECK[m[1]] || m[1].toLowerCase()} pile` : e.to || '';
-  const to = dest ? ` It goes ${m ? 'to ' : ''}${dest}.` : '';
+  const to = dest ? `It goes ${m ? 'to ' : ''}${dest}.` : '';
   switch (e.action) {
     case 'obtain': return `${who} gains ${what}.`;
     case 'use': return `${who} uses ${what}.`;
-    case 'discard': return `${who} discards ${what}.${to}`;
-    case 'lose': return `${who} loses ${what}${LOST_WHY[e.why] || ''}.${to}`;
+    case 'discard': return [`${who} discards ${what}.`, '', to];
+    case 'lose': return [`${who} loses ${what}${LOST_WHY[e.why] || ''}.`, '', to];
     default: return null;
   }
 }
@@ -239,8 +242,9 @@ export function undoLabel(prev, next, content, name) {
 
 // Each line with its entry, so the log can show the round and the debug log the raw fields. text is the plain
 // sentence; detail the dice arithmetic behind it, shown smaller (a dropped roll or formula line hands its
-// arithmetic to the next line). Card registers and stat codes read as the die and the stat's name.
-export function entries(events, ctx) {
+// arithmetic to the next line); mech the deck bookkeeping. Card registers and stat codes read as the die and the
+// stat's name. With debug, entries that are bookkeeping only come back too, with an empty text.
+export function entries(events, ctx, { debug = false } = {}) {
   const regs = {}, out = [];
   let carry = [], dead = false;
   events.forEach((e, i) => {
@@ -250,10 +254,14 @@ export function entries(events, ctx) {
     const m = e.kind === 'roll' && /^card roll (\S+)$/.exec(e.reason);
     if (m) regs[m[1]] = e.die;
     const r = describe(e, ctx, events[i + 1]);
-    let [text, detail] = Array.isArray(r) ? r : [r, ''];
+    let [text, detail, mech = ''] = Array.isArray(r) ? r : [r, ''];
     if (detail) detail = detail.replace(/[A-Za-z_]\w*/g, w => (Object.hasOwn(regs, w) ? regs[w] : Object.hasOwn(STAT, w) ? STAT[w] : w)).replace(/ {2,}/g, ' ');
-    if (!text) { if (detail) carry.push(detail); return; }
-    out.push({ e, text: capital(text), detail: [...carry, detail].filter(Boolean).join('; ') });
+    if (!text) {
+      if (detail) carry.push(detail);
+      if (debug && mech) out.push({ e, text: '', detail: '', mech });
+      return;
+    }
+    out.push({ e, text: capital(text), detail: [...carry, detail].filter(Boolean).join('; '), mech });
     carry = [];
   });
   return out;

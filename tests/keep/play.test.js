@@ -111,10 +111,18 @@ test('item and monster lines: a chamber card stays unnamed for others, a kill is
     { kind: 'item', action: 'lose', seat: 1, value: 'hidden', group: 'chamber', to: 'bottom of TREASURY', why: 'dragon' },
     { kind: 'monster-dead', seat: 0 }, { kind: 'bottom' }, { kind: 'encounter-end', outcome: 'monster-killed' },
   ], ctx), [
-    'P1 discards a chamber card. It goes to the bottom of the treasure chamber pile.',
-    'P2 loses a chamber card when the dragon wakes. It goes to the bottom of the treasure chamber pile.',
+    'P1 discards a chamber card.',
+    'P2 loses a chamber card when the dragon wakes.',
     'The monster is dead.',
   ]);
+  // Where the card went is deck bookkeeping: the debug log alone says it.
+  const debug = entries([{ kind: 'item', action: 'discard', seat: 0, value: 'hidden', group: 'chamber', to: 'bottom of TREASURY' }, { kind: 'bottom', deck: 'MONSTER', value: 'hidden' }, { kind: 'shuffle', deck: 'CHEST' }], ctx, { debug: true });
+  assert.deepEqual(debug.map(x => [x.text, x.mech]), [
+    ['P1 discards a chamber card.', 'It goes to the bottom of the treasure chamber pile.'],
+    ['', 'A card goes to the bottom of the monster pile.'],
+    ['', 'The chest pile is shuffled.'],
+  ]);
+  assert.equal(entries([{ kind: 'bottom', deck: 'MONSTER', value: 'hidden' }], ctx).length, 0, 'not in the plain log');
 });
 
 test('a hero in the chamber sees all six squares around the room lit, and each sends its own move (D39)', () => {
@@ -140,7 +148,7 @@ test('why the hero may keep moving, the escape sun and a drawn card read by name
   assert.deepEqual(lines([
     mc('yellow-corridor'), mc('door-stayed-closed', { edge: '4,4|S' }), mc('secret-passage', { card: null }), mc('card', { card: 'FX_ROOM_DRAFT#1' }), mc('tower-transit'), mc('rubble-forced'),
     { kind: 'escape', seat: 0, at: '0,0', sun: 12 },
-    { kind: 'draw', deck: 'ROOM', value: 'FX_ROOM_DRAFT#1', cardName: 'Test draught (keep moving)', effectText: 'Made-up test card: you may keep moving this turn' },
+    { kind: 'draw', deck: 'ROOM', value: 'FX_ROOM_DRAFT#1', cardName: 'Test draught (keep moving)', effectText: 'Made-up test card. You may keep moving this turn.' },
   ], ctx), [
     'Cade may keep moving: a corridor has no card.',
     'Cade may keep moving: the door stayed shut, so another way may be used.',
@@ -149,6 +157,6 @@ test('why the hero may keep moving, the escape sun and a drawn card read by name
     'Cade may keep moving: passing through the tower.',
     'Cade may keep moving: the rubble forces a move.',
     'Cade escapes the keep on sun 12.',
-    `Room card: Test draught (keep moving). ${FX.room.find(d => d.id === 'FX_ROOM_DRAFT').text || 'Made-up test card: you may keep moving this turn'}`,
+    `Room card: Test draught (keep moving). ${FX.room.find(d => d.id === 'FX_ROOM_DRAFT').text || 'Made-up test card. You may keep moving this turn.'}`,
   ]);
 });

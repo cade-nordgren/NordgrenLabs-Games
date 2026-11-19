@@ -921,7 +921,7 @@ function renderPrompt(v, la, targets) {
       const pend = g.pending;
       const frame = [...g.stack].reverse().find(f => f.card);
       if (pend.kind === 'choice') {
-        p = panel('Choose', frame ? `${cardDef(c, frame.card).name}: ${cardText(cardDef(c, frame.card))}` : null);
+        p = panel('Choose', frame ? `${cardDef(c, frame.card).name}. ${cardText(cardDef(c, frame.card))}` : null);
         by('CHOOSE').forEach(a => ch.append(choice(pend.options[a.option], null, () => act(a))));
       } else {
         p = panel('Move', 'Pick a neighbouring square.');
@@ -1143,11 +1143,14 @@ function openLog() {
     const dv = view(g, c, null, { debug: true });
     const tops = Object.entries(dv.decks || {}).map(([cat, dk]) => `${cat} ${dk.order.length} (top ${dk.order.slice(0, 2).join(', ') || 'none'})`);
     ol.append(el('li', 'debug', `RNG seed ${dv.rng.seed}, state ${dv.rng.state}. Tile bag ${dv.board.tileBag.length} (next ${dv.board.tileBag[0] || 'none'}). Decks: ${tops.join('; ')}.`));
-    const text = new Map(entries(dv.log, ctx()).map(x => [x.e, x.text]));
+    // The plain line, then the deck bookkeeping players never see (where a card went, shuffles), then the raw entry.
+    const said = new Map(entries(dv.log, ctx(), { debug: true }).map(x => [x.e, x]));
     for (const e of dv.log.slice(-400)) {
-      const { seq, round, seat, kind, ...rest } = e;
+      const { seq, round, seat, kind, ...rest } = e, x = said.get(e);
       const li = el('li', 'debug');
-      li.append(when(e), ` ${text.get(e) || ''} `, el('code', '', `#${seq} ${kind}${seat !== undefined ? ` seat ${seat}` : ''} ${JSON.stringify(rest)}`));
+      li.append(when(e), ` ${x?.text || ''} `);
+      if (x?.mech) li.append(el('span', 'mech', x.mech));
+      li.append(el('code', '', `#${seq} ${kind}${seat !== undefined ? ` seat ${seat}` : ''} ${JSON.stringify(rest)}`));
       ol.append(li);
     }
   } else {

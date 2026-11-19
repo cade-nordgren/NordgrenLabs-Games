@@ -11,7 +11,7 @@ export const pushUndo = (hist, prev, next, cap = HIST_CAP) => (canUndoTo(prev, n
 export const canUndo = (hist, game) => !!game && game.status !== 'over' && hist.length > 0 && canUndoTo(hist.at(-1), game);
 
 // Why there is nothing to undo: the latest log entry that was a commit point, in words (null if none).
-const BLOCK = { reveal: 'a tile was revealed', draw: 'a card was drawn', shuffle: 'a deck was shuffled', roll: 'dice were rolled', test: 'dice were rolled', exchange: 'the combat cards were shown', throw: 'the combat die was thrown', reaction: "the monster's card was read", 'dragon-wakes': 'the dragon woke' };
+const BLOCK = { reveal: 'a tile was revealed', draw: 'a card was drawn', shuffle: 'cards were drawn', roll: 'dice were rolled', test: 'dice were rolled', exchange: 'the combat cards were shown', throw: 'the combat die was thrown', reaction: "the monster's card was read", 'dragon-wakes': 'the dragon woke' };
 export function undoBlocked(log) {
   const e = log.findLast(x => BLOCK[x.kind]);
   return e ? `Can't undo: ${BLOCK[e.kind]}` : null;
