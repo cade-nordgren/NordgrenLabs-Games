@@ -15,4 +15,8 @@
 // }
 // SKELETON END
 
-export default null;
+export default {
+  id: 'CHAMBER_01', status: 'approved', name: "Dragon's Lair",
+  notes: "Owner, 2026-11-19: the chamber is called the Dragon's Lair.",
+  art: null,
+};

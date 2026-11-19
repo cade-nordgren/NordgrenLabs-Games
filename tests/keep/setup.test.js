@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createGame, reduce, DEFAULT_RULES, RULE_TAGS, AUTHORITY_TAGS } from '../../site/keep/engine/reducer.js';
 import { legalActions } from '../../site/keep/engine/phases.js';
 import ORIGINAL from '../../site/keep/content/original/index.js';
+import { validateContent } from '../../site/keep/content/schema.js';
 import { FX, setup } from './helpers.js';
 
 const names = n => Array.from({ length: n }, (_, i) => `P${i + 1}`);
@@ -100,7 +101,10 @@ test('out-of-turn and repeated picks are rejected; towers may be shared (RB 4 st
 });
 
 test('T30 full-fidelity start blocked without verified content; fixtures flagged (SP 11, SP 12 #30)', () => {
-  assert.throws(() => createGame({ players: names(1), seed: 1, content: ORIGINAL }), /Full-fidelity start blocked/);
+  // The shipped owner content blocks the full Start for exactly as long as the checker says it is incomplete.
+  const start = () => createGame({ players: names(1), seed: 1, content: ORIGINAL });
+  if (validateContent(ORIGINAL).fullStartAllowed) assert.equal(start().banner, null);
+  else assert.throws(start, /Full-fidelity start blocked/);
   const g = createGame({ players: names(1), seed: 1, content: FX });
   assert.equal(g.contentMode, 'fixture');
   assert.equal(g.banner, 'NON-AUTHENTIC TEST DATA');

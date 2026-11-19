@@ -17,7 +17,8 @@ import { FX } from './helpers.js';
 const LIVE = 'site/keep/content/original';
 const SAMPLES = 'tests/keep/content-samples';
 const tool = (...args) => spawnSync(process.execPath, ['tools/keep-content.js', ...args], { encoding: 'utf8' });
-// A temporary copy of the live slot files with every list emptied (so the shipped owner entries never matter), sample files laid over them.
+// A temporary copy of the live slot files reset to empty templates (every list emptied, every single-entry file back to null),
+// so the shipped owner entries never matter; sample files laid over them.
 const made = [];
 after(() => made.forEach(d => rmSync(d, { recursive: true, force: true })));
 function folder(sample) {
@@ -26,7 +27,7 @@ function folder(sample) {
   cpSync(LIVE, dir, { recursive: true });
   for (const c of CATEGORIES) {
     const file = join(dir, c.file), src = readFileSync(file, 'utf8');
-    writeFileSync(file, src.replace(/^export default \[[\s\S]*$/m, 'export default [\n];\n'));
+    writeFileSync(file, src.replace(/^export default [\s\S]*$/m, c.ids.length === 1 ? 'export default null;\n' : 'export default [\n];\n'));
   }
   if (sample) cpSync(join(SAMPLES, sample), dir, { recursive: true });
   return dir;
@@ -136,15 +137,23 @@ test('mixed: owner entries layered over the fixtures, fill-in only where a slot 
   assert.equal(contentStatus(await load(folder()), FX).mixedAllowed, false);
 });
 
-test('mixed: the shipped content as it is (88 draft maze tiles, the rest empty) loads in play-test mode; tiles are real, the rest synthetic', () => {
+// Derived from whatever the owner has filled in so far, so it holds as each slot is written.
+test('mixed: the shipped content as it is loads in play-test mode; complete owner slots play alone, incomplete ones are synthetic', () => {
   const s = contentStatus(ORIGINAL, FX);
+  assert.deepEqual(s.report.errors, []);
+  const written = s.report.categories.some(c => c.defined > 0);
+  if (!written) return assert.equal(s.mixedAllowed, false, 'nothing written: nothing to play-test');
   assert.equal(s.mixedAllowed, true, s.play);
   assert.equal(s.mixed.mode, 'mixed');
-  assert.deepEqual(s.mixed.tiles, ORIGINAL.tiles, 'owner maze tiles play alone: the fixture tiles are not layered in');
-  assert.ok(!s.synthetic.includes('Maze tiles: synthetic'));
-  for (const c of CATEGORIES.filter(c => c.key !== 'tiles')) assert.ok(s.synthetic.includes(`${c.label}: synthetic`), c.label);
-  assert.equal(s.synthetic.length, CATEGORIES.length - 1);
+  for (const c of s.report.categories) {
+    const synthetic = s.synthetic.includes(`${c.label}: synthetic`);
+    if (c.defined < c.required) { assert.ok(synthetic, `${c.label} is incomplete: fill-in is layered in`); continue; }
+    if (c.key === 'combat') { assert.deepEqual(s.mixed.combat.slice(0, ORIGINAL.combat.length), ORIGINAL.combat); continue; } // fixture heroes may bring their sets
+    assert.deepEqual(s.mixed[c.key], ORIGINAL[c.key], `${c.label} is complete: the owner's entries play alone`);
+    assert.ok(!synthetic, c.label);
+  }
   assert.deepEqual(validateContent(s.mixed).errors, []);
+  assert.equal(validateContent(s.mixed).fixturePlayable, true);
 });
 
 test('text: the owner\'s wording replaces the generated summary (plan 13 #21)', async () => {
