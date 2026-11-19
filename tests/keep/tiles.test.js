@@ -143,8 +143,7 @@ test('T11 retreat into a dark room keeps the effect under the default policy (D0
   g = run(g, [move(g, 'S')]);
   g = act(g, 'ROLL_DARK_EXIT');
   assert.equal(g.phase, 'CHOOSE_MONSTER_RESPONSE');
-  g = act(g, 'RESPOND', { choice: 'flee' });
-  g = act(g, 'ANNOUNCE'); // flight succeeds
+  g = act(g, 'RESPOND', { choice: 'flee' }); // solo: the computer announces at once (D37); flight succeeds
   assert.equal(at(g), '0,1');
   assert.equal(g.phase, 'TURN_START');
   assert.deepEqual(types(g), ['ROLL_DARK_EXIT']);
@@ -280,8 +279,7 @@ test('T15 an opened door relocks after crossing; same-turn flight back is the on
 
   let f = act(doorAt({ DOOR: ['FX_DOOR_OPENS'], ROOM: ['FX_ROOM_MONSTER'], MONSTER: ['FX_MON_SHY'] }), 'MOVE', { dir: 'N' });
   assert.deepEqual(choices(f), ['attack', 'wait', 'flee']);
-  f = act(f, 'RESPOND', { choice: 'flee' });
-  f = act(f, 'ANNOUNCE');
+  f = act(f, 'RESPOND', { choice: 'flee' }); // solo: announced at once (D37)
   assert.equal(at(f), '1,1', 'fled back through the just-opened door');
   assert.equal(draws(f, 'DOOR').length, 1, 'no second door card for the same-turn retreat');
 

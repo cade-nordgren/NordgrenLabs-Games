@@ -3,15 +3,19 @@
 import FIXTURES from '../content/fixtures/fixtures.js';
 import ORIGINAL from '../content/original/index.js';
 import { createGame, reduce, restore, DEFAULT_RULES, RULE_TAGS } from '../engine/reducer.js';
-import { legalActions } from '../engine/phases.js';
-import { view, canUndoTo, screenOwner } from '../engine/view.js';
-import { neighbour, squareKind, exits, key } from '../engine/board.js';
+import { legalActions, sameAction } from '../engine/phases.js';
+import { view, screenOwner } from '../engine/view.js';
+import { squareKind, exits, exitFor, key } from '../engine/board.js';
 import { isActive } from '../engine/heroes.js';
 import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
+import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
-import { mountBoard, resetView, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, cardText, monsterText, expr, undoLabel, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, towerName } from './words.js';
+import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
+import { lines, entries, cardText, monsterText, expr, undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, DECK, towerName } from './words.js';
+import { rollDice } from './dice.js';
+import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
+import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -29,7 +33,6 @@ const REPORT = STATUS.report;
 const CONTENT = { fixture: FIXTURES, original: ORIGINAL, mixed: STATUS.mixed };
 const FX_REPORT = validateContent(FIXTURES);
 const KEY = 'nl-keep-v1';
-const HIST_CAP = 20; // shortcut: full snapshots, at most 20 and cleared at every commit point; store diffs if long uncommitted runs ever matter
 
 // Rules-config entries with their ruling from the plan's decision register (display only); the authority tags
 // come from the engine's RULE_TAGS. Entries in RULE_TAGS but not in the rules config are fixed rulings.
@@ -48,7 +51,7 @@ const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs
 
 // ---- State. The engine game plus what the screen needs; saved on every change. It belongs to whoever was signed in
 // (owner), so a game in progress never shows to the next person on this browser.
-const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null, owner: NL.person() });
+const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, dropSave: null, seen: 0, reveal: null, peek: null, dusk: [], owner: NL.person() });
 let S = fresh();
 let viewer = null; // the seat looking now; never saved, so a refresh always covers a private screen
 let target = { placement: null, face: null }; // solo target entry, before it is sent
@@ -63,6 +66,7 @@ function load() {
   if ([1, 2, 3, 4].includes(s.count)) b.count = s.count;
   if (Array.isArray(s.names)) b.names = b.names.map((n, i) => (typeof s.names[i] === 'string' ? s.names[i].slice(0, 20) : ''));
   if (['target', 'abc-digital-variant'].includes(s.soloCombat)) b.soloCombat = s.soloCombat;
+  if (UUID.test(s.dropSave)) b.dropSave = s.dropSave;
   // Stored data is a trust boundary: the engine's restore() checks versions, content and shape.
   if (s.game && CONTENT[s.mode]) {
     try {
@@ -72,11 +76,12 @@ function load() {
       b.hist = Array.isArray(s.hist) ? s.hist.filter(h => okSnap(h, c)).slice(-HIST_CAP) : [];
       if (UUID.test(s.saveId)) b.saveId = s.saveId;
       if (ISO.test(s.createdAt)) b.createdAt = s.createdAt;
-      b.finishedSaved = s.finishedSaved === true;
       b.seen = Number.isInteger(s.seen) && s.seen <= b.game.log.length ? s.seen : b.game.log.length;
       const r = s.reveal;
       if (r && Number.isInteger(r.seat) && r.seat >= 0 && r.seat < b.game.seats.length && ['A', 'B', 'C'].includes(r.hero) && ['A', 'B', 'C'].includes(r.monster) && Number.isInteger(r.heroDmg) && Number.isInteger(r.monsterDmg)) b.reveal = r;
       const n = b.game.seats.length;
+      // The dusk notices already shown; an autosave from before they existed counts every one reached as shown.
+      b.dusk = Array.isArray(s.dusk) ? DUSK.filter(t => s.dusk.includes(t)) : passedDusk(b.game);
       if (s.peek && Number.isInteger(s.peek.seat) && s.peek.seat >= 0 && s.peek.seat < n) b.peek = { seat: s.peek.seat, from: Number.isInteger(s.peek.from) ? s.peek.from : null };
     } catch { b.game = null; b.mode = null; }
   }
@@ -84,11 +89,16 @@ function load() {
 }
 function persist() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {
-    try { localStorage.setItem(KEY, JSON.stringify({ ...S, hist: [] })); } catch {}
+    // Storage full: keep the newest undo steps that fit (about 5 MB is a common browser limit), else none.
+    const hist = fitHist(S.hist, JSON.stringify({ ...S, hist: [] }).length, 4500000);
+    try { localStorage.setItem(KEY, JSON.stringify({ ...S, hist })); } catch {
+      try { localStorage.setItem(KEY, JSON.stringify({ ...S, hist: [] })); } catch {}
+    }
   }
 }
 
 const content = () => CONTENT[S.mode];
+const passedDusk = g => DUSK.filter(t => daylight(g.sun, SUNSET).left <= t);
 const solo = () => S.game.seats.length === 1;
 const nameOf = seat => S.game.seats[seat].name;
 const heroDef = (h) => contentIndex(content()).heroes.get(h.heroId);
@@ -97,29 +107,221 @@ const ctx = () => ({ content: content(), name: nameOf });
 // ---- Actions: every one goes to the engine, which refuses anything not legal now.
 function act(a) {
   const prev = S.game, c = content();
+  duskLine = '';
   let next;
-  try { next = reduce(prev, a, c); } catch { return render(); } // a stale double tap: nothing happens
+  try { next = reduce(prev, a, c); } catch { if ($('roll').dataset.mode === 'rolling') $('roll').close(); return render(); } // a stale double tap: nothing happens
   // D21: undo only steps back over actions that revealed nothing (the engine counts commit points).
-  S.hist = canUndoTo(prev, next) ? [...S.hist, prev].slice(-HIST_CAP) : [];
+  S.hist = pushUndo(S.hist, prev, next);
   S.seen = prev.log.length;
   const added = next.log.slice(prev.log.length);
   const multi = next.seats.length > 1;
   const ex = added.find(e => e.kind === 'exchange');
   S.reveal = multi && ex ? { seat: prev.encounter.seat, hero: ex.hero, monster: ex.monster, heroDmg: ex.heroDmg, monsterDmg: ex.monsterDmg } : null;
   const priv = added.find(e => (e.kind === 'draw' || e.kind === 'retain') && e.private !== undefined && e.deck !== 'MONSTER');
-  S.peek = multi && priv ? { seat: priv.private, from: prev.log.length } : null;
+  S.peek = multi && Number.isInteger(priv?.private) ? { seat: priv.private, from: prev.log.length } : null;
   target = { placement: null, face: null };
+  if (prev.status !== 'over' && next.status === 'over' && S.saveId) Object.assign(S, { dropSave: S.saveId, saveId: null, createdAt: null });
   S.game = next;
-  render();
+  // A roll or fight-end card about to open holds the table as it was until its Continue (release), so the board,
+  // status bar and prompt do not move on to the next player behind it. Saved now all the same. Never held over a
+  // private screen the next state would not show the same viewer: then the new state (a cover) renders first.
+  const out = encounterOutcome(prev, added);
+  held = (solo() || viewer === null || needViewer() === viewer) && (added.some(rollShown) || (!!out && !S.reveal));
+  if (held) { persist(); dropFinished(); } else render();
+  if (!showRolls(added) && $('roll').open) $('roll').close();
+  outcome = out;
+  showOutcome();
+  showDusk();
 }
-const canUndo = () => !!S.game && S.hist.length > 0 && canUndoTo(S.hist.at(-1), S.game);
+let held = false;
+function release() { if (held) { held = false; render(); } }
+
+// ---- The end of a fight (owner, 2026-11-19): when an encounter ends with the monster dead or fled, or the hero
+// away or dead, a short card over the dimmed board says so. It is public: the table hears these, and it holds no
+// monster HP or card. It waits for the roll card and the Reveal, and shows over a hand-over cover rather than after
+// it. Set only here, from the entries this action added, and never saved: a re-render, reload or undo cannot repeat it.
+let outcome = null; // { title, line } until shown
+function encounterOutcome(prev, added) {
+  const start = added.find(e => e.kind === 'encounter');
+  const seat = prev.encounter?.seat ?? start?.seat;
+  if (seat === undefined) return null;
+  const end = added.find(e => e.kind === 'encounter-end');
+  const died = added.some(e => e.kind === 'death' && e.seat === seat);
+  const killed = added.some(e => e.kind === 'monster-dead') || end?.outcome === 'monster-killed';
+  const said = [];
+  if (died) said.push(`${nameOf(seat)} dies.`);
+  if (killed) said.push(died ? 'The monster is dead too.' : 'The monster is dead.');
+  else if (end?.outcome === 'monster-fled') said.push('The monster flees.');
+  else if (end?.outcome === 'hero-fled' && !died) said.push(`${nameOf(seat)} gets away.`);
+  if (!said.length) return null;
+  // One line of what follows, from the public log: the flight, the next turn or the end of the game.
+  const after = prev.log.at(-1)?.seq ?? -1, last = added.findLast(e => ['encounter-end', 'death', 'monster-dead'].includes(e.kind)).seq;
+  const pub = entries(view(S.game, content(), null).log.filter(e => e.seq > after), ctx());
+  const next = pub.find(x => x.e.seq > last && ['move', 'turn', 'game-over', 'lost-at-sunset'].includes(x.e.kind));
+  return { title: said[0], line: [...said.slice(1), next?.text].filter(Boolean).join(' ') };
+}
+function showOutcome() {
+  if (!outcome || S.reveal || $('roll').open || $('outcome').open) return;
+  const { title, line } = outcome;
+  outcome = null;
+  $('outcomeTitle').textContent = title;
+  $('outcomeLine').textContent = line;
+  $('outcomeLine').hidden = !line;
+  $('outcome').showModal();
+  $('outcomeGo').focus();
+  say(`${title} ${line}`.trim());
+}
+
+// ---- Dusk notices (owner, 2026-11-19): when 5, 3 and 1 rounds of light are left (turns, solo), a short notice over the
+// board, once per game each. 5 and 3 are a banner that goes by itself; the last is the end-of-fight card's family with
+// Continue. Public, said in #said, and queued behind the roll card, the fight's end card, the Reveal and any hand-over
+// cover. Which were shown is S.dusk, autosaved with the game like S.seen, so a re-render, reload or undo and redo never
+// repeats one; a resumed save counts those already reached as shown (passedDusk).
+let duskLine = '', duskTimer;
+function showDusk() {
+  const g = S.game;
+  if (!g || g.status !== 'playing' || $('table').hidden || !$('cover').hidden || S.reveal || outcome || $('roll').open || $('outcome').open) return;
+  const t = duskDue(daylight(g.sun, SUNSET).left, S.dusk);
+  if (!t) return;
+  S.dusk = duskShown(t, S.dusk);
+  persist();
+  const w = duskWords(t, solo());
+  duskLine = `${w.title} ${w.line}`;
+  say(`${$('said').textContent} ${duskLine}`.trim());
+  if (w.card) {
+    $('outcomeTitle').textContent = w.title;
+    $('outcomeLine').textContent = w.line;
+    $('outcomeLine').hidden = false;
+    $('outcome').showModal();
+    $('outcomeGo').focus();
+    return;
+  }
+  $('duskTitle').textContent = w.title;
+  $('duskLine').textContent = w.line;
+  $('dusk').hidden = false;
+  clearTimeout(duskTimer);
+  duskTimer = setTimeout(() => { $('dusk').hidden = true; }, 5000);
+}
+
+// ---- Dice over the board: a roll card for every test or die roll the player sets off.
+// testInfo is the one adapter from game data to what the card shows before the roll. It reads the engine's
+// view.pendingTests (dice.testPreview per legal action that may roll: attribute, hero value, modifiers with
+// their sources, passingRolls) and shows only that; the dark-room D6 is not a test, so it is named here.
+const ROLL_TITLE = { portcullis: 'Lift the portcullis', 'well entry': 'Enter the well room', 'well jump': 'Jump the well', 'force rubble': 'Force through the rubble', 'dark room exit': 'Find the way out' };
+const ROLL_WHY = { portcullis: 'The portcullis is down. A pass lifts it and you go through; a fail ends the turn here.', 'well entry': 'An Agility test on entering the well room. A fall is death.', 'well jump': 'A failed jump is death.', 'force rubble': 'Pass, and you may leave by any way this turn. Fail, and the turn ends here.' };
+function testInfo(v, a) {
+  if (a.type === 'ROLL_DARK_EXIT') return { title: 'Find the way out', why: 'In the dark the D6 picks the way out.', die: 'D6', cancel: false };
+  const tests = (v.pendingTests || []).filter(t => sameAction(t.action, a));
+  if (!tests.length) return null;
+  const [t, ...then] = tests; // a portcullis into a well room: the well test follows a pass
+  return {
+    title: ROLL_TITLE[t.reason] || `${STAT[t.stat]} test`, die: t.die, stat: t.stat, value: t.target, need: t.passingRolls, cancel: true,
+    why: [ROLL_WHY[t.reason], t.reason === 'well jump' && legalActions(S.game, content()).some(x => x.type === 'WELL_DISCARD') ? 'Each treasure chamber card you carry adds 1 to the roll. Go back to drop cards first.' : '', ...then.map(x => `Then ${x.reason === 'well entry' ? 'an Agility test on entering the well room' : `a ${STAT[x.stat]} test`}.`)].filter(Boolean).join(' '),
+    mods: t.modifiers.map(m => ({ label: capital(m.source), n: m.value })),
+  };
+}
+let rollFromCell = false; // the roll card was opened from the map grid, so focus goes back there
+
+// An action with a known roll first opens the card: nothing is sent until Roll, and Back (or Esc, or a tap
+// outside) returns to the choice with nothing spent. Anything else goes straight to the engine.
+function tryAct(a) {
+  const info = testInfo(view(S.game, content(), viewer), a);
+  if (!info) return act(a);
+  rollFromCell = !!document.activeElement?.closest?.('[data-cell]');
+  const d = $('roll'), body = [];
+  $('rollTitle').textContent = info.title;
+  if (info.why) body.push(el('p', '', info.why));
+  if (info.stat) {
+    const facts = el('dl', 'facts');
+    const row = (k, val) => { const r = el('div'); r.append(el('dt', '', k), el('dd', '', val)); facts.append(r); };
+    row(`${nameOf(S.game.activeSeat)}'s ${STAT[info.stat]}`, String(info.value));
+    for (const m of info.mods) row(m.label, `${m.n < 0 ? '-' : '+'} ${Math.abs(m.n)}`);
+    body.push(facts);
+  }
+  const dice = el('div');
+  rollDice(dice, [{ value: '?' }], { sides: info.die === 'D6' ? 6 : 12, animate: false });
+  body.push(dice);
+  const need = info.stat ? info.need : null;
+  body.push(el('p', 'need', need === null ? `Roll the ${info.die}` : need >= 12 ? 'Any roll on the D12 passes' : need < 1 ? 'No roll on the D12 can pass' : `Roll ${need} or less on a D12`));
+  $('rollBody').replaceChildren(...body);
+  const go = el('button', 'btn primary', 'Roll');
+  go.onclick = () => { d.dataset.mode = 'rolling'; act(a); };
+  const btns = [go];
+  if (info.cancel) { const back = el('button', 'btn', 'Back'); back.onclick = () => d.close(); btns.unshift(back); }
+  $('rollBtns').replaceChildren(...btns);
+  d.dataset.mode = info.cancel ? 'ask' : 'ask-only';
+  d.dataset.title = info.title;
+  if (!d.open) d.showModal();
+  go.focus();
+}
+
+// After an action: its tests and dice rolls tumble on the card, then pass or fail with the arithmetic and
+// Continue. Rolls are public entries, so this shows nothing the table may not see. False when there were none.
+const rollShown = e => e.kind === 'test' || (e.kind === 'roll' && e.reason === 'dark room exit');
+function showRolls(added) {
+  const shown = added.filter(rollShown);
+  if (!shown.length) return false;
+  const d = $('roll'), said = entries(added, ctx());
+  const first = shown[0];
+  $('rollTitle').textContent = d.dataset.mode === 'rolling' && d.dataset.title ? d.dataset.title : ROLL_TITLE[first.reason] || `${STAT[first.stat]} test`;
+  const dice = el('div'), out = el('div', 'outcome'), summary = [];
+  for (const e of shown) {
+    const box = el('div');
+    if (e.kind === 'test') {
+      const it = said.find(x => x.e === e), [rolled, needed] = testWords(e);
+      box.append(el('p', `verdict ${e.pass ? 'pass' : 'fail'}`, e.pass ? 'Pass' : 'Fail'), el('p', 'sum', rolled), el('p', 'sum', needed));
+      const line = it?.text;
+      if (line) box.append(el('p', '', line));
+      summary.push(`${e.pass ? 'Pass' : 'Fail'}. ${rolled} ${needed} ${line || ''}`);
+    } else {
+      const next = added.slice(added.indexOf(e) + 1).find(x => x.kind === 'dark-exit' || x.kind === 'dark-blocked');
+      const line = next ? said.find(x => x.e === next)?.text : '';
+      box.append(el('p', 'verdict', `D6: ${e.value}`));
+      if (line) box.append(el('p', '', line));
+      const blocked = added.find(x => x.kind === 'dark-blocked');
+      if (blocked) box.append(el('p', '', said.find(x => x.e === blocked)?.text || ''));
+      summary.push(`D6 ${e.value}. ${line || ''}`);
+    }
+    out.append(box);
+  }
+  out.style.visibility = 'hidden';
+  $('rollBody').replaceChildren(dice, out);
+  const ok = el('button', 'btn primary', 'Continue');
+  ok.onclick = () => d.close();
+  ok.style.visibility = 'hidden';
+  $('rollBtns').replaceChildren(ok);
+  d.dataset.mode = 'result';
+  if (!d.open) { rollFromCell = !!document.activeElement?.closest?.('[data-cell]'); d.showModal(); }
+  $('rollTitle').focus(); // until Continue shows
+  rollDice(dice, shown.map(e => (e.kind === 'test' ? { value: e.roll } : { value: e.value, sides: 6 }))).then(() => {
+    if (!d.open || !out.isConnected) return;
+    out.style.visibility = ok.style.visibility = '';
+    ok.focus();
+    say(summary.join(' '));
+  });
+  return true;
+}
+const canUndo = () => canUndoHist(S.hist, S.game);
+// The thumb-reach undo under a prompt, named for what it takes back; or, with note, why there is nothing to undo.
+function undoHere(v, note) {
+  if (canUndo()) {
+    const u = el('button', 'btn undo-here', undoLabel(S.hist.at(-1), S.game, content(), nameOf));
+    u.onclick = undo;
+    return [u];
+  }
+  const why = note && undoBlocked(v.log);
+  return why ? [el('p', 'undo-note', why)] : [];
+}
 function undo() {
   if (!canUndo()) return;
+  const here = document.activeElement?.classList.contains('undo-here');
   S.game = S.hist.pop();
   S.seen = Math.min(S.seen, S.game.log.length);
   S.reveal = null;
+  outcome = null;
   S.peek = null;
   render();
+  if (here) document.querySelector('main:not([hidden]) .undo-here')?.focus(); // press again for one more step
 }
 
 function newGame(mode) {
@@ -130,16 +332,19 @@ function newGame(mode) {
     $('startReason').textContent = err.message;
     return;
   }
-  Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
+  Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null, dusk: [] });
   viewer = players.length === 1 ? 0 : null;
+  outcome = null;
   resetView();
   render();
   window.scrollTo(0, 0);
 }
 
 function toTitle() {
-  Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
+  Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null, dusk: [] });
+  $('dusk').hidden = true;
   viewer = null;
+  outcome = null;
   shown = NL.saves.cached('keep') ?? shown; // this browser's copy of a save just made shows at once
   render();
   window.scrollTo(0, 0);
@@ -155,19 +360,38 @@ function saveTitle(g) {
 // put() writes to this browser at once and uploads in the background for a signed-in person.
 async function saveGame() {
   const g = S.game;
+  if (g.status === 'over') throw new Error('A finished game is not saved');
   const now = new Date().toISOString();
   if (!S.saveId) Object.assign(S, { saveId: crypto.randomUUID(), createdAt: now }); // before any await, so a double tap updates one record
   if (!S.createdAt) S.createdAt = (await NL.saves.get(S.saveId).catch(() => null))?.createdAt || now;
   persist();
-  let state = { mode: S.mode, game: g, hist: S.hist };
-  if (JSON.stringify(state).length > 240000) state = { mode: S.mode, game: g, hist: [] }; // the server keeps 256 KB per save
+  // The server keeps 256 KB per save: the newest undo steps that fit go with it, so undo survives a resume.
+  const state = { mode: S.mode, game: g, hist: fitHist(S.hist, JSON.stringify({ mode: S.mode, game: g, hist: [] }).length, 240000) };
   return NL.saves.put({
     schemaVersion: 1, id: S.saveId, game: 'keep', personPublicId: NL.person(),
-    title: saveTitle(g), status: g.status === 'over' ? 'finished' : 'in_progress',
+    title: saveTitle(g), status: 'in_progress',
     createdAt: S.createdAt, updatedAt: now, state,
   });
 }
 const okRecord = r => !!r?.state && CONTENT[r.state.mode] && !!r.state.game && typeof r.state.game === 'object';
+
+// Finished games are not saved (owner, 2026-11-19). When a saved game ends, act() moves its id to S.dropSave and the
+// record is removed here, so it can neither be resumed nor linger in the list (Bank, too, writes a save only when
+// asked). Signed in, remove() must reach the server (decision 0003) and rejects offline: S.dropSave is autosaved and
+// tried again on a later render, at most every 15 seconds, and when the network comes back. Meanwhile the list hides it.
+let dropping = false, dropAt = 0;
+function dropFinished() {
+  const id = S.dropSave;
+  if (!id || dropping || Date.now() - dropAt < 15000) return;
+  dropping = true;
+  dropAt = Date.now();
+  NL.saves.remove(id).then(() => {
+    if (S.dropSave === id) { S.dropSave = null; persist(); }
+    shown = shown && shown.filter(r => r.id !== id);
+    if (!S.game) drawSaves();
+  }, () => {}).finally(() => { dropping = false; });
+}
+addEventListener('online', () => { dropAt = 0; dropFinished(); });
 
 async function resume(id) {
   const r = await NL.saves.get(id).catch(() => null); // a signed-in save can fail to load when the server is unreachable
@@ -176,9 +400,10 @@ async function resume(id) {
   try { c = CONTENT[r.state.mode]; game = restore(JSON.stringify(r.state.game), c); } catch { return toast('That save cannot be opened.'); }
   Object.assign(S, {
     mode: r.state.mode, game, hist: Array.isArray(r.state.hist) ? r.state.hist.filter(h => okSnap(h, c)).slice(-HIST_CAP) : [],
-    saveId: r.id, createdAt: r.createdAt, finishedSaved: r.status === 'finished', seen: game.log.length, reveal: null, peek: null,
+    saveId: r.id, createdAt: r.createdAt, seen: game.log.length, reveal: null, peek: null, dusk: passedDusk(game),
   });
   viewer = game.seats.length === 1 ? 0 : null;
+  outcome = null;
   resetView();
   render();
   window.scrollTo(0, 0);
@@ -209,11 +434,15 @@ async function refreshSaves() {
   if (!S.game) drawSaves();
 }
 addEventListener('nl-saves', () => { if (!S.game) refreshSaves(); }); // an upload finished or was refused
+const OPEN_KEY = 'nl-keep-saved-open'; // open or closed, for this visit
+try { $('savedGroup').open = sessionStorage.getItem(OPEN_KEY) === '1'; } catch {}
+$('savedGroup').ontoggle = () => { try { sessionStorage.setItem(OPEN_KEY, $('savedGroup').open ? '1' : '0'); } catch {} };
 
 function drawSaves() {
-  const recs = (shown || []).filter(okRecord), group = $('savedGroup');
+  const recs = (shown || []).filter(r => okRecord(r) && r.id !== S.dropSave), group = $('savedGroup');
   group.hidden = !loadingSaves && !savesNote && !recs.length;
   group.setAttribute('aria-busy', loadingSaves);
+  $('savedSummary').replaceChildren('Saved games', loadingSaves ? el('span', 'skeleton count') : recs.length ? ` (${recs.length})` : '');
   $('savedNote').textContent = savesNote;
   $('savedNote').hidden = !savesNote;
   if (savesNote && !shown) {
@@ -301,6 +530,7 @@ function showCover(need) {
   $('coverGo').onclick = () => {
     viewer = need;
     render();
+    showDusk();
     // Straight to the prompt, not the map (on a phone in portrait the prompt is docked under the board already).
     if (!PHONE.matches) $('table').querySelector('.tablegrid section.panel')?.scrollIntoView({ block: 'start' });
   };
@@ -310,9 +540,9 @@ function showCover(need) {
 }
 
 // ---- Rendering
-// Phone in portrait: board and prompt share one screen (index.html has the same media query).
-const PHONE = matchMedia('(max-width: 819.98px) and (orientation: portrait)');
-PHONE.addEventListener('change', () => { if (S.game) render(); }); // the map key moves between board and fold
+// A phone, portrait or landscape: board and prompt share one screen (index.html has the same media queries).
+const PHONE = matchMedia('(max-width: 819.98px) and (orientation: portrait), (orientation: landscape) and (max-height: 540px)');
+PHONE.addEventListener('change', () => { if (S.game && !held) render(); }); // the map key moves between board and fold
 // The one permanent live region: the latest result lines, only ever from the current viewer's view.
 const say = text => { if ($('said').textContent !== text) $('said').textContent = text; };
 
@@ -329,6 +559,7 @@ function keepAwake(on) {
 let boardApi = null; // the mounted map, to put keyboard focus back on its grid after a re-render
 function render() {
   persist();
+  dropFinished();
   const g = S.game;
   const screen = !g ? 'title' : g.status === 'setup' ? 'draft' : g.status === 'over' ? 'results' : 'table';
   const onCell = !!document.activeElement?.closest?.('[data-cell]');
@@ -340,9 +571,14 @@ function render() {
   $('banner').hidden = !g?.banner;
   $('bannerText').textContent = g?.banner || '';
   $('synthetic').replaceChildren(...(g?.banner ? syntheticCategories(content()) : []).map(t => el('li', '', t)));
-  $('undo').hidden = $('saveExit').hidden = !g;
-  $('undo').disabled = !canUndo();
-  $('saveExit').disabled = false;
+  // Menu: like Bank, the Games link gives way to Exit during a game. Undo shows only when a press works, named.
+  const undoOk = canUndo() && !S.peek && !S.reveal;
+  if (!undoOk && document.activeElement === $('undo')) $('menu').querySelector('.menu-trigger').focus();
+  $('undo').hidden = !undoOk;
+  if (undoOk) $('undo').querySelector('span').textContent = undoLabel(S.hist.at(-1), g, content(), nameOf);
+  $('exitBtn').hidden = $('logBtn').hidden = !g;
+  $('gamesLink').hidden = !!g;
+  [...$('menuItems').children].filter(i => !i.hidden).forEach((item, k) => item.style.setProperty('--i', k + 1)); // NL.menu sets these on open only
   if (!g) {
     say('');
     $('cover').hidden = true;
@@ -350,33 +586,33 @@ function render() {
     $('title').hidden = false;
     return renderTitle();
   }
-  if (g.status === 'over' && !S.finishedSaved) {
-    // A finished game saves itself once, reusing the record of a resumed or saved game.
-    S.finishedSaved = true;
-    persist();
-    saveGame().catch(() => toast('Could not save the finished game.'));
-  }
   if (solo()) viewer = 0;
   const need = needViewer();
   // Nothing private on screen now: straight to the public view, no hand-back cover. view(g, c, null) only ever
   // redacts more than any seat's view, so the last private holder sees nothing new. A cover still hands the
   // screen TO a seat.
   if (need === null) viewer = null;
-  if (need !== viewer) { say(''); return showCover(need); }
+  if (need !== viewer) { say(''); showCover(need); return showOutcome(); } // public, so over the cover
   $('cover').hidden = true;
+  if ($(screen).hidden) scrollTo(0, 0); // a new screen starts at its top, not where the last one was scrolled
   for (const id of ['title', 'draft', 'table', 'results']) $(id).hidden = id !== screen;
   for (const id of ['draft', 'table', 'results']) if (id !== screen) $(id).replaceChildren();
   const v = view(g, content(), viewer);
-  say(screen === 'table' ? lines(v.log.slice(S.seen), ctx()).join(' ') : '');
+  say(screen === 'table' ? [...lines(v.log.slice(S.seen), ctx()), duskLine].filter(Boolean).join(' ') : '');
   if (screen === 'draft') renderDraft(v);
   else if (screen === 'table') renderTable(v);
   else renderResults(v);
-  const lost = a => !a || a === document.body || !a.isConnected || !!a.closest('[hidden]');
-  if (onCell && boardApi && lost(document.activeElement)) boardApi.focus();
-  else if (keyboard && lost(document.activeElement)) {
-    const first = $(screen).querySelector('.choices button:not(:disabled), button.choice:not(:disabled)');
-    first?.focus();
-  }
+  refocus(onCell);
+  showOutcome(); // after the Reveal's Continue, say
+}
+// Focus that a re-render (or a closed roll card) took away goes back to the map grid if it was there, else for
+// keyboard players to the first choice.
+function refocus(onCell) {
+  const a = document.activeElement;
+  if (a && a !== document.body && a.isConnected && !a.closest('[hidden]')) return;
+  if (!$('cover').hidden) return $('coverGo').focus();
+  if (onCell && boardApi) boardApi.focus();
+  else if (keyboard) document.querySelector('main:not([hidden]) :is(.choices button, button.choice):not(:disabled)')?.focus();
 }
 
 // ---- Title and setup
@@ -464,9 +700,14 @@ const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 function firstRolls(g) {
   const rolls = g.log.filter(e => e.kind === 'roll' && /^first player, seat \d+$/.test(e.reason));
-  return rolls.map(e => `${nameOf(+e.reason.split(' ').pop())} ${e.value}`).join(', ');
+  return rolls.map(e => `${nameOf(+e.reason.split(' ').pop())} rolled ${e.value}`).join(', ');
 }
 
+// The first-player roll is a step of its own: "?" dice and Roll (or a tap on the dice); once they land, the result
+// and "Pick heroes", which brings in the hero picker. Never saved: a reload or resume goes straight to the picker.
+// From then on (owner, 2026-11-19) the dice are gone: one small line says who goes first and the order of play.
+let firstRolled = false; // just rolled: the dice tumble on the next draw
+let firstWait = false; // the result shows on its own until "Pick heroes"
 function renderDraft(v) {
   const g = S.game, c = content(), la = legalActions(g, c);
   const out = [el('h1', '', 'Setting up')];
@@ -474,14 +715,47 @@ function renderDraft(v) {
   const seat = la[0].seat;
   if (step === 'first-player') {
     const p = panel('Who goes first', 'Everyone rolls a D12. The highest goes first; tied highest roll again.');
+    const dice = el('div', 'tapdice');
+    rollDice(dice, g.seats.map(s => ({ value: '?', label: s.name })), { animate: false });
+    const go = () => { firstRolled = firstWait = true; act(la[0]); };
+    dice.onclick = go; // the Roll button is the keyboard and screen reader way
     const ch = el('div', 'choices');
-    ch.append(choice('Roll for first player', `${g.seats.length} D12s`, () => act(la[0]), 'primary'));
-    p.append(ch);
+    ch.append(choice('Roll', `${g.seats.length} D12s`, go, 'primary'));
+    p.append(dice, ch);
     out.push(p);
+  } else if (firstWait && step === 'heroes') {
+    // Every player's die, rerolls for a tie included, landing on what the engine rolled: animated once, just
+    // after the roll, and the result said once it has landed.
+    const p = panel('Who goes first');
+    const dice = el('div'), seen = new Set();
+    const items = g.log.filter(e => e.kind === 'roll' && /^first player, seat \d+$/.test(e.reason)).map(e => {
+      const s = +e.reason.split(' ').pop(), again = seen.has(s);
+      seen.add(s);
+      return { value: e.value, label: again ? `${nameOf(s)}, again` : nameOf(s) };
+    });
+    const tie = items.some(x => x.label.endsWith(', again'));
+    const res = el('p', 'firstres', `${nameOf(g.firstSeat)} goes first.`);
+    const rolls = el('p', '', `${firstRolls(g)}.${tie ? ' Tied highest rolled again.' : ''}`);
+    const order = el('p', '', `Order of play, clockwise: ${listOf(g.seats.map((_, k) => nameOf((g.firstSeat + k) % g.seats.length)))}.`);
+    const ch = el('div', 'choices');
+    ch.append(choice('Pick heroes', null, () => { firstWait = false; render(); }, 'primary'));
+    p.append(dice, res, rolls, order, ch);
+    const shown = [res, rolls, order, ch];
+    out.push(p);
+    const animate = firstRolled;
+    firstRolled = false;
+    if (animate) for (const x of shown) x.style.visibility = 'hidden';
+    $('draft').replaceChildren(...out);
+    return rollDice(dice, items, { animate }).then(() => {
+      if (!animate) return;
+      for (const x of shown) x.style.visibility = '';
+      say(`${res.textContent} ${rolls.textContent} ${order.textContent}`);
+      p.querySelector('.choice')?.focus();
+    });
   } else {
-    const p = panel('First player', `${firstRolls(g)}. ${nameOf(g.firstSeat)} goes first.`);
-    p.append(el('p', '', `Order of play, clockwise: ${listOf(g.seats.map((_, k) => nameOf((g.firstSeat + k) % g.seats.length)))}.`));
-    out.push(p);
+    firstWait = false; // past the hero step (an undo, or another device): the picker as usual
+    const n = g.seats.length;
+    if (n > 1) out.push(el('p', 'firstline', `${nameOf(g.firstSeat)} goes first. Order: ${g.seats.map((_, k) => nameOf((g.firstSeat + k) % n)).join(', ')}.`));
   }
   if (step === 'heroes') {
     const p = panel(`${nameOf(seat)}, pick your hero`, 'Heroes are picked clockwise from the first player.');
@@ -522,6 +796,7 @@ function renderDraft(v) {
     p.append(ch);
     out.push(p);
   }
+  if (step !== 'first-player') out.find(x => x.matches('section.panel'))?.append(...undoHere(v, false)); // under the pick
   if (step !== 'first-player') {
     const p = panel('Picks so far');
     const ul = el('ul');
@@ -535,34 +810,59 @@ function renderDraft(v) {
   $('draft').replaceChildren(...out);
 }
 
-// ---- Main tabletop
-function sunClock(sun) {
-  const s = svg('svg', { viewBox: '0 0 120 64', class: 'sun', 'aria-hidden': 'true' });
-  svg('line', { x1: 4, y1: 60, x2: 116, y2: 60, class: 'horizon' }, s);
-  for (let k = 1; k < SUNSET; k++) {
-    const t = Math.PI * (1 - (k - 1) / (SUNSET - 2));
-    const [c, si] = [Math.cos(t), Math.sin(t)];
-    svg('line', { x1: 60 + 50 * c, y1: 58 - 50 * si, x2: 60 + 56 * c, y2: 58 - 56 * si, class: `tick${k >= sun ? ' left' : ''}` }, s);
-  }
-  const t = Math.PI * (1 - (Math.min(sun, SUNSET - 1) - 1) / (SUNSET - 2));
-  svg('circle', { cx: 60 + 40 * Math.cos(t), cy: 58 - 40 * Math.sin(t), r: 9, class: 'disc' }, s);
-  return s;
+// Why the hero may go on (the Keep moving prompt): the latest 'may-continue' entry the engine logged this turn.
+function keepMovingWhy(v) {
+  const turn = v.log.slice(v.log.findLastIndex(e => e.kind === 'turn') + 1);
+  const e = turn.findLast(x => x.kind === 'may-continue');
+  return e ? entries([e], ctx())[0]?.text || null : null;
 }
 
-function heldNames(h) { return h.held.map(inst => cardDef(content(), inst).name); }
+// ---- Main tabletop
+// The sun track (owner, 2026-11-19): a notch per sun, the elapsed part filled, the sun on this step, the last five
+// notches in the danger colour and the horizon at the end; the number left beside it. One image for readers.
+function sunTrack(sun, one) {
+  const { step, steps, left } = daylight(sun, SUNSET), box = el('div', 'suntrack'), track = el('div', 'track');
+  track.setAttribute('role', 'img');
+  track.setAttribute('aria-label', trackLabel(sun, SUNSET, one));
+  track.style.setProperty('--at', steps > 1 ? (step - 1) / (steps - 1) : 1);
+  const notches = el('span', 'notches');
+  for (let k = 1; k <= steps; k++) notches.append(el('i', [k < step && 'past', k > steps - 5 && 'late'].filter(Boolean).join(' ')));
+  track.append(el('i', 'rail'), el('i', 'fill'), notches, el('i', 'sunmark'));
+  const horizon = svg('svg', { viewBox: '0 0 16 12', class: 'horizon', 'aria-hidden': 'true' });
+  svg('path', { d: 'M3 10a5 5 0 0 1 10 0', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }, horizon);
+  svg('path', { d: 'M0 11h16', stroke: 'currentColor', 'stroke-width': 2 }, horizon);
+  const n = el('span', 'left', String(left));
+  n.append(el('span', 'w', ` ${unit(left, one)}`), ' left');
+  n.setAttribute('aria-hidden', 'true');
+  box.append(track, horizon, n);
+  return box;
+}
+// A small icon and number, its words for readers (and on wide screens words in front of the number).
+function chip(cls, label, icon, words, num) {
+  const c = el('span', `chip ${cls}`);
+  c.setAttribute('role', 'img');
+  c.setAttribute('aria-label', label);
+  const s = svg('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
+  svg('path', { d: icon }, s);
+  c.append(s);
+  if (words) c.append(el('span', 'w', words));
+  c.append(num);
+  return c;
+}
 
 // A move as a title and a reason line, read from the engine's exits (BoardDefinition geometry) and the tile data.
 const MARK_EFFECT = { black: 'draws a room card', red: 'draws a room card, a portcullis drops behind you', yellow: 'you may keep moving', blue: '', none: '' };
 const SPECIAL_EFFECT = { well: 'Agility test on entry, a fall is death', rubble: 'ends your turn', rotating: 'turns a quarter on entry', none: '' };
-function moveInfo(g, dir) {
-  const c = content(), seat = g.activeSeat, hero = g.heroes[seat];
-  const ex = exits(g, c, seat).find(e => e.dir === dir);
+// a: the engine's MOVE action; its `from` names the chamber half it leaves by (D39).
+function moveInfo(g, a) {
+  const c = content(), seat = g.activeSeat, hero = g.heroes[seat], dir = a.dir;
+  const ex = exitFor(g, c, seat, dir, a.from);
   const kind = squareKind(c.board, ex.to);
   const inst = g.board.tiles[key(ex.to)];
   const def = inst && contentIndex(c).tiles.get(inst.defId);
   const parts = [];
   if (ex.edge === 'door') parts.push('door, a door card first');
-  if (ex.edge === 'gate') parts.push(`${sideWord(g, c, hero.coord, dir)}, Strength ${heroDef(hero).stats.STR} test`);
+  if (ex.edge === 'gate') parts.push(`${sideWord(g, c, ex.from, dir)}, Strength ${heroDef(hero).stats.STR} test`);
   if (ex.edge === 'secret') parts.push('secret passage');
   if (kind === 'tower') parts.push('you may escape, stay or go on through it');
   else if (kind === 'center') parts.push('treasure chamber, two secret cards then a dragon card');
@@ -575,51 +875,106 @@ function moveInfo(g, dir) {
 const WHY = { 'door-closed': 'the door stayed shut this turn', 'tower-entry': 'that is the way you came into the tower', 'no-tiles-left': 'no tiles left to reveal', occupied: 'occupied room, one hero per room' };
 function whyNot(g, ex) {
   if (ex.reason !== 'wall') return WHY[ex.reason] || ex.reason;
-  const w = sideWord(g, content(), g.heroes[g.activeSeat].coord, ex.dir);
+  const w = sideWord(g, content(), ex.from, ex.dir);
   return w === 'wall' ? 'wall on this side' : w === 'printed wall' ? 'wall printed on the board' : 'wall on their side';
 }
 
-function testLines(events) {
-  return events.filter(e => e.kind === 'test').map(e => {
-    const d = el('div', 'testline');
-    d.append(el('span', 'die', e.roll + (e.modifier ? `+${e.modifier}` : '')), el('span', '', `${STAT[e.stat]} ${e.target}, ${e.reason}: ${e.pass ? 'pass' : 'fail'}`));
-    return d;
-  });
+// One log line: the plain sentence, then the dice arithmetic behind it in smaller text.
+function logLine({ text, detail }) {
+  const li = el('li', '', text);
+  if (detail) li.append(el('small', '', detail));
+  return li;
 }
 
-function combatBox(v, enc) {
-  const box = el('div', 'cardface');
-  const m = enc.monster;
-  const wounds = el('span', 'pips');
-  for (let i = 0; i < (m?.wounds || 0); i++) wounds.append(el('i'));
-  const line = el('p');
-  line.append(`Monster wounds: ${m?.wounds || 0}${m?.hp ? ` of ${m.hp} HP` : ''} `, wounds);
-  box.append(el('strong', '', m?.inst ? cardDef(content(), m.inst).name : 'The monster'), line);
-  const hero = v.heroes[enc.seat];
-  box.append(el('p', '', `${nameOf(enc.seat)}: ${Math.max(0, hero.hp)} of ${hero.hpStart} HP`));
-  const ex = enc.combat?.exchanges || [];
-  if (ex.length) {
-    const ol = el('ol');
-    for (const x of ex) ol.append(el('li', '', x.placement ? (x.rethrow ? 'Unclear, thrown again' : `${PLACEMENT[x.placement]}, ${FACE[x.face].toLowerCase()}: hero ${x.heroDmg}, monster ${x.monsterDmg}`) : `${x.hero} against ${x.monster}: hero ${x.heroDmg}, monster ${x.monsterDmg}`));
-    box.append(ol);
+// ---- Fight panels (owner, 2026-11-19): compact, so on a phone the buttons are in the dock without scrolling,
+// however long the fight. A one-line header with a small tag, the fight in one row, the last exchange in one line
+// and the earlier ones behind History.
+function fightPanel(title, tag) {
+  const p = el('section', 'glass panel fight'), h = el('h2', '', title);
+  if (tag) h.append(el('span', 'tag', tag));
+  p.append(h);
+  return p;
+}
+// Who is fighting and the hero's HP. D37 (spec v3): the monster's card name and HP only in the monster player's own
+// view (the engine strips them from everyone else's, the hero's and the table's included).
+function fightRow(v, seat, enc) {
+  const row = el('div', 'fightrow'), m = enc?.monster, hero = v.heroes[seat];
+  row.append(el('span', 'who', `${nameOf(seat)} against ${m?.inst ? cardDef(content(), m.inst).name : 'the monster'}`));
+  const hp = el('span', 'herohp'), bar = el('span', 'hp'), fill = el('i'), left = Math.max(0, hero.hp);
+  fill.style.width = `${100 * left / hero.hpStart}%`;
+  bar.append(fill);
+  hp.append(bar, `${left}/${hero.hpStart}`);
+  hp.setAttribute('role', 'img');
+  hp.setAttribute('aria-label', `${nameOf(seat)}: ${left} of ${hero.hpStart} HP`);
+  row.append(hp);
+  if (Number.isInteger(m?.hp)) row.append(hpMeter(Math.max(0, m.hp - m.wounds), m.hp));
+  return row;
+}
+function lastLine(v, enc) {
+  const x = enc.combat?.exchanges?.at(-1);
+  return x ? el('p', 'last', `Last: ${lastWords(x, viewer === enc.seat ? 'you' : nameOf(enc.seat))}`) : null;
+}
+// The exchanges before the last one, opened in place (the open state lasts for the visit, like the map key).
+let historyOpen = false;
+function history(enc) {
+  const ex = enc?.combat?.exchanges || [];
+  if (ex.length < 2) return null;
+  const d = el('details', 'history');
+  d.open = historyOpen;
+  d.ontoggle = () => { historyOpen = d.open; };
+  d.append(el('summary', '', `History (${ex.length - 1})`));
+  const ol = el('ol');
+  for (const x of ex.slice(0, -1)) ol.append(el('li', '', x.placement ? (x.rethrow ? 'Unclear, thrown again' : `${PLACEMENT[x.placement]}, ${FACE[x.face].toLowerCase()}: hero ${x.heroDmg}, monster ${x.monsterDmg}`) : `${exchangeWords(x, nameOf(enc.seat))}.`));
+  d.append(ol);
+  return d;
+}
+// The small controls under a fight panel's buttons: Items and History here, Undo from renderTable.
+function tools(...items) {
+  const t = el('div', 'tools');
+  t.append(...items.filter(Boolean));
+  return t;
+}
+
+// The monster's HP for the monster player only: a heart per HP (filled left, empty lost), or above 10 the hero
+// panel's green bar.
+function hpMeter(left, max) {
+  let m;
+  if (max > 10) {
+    m = el('div', 'hp');
+    const fill = el('i');
+    fill.style.width = `${100 * left / max}%`;
+    m.append(fill);
+  } else {
+    m = el('div', 'hearts');
+    for (let i = 0; i < max; i++) {
+      const h = svg('svg', { viewBox: '0 0 24 24', class: i < left ? 'full' : 'lost', 'aria-hidden': 'true' });
+      svg('path', { d: 'M12 20.5s-7.6-4.6-9.4-9.3C1.3 7.8 3.4 4.5 6.8 4.5c2 0 3.6 1.1 5.2 3 1.6-1.9 3.2-3 5.2-3 3.4 0 5.5 3.3 4.2 6.7-1.8 4.7-9.4 9.3-9.4 9.3z' }, h);
+      m.append(h);
+    }
   }
-  return box;
+  m.setAttribute('role', 'img');
+  m.setAttribute('aria-label', `Monster: ${left} of ${max} HP left`);
+  return m;
 }
 
+// A, B and C: the letter large, what it beats and loses to (BEATS, the engine's rule), and a double hit only on a card
+// that has one. The card's placeholder name is in the accessible label only; "same letter" is said once, under them.
+const LOSES_TO = Object.fromEntries(Object.entries(BEATS).map(([w, l]) => [l, w]));
 function combatCards(seatSet, onPick) {
   const ch = el('div', 'choices grid3');
   for (const letter of ['A', 'B', 'C']) {
     const card = (content().combat || []).find(x => x.setId === seatSet && x.letter === letter);
-    const b = el('button', 'choice');
-    b.append(el('span', 'big', letter));
-    b.append(el('small', '', card ? card.name : 'pending'));
-    if (card?.doubleAgainst?.length) b.append(el('small', '', `Hits ${card.doubleAgainst.join(', ')} twice`));
-    b.setAttribute('aria-label', `Play ${letter}${card ? `, ${card.name}` : ''}`);
+    const beats = BEATS[letter], twice = !!card?.doubleAgainst?.includes(beats);
+    const b = el('button', 'choice combatcard');
+    b.append(el('span', 'big', letter), el('small', 'rule', `beats ${beats}`), el('small', '', `loses to ${LOSES_TO[letter]}`));
+    if (twice) b.append(el('small', 'rule', `hits ${beats} twice`));
+    b.setAttribute('aria-label', `Play ${letter}, ${card ? card.name : 'card pending'}. Beats ${beats}${twice ? ', hitting twice' : ''}. Loses to ${LOSES_TO[letter]}.`);
     b.onclick = () => onPick(letter);
     ch.append(b);
   }
   return ch;
 }
+const SAME = 'Same letter: both take 1.';
 
 // The prompt panel: one per phase the engine can raise, built from its legal actions.
 function renderPrompt(v, la, targets) {
@@ -635,7 +990,7 @@ function renderPrompt(v, la, targets) {
     p = panel(`${nameOf(seat)}, your treasure chamber cards`, 'Only you may see these.');
     if (S.peek.from !== null) {
       const drawn = v.log.slice(S.peek.from).filter(e => (e.kind === 'draw' && e.deck === 'TREASURY') && e.private === seat);
-      for (const e of drawn) { const d = cardDef(c, e.value); const f = el('div', 'cardface'); f.append(el('strong', '', `Drawn: ${d.name}`), el('p', '', cardText(d))); p.append(f); }
+      for (const e of drawn) { const d = cardDef(c, e.value); const f = el('div', 'cardface'); f.append(el('strong', '', `Drawn: ${e.cardName || d.name}`), el('p', '', cardText(d, e.effectText))); p.append(f); }
     }
     const f = el('div', 'cardface');
     f.append(el('strong', '', mine.treasury.length ? `You hold ${mine.treasury.length}: ${mine.gold} gold in all` : 'You hold no treasure chamber cards now'));
@@ -648,15 +1003,18 @@ function renderPrompt(v, la, targets) {
   }
   if (S.reveal) {
     const last = S.reveal;
-    p = panel('Reveal', 'Both cards turn over at once.');
+    // The two letters large, one sentence, Continue; the fight row above and History below.
+    p = fightPanel('Reveal');
+    p.append(fightRow(v, last.seat, enc));
     const vs = el('div', 'vs');
-    const side = (who, letter, dmg) => { const d = el('div'); d.append(el('span', '', letter), el('small', '', `${who} takes ${dmg}`)); return d; };
-    vs.append(side(nameOf(last.seat), last.hero, last.heroDmg), el('small', '', 'against'), side('Monster', last.monster, last.monsterDmg));
-    p.append(vs);
-    if (enc) p.append(combatBox(v, enc));
+    const side = (who, letter) => { const d = el('div'); d.append(el('span', '', letter), el('small', '', who)); return d; };
+    vs.append(side(nameOf(last.seat), last.hero), el('small', '', 'against'), side('Monster', last.monster));
+    p.append(vs, el('p', 'exchange', revealWords(last, nameOf(last.seat))));
     const ch = el('div', 'choices');
     ch.append(choice('Continue', null, () => { S.reveal = null; render(); }, 'primary'));
     p.append(ch);
+    const h = history(enc);
+    if (h) p.append(tools(h));
     return p;
   }
 
@@ -668,13 +1026,20 @@ function renderPrompt(v, la, targets) {
       p = g.phase === 'CHOOSE_ACTION'
         ? panel(`${name}, your move`, inTower ? `You are in the ${towerAt(hero.coord)}, not escaped.` : null)
         : panel('Keep moving?', 'You may go on this turn, or stop here.');
+      const why = g.phase === 'CHOOSE_EXIT' && keepMovingWhy(v);
+      if (why) p.append(el('p', 'why', why));
       // Phone first: moves are the lit squares on the map (their labels carry the reason); only other actions are buttons.
       for (const a of by('MOVE')) {
-        const m = moveInfo(g, a.dir);
-        targets.push({ ...neighbour(hero.coord, a.dir), label: `${m.title}, ${m.reason}`, pick: () => act(a) });
+        const m = moveInfo(g, a);
+        targets.push({ ...actionSquare(g, a), label: `${m.title}, ${m.reason}`, pick: () => tryAct(a) });
       }
       for (const a of by('TOWER_CHOICE')) ch.append(choice('Escape the castle', "End this hero's run with their treasure. Final: no way back in.", () => act(a), 'primary'));
+      for (const a of by('USE_ITEM')) {
+        const item = allItems(v.heroes[g.activeSeat].inventory).find(x => x.inst === a.item);
+        ch.append(choice(`Use ${cardDef(c, a.item).name}`, itemText(item) || itemText(cardDef(c, a.item)) || 'Its card allows it now', () => tryAct(a)));
+      }
       for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
+      if (!by('SEARCH').length && typeof v.searchUnavailable === 'string' && v.searchUnavailable) ch.append(el('p', 'muted', `Can't search here: ${v.searchUnavailable.replace(/\.$/, '')}.`));
       for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two treasure chamber cards, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
       for (const a of by('STOP')) ch.append(inTower ? choice('Stop in the tower', 'End your turn here, not escaped', () => act(a)) : choice('Stop here', 'End your turn', () => act(a)));
       for (const a of by('FORCED_SKIP')) ch.append(choice('No way on', 'The turn passes', () => act(a)));
@@ -685,19 +1050,19 @@ function renderPrompt(v, la, targets) {
       const agi = heroDef(hero).stats.AGI;
       if (kind === 'dark') {
         p = panel('In the dark', 'You cannot choose a way out: the D6 picks it.');
-        for (const a of by('ROLL_DARK_EXIT')) ch.append(choice('Roll the D6', null, () => act(a), 'primary'));
+        for (const a of by('ROLL_DARK_EXIT')) ch.append(choice('Roll the D6', null, () => tryAct(a), 'primary'));
       } else if (kind === 'well-edge') {
         p = panel('At the edge of the well', `Climb back the way you came, or jump: an Agility test on the D12 plus ${hero.treasury.length} treasure chamber ${hero.treasury.length === 1 ? 'card' : 'cards'} against ${agi}. A failed jump is death. You may drop treasure chamber cards first.`);
-        for (const a of by('WELL_RETURN')) ch.append(choice('Climb back', 'Go back the way you came', () => act(a)));
+        for (const a of by('WELL_RETURN')) ch.append(choice('Climb back', 'Go back the way you came', () => tryAct(a)));
         for (const a of by('WELL_DISCARD')) {
           const i = hero.treasury.indexOf(a.card);
           ch.append(choice(`Drop treasure chamber card ${i + 1}`, viewer === g.activeSeat ? `${cardDef(c, a.card).name}, ${cardDef(c, a.card).gold || 0} gold` : 'Check which with Show my cards', () => act(a)));
         }
-        for (const a of by('WELL_JUMP')) ch.append(choice('Jump', `Agility test, D12 + ${hero.treasury.length} against ${agi}`, () => act(a), 'primary'));
+        for (const a of by('WELL_JUMP')) ch.append(choice('Jump', `Agility test, D12 + ${hero.treasury.length} against ${agi}`, () => tryAct(a), 'primary'));
       } else {
         p = panel('Stuck in rubble', `Go back the way you came, or force through with an Agility test against ${agi}. Pass, and you may leave by any way this turn.`);
-        for (const a of by('RUBBLE_RETURN')) ch.append(choice('Go back', null, () => act(a)));
-        for (const a of by('RUBBLE_FORCE')) ch.append(choice('Force through', `Agility test against ${agi}`, () => act(a), 'primary'));
+        for (const a of by('RUBBLE_RETURN')) ch.append(choice('Go back', null, () => tryAct(a)));
+        for (const a of by('RUBBLE_FORCE')) ch.append(choice('Force through', `Agility test against ${agi}`, () => tryAct(a), 'primary'));
       }
       break;
     }
@@ -705,14 +1070,11 @@ function renderPrompt(v, la, targets) {
       const pend = g.pending;
       const frame = [...g.stack].reverse().find(f => f.card);
       if (pend.kind === 'choice') {
-        p = panel('Choose', frame ? `${cardDef(c, frame.card).name}: ${cardText(cardDef(c, frame.card))}` : null);
+        p = panel('Choose', frame ? `${cardDef(c, frame.card).name}. ${cardText(cardDef(c, frame.card))}` : null);
         by('CHOOSE').forEach(a => ch.append(choice(pend.options[a.option], null, () => act(a))));
       } else {
         p = panel('Move', 'Pick a neighbouring square.');
-        for (const a of by('CHOOSE')) {
-          const dir = pend.options[a.option];
-          targets.push({ ...neighbour(hero.coord, dir), label: `Go ${DIR[dir]}`, pick: () => act(a) });
-        }
+        for (const a of by('CHOOSE')) targets.push({ ...actionSquare(g, a), label: `Go ${DIR[pend.options[a.option]]}`, pick: () => tryAct(a) });
       }
       break;
     }
@@ -724,61 +1086,69 @@ function renderPrompt(v, la, targets) {
       break;
     }
     case 'CHOOSE_MONSTER_RESPONSE': {
-      p = panel(g.encounter.ambush ? 'Ambush' : 'Something stirs', `${name}, choose before the monster shows itself.${g.encounter.ambush ? ' In an ambush you may only attack or flee.' : ''}`);
+      p = fightPanel(`${name}, choose`, g.encounter.ambush ? 'ambush: attack or flee' : 'before it shows');
+      p.append(fightRow(v, g.encounter.seat, enc));
+      // One button per legal action: the hero's own special weapon and each held weapon card are separate answers.
       const weapon = (c.specialWeapons || []).find(w => w.id === heroDef(hero).specialWeaponId);
-      for (const a of by('RESPOND')) ch.append(choice(a.choice === 'special' && weapon ? `${CHOICE.special}: ${weapon.name}` : CHOICE[a.choice], a.choice === 'flee' ? 'Back to the square you came from' : null, () => act(a), a.choice === 'attack' ? 'primary' : ''));
+      const SUB = { flee: 'Back where you came from', special: "Meets the monster's Attack answer" };
+      ch.classList.add('grid2');
+      for (const a of by('RESPOND')) {
+        const label = a.choice !== 'special' ? CHOICE[a.choice] : `Use ${a.item ? cardDef(c, a.item).name : weapon?.name || 'your special weapon'}`;
+        ch.append(choice(label, SUB[a.choice] || null, () => act(a), a.choice === 'attack' ? 'primary' : ''));
+      }
+      p.append(ch, tools());
       break;
     }
     case 'MONSTER_REACT': {
+      // Multiplayer only: in solo the computer is the monster player and the engine announces at once (D37).
       const def = cardDef(c, enc.monster.inst);
-      p = panel(solo() ? 'The monster' : `${nameOf(enc.controller)}, you play the monster`, solo() ? null : 'Read the card, then announce its answer to the table.');
-      const f = el('div', 'cardface');
-      f.append(el('strong', '', def.name), el('p', '', `HP ${def.hp}. ${monsterText(def)}`));
-      p.append(f);
+      p = fightPanel(`${nameOf(enc.controller)}, you play the monster`, 'in secret');
+      p.append(fightRow(v, enc.seat, enc));
       const r = enc.reaction;
-      const ans = el('div', 'cardface');
-      ans.append(el('p', '', `${nameOf(enc.seat)} chose ${CHOICE[enc.choice]}.`), el('strong', '', `Its answer: ${REACTION[r.type]}${r.damage ? `, ${expr(r.damage)} damage` : ''}.`));
-      p.append(ans);
-      for (const a of by('ANNOUNCE')) ch.append(choice(solo() ? 'Continue' : 'Announce to the table', null, () => act(a), 'primary'));
+      const chose = enc.choice === 'special' ? `a special weapon${enc.item ? `, ${cardDef(c, enc.item).name}` : ''} (its Attack answer)` : CHOICE[enc.choice];
+      p.append(el('p', '', `${nameOf(enc.seat)} chose ${chose}.`), el('p', 'last', `Its answer: ${REACTION[r.type]}${r.damage ? `, ${expr(r.damage)} damage` : ''}. Announce it to the table.`));
+      for (const a of by('ANNOUNCE')) ch.append(choice('Announce to the table', null, () => act(a), 'primary'));
+      const card = el('details', 'history');
+      card.append(el('summary', '', 'Whole card'), el('p', '', `${def.name}, HP ${def.hp}. ${monsterText(def)}`));
+      p.append(ch, tools(card));
       break;
     }
     case 'COMBAT_SELECT': {
       const cb = g.encounter.combat;
       const heroSet = heroDef(g.heroes[g.encounter.seat]).combatSetId;
       if (cb.mode === 'target') {
-        p = panel('Throw at the target', 'Throw the combat die at the target, then enter where it came to rest and the face that shows.');
-        p.append(combatBox(v, enc));
+        p = fightPanel('Throw at the target');
+        p.append(el('p', 'help', `${cb.label}. Throw the combat die, then enter where it came to rest and the face up.`), fightRow(v, enc.seat, enc));
+        const last = lastLine(v, enc);
+        if (last) p.append(last);
         p.append(el('h3', '', 'Where it landed'));
-        const pl = el('div', 'choices grid2');
-        for (const k of Object.keys(PLACEMENT)) {
-          const b = choice(PLACEMENT[k], null, () => { target.placement = k; render(); });
-          b.setAttribute('aria-pressed', target.placement === k);
-          pl.append(b);
-        }
-        p.append(pl, el('h3', '', 'Face up'));
-        const fc = el('div', 'choices grid3');
-        for (const k of Object.keys(FACE)) {
-          const b = choice(FACE[k], null, () => { target.face = k; render(); });
-          b.setAttribute('aria-pressed', target.face === k);
-          fc.append(b);
-        }
-        p.append(fc);
-        const a = la.find(x => x.placement === target.placement && x.face === target.face);
-        const go = choice('Enter the result', null, () => a && act(a), 'primary');
-        go.disabled = !a;
+        // Picking an option only marks it in place, never a re-render: scroll and focus stay where they are.
+        const picked = () => la.find(x => x.placement === target.placement && x.face === target.face);
+        const go = choice('Enter the result', null, () => { const a = picked(); if (a) act(a); }, 'primary');
+        const options = (labels, field, cls) => {
+          const box = el('div', cls);
+          const mark = () => { for (const b of box.children) b.setAttribute('aria-pressed', target[field] === b.dataset.k); go.disabled = !picked(); };
+          for (const k of Object.keys(labels)) {
+            const b = choice(labels[k], null, () => { target[field] = k; mark(); });
+            b.dataset.k = k;
+            box.append(b);
+          }
+          mark();
+          return box;
+        };
+        p.append(options(PLACEMENT, 'placement', 'choices grid2'), el('h3', '', 'Face up'), options(FACE, 'face', 'choices grid3'));
         ch.append(go);
+        p.append(ch, tools(history(enc)));
       } else {
         const heroTurn = viewer === g.encounter.seat && !cb.heroPick;
-        p = panel(heroTurn ? `${nameOf(g.encounter.seat)}, pick your card` : `${nameOf(g.encounter.controller)}, pick the monster's card`, `${solo() ? '' : 'In secret. '}Cards go back to the hand after each exchange.`);
+        p = fightPanel(heroTurn ? `${nameOf(g.encounter.seat)}, pick your card` : `${nameOf(g.encounter.controller)}, pick the monster's card`, solo() ? null : 'in secret');
         if (cb.variant) p.append(el('div', 'variant', 'Digital variant, not an original rule: the computer picks the monster card.'));
-        p.append(combatBox(v, enc));
-        if (heroTurn) {
-          const picks = by('COMBAT_PICK').filter(a => a.side === 'hero');
-          p.append(combatCards(heroSet, letter => act(picks.find(a => a.letter === letter))));
-        } else {
-          const picks = by('COMBAT_PICK').filter(a => a.side === 'monster');
-          p.append(combatCards(g.encounter.monster.groupId, letter => act(picks.find(a => a.letter === letter))));
-        }
+        p.append(fightRow(v, enc.seat, enc));
+        const last = lastLine(v, enc);
+        if (last) p.append(last);
+        const side = heroTurn ? 'hero' : 'monster', picks = by('COMBAT_PICK').filter(a => a.side === side);
+        p.append(combatCards(heroTurn ? heroSet : g.encounter.monster.groupId, letter => act(picks.find(a => a.letter === letter))));
+        p.append(el('p', 'help', SAME), tools(history(enc)));
       }
       break;
     }
@@ -786,15 +1156,19 @@ function renderPrompt(v, la, targets) {
       const seat = g.pending.seat;
       p = panel('The dragon drives you out', `${nameOf(seat)} must move to an explored room next to the chamber. No room card is drawn.`);
       for (const a of by('FORCED_MOVE')) {
-        const [x, y] = a.to.split(',').map(Number);
-        targets.push({ x, y, label: `${nameOf(seat)} moves to ${place({ x, y })}`, pick: () => act(a) });
+        const sq = actionSquare(g, a);
+        targets.push({ ...sq, label: `${nameOf(seat)} moves to ${place(sq)}`, pick: () => tryAct(a) });
       }
       break;
     }
     default:
       p = panel('Waiting', `Phase ${g.phase}.`);
   }
-  if (enc && g.phase !== 'COMBAT_SELECT' && g.phase !== 'MONSTER_REACT' && enc.monster) p.append(combatBox(v, enc));
+  if (enc?.monster && !p.classList.contains('fight')) p.append(fightRow(v, enc.seat, enc));
+  // Thumb reach: the active hero's inventory, one tap from the prompt (not while the monster player is looking); a
+  // fight panel keeps it small, beside History and Undo.
+  const small = p.querySelector('.tools');
+  if (viewer === null || viewer === g.activeSeat) (small || ch).append(itemsButton(v, g.activeSeat, small ? 'btn' : 'choice'));
   if (targets.length) {
     p.append(el('p', 'movehint', 'Tap a highlighted square to move. Press and hold any square to see what is there.'));
     // The reason line of the focused lit square (the cell's own label already says it, so hidden from readers).
@@ -803,7 +1177,7 @@ function renderPrompt(v, la, targets) {
     why.setAttribute('aria-hidden', 'true');
     p.append(why);
   }
-  p.append(ch);
+  if (!p.contains(ch) && ch.children.length) p.append(ch);
   return p;
 }
 
@@ -811,13 +1185,16 @@ function renderTable(v) {
   const g = S.game, c = content(), la = legalActions(g, c);
   const out = [];
   const bar = el('header', 'glass statusbar');
-  const who = el('div', 'who');
-  who.append(el('strong', '', `${nameOf(g.activeSeat)}'s turn`), el('span', 'long', `Sun ${g.sun} of ${SUNSET - 1}, ${SUNSET - g.sun} ${SUNSET - g.sun === 1 ? 'turn' : 'turns'} left`),
-    el('span', 'long', `Dragon wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`),
-    // The one-line phone form: CSS shows these instead of the two above (and of the map tools' tiles left).
-    el('span', 'short', `Sun ${g.sun}/${SUNSET - 1}`), el('span', 'short', `Dragon ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`), el('span', 'short', `${v.board.tileBag} tiles`));
-  bar.append(sunClock(g.sun), who);
+  const who = el('strong', 'who', nameOf(g.activeSeat));
+  who.append(el('span', 'turnword', "'s turn")); // on a phone only the name shows; readers still hear it
+  const odds = `${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`;
+  bar.append(who, sunTrack(v.sun, solo()),
+    chip('dragon', `Dragon wakes on ${odds}`, 'M12 3c.6 3.2 5 5.4 5 10a5 5 0 0 1-10 0c0-2.3 1.2-3.8 2.5-5 .2 2 1 3 2 3.4C11 9 11 6 12 3z', 'Dragon wakes on ', odds),
+    // Tiles left: on wide screens the map tools say it, so this chip is for phones (CSS).
+    chip('tilesleft', `${v.board.tileBag} tiles left`, 'M4 4h16v16H4zM4 12h16M12 4v16', '', String(v.board.tileBag)));
   out.push(bar);
+  // The board's light follows the sun (index.html mixes these into the board background and unexplored squares).
+  for (const [k, val] of Object.entries(skyAt(daylight(v.sun, SUNSET).f).vars)) $('table').style.setProperty(k, val);
 
   const grid = el('div', 'tablegrid');
   const targets = [];
@@ -827,31 +1204,30 @@ function renderTable(v) {
   bp.setAttribute('aria-label', 'Map');
   const host = el('div', 'board-host');
   bp.append(host);
-  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[g.activeSeat].coord, onInspect: inspect, onNear: near, tilesLeft: v.board.tileBag,
+  // Centre on hero follows whoever is looking: the viewer's own hero on a private screen, the active one at the table.
+  const vh = viewer !== null && g.heroes[viewer];
+  const homeSeat = vh?.coord && isActive(vh) ? viewer : g.activeSeat;
+  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[homeSeat].coord, homeSeat, onInspect: inspect, onNear: near, tilesLeft: v.board.tileBag,
     onFocusTarget: t => { if (t && $('moveWhy')) $('moveWhy').textContent = t.label; } });
 
   // The dock holds the prompt and what just happened; on a phone in portrait it sits under the board, latest
   // first. The fold is what a phone in portrait reaches by scrolling the page past board and dock.
   const dock = el('div', 'dock'), fold = el('div', 'fold'), side = el('div', 'side');
-  if (canUndo() && !S.peek && !S.reveal) { // not on a private card panel or the shared reveal
-    const u = el('button', 'btn undo-here', undoLabel(S.hist.at(-1), g, c, nameOf));
-    u.onclick = undo;
-    prompt.append(u);
-  }
+  if (!S.peek && !S.reveal) (prompt.querySelector('.tools') || prompt).append(...undoHere(v, true)); // not on a private card panel or the shared reveal
   dock.append(prompt);
+  dock.classList.toggle('fight', prompt.classList.contains('fight')); // the prompt above what just happened
   const latest = v.log.slice(S.seen);
   if (latest.length) {
     const lp = panel(latest[0].seat !== undefined ? `What just happened on ${nameOf(latest[0].seat)}'s turn` : 'What just happened');
     lp.id = 'latest';
-    lp.append(...testLines(latest));
-    const ol = el('ol');
-    for (const t of lines(latest, ctx())) ol.append(el('li', '', t));
+    const ol = el('ul', 'loglines');
+    ol.append(...entries(latest, ctx()).map(logLine));
     lp.append(ol);
     dock.append(lp);
   }
   if (PHONE.matches) { const kp = el('div', 'glass panel board-wrap'); kp.append(mapKey()); fold.append(kp); } // board-wrap: the key's colours
   else bp.append(mapKey());
-  fold.append(heroesPanel(v), logPanel(v));
+  fold.append(heroesPanel(v));
   side.append(dock, fold);
   grid.append(bp, side);
   out.push(grid);
@@ -892,38 +1268,62 @@ function mapKey() {
   return d;
 }
 
-// Spec v2 #11: the semantic log, with the round on every line. "Debug log" (a setting, off by default) reads the
-// debug view instead: every hidden card, deck ids, shuffles and the RNG state, with each entry's raw fields.
-let logOpen = false;
-function logPanel(v) {
-  const g = S.game, c = content();
-  const d = el('details', 'glass panel');
-  d.open = logOpen;
-  d.ontoggle = () => { logOpen = d.open; };
-  d.append(el('summary', '', prefs.debugLog ? 'Event log, debug: hidden cards shown' : 'Event log'));
-  const ol = el('ol');
-  ol.id = 'log';
+// Spec v2 #11: the semantic log, one group per turn under the player's name and the round, plain lines with
+// their dice arithmetic in smaller text. In game the newest turn is on top (a turn still reads in order); the
+// results screen reads oldest first. "Debug log" (a setting, off by default) reads the debug view instead:
+// every hidden card, deck ids, shuffles and the RNG state, with each entry's raw fields.
+function logGroups(log, start = 'Setup') {
+  const said = new Map(entries(log, ctx()).map(x => [x.e, x]));
+  const groups = [];
+  let cur = null;
+  for (const e of log) {
+    if (!cur || e.kind === 'turn') {
+      const h = e.kind === 'turn' && S.game.heroes[e.seat];
+      cur = { name: !h ? start : `${nameOf(e.seat)}, ${heroDef(h).name}`, round: e.kind === 'turn' ? `Round ${e.round}` : '', lines: [] };
+      groups.push(cur);
+      if (e.kind === 'turn') continue; // the heading says it
+    }
+    if (said.has(e)) cur.lines.push(said.get(e));
+  }
+  return groups.filter(x => x.lines.length);
+}
+// The sheet, opened from the menu's Event log or the results screen's button. Read from the current viewer's view.
+function openLog() {
+  // Behind a hand-over cover the last private viewer may no longer be looking: the public log there.
+  const g = S.game, c = content(), v = view(g, c, $('cover').hidden ? viewer : null), results = g.status === 'over';
+  $('logTitle').textContent = prefs.debugLog ? 'Event log, debug: hidden cards shown' : 'Event log';
+  const ol = $('log');
+  ol.replaceChildren();
   const when = e => el('span', 'when', e.round ? `Round ${e.round}` : 'Setup');
   if (prefs.debugLog) {
     const dv = view(g, c, null, { debug: true });
     const tops = Object.entries(dv.decks || {}).map(([cat, dk]) => `${cat} ${dk.order.length} (top ${dk.order.slice(0, 2).join(', ') || 'none'})`);
     ol.append(el('li', 'debug', `RNG seed ${dv.rng.seed}, state ${dv.rng.state}. Tile bag ${dv.board.tileBag.length} (next ${dv.board.tileBag[0] || 'none'}). Decks: ${tops.join('; ')}.`));
-    const text = new Map(entries(dv.log, ctx()).map(x => [x.e, x.text]));
+    // The plain line, then the deck bookkeeping players never see (where a card went, shuffles), then the raw entry.
+    const said = new Map(entries(dv.log, ctx(), { debug: true }).map(x => [x.e, x]));
     for (const e of dv.log.slice(-400)) {
-      const { seq, round, seat, kind, ...rest } = e;
+      const { seq, round, seat, kind, ...rest } = e, x = said.get(e);
       const li = el('li', 'debug');
-      li.append(when(e), ` ${text.get(e) || ''} `, el('code', '', `#${seq} ${kind}${seat !== undefined ? ` seat ${seat}` : ''} ${JSON.stringify(rest)}`));
+      li.append(when(e), ` ${x?.text || ''} `);
+      if (x?.mech) li.append(el('span', 'mech', x.mech));
+      li.append(el('code', '', `#${seq} ${kind}${seat !== undefined ? ` seat ${seat}` : ''} ${JSON.stringify(rest)}`));
       ol.append(li);
     }
   } else {
-    for (const { e, text } of entries(v.log, ctx()).slice(-300)) {
-      const li = el('li');
-      li.append(when(e), ` ${text}`);
-      ol.append(li);
-    }
+    const groups = logGroups(results ? v.log : v.log.slice(-600), !results && v.log.length > 600 ? 'Earlier' : 'Setup').map(x => {
+      const li = el('li', 'turnlog'), h = el('h3', '', x.name);
+      if (x.round) h.append(el('span', '', x.round));
+      const ul = el('ul', 'loglines');
+      ul.append(...x.lines.map(logLine));
+      li.append(h, ul);
+      return li;
+    });
+    ol.append(...(results ? groups : groups.reverse()));
+    if (!groups.length) ol.append(el('li', 'turnlog', 'Nothing has happened yet.'));
   }
-  d.append(ol);
-  return d;
+  $('logEnd').hidden = !results;
+  if (!$('logSheet').open) $('logSheet').showModal();
+  ol.scrollTop = 0;
 }
 
 const STATUS_WORD = { READY_IN_START_TOWER: 'Ready in the start tower', EXPLORING: 'Exploring', IN_TOWER_NOT_ESCAPED: 'In a tower, not escaped', ESCAPED: 'Escaped', DEAD: 'Dead' };
@@ -974,9 +1374,7 @@ function heroesPanel(v) {
     if (room) body.append(el('div', 'meta room', room));
     const end = h.endResult === 'INSIDE_AT_SUNSET' ? ', inside at sunset' : '';
     body.append(el('div', 'meta', `${whereWords(v, h)} · ${STATUS_WORD[h.status]}${end}`));
-    const held = heldNames(h);
-    if (held.length) body.append(el('div', 'meta', `Holds: ${held.join(', ')}`));
-    if (Array.isArray(h.treasury) && h.treasury.length && n === 1) body.append(el('div', 'meta', `Chamber cards: ${h.treasury.map(i => cardDef(c, i).name).join(', ')}`));
+    body.append(itemsButton(v, seat, 'btn'));
     if (n > 1 && chamberCount > 0 && isActive(h)) {
       const b = el('button', 'btn', 'Show my cards');
       b.setAttribute('aria-label', `Show ${g.seats[seat].name}'s treasure chamber cards`);
@@ -990,12 +1388,73 @@ function heroesPanel(v) {
   return p;
 }
 
+// ---- Inventory (spec v3 section 4): what a hero carries in five groups, what is usable now and why not.
+// Read from the current viewer's view: another seat's chamber cards are a count, never their names.
+const allItems = inv => [...inv.equipment, ...(inv.ring ? [inv.ring] : []), ...inv.items, ...inv.treasure, ...(Array.isArray(inv.chamber) ? inv.chamber : [])];
+const useActions = item => (item.actions || []).filter(a => a.type !== 'WELL_DISCARD');
+function itemsButton(v, seat, cls) {
+  const inv = v.heroes[seat].inventory, usable = allItems(inv).filter(x => x.usable).length;
+  const name = () => S.game.seats[seat].name;
+  const sub = usable ? `${usable} usable now` : 'Nothing usable now';
+  let b;
+  if (cls === 'choice') b = choice('Items', `${name()}'s inventory: ${sub.toLowerCase()}`, () => openItems(seat));
+  else { b = el('button', 'btn', usable ? `Items, ${usable} usable` : 'Items'); b.onclick = () => openItems(seat); }
+  b.setAttribute('aria-label', `Show ${name()}'s items, ${sub.toLowerCase()}`);
+  return b;
+}
+const SOURCE = { hero: 'Hero equipment', specialWeapons: 'Special weapon card' };
+const ITEM_GROUPS = [['equipment', 'Starting equipment'], ['ring', 'Magic ring'], ['items', 'Weapons and useful items'], ['treasure', 'Treasure'], ['chamber', 'Treasure chamber cards']];
+function openItems(seat) {
+  const g = S.game, v = view(g, content(), viewer), inv = v.heroes[seat].inventory;
+  $('itemsTitle').textContent = `${nameOf(seat)}'s items`;
+  const out = [];
+  for (const [k, title] of ITEM_GROUPS) {
+    out.push(el('h3', '', title));
+    const list = k === 'ring' ? (inv.ring ? [inv.ring] : []) : inv[k];
+    if (typeof list === 'number') { out.push(el('p', 'meta', list ? `${list} ${list === 1 ? 'card' : 'cards'}, kept secret by ${nameOf(seat)}` : 'None')); continue; }
+    if (!list.length) { out.push(el('p', 'meta', 'None')); continue; }
+    const ul = el('ul', 'inv');
+    for (const item of list) {
+      const li = el('li');
+      li.append(el('strong', '', item.name || item.id || 'Unnamed'));
+      const facts = [item.deck ? DECK[item.deck] : SOURCE[item.source] || (k === 'ring' ? 'Ring' : '')];
+      if (item.gold) facts.push(`${item.gold} gold`);
+      if (Number.isInteger(item.usesLeft)) facts.push(`${item.usesLeft} ${item.usesLeft === 1 ? 'use' : 'uses'} left`);
+      li.append(el('span', 'meta', facts.filter(Boolean).join(' · ')));
+      const def = item.inst ? cardDef(content(), item.inst) : item.group === 'ring' ? contentIndex(content()).rings.get(item.id) : (content().specialWeapons || []).find(w => w.id === item.id);
+      const text = itemText(item) || itemText(def);
+      if (text) li.append(el('span', 'itemtext', text));
+      if (item.pending) li.append(el('span', 'pending', 'Effect pending'));
+      const acts = item.usable ? useActions(item) : [];
+      for (const a of acts) {
+        const b = el('button', 'btn primary', `Use ${item.name}`);
+        b.onclick = () => { $('items').close(); tryAct(a); };
+        li.append(b);
+      }
+      if (!acts.length) li.append(el('span', 'meta', `Not usable now: ${item.reason || 'its card does not allow it'}`));
+      ul.append(li);
+    }
+    out.push(ul);
+  }
+  $('itemsBody').replaceChildren(...out);
+  if (!$('items').open) $('items').showModal();
+}
+
+// The active hero's exit into square c (either chamber half counts as the room, D39), the legal MOVE for it, and
+// whether the hero is in c. Two chamber exits can share a side, so an action matches by side and `from` cell.
+function exitTo(g, cc, c) {
+  const canon = chamberRoom(cc.board).canon;
+  const ex = exits(g, cc, g.activeSeat).find(e => canon(key(e.to)) === canon(key(c)));
+  const a = ex && legalActions(g, cc).find(x => x.type === 'MOVE' && x.dir === ex.dir && (!x.from || x.from === key(ex.from)));
+  return { ex, a, here: canon(key(g.heroes[g.activeSeat].coord)) === canon(key(c)) };
+}
+
 // A single tap on an unlit square: one line, why the active hero cannot go there or else what the square is.
 function near(c) {
   const g = S.game, cc = content();
   if (g.status === 'playing' && ['CHOOSE_ACTION', 'CHOOSE_EXIT'].includes(g.phase) && !S.peek && !S.reveal) {
-    const ex = exits(g, cc, g.activeSeat).find(e => e.to.x === c.x && e.to.y === c.y);
-    if (ex && !legalActions(g, cc).some(x => x.type === 'MOVE' && x.dir === ex.dir)) return toast(`${nameOf(g.activeSeat)} cannot go there: ${whyNot(g, ex)}.`);
+    const { ex, a } = exitTo(g, cc, c);
+    if (ex && !a) return toast(`${nameOf(g.activeSeat)} cannot go there: ${whyNot(g, ex)}.`);
   }
   const info = cellInfo(view(g, cc, viewer), cc, c, g.seats.map(s => s.name));
   toast(`${info.title}: ${info.what}.`);
@@ -1012,16 +1471,15 @@ function inspect(c) {
   out.push(ul, el('p', '', info.occupants.length ? `Here: ${listOf(info.occupants)}.` : 'Nobody is here.'));
   const hero = g.status === 'playing' && g.heroes[g.activeSeat];
   if (hero && ['CHOOSE_ACTION', 'CHOOSE_EXIT'].includes(g.phase) && !S.peek && !S.reveal) {
-    const ex = exits(g, cc, g.activeSeat).find(e => e.to.x === c.x && e.to.y === c.y);
-    const a = ex && legalActions(g, cc).find(x => x.type === 'MOVE' && x.dir === ex.dir);
+    const { ex, a, here } = exitTo(g, cc, c);
     if (a) {
-      const m = moveInfo(g, ex.dir);
+      const m = moveInfo(g, a);
       out.push(el('p', 'why', `${m.title}: ${m.reason}.`));
       const go = el('button', 'btn primary', m.title);
-      go.onclick = () => { $('inspect').close(); act(a); };
+      go.onclick = () => { $('inspect').close(); tryAct(a); };
       out.push(go);
     } else if (ex) out.push(el('p', 'why', `${nameOf(g.activeSeat)} cannot go there: ${whyNot(g, ex)}.`));
-    else if (hero.coord.x === c.x && hero.coord.y === c.y) out.push(el('p', 'why', `${nameOf(g.activeSeat)} is here.`));
+    else if (here) out.push(el('p', 'why', `${nameOf(g.activeSeat)} is here.`));
   }
   $('inspectBody').replaceChildren(...out);
   $('inspect').showModal();
@@ -1042,16 +1500,19 @@ function renderResults(v) {
     p.append(l);
     out.push(p);
   };
-  group('Escaped', r.escaped.length ? r.escaped.map(e => `${hero(e)}: ${e.gold} gold${r.winners.includes(e.seat) ? ', winner' : ''}`) : ['Nobody'], 'ol');
+  group('Escaped', r.escaped.length ? r.escaped.map(e => `${hero(e)}: ${e.gold} gold${Number.isInteger(e.escapeSun) ? (e.escapeSun >= SUNSET ? ', escaped at sunset' : `, escaped on sun ${e.escapeSun}`) : ''}${r.winners.includes(e.seat) ? ', winner' : ''}`) : ['Nobody'], 'ol');
   const dead = r.others.filter(e => e.status === 'DEAD');
   const inside = r.others.filter(e => e.status !== 'DEAD' && e.endResult === 'INSIDE_AT_SUNSET');
   group('Dead', dead.map(e => `${hero(e)}: died in the keep`));
   group('Inside at sunset', inside.map(e => `${hero(e)}: ${e.status === 'IN_TOWER_NOT_ESCAPED' ? 'in a tower, never chose Escape' : 'still in the keep'}, ${e.gold} gold not counted`));
   group('Other', r.others.filter(e => !dead.includes(e) && !inside.includes(e)).map(e => `${hero(e)}: ${STATUS_WORD[e.status] || e.status}`));
-  const again = el('div', 'choices');
-  again.append(choice('New game', null, toTitle, 'primary'));
+  const again = el('div', 'again');
+  const go = el('button', 'btn primary', 'Return to menu');
+  go.onclick = toTitle;
+  const see = el('button', 'btn', 'See the event log');
+  see.onclick = openLog;
+  again.append(go, see);
   out.push(again);
-  out.push(logPanel(v));
   $('results').replaceChildren(...out);
 }
 
@@ -1060,21 +1521,37 @@ $('start').onclick = () => newGame('original');
 $('fixtures').onclick = () => newGame('fixture');
 $('mixed').onclick = () => newGame('mixed');
 $('undo').onclick = undo;
+// Exit, as in Bank: Save and exit, Exit without saving, or Keep playing (Esc and a backdrop tap keep playing too).
+// On the results there is nothing to save: Return to menu (the title) or Back to results.
+$('exitBtn').onclick = () => {
+  const fin = S.game.status === 'over';
+  $('exitTitle').textContent = fin ? 'Leave the results?' : 'Exit this game?';
+  $('exitNote').textContent = 'Save it to pick up later from Saved games.';
+  $('exitNote').hidden = $('saveExit').hidden = fin;
+  $('discard').textContent = fin ? 'Return to menu' : 'Exit without saving';
+  $('discard').className = fin ? 'btn primary' : 'btn danger';
+  $('keepPlaying').textContent = fin ? 'Back to results' : 'Keep playing';
+  $('exitSheet').showModal();
+};
 // Back to the title at once with the save in the list; the upload finishes in the background.
 $('saveExit').onclick = async () => {
-  $('saveExit').disabled = true;
   try {
     await saveGame();
-    loadingSaves = false;
-    toTitle();
-    toast('Saved.');
   } catch {
-    $('saveExit').disabled = false;
-    toast('Could not save on this device.');
+    $('exitNote').textContent = 'Could not save on this device.';
+    return;
   }
+  loadingSaves = false;
+  $('exitSheet').close();
+  toTitle();
 };
+$('discard').onclick = () => { $('exitSheet').close(); toTitle(); };
+$('keepPlaying').onclick = () => $('exitSheet').close();
+$('logBtn').onclick = openLog;
+$('logDone').onclick = () => $('logSheet').close();
+$('logEnd').onclick = () => { const last = $('log').lastElementChild; if (last) { last.tabIndex = -1; last.scrollIntoView({ block: 'end' }); last.focus({ preventScroll: true }); } };
 for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
-const showDebug = NL.segmented($('debugSeg'), v => { prefs.debugLog = v === 'on'; savePrefs(); showDebug(v); if (S.game) render(); });
+const showDebug = NL.segmented($('debugSeg'), v => { prefs.debugLog = v === 'on'; savePrefs(); showDebug(v); }); // only the Event log reads it, so no re-render
 $('settingsBtn').onclick = () => {
   showTheme(NL.theme.get());
   showDebug(prefs.debugLog ? 'on' : 'off');
@@ -1089,7 +1566,25 @@ $('settingsBtn').onclick = () => {
   $('settings').showModal();
 };
 $('settingsDone').onclick = () => $('settings').close();
+// The roll card: a tap outside or Esc backs out before a voluntary roll and dismisses a result, never mid-roll
+// or before a roll there is no backing out of.
+const rollOpenToClose = () => ['ask', 'result'].includes($('roll').dataset.mode);
+$('roll').onclick = e => { if (e.target === $('roll') && rollOpenToClose()) $('roll').close(); };
+$('roll').addEventListener('cancel', e => { if (!rollOpenToClose()) e.preventDefault(); });
+$('roll').addEventListener('close', () => {
+  $('roll').dataset.mode = '';
+  showOutcome(); // a fight's end card keeps the table held
+  if (!$('outcome').open) release();
+  refocus(rollFromCell);
+  showDusk();
+});
+// The fight's end card: Continue, Enter or Space on it, Esc, or a tap anywhere.
+$('outcome').onclick = () => $('outcome').close();
+$('outcome').addEventListener('close', () => { release(); refocus(false); showDusk(); });
+$('dusk').onclick = () => { $('dusk').hidden = true; };
 $('inspectDone').onclick = () => $('inspect').close();
+$('itemsDone').onclick = () => $('items').close();
+for (const b of document.querySelectorAll('.sheet-x')) b.onclick = () => b.closest('dialog').close();
 for (const id of ['appLabel', 'appLabelSettings']) $(id).textContent = APP_LABEL;
 // The synthetic list starts folded on every screen; the toggle opens and closes it (the banner itself stays).
 $('bannerToggle').onclick = () => {
@@ -1121,6 +1616,7 @@ load();
 const me = NL.identity(); // the cached name, if this browser knows this person already
 prefill(me);
 render();
+showDusk();
 if (!S.game) refreshSaves();
 // A signed-in name can arrive later: only into an empty roster with no game in progress. Either way this render
 // drops the placeholder row.

@@ -6,16 +6,17 @@ import { tileSlots } from './tiles.js';
 import { startTurn, endTurn } from './clock.js';
 import { initDecks, toBottom } from './decks.js';
 import { run, drawAndResolve } from './effects.js';
-import { attemptMove, rollDarkExit, enterTile } from './movement.js';
+import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers, allowContinue } from './movement.js';
 import { killHero, clearCondition, statOf, READY, ESCAPED } from './heroes.js';
 import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
 import { collect, forcedMove, checkDragonReset } from './treasury.js';
 import { legalActions, sameAction } from './phases.js';
+import { spendUse, itemLog } from './inventory.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v2'; // v2: shared towers and new hero statuses; older saves are refused
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v4'; // v4: two-square chamber room (D39), escape sun, continue reasons; older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
@@ -78,11 +79,12 @@ export function createGame({ players, seed, content, rules = {}, diceScript = nu
     rules: { ...DEFAULT_RULES, ...rules },
     phase: 'SETUP',
     status: 'setup',
-    setup: { step: 'first-player', order: [], index: 0 },
+    // A solo game has no first-player roll (owner, 2026-11-19): the one seat goes first and drafts at once.
+    setup: players.length === 1 ? { step: 'heroes', order: [0], index: 0 } : { step: 'first-player', order: [], index: 0 },
     round: 0,
     sun: 0,
     seats: players.map((name, seat) => ({ seat, name: String(name), heroId: null, ringId: null })), // index order is clockwise
-    firstSeat: null,
+    firstSeat: players.length === 1 ? 0 : null,
     activeSeat: null,
     rng: newRng(seed, diceScript, orders),
     log: [],
@@ -136,7 +138,7 @@ const apply = {
   PICK_HERO(g, { seat, heroId }, content) {
     const def = contentIndex(content).heroes.get(heroId);
     g.seats[seat].heroId = heroId;
-    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0 };
+    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0, itemUses: {}, escapeSun: null };
     logEvent(g, { kind: 'pick-hero', seat, heroId });
     if (++g.setup.index === n(g)) nextPick(g, 'rings', [...g.setup.order].reverse());
   },
@@ -159,7 +161,7 @@ const apply = {
     startTurn(g, g.firstSeat, content);
   },
   // RB 5, SP 4, SP 5: orthogonal move; doors draw a door card, gates need a STR test.
-  MOVE(g, { dir }, content) { attemptMove(g, content, dir); run(g, content); },
+  MOVE(g, { dir, from }, content) { attemptMove(g, content, dir, { from }); run(g, content); },
   // Optional further movement (yellow corridor, door stayed closed, secret door) may be declined.
   STOP(g, { seat }, content) { logEvent(g, { kind: 'stop', seat }); endTurn(g, content); },
   // RB 7.1, SP 6: search instead of moving, black or red rooms only; repeatable on later turns.
@@ -187,12 +189,18 @@ const apply = {
     hero.treasury.splice(hero.treasury.indexOf(card), 1);
     toBottom(g, 'TREASURY', card, seat);
     logEvent(g, { kind: 'well-discard', seat });
+    itemLog(g, seat, 'discard', card, 'chamber', { to: 'bottom of TREASURY' });
+  },
+  // Spec v3 section 4: a held card whose own `use` data allows it, as the turn's action (timing 'turn-action').
+  USE_ITEM(g, { seat, item }, content) {
+    g.stack.push({ effects: spendUse(g, content, seat, item), i: 0 });
+    run(g, content);
   },
   // RB 6.3, SP 5: AGI test on D12 + held treasure-chamber cards. D08 (interpretation): a failed jump is death.
   WELL_JUMP(g, { seat }, content) {
     const hero = g.heroes[seat];
     g.pending = null;
-    const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', hero.treasury.length);
+    const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', wellJumpModifiers(hero));
     if (!pass) killHero(g, content, seat, 'failed the well jump');
     else { clearCondition(g, seat, 'well-edge'); hero.roomState = { ...hero.roomState, phase: 'CROSSED' }; } // plan 13 #10: across, the turn ends
     g.turn.endAfter = true;
@@ -203,7 +211,7 @@ const apply = {
     const hero = g.heroes[seat];
     g.pending = null;
     const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'force rubble');
-    if (pass) { clearCondition(g, seat, 'rubble'); g.turn.mayContinue = true; } else g.turn.endAfter = true;
+    if (pass) { clearCondition(g, seat, 'rubble'); allowContinue(g, 'rubble-forced'); } else g.turn.endAfter = true;
     run(g, content);
   },
   // REQUEST_CHOICE and MOVE_HERO adjacent-choice answers.
@@ -222,13 +230,14 @@ const apply = {
     logEvent(g, { kind: 'tower-choice', seat, choice, at: `${hero.coord.x},${hero.coord.y}` });
     if (choice === 'ESCAPE') {
       hero.status = ESCAPED;
-      logEvent(g, { kind: 'escape', seat, at: `${hero.coord.x},${hero.coord.y}` });
+      hero.escapeSun = g.sun; // kept for a later tiebreak on equal gold (owner question 2026-11-19; D01 unchanged)
+      logEvent(g, { kind: 'escape', seat, at: `${hero.coord.x},${hero.coord.y}`, sun: g.sun });
       g.turn.endNow = true;
     } else if (choice === 'STAY') g.turn.endAfter = true;
-    else { g.turn.mayContinue = true; g.turn.transitFrom = hero.enteredFrom; }
+    else { allowContinue(g, 'tower-transit'); g.turn.transitFrom = hero.enteredFrom; }
     run(g, content);
   },
-  RESPOND(g, { choice }, content) { respond(g, content, choice); },
+  RESPOND(g, { choice, item }, content) { respond(g, content, choice, item); run(g, content); },
   ANNOUNCE(g, a, content) { announce(g, content); run(g, content); },
   COMBAT_PICK(g, { side, letter }, content) { combatPick(g, content, side, letter); run(g, content); },
   TARGET_RESULT(g, { placement, face }, content) { targetResult(g, content, placement, face); run(g, content); },

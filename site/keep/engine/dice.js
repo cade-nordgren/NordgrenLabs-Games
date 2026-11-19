@@ -46,10 +46,22 @@ export function roll(game, die, reason) {
 // RB 3, RB 5.1: roll D12, success when roll (+ modifier) <= stat.
 export const statPasses = (d12, stat, modifier = 0) => d12 + modifier <= stat;
 
-export function testStat(game, statName, stat, reason, modifier = 0) {
+// Spec v3: one shape for every attribute test, shown before the roll (view.pendingTests) and logged after it
+// (the 'test' entry). modifiers: a number, or [{ source, value }] naming where each one comes from.
+const modList = m => (Array.isArray(m) ? m.filter(x => x.value) : m ? [{ source: 'modifier', value: m }] : []);
+const terms = mods => mods.map(x => ` ${x.value < 0 ? '-' : '+'} ${Math.abs(x.value)}${x.source === 'modifier' ? '' : ` (${x.source})`}`).join('');
+export function testPreview(statName, stat, reason, modifiers = 0) {
+  const mods = modList(modifiers);
+  const modifier = mods.reduce((s, x) => s + x.value, 0);
+  // passingRolls: how many D12 faces pass (the "number needed" is a roll of passingRolls or less).
+  return { die: 'D12', stat: statName, target: stat, modifiers: mods, modifier, reason, success: `D12${terms(mods)} <= ${statName} ${stat}`, passingRolls: Math.max(0, Math.min(12, stat - modifier)) };
+}
+
+export function testStat(game, statName, stat, reason, modifiers = 0) {
+  const t = testPreview(statName, stat, reason, modifiers);
   const d12 = roll(game, 'D12', reason);
-  const pass = statPasses(d12, stat, modifier);
-  logEvent(game, { kind: 'test', stat: statName, target: stat, roll: d12, modifier, pass, reason, arithmetic: `D12 ${d12}${modifier ? ` + ${modifier}` : ''} = ${d12 + modifier} ${pass ? '<=' : '>'} ${statName} ${stat}: ${pass ? 'pass' : 'fail'}` });
+  const pass = statPasses(d12, stat, t.modifier);
+  logEvent(game, { kind: 'test', ...t, roll: d12, pass, arithmetic: `D12 ${d12}${terms(t.modifiers)} = ${d12 + t.modifier} ${pass ? '<=' : '>'} ${statName} ${stat}: ${pass ? 'pass' : 'fail'}` });
   return { roll: d12, pass };
 }
 

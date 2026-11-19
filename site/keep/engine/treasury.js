@@ -7,6 +7,7 @@ import { SIDES } from './tiles.js';
 import { enterTile } from './movement.js';
 import { run } from './effects.js';
 import { contentIndex } from '../content/schema.js';
+import { itemLog } from './inventory.js';
 
 const isAwake = (content, inst) => contentIndex(content).cards.get(inst.split('#')[0]).kind === 'awake';
 export const inChamber = (g, content) => g.heroes.filter(h => isActive(h) && squareKind(content.board, h.coord) === 'center');
@@ -24,7 +25,7 @@ export function collect(g, content, seat) {
   g.phase = 'TREASURY_COLLECT';
   for (let k = 0; k < 2; k++) {
     const inst = draw(g, 'TREASURY', 'chamber collect', seat);
-    if (inst) hero.treasury.push(inst);
+    if (inst) { hero.treasury.push(inst); itemLog(g, seat, 'obtain', inst, 'chamber'); }
   }
   g.phase = 'DRAGON_DRAW';
   const odds = wakeOdds(g, content);
@@ -42,8 +43,8 @@ export function collect(g, content, seat) {
   g.phase = 'DRAGON_WAKES';
 }
 
-// D19 (interpretation; plan 13 #2): an already revealed ordinary maze tile orthogonally adjacent to the
-// chamber (either square: it is one double room), free under single occupancy; no open passage needed.
+// D19 (interpretation; plan 13 #2): an already revealed ordinary maze tile orthogonally adjacent to either
+// chamber square (one room, D39), free under single occupancy; no open passage needed.
 export function forcedMoveTargets(g, content) {
   const out = [];
   for (const c of content.board.center) for (const dir of SIDES) {
@@ -64,7 +65,7 @@ export function continueWake(g, content) {
     const hero = g.heroes[seat];
     if (!w.burned && isActive(hero)) {
       w.burned = true;
-      returnTreasury(g, seat);
+      returnTreasury(g, seat, undefined, 'dragon'); // spec v3: chamber cards only; held items and treasure stay
       damageHero(g, content, seat, roll(g, 'D12', 'dragon fire'), 'dragon fire (D12)');
     }
     if (!isActive(hero)) { w.queue.shift(); w.burned = false; continue; }

@@ -48,6 +48,9 @@ const FOLLOW_UP = ['SEARCH', 'CHEST', 'DOOR', 'MONSTER'];
 const TURN_DISP = ['continue', 'end-turn', 'ongoing'];
 const CARD_DISP = ['UNDER_SAME_DECK', 'RETAIN_HELD', 'RETAIN_TREASURY', 'REMOVE', 'RESHUFFLE_DECK'];
 const PRIVACY = ['public', 'private-to-holder'];
+// Spec v3 section 4: a kept card is usable only through its own `use` block (never a universal use action).
+const USE_TIMINGS = ['turn-action', 'encounter-special'];
+const AFTER_USE = ['keep', 'bottom', 'remove'];
 const REACTIONS = ['monster-flees', 'combat', 'strike-then-flight', 'strike-then-combat', 'flight-succeeds', 'other'];
 const RING_TRIGGERS = ['passive', 'once-per-game', 'on-test', 'on-encounter'];
 const BEATS = { A: 'B', B: 'C', C: 'A' };
@@ -125,7 +128,7 @@ function fieldErrors(key, e, content) {
     }
   }
   if (key === 'board') err.push(...boardErrors(e));
-  if (key === 'chamber' && !(sidesValid(e.sides?.a) && sidesValid(e.sides?.b))) err.push('chamber sides a and b must give N/E/S/W');
+  if (key === 'chamber' && e.sides !== undefined) err.push('sides are no longer used: the chamber is open on every outer side (D39)');
   if (key === 'heroes') {
     if (!e.stats || STATS.some(s => !Number.isInteger(e.stats[s]) || e.stats[s] < 1 || e.stats[s] > 12)) err.push('stats STR/AGI/ARM/LCK must be integers 1..12');
     if (!Number.isInteger(e.hp) || e.hp < 1) err.push('hp must be an integer >= 1');
@@ -143,6 +146,7 @@ function fieldErrors(key, e, content) {
       if (e.privacy !== undefined && !PRIVACY.includes(e.privacy)) err.push(`privacy ${e.privacy} not allowed`);
       if (!bool(e.specialWeapon)) err.push('specialWeapon must be true/false');
       err.push(...effectErrors(e.effects || []));
+      if (e.use !== undefined) err.push(...useErrors(e));
     }
   }
   if (key === 'monster') err.push(...monsterErrors(e, content));
@@ -164,6 +168,20 @@ function fieldErrors(key, e, content) {
   }
   if (key === 'dragon' && !['sleeping', 'awake'].includes(e.kind)) err.push('dragon kind must be sleeping or awake');
   if (CARD_KEYS.includes(key) && e.gold !== undefined && (!Number.isInteger(e.gold) || e.gold < 0)) err.push('gold must be an integer >= 0');
+  return err;
+}
+
+// use: { timing, effects, afterUse, uses }. 'encounter-special' is a special weapon (RB 8.1: it reads the
+// monster's Attack reaction), so the card must say specialWeapon: true.
+function useErrors(e) {
+  const u = e.use;
+  if (!u || typeof u !== 'object' || Array.isArray(u)) return ['use must be { timing, effects, afterUse, uses }'];
+  const err = [];
+  if (!USE_TIMINGS.includes(u.timing)) err.push(`use timing ${u.timing} not one of ${USE_TIMINGS.join('/')}`);
+  else if (u.timing === 'encounter-special' && e.specialWeapon !== true) err.push('use timing encounter-special needs specialWeapon: true');
+  if (u.afterUse !== undefined && !AFTER_USE.includes(u.afterUse)) err.push(`use afterUse ${u.afterUse} not one of ${AFTER_USE.join('/')}`);
+  if (!(u.uses === undefined || u.uses === null || (Number.isInteger(u.uses) && u.uses > 0))) err.push('use uses must be a positive integer or null');
+  err.push(...effectErrors(u.effects || []).map(m => `use: ${m}`));
   return err;
 }
 
@@ -191,7 +209,8 @@ function monsterErrors(e, content) {
 }
 
 // Spec v2 (owner, 2026-11-19), RB 4, SP 3: a 10 x 11 footprint (110 squares) in either orientation,
-// four corner towers, a two-square chamber in the exact middle. Orientation and the pair come from data.
+// four corner towers. D39 (owner, supersedes D36): the chamber is one room over the two middle squares of the
+// even side, open on every outer side. Orientation and the cells come from data.
 export const BOARD_CELLS = 110;
 function boardErrors(b) {
   const err = [];
@@ -200,8 +219,10 @@ function boardErrors(b) {
   if (!Array.isArray(b.towers) || b.towers.length !== 4 || !corners.every(([x, y]) => b.towers.some(t => t.x === x && t.y === y))) err.push('towers must be the four corners');
   else if (!b.towers.every(t => sidesValid(t.sides))) err.push('every tower needs N/E/S/W sides');
   const c = b.center;
-  if (!Array.isArray(c) || c.length !== 2 || Math.abs(c[0].x - c[1].x) + Math.abs(c[0].y - c[1].y) !== 1) err.push('center must be two orthogonally adjacent squares');
-  else if ((c[0].x + c[1].x) / 2 !== (b.width - 1) / 2 || (c[0].y + c[1].y) / 2 !== (b.height - 1) / 2) err.push('center must sit in the middle of the board');
+  const mid = (v, n) => Math.abs(v - (n - 1) / 2) <= 0.5;
+  if (!Array.isArray(c) || c.length !== 2 || c.some(q => !Number.isInteger(q?.x) || !Number.isInteger(q?.y))) err.push('center must be exactly two squares, [{ x, y }, { x, y }]: the chamber is one room over two squares (D39)');
+  else if (!c.every(q => mid(q.x, b.width) && mid(q.y, b.height))) err.push('center must sit in the middle of the board');
+  else if (Math.abs(c[0].x - c[1].x) + Math.abs(c[0].y - c[1].y) !== 1) err.push('center squares must be side by side (the two middle squares of the even side)');
   // Movement geometry (owner ruling): printed walls, fixed edges and the chamber's outer sides.
   const edgeRef = /^(\d+),(\d+)\|[NESW]$/;
   const onBoard = k => { const m = edgeRef.exec(k); return m && +m[1] < b.width && +m[2] < b.height; };
@@ -210,11 +231,11 @@ function boardErrors(b) {
     if (!b.edges || typeof b.edges !== 'object' || Array.isArray(b.edges)) err.push("edges must be { 'x,y|SIDE': 'wall' | 'door' | 'gate' }");
     else for (const [k, v] of Object.entries(b.edges)) if (!onBoard(k) || !['wall', 'door', 'gate'].includes(v)) err.push(`edge ${k}: must be 'x,y|SIDE' on the board, set to 'wall', 'door' or 'gate'`);
   }
-  if (b.chamberSides !== undefined && !(sidesValid(b.chamberSides?.a) && sidesValid(b.chamberSides?.b))) err.push('chamberSides a and b must give N/E/S/W');
+  if (b.chamberSides !== undefined) err.push('chamberSides is no longer used: the chamber is open on every outer side (D39)');
   return err;
 }
 
-// Ordinary squares: 104 on a 110-square board, more than the 88 tiles; D27 makes the rest impassable.
+// Ordinary squares: 104 on a 110-square board (4 towers, 2 chamber squares), more than the 88 tiles; D27 makes the rest impassable.
 export const mazeSquares = b => b.width * b.height - 4 - 2;
 
 export function validateContent(content) {

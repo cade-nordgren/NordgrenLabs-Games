@@ -1,7 +1,7 @@
 // Movement, tile entry, dot types, special rooms, doors and gates (system 3; RB 5, RB 6, SP 4, SP 5).
 // Dot and special behaviour come from engine rules keyed on the tile's mark and special fields.
-import { roll, testStat, logEvent } from './dice.js';
-import { key, squareKind, exits, edgeKey } from './board.js';
+import { roll, testStat, testPreview, logEvent } from './dice.js';
+import { key, squareKind, exits, exitFor, edgeKey } from './board.js';
 import { SIDES, OPPOSITE, rotationFor, sideOnBoard } from './tiles.js';
 import { contentIndex } from '../content/schema.js';
 import { killHero, setCondition, clearCondition, statOf, TILE_CONDITIONS, hasCondition, EXPLORING, IN_TOWER } from './heroes.js';
@@ -9,6 +9,21 @@ import { drawAndResolve, run } from './effects.js';
 import { collect } from './treasury.js';
 
 const tileDefAt = (g, content, c) => contentIndex(content).tiles.get(g.board.tiles[key(c)].defId);
+
+// Every way a hero may keep moving after a move this turn, with the rule that allows it. allowContinue is the
+// only place that sets turn.mayContinue, and it logs a 'may-continue' entry saying why (for the UI and tests).
+export const CONTINUE_REASONS = {
+  'yellow-corridor': 'RB 6.1, SP 5 (R34): a yellow corridor lets the hero keep moving',
+  'door-stayed-closed': 'RB 6.6, SP 5 (R48): the door stayed shut, another free passage may be used this turn',
+  'secret-passage': 'RB 7.1, SP 6 (R56, D11): a secret passage was found, the hero may move through it this turn',
+  card: "the drawn card's own data says continue (turnDisposition 'continue' or CONTINUE_MOVEMENT)",
+  'tower-transit': 'spec v2 #2 (R111): continuing through the tower to another passage',
+  'rubble-forced': 'RB 6.5, SP 5: the rubble was forced, the hero may leave through any exit this turn',
+};
+export function allowContinue(g, reason, extra = {}) {
+  g.turn.mayContinue = true;
+  logEvent(g, { kind: 'may-continue', seat: g.activeSeat, reason, rule: CONTINUE_REASONS[reason], ...extra });
+}
 
 // Turn-scoped state: set at TURN_START, read by exits() and the resolution loop.
 export function freshTurn(seat) {
@@ -43,10 +58,12 @@ export function beginCarryOver(g, content) {
 // exit, well or rubble retreat), where a closed door ends the turn instead of offering another exit
 // (plan 13 #14, D07 extended; compulsory moves only: on a voluntary move a closed door leaves the
 // other free passages open this turn, RB 6.6).
-export function attemptMove(g, content, dir, { noDetour = false } = {}) {
+// from: 'x,y' of the chamber cell to leave by (D39); ordinary squares have one exit per side.
+export function attemptMove(g, content, dir, { noDetour = false, from = null } = {}) {
   const seat = g.activeSeat;
   const hero = g.heroes[seat];
-  const ex = exits(g, content, seat).find(e => e.dir === dir);
+  const ex = exitFor(g, content, seat, dir, from);
+  hero.coord = { ...ex.from }; // D39: in the chamber, step to the half the exit leaves by (one room, no move)
   g.turn.mayContinue = false;
   if (ex.edge === 'door') {
     // RB 6.6, SP 5: draw the top door card before crossing.
@@ -113,7 +130,9 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
     hero.status = IN_TOWER;
     if (seat === g.activeSeat) {
       g.phase = 'TOWER_CHOICE';
-      g.pending = { kind: 'tower', seat, transit: via !== 'flight' }; // a flight ends the turn: no transit
+      // A flight ends the turn: no transit. A card's move (MOVE_HERO) follows that card's turnDisposition, so no
+      // transit either (owner play-test 2026-11-19: a room card never grants more movement unless it says so).
+      g.pending = { kind: 'tower', seat, transit: via !== 'flight' && via !== 'card' };
     }
     return;
   }
@@ -155,8 +174,10 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
     g.phase = 'DRAW_ROOM';
     drawAndResolve(g, content, 'ROOM', 'room entry');
   }
-  // RB 6.1, SP 5: a yellow corridor lets the hero keep moving this turn.
-  if (def.mark === 'yellow' && own && !retreat && effects) g.turn.mayContinue = true;
+  // RB 6.1, SP 5: a yellow corridor lets the hero keep moving this turn, on the hero's own move only. A move a
+  // card made (MOVE_HERO) follows that card's turnDisposition instead: no rule lets a card push into a corridor
+  // grant more movement (owner play-test, 2026-11-19).
+  if (def.mark === 'yellow' && own && !retreat && via !== 'card' && effects) allowContinue(g, 'yellow-corridor');
 }
 
 // RB 6.2, SP 5: compulsory dark-room exit from a D6. exitSides: the tile's non-wall board sides.
@@ -185,6 +206,30 @@ export function rollDarkExit(g, content) {
     return;
   }
   attemptMove(g, content, dir, { noDetour: true });
+}
+
+// RB 6.3, spec v3 section 4: +1 on the jump per treasure-chamber card carried.
+export const wellJumpModifiers = hero => [{ source: 'treasure chamber cards carried', value: hero.treasury.length }];
+
+// Spec v3: the attribute tests an action may roll, for a confirmation before it (view.pendingTests).
+// Only what the engine knows in advance: a portcullis on the edge (RB 6.7: only a fallen or printed one,
+// never because the room ahead is red), a revealed well being entered, the well jump, forcing rubble.
+// A card's CHECK_STAT is known only once the card is drawn; its result is the same 'test' log entry.
+export function actionTests(g, content, action) {
+  const hero = g.heroes[action.seat];
+  const stat = s => statOf(content, hero, s);
+  const dir = action.type === 'MOVE' ? action.dir : ['WELL_RETURN', 'RUBBLE_RETURN'].includes(action.type) ? hero.enteredFrom : null;
+  if (dir) {
+    const ex = exitFor(g, content, action.seat, dir, action.type === 'MOVE' ? action.from : null);
+    const out = [];
+    if (ex.edge === 'gate') out.push(testPreview('STR', stat('STR'), 'portcullis'));
+    const inst = squareKind(content.board, ex.to) === 'maze' && g.board.tiles[key(ex.to)];
+    if (inst && contentIndex(content).tiles.get(inst.defId).special === 'well') out.push(testPreview('AGI', stat('AGI'), 'well entry'));
+    return out;
+  }
+  if (action.type === 'WELL_JUMP') return [testPreview('AGI', stat('AGI'), 'well jump', wellJumpModifiers(hero))];
+  if (action.type === 'RUBBLE_FORCE') return [testPreview('AGI', stat('AGI'), 'force rubble')];
+  return [];
 }
 
 // Legal sides for MOVE_HERO adjacent-choice.

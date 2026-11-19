@@ -3,8 +3,13 @@
 import { exits, key, squareKind } from './board.js';
 import { contentIndex } from '../content/schema.js';
 import { responseOptions, combatActions } from './monsters.js';
+import { usableHeld } from './inventory.js';
 
-const moves = (game, content, seat) => exits(game, content, seat).filter(e => e.legal).map(e => ({ type: 'MOVE', seat, dir: e.dir }));
+// D39: a move out of the chamber also names the cell it leaves by (from: 'x,y'), as two sides share a direction.
+const moves = (game, content, seat) => {
+  const room = squareKind(content.board, game.heroes[seat].coord) === 'center';
+  return exits(game, content, seat).filter(e => e.legal).map(e => ({ type: 'MOVE', seat, dir: e.dir, ...(room ? { from: key(e.from) } : {}) }));
+};
 
 export function legalActions(game, content) {
   if (game.status === 'setup') {
@@ -32,6 +37,8 @@ export function legalActions(game, content) {
       // RB 7.1, SP 6: search only in a black or red room.
       if (kind === 'maze' && ['black', 'red'].includes(contentIndex(content).tiles.get(game.board.tiles[key(hero.coord)].defId).mark)) out.push({ type: 'SEARCH', seat });
       if (kind === 'center') out.push({ type: 'COLLECT', seat }); // RB 9.1: stay and collect
+      // Spec v3 section 4: a Use action only where the item's own card data allows it now.
+      out.push(...usableHeld(game, content, seat, 'turn-action').map(item => ({ type: 'USE_ITEM', seat, item })));
       // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
       if (hero.status === 'READY_IN_START_TOWER' && game.rules.escapeWithoutExploring) out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
       // Plan 13 #25 (interpretation): a hero who stayed in a tower after exploring may escape on any later turn.
@@ -54,12 +61,34 @@ export function legalActions(game, content) {
       const onward = p.transit && exits(game, content, seat).some(e => e.legal && e.dir !== hero.enteredFrom);
       return ['ESCAPE', 'STAY', ...(onward ? ['CONTINUE'] : [])].map(choice => ({ type: 'TOWER_CHOICE', seat, choice }));
     }
-    case 'CHOOSE_MONSTER_RESPONSE': return responseOptions(game, content).map(choice => ({ type: 'RESPOND', seat, choice }));
+    case 'CHOOSE_MONSTER_RESPONSE': return [
+      ...responseOptions(game, content).map(choice => ({ type: 'RESPOND', seat, choice })),
+      // Spec v3: a held special weapon card whose data allows it (not in an ambush, as the hero's own weapon).
+      ...(game.encounter.ambush ? [] : usableHeld(game, content, seat, 'encounter-special').map(item => ({ type: 'RESPOND', seat, choice: 'special', item }))),
+    ];
     case 'MONSTER_REACT': return [{ type: 'ANNOUNCE', seat: p.seat }];
     case 'COMBAT_SELECT': return combatActions(game);
     case 'FORCED_MOVE': return p.targets.map(to => ({ type: 'FORCED_MOVE', seat: p.seat, to }));
     default: return [];
   }
+}
+
+// Why the active hero is not offered SEARCH right now, or null when it is offered (owner question 2026-11-19).
+// RB 7.1, SP 6 (R55-R57): search instead of moving, in a black or red room only, any number of times.
+const TILE_CONDITION_WORDS = { dark: 'a dark room', 'well-edge': 'the well', rubble: 'the rubble' };
+export function searchUnavailable(game, content) {
+  if (game.status !== 'playing' || game.activeSeat === null) return null;
+  const hero = game.heroes[game.activeSeat];
+  const kind = squareKind(content.board, hero.coord);
+  const mark = kind === 'maze' ? contentIndex(content).tiles.get(game.board.tiles[key(hero.coord)].defId).mark : null;
+  if (kind !== 'maze' || !['black', 'red'].includes(mark)) {
+    const where = kind === 'tower' ? 'a tower' : kind === 'center' ? 'the treasure chamber' : mark === 'yellow' ? 'a yellow corridor' : mark === 'blue' ? 'a dark room' : 'a special room with no dot';
+    return `not a room square (this is ${where}). Only black or red dot rooms can be searched.`;
+  }
+  if (game.phase === 'CHOOSE_ACTION') return null;
+  if (game.phase === 'CHOOSE_EXIT') return 'already moved this turn. A search replaces moving, at the start of a turn.';
+  if (game.phase === 'TURN_START' && game.pending && TILE_CONDITION_WORDS[game.pending.kind]) return `${TILE_CONDITION_WORDS[game.pending.kind]} takes this turn first`;
+  return 'not now: something else is being resolved this turn';
 }
 
 export const sameAction = (a, b) => {

@@ -173,14 +173,13 @@ Rulings named here (D01 to D31) are in the plan's decision register, section 9. 
 |---|---|---|
 | `width`, `height` | 10 and 11, or 11 and 10 | Squares across and down: the board is always 110 squares. Columns count from 0 in the west, rows from 0 in the north. |
 | `towers` | four `{ x, y, sides }` | The four corner towers, one on each corner. `sides` gives `N`, `E`, `S`, `W`, each `'wall'`, `'open'`, `'door'` or `'gate'`. |
-| `center` | two `{ x, y }` | The two squares of the treasure chamber, side by side, in the exact middle of the board. |
-| `chamberSides` | `{ a: { N, E, S, W }, b: { N, E, S, W } }` | Optional. The chamber's outer sides as printed on the board, for the first and second `center` square. When given, it wins over `chamber.js`. |
+| `center` | two `{ x, y }` in a list | The two squares of the treasure chamber, side by side in the middle of the board. They are one room: open on every outer side, no move between the halves (D39). |
 | `walls` | list of `'x,y\|SIDE'` | Printed walls between squares, for example `'3,2\|E'` is a wall on the east side of column 3, row 2. Optional. |
 | `edges` | `{ 'x,y\|SIDE': 'wall' \| 'door' \| 'gate' }` | Other fixed edges printed on the board, for example a door between two squares. Optional. |
 
-The board is the authority for movement geometry: the engine reads tower openings, the chamber's outer sides, printed walls and fixed edges only from here, and every square outside `width` x `height` is off the board. Correcting the map from the real board is a data edit, never a code change. An edge is blocked if either side, a printed wall or a fixed edge says `'wall'`.
+The board is the authority for movement geometry: the engine reads tower openings, the chamber squares, printed walls and fixed edges only from here, and every square outside `width` x `height` is off the board. Correcting the map from the real board is a data edit, never a code change. An edge is blocked if either side, a printed wall or a fixed edge says `'wall'`.
 
-Rules the checker applies (owner specification v2): 110 squares, 10 x 11 or 11 x 10; towers on the four corners (RB 4); the chamber is exactly two side-by-side squares in the exact middle, so on a 10-wide, 11-deep board it is `{ x: 4, y: 5 }` and `{ x: 5, y: 5 }`, and on an 11-wide, 10-deep board `{ x: 5, y: 4 }` and `{ x: 5, y: 5 }`. That leaves 104 ordinary squares for 88 tiles: squares left without a tile are impassable once the bag runs out (D27). There are no room cards in towers or the chamber, and tower sides come from this entry (D31). Towers are shared rooms: any hero may enter any tower, and entering one from the castle offers a choice to escape, stay, or continue through another passage (spec v2, replacing D23).
+Rules the checker applies (owner specifications v2 and v3): 110 squares, 10 x 11 or 11 x 10; towers on the four corners (RB 4); the chamber is exactly two side-by-side squares in the middle (D39, the owner's ruling, replacing the one-square chamber of D36). The odd side has one middle row or column, the even side two, and the chamber takes both: on a 10-wide, 11-deep board it is `[{ x: 4, y: 5 }, { x: 5, y: 5 }]`, on an 11-wide, 10-deep board `[{ x: 5, y: 4 }, { x: 5, y: 5 }]`. The two squares are one room: a hero in it is simply in the chamber, any number of heroes may be there, and a hero may enter it from, and leave it to, every square next to either half (six on a 10 x 11 board), subject, as for any move, to that square's tile having an opening toward it. `chamberSides` is no longer used and is reported as an error. That leaves 104 ordinary squares for 88 tiles: squares left without a tile are impassable once the bag runs out (D27). There are no room cards in towers or the chamber, and tower sides come from this entry (D31). Towers are shared rooms: any hero may enter any tower, and entering one from the castle offers a choice to escape, stay, or continue through another passage (spec v2, replacing D23).
 
 **Example only, not real content, not authentic:**
 
@@ -204,19 +203,13 @@ export default {
 
 `chamber.js`, exactly 1 entry, id `CHAMBER_01`. No `copies`.
 
-| Field | Allowed values | Meaning |
-|---|---|---|
-| `sides.a` | `N`, `E`, `S`, `W`: `'wall' \| 'open' \| 'door' \| 'gate'` | The outer sides of the first `center` square on the board. |
-| `sides.b` | the same | The outer sides of the second `center` square. |
-
-The side between the two squares is ignored: the chamber is one double room. Its orientation is fixed by this entry, since the rules don't document one (plan 13 #9). A hero entering collects at once (D18); the chamber deck resets when it empties (D22).
+The entry holds only `id`, `status` and the optional `name`, `text`, `notes` and `art`. The chamber is one room over two squares, open on every outer side (D39), so it has no `sides`; a `sides` field is reported as an error. Where it sits comes from `center` in `board.js`. A hero entering collects at once (D18); the chamber deck resets when it empties (D22).
 
 **Example only, not real content, not authentic:**
 
 ```js
 export default {
   id: 'CHAMBER_01', status: 'draft', name: 'Example chamber',
-  sides: { a: { N: 'open', E: 'open', S: 'wall', W: 'open' }, b: { N: 'wall', E: 'open', S: 'open', W: 'open' } },
   art: null,
 };
 ```
@@ -360,7 +353,8 @@ export default [
 | `turnDisposition` | `'end-turn'` (usual), `'continue'`, `'ongoing'` | `'continue'` lets the hero keep moving afterwards. |
 | `cardDisposition` | `'UNDER_SAME_DECK'` (usual), `'RETAIN_HELD'`, `'RETAIN_TREASURY'`, `'REMOVE'`, `'RESHUFFLE_DECK'` | Where the card goes afterwards ([card disposition](#card-disposition)). |
 | `privacy` | `'public'` (usual), `'private-to-holder'` | Whether other players see it when kept. Kept room loot and its gold are public (D25). |
-| `specialWeapon` | `true` / `false` | Marks an item as usable as a special weapon (stored, see section 10). |
+| `specialWeapon` | `true` / `false` | Marks an item as a special weapon. It can be chosen before a monster is revealed only if `use` says how (otherwise the app shows its effect as pending). |
+| `use` | optional `{ timing, effects, afterUse, uses }` | How a kept card can be used ([using kept cards](#using-kept-cards)). Leave it out and the card has no Use action. |
 
 After a monster flees or the hero flees, the rest of the room card is skipped; after a won fight the rest still runs (plan 13 #16), so a card can say "defeat it, then keep this".
 
@@ -481,7 +475,7 @@ export default [
 |---|---|---|
 | `kind` | `'sleeping'` or `'awake'` | All copies together must be 7 sleeping and 1 awake (RB 9, SP 8). This structure is the rule; names and art are yours. |
 
-One dragon card is drawn per chamber turn without replacement, shared by all heroes, so the odds climb from 1 in 8 (RB 9.3). When the awake card comes up, every hero in the chamber loses their treasury cards, takes a full D12 of damage and is driven to an already revealed neighbouring maze tile, never a new one (D19); the deck resets when the chamber empties (D22).
+One dragon card is drawn per chamber turn without replacement, shared by all heroes, so the odds climb from 1 in 8 (RB 9.3). When the awake card comes up, every hero in the chamber loses their treasury cards, takes a full D12 of damage and is driven to an already revealed maze tile next to the chamber square, never a new one (D19); the deck resets when the chamber empties (D22).
 
 **Example only, not real content, not authentic:**
 
@@ -522,6 +516,19 @@ That is why the table has no `special` key.
 ### Branch draws name a subdeck
 
 A card with `followUpDeck` hands over to another deck once it is done: `'SEARCH'`, `'CHEST'` or `'DOOR'` draws and plays the top card of that deck, and `'MONSTER'` starts a monster encounter (RB 7.3). Inside `effects`, `DRAW_CARD` does the same mid-card and lets you choose `then: 'keep'` to put the drawn card in the hero's hand instead of playing it.
+
+### Using kept cards
+
+A kept card (in the hero's hand or treasury) gets a Use action only when its entry has a `use` block; the app never invents one (owner specification v3). The fields:
+
+| Field | Allowed values | Meaning |
+|---|---|---|
+| `timing` | `'turn-action'`, `'encounter-special'` | `'turn-action'`: used as the hero's action at the start of their turn; the turn then ends unless the effects say `CONTINUE_MOVEMENT`. `'encounter-special'`: chosen as a special weapon before a monster is revealed (not in an ambush), so the monster answers with its Attack reaction (RB 8.1); needs `specialWeapon: true`. |
+| `effects` | list of steps | What using it does, in order. |
+| `afterUse` | `'keep'` (usual), `'bottom'`, `'remove'` | Where the card goes after a use: stays in hand, under its own deck, or out of the game. |
+| `uses` | whole number 1 or more, or `null` | How many times it can be used while kept; `null` means no limit. |
+
+**Example only, not real content, not authentic:** `use: { timing: 'turn-action', effects: [{ op: 'HEAL', amount: 2 }], afterUse: 'bottom', uses: 1 }`.
 
 ### Card disposition
 
@@ -591,7 +598,7 @@ These fields are checked and saved, but the engine does not act on them yet. Fil
 
 - tile `effects` (dot and special behaviour come from the rules, not data);
 - ring `trigger` and `effects` (rings are drafted and shown by their `power` or `text`);
-- the card `specialWeapon` flag (heroes use the special weapon card named by `specialWeaponId`);
+- hero `equipment` (shown in the hero's inventory, effect pending);
 - effects printed on treasury cards, which are kept as drawn (plan section 13, M2 shortcuts);
 - `turnDisposition: 'ongoing'` (use `SET_CONDITION` for lasting effects);
 - `art` everywhere.

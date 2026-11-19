@@ -49,6 +49,16 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
 .movewhy { display: none; margin-top: 4px; font-size: 14px; color: var(--ink2); }
 @media (hover: hover) and (pointer: fine) { .movewhy { display: block; } } /* the keyboard hint, not on touch phones */
 .undo-here { display: block; margin-top: 10px; font-size: 15px; }
+.undo-note, .choices p.muted { margin: 10px 0 0; font-size: 14px; color: var(--ink2); }
+.choices p.muted { margin: 0; padding: 0 4px; }
+.panel > p.why, .panel > p.exchange { color: var(--ink); font-weight: 600; }
+.tapdice { cursor: pointer; }
+.panel > p.firstres { font-weight: 700; color: var(--ink); font-size: 17px; }
+/* Setup after "Pick heroes": who goes first in one small line under the title, no dice. The tower board leaves room
+   for the title, that line, the pick's heading and text, the map buttons, the tower buttons and Undo (about 470px),
+   so at 390x844 the whole pick is on screen. */
+.firstline { margin: -2px 0 12px; font-size: 14px; color: var(--ink2); }
+#draft .viewport { max-height: max(220px, calc(100dvh - 470px)); }
 .applabel { margin: -4px 0 14px; font-size: 15px; color: var(--ink2); }
 
 /* Title */
@@ -62,7 +72,9 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
 /* Placeholders the height of a real row, so the lists do not jump when the data lands. */
 #saves li.loading { min-height: 59px; }
 #names li.loading { min-height: 49px; display: flex; align-items: center; }
+#savedGroup[open] summary { margin-bottom: 4px; }
 #savedGroup .note { margin: 0 0 8px; }
+#savedGroup .count { display: inline-block; width: 2.2em; height: .9em; vertical-align: -1px; margin-left: 6px; }
 .resume { flex: 1; min-width: 0; min-height: 58px; padding: 9px 0; text-align: left; }
 .resume strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resume span { display: block; font-size: 14px; color: var(--ink2); }
@@ -117,8 +129,35 @@ details li + li { margin-top: 6px; }
 .map-tools .btn { min-width: 44px; padding: 0 12px; font-size: 15px; }
 .map-tools .tiles { margin-left: auto; font-size: 14px; color: var(--ink2); }
 .map-tools .ico { display: none; }
-.viewport { position: relative; overflow: hidden; touch-action: none; border-radius: 14px; background: var(--off-bg); width: 100%; aspect-ratio: var(--board-ratio, 1); max-height: calc(100dvh - 200px);
+.viewport { position: relative; overflow: hidden; touch-action: none; border-radius: 14px; width: 100%; aspect-ratio: var(--board-ratio, 1); max-height: calc(100dvh - 200px);
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+/* The board's light follows the sun (owner, 2026-11-19). renderTable sets these on #table from ui/daylight.js skyAt:
+   a sky colour (and a lighter one for the board background), how much of it to mix in, and a vignette alpha, per
+   theme. They tint only the board background and unexplored squares (light theme; dark keeps them black) and a
+   vignette in the margin under the squares; tiles, tokens, walls, highlights and text keep their colours. Worst-case
+   contrast is checked in tests/keep/daylight.test.js. Registered, so a new sun eases in (not under reduced motion). */
+@property --sky-l { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --sky-lo { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --sky-d { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --sky-do { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --sky-lk { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
+@property --sky-dk { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
+@property --vig-l { syntax: '<number>'; inherits: true; initial-value: 0; }
+@property --vig-d { syntax: '<number>'; inherits: true; initial-value: 0; }
+#table { transition: --sky-l 1.2s, --sky-lo 1.2s, --sky-lk 1.2s, --vig-l 1.2s, --sky-d 1.2s, --sky-do 1.2s, --sky-dk 1.2s, --vig-d 1.2s; }
+.viewport { --sky: var(--sky-l); --sky-o: var(--sky-lo); --sky-k: var(--sky-lk); --vig: var(--vig-l);
+  --off-lit: color-mix(in srgb, var(--sky-o) var(--sky-k), var(--off-bg)); --fog-lit: color-mix(in srgb, var(--sky) var(--sky-k), var(--fog-bg));
+  background: radial-gradient(closest-corner, transparent 55%, rgb(16 20 56 / var(--vig))), var(--off-lit); }
+:root[data-theme="dark"] .viewport { --sky: var(--sky-d); --sky-o: var(--sky-do); --sky-k: var(--sky-dk); --vig: var(--vig-d); --fog-lit: var(--fog-bg); }
+:root[data-theme="dark"] .viewport .fog-line { stroke: color-mix(in srgb, var(--sky) var(--sky-k), #f3e6cf); stroke-opacity: .18; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .viewport { --sky: var(--sky-d); --sky-o: var(--sky-do); --sky-k: var(--sky-dk); --vig: var(--vig-d); --fog-lit: var(--fog-bg); }
+  :root:not([data-theme]) .viewport .fog-line { stroke: color-mix(in srgb, var(--sky) var(--sky-k), #f3e6cf); stroke-opacity: .18; } }
+.viewport .off-bg { fill: var(--off-lit); }
+.viewport .fog-bg { fill: var(--fog-lit); }
+.dusk { fill: url(#vignette); pointer-events: none; }
+.dusk-in, .dusk-out { stop-color: rgb(16 20 56); stop-opacity: 0; }
+.dusk-out { stop-opacity: var(--vig, 0); }
 .board-svg { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; }
 .board-svg.glide { transition: transform .25s ease-out; }
 .cell { cursor: pointer; outline: none; }
@@ -138,7 +177,7 @@ details li + li { margin-top: 6px; }
 .keep-gate { fill: var(--tower); }
 .chamber { fill: var(--chamber); }
 .reserved { fill: var(--floor); stroke: var(--wall); stroke-width: 3; stroke-dasharray: 8 8; }
-.reserved-label { fill: var(--wall); font: 600 22px var(--text); }
+.reserved-label { fill: var(--wall); font: 600 19px var(--text); } /* fits one square */
 .wall { stroke: var(--wall); stroke-width: 9; stroke-linecap: round; }
 .wall.fixed { stroke-width: 15; stroke-linecap: square; }
 .blocked { stroke: var(--wall); stroke-width: 6; stroke-dasharray: 9 8; stroke-linecap: butt; }
@@ -163,26 +202,115 @@ details li + li { margin-top: 6px; }
 .key span { display: inline-flex; align-items: center; gap: 6px; }
 .key svg { width: 26px; height: 26px; flex: none; border-radius: 4px; background: var(--floor); }
 
-/* Table */
-.statusbar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; margin: 0 60px 14px 0; min-height: 64px; }
-.sun { width: 74px; height: 40px; flex: none; }
-.sun .tick { stroke: var(--ink2); stroke-width: 2.5; stroke-linecap: round; opacity: .35; }
-.sun .tick.left { stroke: #e08a1e; opacity: 1; }
-.sun .disc { fill: #f2a531; stroke: #9a5a00; stroke-width: 1.5; }
-.sun .horizon { stroke: var(--ink2); stroke-width: 1.5; }
-.statusbar .who { min-width: 0; flex: 1; }
-.statusbar strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.statusbar span { display: block; font-size: 14px; color: var(--ink2); }
-.statusbar .short { display: none; }
+/* Table. The status bar: whose turn, the sun track and the dragon chip (and on phones a tiles chip); wide by default,
+   one compact line on phones (below). The track: --at is this sun's place from 0 to 1; the notches are spread edge to
+   edge, so notch k's middle is k/(n-1) of the way less half a notch each end. The elapsed fill is --sun-fill, 3:1 or
+   better on the glass in both themes (light #a35400 about 5:1, dark #f2a531 about 8:1); the last five notches are
+   the danger colour. */
+.statusbar { --sun-fill: #a35400; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 10px 16px; margin: 0 60px 14px 0; min-height: 64px; }
+:root[data-theme="dark"] .statusbar { --sun-fill: #f2a531; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .statusbar { --sun-fill: #f2a531; } }
+.statusbar .who { flex: 0 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.suntrack { flex: 1 1 240px; min-width: 100px; max-width: 560px; display: flex; align-items: center; gap: 8px; }
+.track { --nw: 3px; position: relative; flex: 1; min-width: 0; height: 24px; }
+.track > i { position: absolute; top: 50%; display: block; }
+.track .rail { left: 0; right: 0; height: 2px; margin-top: -1px; background: var(--fill); }
+.track .fill { left: 0; width: calc(var(--at) * (100% - var(--nw)) + var(--nw) / 2); height: 4px; margin-top: -2px; border-radius: 2px; background: var(--sun-fill); }
+.track .notches { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; }
+.track .notches i { width: var(--nw); height: 10px; border-radius: 1px; background: var(--ink2); }
+.track .notches i.past { background: var(--sun-fill); }
+.track .notches i.late { height: 16px; background: var(--danger); }
+.track .sunmark { left: calc(var(--at) * (100% - var(--nw)) + var(--nw) / 2); width: 18px; height: 18px; translate: -50% -50%; border-radius: 50%;
+  background: #f2a531; border: 2px solid #8a4b00; box-shadow: 0 0 0 2px var(--solid); }
+.suntrack .horizon { flex: none; width: 18px; height: 14px; color: var(--danger); }
+.suntrack .left { flex: none; font-size: 14px; color: var(--ink2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chip { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chip svg { width: 15px; height: 15px; flex: none; }
+.chip.tilesleft { display: none; }
 .tablegrid { display: grid; gap: 14px; }
 .tablegrid > * { min-width: 0; }
 .tablegrid .panel { scroll-margin-top: 76px; }
 .board-panel { padding: 12px; }
-#latest ol, #log { margin: 8px 0 0; padding-left: 20px; font-size: 15px; }
-#latest li + li, #log li + li { margin-top: 4px; }
-#log { max-height: 50dvh; overflow: auto; color: var(--ink2); }
+/* The event log and "What just happened": plain lines, the dice arithmetic under each in smaller text, one group
+   per turn under the player's name. It grows with the page (no scroll box inside a scroll box). */
+#log { list-style: none; margin: 8px 0 0; padding: 0; font-size: 15px; line-height: 1.45; }
+#log li.debug + li.debug { margin-top: 6px; }
+#log li.debug { color: var(--ink2); overflow-wrap: anywhere; }
 #log .when { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
 #log li.debug code { display: block; font-size: 12px; overflow-wrap: anywhere; }
+#log li.debug .mech { display: block; font-size: 14px; color: var(--ink); }
+.turnlog { padding: 10px 0 8px; border-top: 1px solid var(--hair); }
+.turnlog h3 { margin: 0 0 2px; color: var(--ink); display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; overflow-wrap: anywhere; }
+.turnlog h3 span { font-size: 13px; font-weight: 500; color: var(--ink2); }
+.loglines { list-style: none; margin: 0; padding: 0; line-height: 1.45; overflow-wrap: anywhere; }
+#latest .loglines { margin-top: 8px; font-size: 15px; }
+.loglines li { padding: 3px 0; }
+.loglines small { display: block; font-size: 13px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.again { display: grid; gap: 10px; max-width: 440px; margin: 4px auto 18px; }
+
+/* Dice: a D12 is a 3D dodecahedron of twelve pentagons, a D6 Bank's cube (site/bank/index.html). ui/dice.js places
+   the faces and turns them. One or two dice are about 90px; three or more 68px a die, which keeps four in a row on a
+   375px phone. */
+.dice { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 12px; padding: 14px 0 8px; }
+.dice figure { margin: 0; display: grid; justify-items: center; gap: 8px; flex: 0 1 92px; min-width: 0; perspective: 600px; }
+.dice .d12 { --a: 27px; }
+.dice .cube { --h: 40px; }
+.dice:has(> figure:nth-child(3)) figure { flex-basis: 68px; }
+.dice:has(> figure:nth-child(3)) .d12 { --a: 20px; }
+.dice:has(> figure:nth-child(3)) .cube { --h: 32px; }
+.dice figcaption { font-size: 14px; color: var(--ink2); text-align: center; overflow-wrap: anywhere; }
+.cube { --h: 32px; width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2, .8, .25, 1); }
+.cube .face { position: absolute; inset: 0; border-radius: 12px; background: var(--die); box-shadow: inset 0 0 0 1px var(--die-edge); display: grid; place-items: center; color: var(--pip); font: 700 calc(var(--h) * .85) var(--num); }
+.cube .face:nth-child(1) { transform: translateZ(var(--h)); }
+.cube .face:nth-child(2) { transform: rotateY(180deg) translateZ(var(--h)); }
+.cube .face:nth-child(3) { transform: rotateY(90deg) translateZ(var(--h)); }
+.cube .face:nth-child(4) { transform: rotateY(-90deg) translateZ(var(--h)); }
+.cube .face:nth-child(5) { transform: rotateX(90deg) translateZ(var(--h)); }
+.cube .face:nth-child(6) { transform: rotateX(-90deg) translateZ(var(--h)); }
+/* --a is the edge: the die is about 2.8 edges across. Each face is a pentagon (clip-path) in a square whose middle is
+   the pentagon's middle; its edge line is the face colour showing round a slightly smaller pentagon of die colour.
+   Numbers are var(--pip) on var(--die), the shared dice tokens (9:1 or better in both themes). */
+.d12 { --a: 20px; width: calc(var(--a) * 2.8); height: calc(var(--a) * 2.8); position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2, .8, .25, 1); }
+.d12 .face { position: absolute; left: 50%; top: 50%; width: calc(var(--a) * 1.7013); height: calc(var(--a) * 1.7013); margin: calc(var(--a) * -.85065);
+  display: grid; place-items: center; color: var(--pip); font: 700 calc(var(--a) * .82)/1 var(--num);
+  background: color-mix(in srgb, var(--pip) 45%, transparent); -webkit-backface-visibility: hidden; backface-visibility: hidden;
+  -webkit-clip-path: polygon(50% 0%, 97.55% 34.55%, 79.39% 90.45%, 20.61% 90.45%, 2.45% 34.55%); clip-path: polygon(50% 0%, 97.55% 34.55%, 79.39% 90.45%, 20.61% 90.45%, 2.45% 34.55%); }
+.d12 .face::before { content: ''; position: absolute; inset: calc(var(--a) * .06); z-index: -1; background: var(--die);
+  -webkit-clip-path: inherit; clip-path: inherit; }
+.d12 .face.mark { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
+/* Landed (and the "?" before a roll): the result face, straight on, has an accent rim and a bigger, bolder number;
+   the neighbours darken and their numbers fade, so the result is the one face that reads. A small pop after a roll. */
+.d12 .face, .cube .face { transition: color .25s, background-color .25s, font-size .25s; }
+.d12.landed .face:not(:first-child), .cube.landed .face:not(:first-child) { color: color-mix(in srgb, var(--pip) 18%, transparent); }
+.d12.landed .face:not(:first-child)::before { filter: brightness(.6); }
+.d12.landed .face:first-child { background: var(--accent); font-size: calc(var(--a) * 1.1); font-weight: 800; }
+.d12.landed .face:first-child::before { inset: calc(var(--a) * .11); }
+.cube.landed .face:first-child { box-shadow: inset 0 0 0 4px var(--accent); font-size: calc(var(--h) * 1.05); font-weight: 800; }
+.dice figure.pop > :first-child { animation: diepop .4s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes diepop { 0% { scale: .94; } 50% { scale: 1.12; } 100% { scale: 1; } }
+
+/* The roll card: over the dimmed board, its buttons at the bottom in thumb reach. */
+#roll::backdrop, #outcome::backdrop { background: rgba(0, 0, 0, .55); }
+/* The end of a fight: the roll card's family, centred on the screen. */
+#outcome { margin: auto; width: min(100% - 48px, 340px); text-align: center; }
+#outcome > div { padding: 24px 18px 18px; gap: 12px; }
+#outcome h2 { font: 700 26px/1.2 var(--num); }
+#outcome p { margin: 0; color: var(--ink); font-size: 16px; }
+#roll h2:focus { outline: none; } /* focused only while the dice turn, so nothing reads as a button */
+#roll .facts { margin: 0; }
+#roll .facts div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 6px 0; border-top: 1px solid var(--hair); font-size: 15px; }
+#roll dt { color: var(--ink2); }
+#roll dd { margin: 0; font: 700 18px var(--num); color: var(--ink); }
+#roll p.need { margin: 0; text-align: center; font: 700 20px var(--num); color: var(--ink); }
+#roll .outcome { display: grid; gap: 6px; justify-items: center; text-align: center; }
+#roll .outcome > div { display: grid; gap: 4px; justify-items: center; }
+#roll .outcome p { margin: 0; }
+#roll p.verdict { padding: 2px 20px; border-radius: 999px; font: 700 30px/1.2 var(--num); color: var(--ink); background: var(--fill); }
+#roll p.verdict.pass { background: color-mix(in srgb, var(--good) 24%, transparent); }
+#roll p.verdict.fail { background: color-mix(in srgb, var(--danger) 22%, transparent); }
+#roll p.sum { color: var(--ink); font-variant-numeric: tabular-nums; }
+.rollbtns { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; margin-top: 4px; }
+.rollbtns .btn { min-height: 54px; }
 #heroes ul { list-style: none; margin: 8px 0 0; padding: 0; }
 #heroes li { padding: 10px 0; border-top: 1px solid var(--hair); display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 10px; align-items: start; }
 #heroes li.active { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 12px; }
@@ -192,11 +320,50 @@ details li + li { margin-top: 6px; }
 #heroes .btn { justify-self: start; margin-top: 4px; min-height: 44px; font-size: 15px; }
 .hp { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; margin: 4px 0; }
 .hp i { display: block; height: 100%; background: var(--good); }
-.pips { display: inline-flex; gap: 4px; vertical-align: middle; }
-.pips i { width: 12px; height: 12px; border-radius: 50%; background: var(--danger); }
-.die { display: inline-grid; place-items: center; min-width: 40px; height: 40px; padding: 0 6px; border-radius: 10px; background: var(--die); color: var(--pip); box-shadow: inset 0 0 0 1px var(--die-edge); font: 700 20px var(--num); margin-right: 8px; vertical-align: middle; }
-.testline { display: flex; align-items: center; margin-top: 8px; font-size: 15px; }
-.vs { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 12px; font: 700 40px var(--num); }
+.monsterhp { margin-top: 4px; }
+.hearts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.hearts svg { width: 22px; height: 22px; }
+.hearts .full path { fill: var(--danger); }
+.hearts .lost path { fill: none; stroke: var(--ink2); stroke-width: 2; }
+/* Fight panels: compact, so on a phone in portrait the buttons sit inside the half-screen dock without scrolling
+   (about 300px of panel at 375x667): a one-line header, the fight in one row, one "Last:" line, the buttons, one
+   muted help line and a row of small controls. */
+.panel.fight { padding: 12px 14px; }
+.panel.fight > h2 { font-size: 18px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; overflow-wrap: anywhere; }
+.tag { padding: 2px 8px; border-radius: 999px; background: var(--fill); color: var(--ink); font: 600 13px var(--text); white-space: nowrap; }
+.fightrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; font-size: 14px; color: var(--ink2); }
+.fightrow .who { min-width: 0; overflow-wrap: anywhere; }
+.herohp { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.herohp .hp { display: block; width: 56px; margin: 0; }
+.fightrow .hearts { margin: 0; gap: 2px; }
+.fightrow .hearts svg { width: 15px; height: 15px; }
+.panel.fight > p { margin-top: 6px; }
+.panel.fight > p.last, .panel.fight > p.exchange { color: var(--ink); font-weight: 600; font-size: 15px; }
+.panel.fight > p.help { font-size: 13px; }
+.panel.fight .choices { margin-top: 8px; }
+.panel.fight .variant { margin-top: 6px; padding: 4px 10px; font-size: 13px; }
+.combatcard { justify-items: center; text-align: center; padding: 6px 4px; gap: 0; }
+.combatcard .big { line-height: 1.05; }
+.combatcard small { font-size: 13px; }
+.combatcard .rule { color: var(--ink); font-weight: 600; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.tools:empty { display: none; }
+.tools > .btn { font-size: 15px; padding: 0 14px; }
+.tools > .undo-here { display: inline-flex; align-items: center; margin: 0; }
+.tools > .undo-note { flex-basis: 100%; margin: 0; }
+.tools details summary { min-height: 44px; padding: 0 14px; border-radius: 999px; background: var(--fill); font-size: 15px; }
+.tools details[open] { flex-basis: 100%; order: 9; } /* opened, it takes its own line under the buttons */
+.tools details[open] summary { display: inline-flex; }
+.tools details ol { margin: 6px 0 0; padding-left: 22px; font-size: 14px; color: var(--ink2); }
+.tools details p { margin: 6px 0 0; font-size: 14px; color: var(--ink2); }
+.dock.fight > #latest { order: 0; } /* a fight prompt first: its buttons before what just happened */
+.inv .itemtext { font-size: 14px; color: var(--ink); }
+/* The event log sheet: the full screen height, its list scrolling between the title and Close. */
+#logSheet { width: min(100% - 24px, 640px); height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))); overflow: hidden; }
+#logSheet > div { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+#logSheet #log { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 0; }
+#logSheet > div > .btn { flex: none; }
+.vs { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 8px; font: 700 40px/1.1 var(--num); }
 .vs small { display: block; font: 600 13px var(--text); color: var(--ink2); text-align: center; }
 
 /* Hot-seat cover: opaque on purpose, so nothing private shows through. */
@@ -205,7 +372,19 @@ details li + li { margin-top: 6px; }
 .cover h2 { font: 700 30px/1.15 var(--num); overflow-wrap: anywhere; }
 .cover p { margin: 0; color: var(--ink2); }
 .cover .banner { margin: 0; width: 100%; }
+/* The dusk banner (5 and 3 rounds left): the outcome card's family, lighter, over the top of the board, gone by itself. */
+#dusk { position: fixed; z-index: 18; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 116px); translate: -50% 0; width: min(100% - 32px, 360px);
+  padding: 12px 18px; border-radius: 20px; display: grid; gap: 2px; text-align: center; box-shadow: 0 8px 30px rgba(0, 0, 0, .3); cursor: pointer; animation: duskin .35s ease-out; }
+#dusk[hidden] { display: none; }
+#dusk strong { font: 700 20px/1.2 var(--num); }
+#dusk span { font-size: 15px; color: var(--ink); }
+@keyframes duskin { from { opacity: 0; translate: -50% -10px; } }
 #toast { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); translate: -50% 0; z-index: 21; padding: 10px 16px; border-radius: 999px; background: var(--ink); color: var(--canvas); font-size: 15px; }
+
+/* The round X at the top right of a sheet (the menu's close glyph), beside Close or Done and Esc. */
+.sheet-x { position: absolute; top: 10px; right: 10px; z-index: 1; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--ink); }
+.sheet-x svg { width: 20px; height: 20px; }
+.sheet-x + h2 { padding-right: 44px; overflow-wrap: anywhere; }
 
 /* Settings */
 .appearance { display: flex; align-items: center; gap: 12px; }
@@ -216,6 +395,11 @@ details li + li { margin-top: 6px; }
 #rules span { display: block; color: var(--ink2); font-size: 14px; }
 .sides { margin: 0; padding-left: 20px; font-size: 15px; }
 dialog.sheet p.why { color: var(--ink); font-weight: 600; }
+#items h3 { margin: 16px 0 4px; font-size: 16px; }
+#items .meta { display: block; margin: 0; font-size: 14px; color: var(--ink2); }
+.inv { list-style: none; margin: 0; padding: 0; }
+.inv li { padding: 8px 0; border-top: 1px solid var(--hair); display: grid; gap: 2px; }
+.inv .btn.primary { margin-top: 6px; }
 
 @media (max-width: 480px) { .board-panel { padding: 8px; } }
 @media (min-width: 820px) {
@@ -232,12 +416,31 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .app.table > #table:not([hidden]) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .banner { margin-bottom: 6px; font-size: 14px; }
   .statusbar { flex: none; min-height: 44px; padding: 4px 12px; margin: 0 0 8px; } /* sits below the menu button, so full width */
-  .statusbar .sun, .statusbar .long { display: none; }
-  .statusbar .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; white-space: nowrap; } /* a long name wraps rather than being cut */
-  .statusbar strong { min-width: 0; font-size: 15px; }
-  .statusbar .short { display: inline; flex: none; font-size: 13px; }
   .tablegrid { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
   .tablegrid > .side { display: contents; }
+  .dock { flex: none; max-height: 50dvh; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; border-radius: 26px; }
+  .dock > .panel { flex: none; margin: 0; }
+  .dock > #latest { order: -1; }
+  .fold { flex: none; height: 0; min-height: 0; margin-top: max(8px, env(safe-area-inset-bottom)); }
+  .fold::after { content: ''; display: block; height: max(16px, env(safe-area-inset-bottom)); }
+}
+/* Any phone, portrait or landscape (PHONE in app.js): the one-line status and the map buttons floating in its
+   top right corner over a map that takes all the room it is given. */
+@media (max-width: 819.98px) and (orientation: portrait), (orientation: landscape) and (max-height: 540px) {
+  .statusbar { gap: 2px 8px; }
+  .statusbar .who { font-size: 15px; }
+  .statusbar .turnword { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* the name alone, said in full */
+  .suntrack { flex-basis: 120px; min-width: 96px; gap: 5px; }
+  .track { --nw: 2px; height: 18px; }
+  .track .notches i { height: 7px; }
+  .track .notches i.late { height: 12px; }
+  .track .sunmark { width: 13px; height: 13px; border-width: 1.5px; }
+  .suntrack .horizon { width: 14px; height: 11px; }
+  .suntrack .left, .chip { font-size: 13px; }
+  .suntrack .left .w, .chip .w { display: none; }
+  .chip { gap: 3px; padding: 2px 7px; }
+  .chip svg { width: 13px; height: 13px; }
+  .chip.tilesleft { display: inline-flex; }
   #table .board-panel { flex: 1; min-height: 140px; display: flex; flex-direction: column; padding: 6px; }
   #table .board-host, #table .map { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #table .map { position: relative; }
@@ -246,28 +449,39 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   #table .map-tools .btn { width: 44px; height: 44px; min-width: 0; padding: 0; display: grid; place-items: center; background: var(--solid); color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, .3); font-size: 22px; }
   #table .map-tools .ico { display: block; width: 22px; height: 22px; }
   #table .map-tools .tool-text, #table .map-tools .tiles { display: none; }
-  .dock { flex: none; max-height: 50dvh; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; border-radius: 26px; }
-  .dock > .panel { flex: none; margin: 0; }
-  .dock > #latest { order: -1; }
-  .fold { flex: none; height: 0; min-height: 0; margin-top: max(8px, env(safe-area-inset-bottom)); }
-  .fold::after { content: ''; display: block; height: max(16px, env(safe-area-inset-bottom)); }
 }
+/* Phone in landscape (667x375 to 932x430). The table: the board on the left the full height of the screen, and on
+   the right a column with the banner, the one-line status and below them, scrolling inside the column, the
+   prompt, what just happened, the map key, heroes and log. Other screens scroll as pages, in two columns. */
 @media (orientation: landscape) and (max-height: 540px) {
   .app, .app.wide { max-width: 1060px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   #title { columns: 2; column-gap: 14px; }
   #title > h1, #title > .lede { column-span: all; }
   #title > * { break-inside: avoid; }
-  .tablegrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
-  .board-panel { position: sticky; top: 8px; }
   .viewport { max-height: calc(100dvh - 90px); }
   .map-tools { flex-wrap: nowrap; gap: 6px; }
   .map-tools .btn { padding: 0 10px; font-size: 14px; }
   .map-tools .tiles { display: none; }
-  .banner { padding: 0 12px; margin-bottom: 8px; }
-  .statusbar { margin-bottom: 10px; min-height: 48px; padding: 4px 12px; }
-  .statusbar span { display: inline; margin-right: 8px; }
-  .sun { width: 56px; height: 30px; }
+  .banner { padding: 0 12px; margin-bottom: 6px; font-size: 14px; }
   h1 { font-size: 32px; }
+  .cover { padding-top: max(12px, env(safe-area-inset-top)); padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .cover > div { gap: 10px; }
+  .cover > div > svg { display: none; } /* the keep picture, so the button stays on a 375px high screen */
+  .cover h2 { font-size: 26px; }
+  .app.table { max-width: none; height: 100dvh; min-height: 0; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 42%, 420px); grid-template-rows: auto auto minmax(0, 1fr); column-gap: 10px; }
+  .app.table > #table:not([hidden]), .app.table .tablegrid { display: contents; }
+  .app.table > .banner { grid-column: 2; grid-row: 1; margin: 0 60px 6px 0; } /* clear of the menu circle */
+  .app.table .statusbar { grid-column: 2; grid-row: 2; margin: 0 60px 8px 0; min-height: 44px; padding: 4px 12px; }
+  .app.table .board-panel { grid-column: 1; grid-row: 1 / -1; position: static; min-height: 0; }
+  .app.table .side { grid-column: 2; grid-row: 3; min-height: 0; overflow: auto; overscroll-behavior: contain; border-radius: 26px; padding-bottom: 8px; }
+  .app.table .side .panel { margin-bottom: 8px; }
+  #roll > div { gap: 6px; padding: 14px 16px 12px; }
+  #roll .dice { padding: 4px 0; }
+  #roll .cube { --h: 26px; }
+  #roll .d12 { --a: 17px; }
+  #roll .facts div { padding: 3px 0; }
+  #roll p.verdict { font-size: 24px; }
 }
 </style>
 </head>
@@ -279,17 +493,21 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
       <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
     <div class="menu-items" id="menuItems">
-      <a class="item glass" href="../index.html">
+      <a class="item glass" id="gamesLink" href="../index.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
         <span class="glass">Games</span>
       </a>
-      <button class="item glass" id="undo" data-keep-open>
+      <button class="item glass" id="undo" data-keep-open hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 4 9l4 4"/><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H10"/></svg>
         <span class="glass">Undo</span>
       </button>
-      <button class="item glass" id="saveExit">
+      <button class="item glass" id="logBtn" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>
+        <span class="glass">Event log</span>
+      </button>
+      <button class="item glass" id="exitBtn" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
-        <span class="glass">Save and exit</span>
+        <span class="glass">Exit</span>
       </button>
       <button class="item glass" id="settingsBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
@@ -305,11 +523,11 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
     <p class="applabel" id="appLabel"></p>
     <p class="lede">Explore the keep, take what gold you can carry, and reach a tower before the sun goes down.</p>
 
-    <section class="glass group" id="savedGroup" hidden>
-      <h2>Saved games</h2>
+    <details class="glass group" id="savedGroup" hidden>
+      <summary id="savedSummary">Saved games</summary>
       <p class="note" id="savedNote" role="status" hidden></p>
       <ul id="saves"></ul>
-    </section>
+    </details>
 
     <section class="glass group">
       <h2 id="countTitle">Players</h2>
@@ -356,7 +574,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
         <li>Each round the sun moves one step. After sun 26 it sets, and anyone still inside is lost.</li>
         <li>On your turn, go one square. New squares are drawn and turned so their mark faces you.</li>
         <li>Rooms, doors, portcullises and monsters ask for cards, tests on a D12 against your stats, or a choice.</li>
-        <li>Two squares in the middle hold the treasure chamber. Each turn there gives two secret cards, then a dragon card.</li>
+        <li>The square in the middle holds the treasure chamber. Each turn there gives two secret cards, then a dragon card.</li>
         <li>Escape through any tower. Of those who escape, the most gold wins.</li>
       </ul>
     </details>
@@ -377,19 +595,67 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   </div>
 </div>
 
+<div class="glass" id="dusk" aria-hidden="true" hidden><strong id="duskTitle"></strong><span id="duskLine"></span></div>
 <p id="toast" role="status" hidden></p>
 <p class="sr" id="said" role="status" aria-live="polite"></p>
 
 <dialog class="sheet glass" id="inspect" aria-labelledby="inspectTitle">
   <div>
+    <button class="sheet-x" aria-label="Close details"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <h2 id="inspectTitle"></h2>
     <div id="inspectBody"></div>
     <button class="btn" id="inspectDone">Close</button>
   </div>
 </dialog>
 
+<dialog class="sheet glass" id="items" aria-labelledby="itemsTitle">
+  <div>
+    <button class="sheet-x" aria-label="Close items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <h2 id="itemsTitle"></h2>
+    <div id="itemsBody"></div>
+    <button class="btn" id="itemsDone">Close</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="logSheet" aria-labelledby="logTitle">
+  <div>
+    <button class="sheet-x" aria-label="Close event log"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <h2 id="logTitle">Event log</h2>
+    <button class="btn" id="logEnd" hidden>Jump to the end</button>
+    <ol id="log"></ol>
+    <button class="btn" id="logDone">Close</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="exitSheet" aria-labelledby="exitTitle">
+  <div>
+    <h2 id="exitTitle"></h2>
+    <p id="exitNote"></p>
+    <button class="btn primary" id="saveExit">Save and exit</button>
+    <button class="btn danger" id="discard"></button>
+    <button class="btn" id="keepPlaying"></button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="roll" aria-labelledby="rollTitle">
+  <div>
+    <h2 id="rollTitle" tabindex="-1"></h2>
+    <div id="rollBody"></div>
+    <div class="rollbtns" id="rollBtns"></div>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="outcome" aria-labelledby="outcomeTitle" aria-describedby="outcomeLine">
+  <div>
+    <h2 id="outcomeTitle"></h2>
+    <p id="outcomeLine"></p>
+    <button class="btn primary" id="outcomeGo">Continue</button>
+  </div>
+</dialog>
+
 <dialog class="sheet glass" id="settings" aria-labelledby="settingsTitle">
   <div>
+    <button class="sheet-x" aria-label="Close settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <h2 id="settingsTitle">Settings</h2>
     <h3 id="themeTitle">Appearance</h3>
     <div class="appearance">

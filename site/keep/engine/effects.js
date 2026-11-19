@@ -5,9 +5,10 @@
 import { roll, testStat, logEvent } from './dice.js';
 import { draw, toBottom, reshuffle, cardDef } from './decks.js';
 import { damageHero, healHero, statOf, setCondition, clearCondition, returnTreasury, isActive } from './heroes.js';
-import { enterTile, rotateTile, moveChoices, beginCarryOver } from './movement.js';
+import { enterTile, rotateTile, moveChoices, beginCarryOver, allowContinue } from './movement.js';
 import { startEncounter, woundMonster, applyReaction } from './monsters.js';
 import { continueWake } from './treasury.js';
+import { itemLog, groupOf } from './inventory.js';
 import { endTurn } from './clock.js';
 import { neighbour } from './board.js';
 
@@ -54,7 +55,7 @@ const OPS = {
   CHECK_STAT(g, c, e) {
     const hero = active(g);
     const mod = evalExpr(g, c, e.modifier ?? 0, hero);
-    const { pass } = testStat(g, e.stat, statOf(c, hero, e.stat), 'card test', mod);
+    const { pass } = testStat(g, e.stat, statOf(c, hero, e.stat), 'card test', [{ source: 'card', value: mod }]);
     g.stack.push({ effects: (pass ? e.onPass : e.onFail) || [], i: 0 });
   },
   DEAL_DAMAGE(g, c, e) {
@@ -66,7 +67,10 @@ const OPS = {
   DRAW_CARD(g, c, e) {
     if (e.then === 'keep') {
       const inst = draw(g, e.deck, 'card draw (keep)', e.deck === 'TREASURY' ? g.activeSeat : null);
-      if (inst) active(g)[e.deck === 'TREASURY' ? 'treasury' : 'held'].push(inst);
+      if (inst) {
+        active(g)[e.deck === 'TREASURY' ? 'treasury' : 'held'].push(inst);
+        itemLog(g, g.activeSeat, 'obtain', inst, e.deck === 'TREASURY' ? 'chamber' : groupOf(cardDef(c, inst)));
+      }
     } else drawAndResolve(g, c, e.deck, 'card branch');
   },
   RETAIN_CARD(g, c, e, f) { retain(g, owner(g, f), e.into); },
@@ -79,7 +83,7 @@ const OPS = {
     const o = owner(g, f);
     if (!e.deck || e.deck === o.deck) o.reshuffle = true; else reshuffle(g, e.deck);
   },
-  REMOVE_TREASURY_CARDS: g => returnTreasury(g, g.activeSeat),
+  REMOVE_TREASURY_CARDS: g => returnTreasury(g, g.activeSeat, undefined, 'card'),
   MOVE_HERO(g, c, e) {
     const opts = { drawRoom: e.drawRoom !== false, applyTile: e.applyTile !== false, via: 'card' };
     const hero = active(g);
@@ -101,9 +105,9 @@ const OPS = {
   MONSTER_ENCOUNTER: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush }),
   REQUEST_COMBAT: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush }),
   // D11 (provisional): a secret passage may cross a printed wall; it lasts for this turn's move only.
-  OPEN_TEMPORARY_PASSAGE(g, c, e) { g.turn.secret = e.side; g.turn.mayContinue = true; logEvent(g, { kind: 'secret-passage', side: e.side }); },
+  OPEN_TEMPORARY_PASSAGE(g, c, e, f) { g.turn.secret = e.side; logEvent(g, { kind: 'secret-passage', side: e.side }); allowContinue(g, 'secret-passage', { card: owner(g, f).card }); },
   ROTATE_TILE: (g, c, e) => rotateTile(g, active(g).coord),
-  CONTINUE_MOVEMENT: g => { g.turn.mayContinue = true; },
+  CONTINUE_MOVEMENT: (g, c, e, f) => allowContinue(g, 'card', { card: owner(g, f).card ?? null }),
   // Internal (not allowed in content): apply the announced monster reaction.
   _REACT: (g, c) => applyReaction(g, c),
 };
@@ -118,6 +122,7 @@ function retain(g, f, into) {
   f.kept = true;
   active(g)[into === 'treasury' ? 'treasury' : 'held'].push(f.card);
   logEvent(g, { kind: 'retain', value: f.card, into, ...(into === 'treasury' ? { private: g.activeSeat } : {}) });
+  itemLog(g, g.activeSeat, 'obtain', f.card, into === 'treasury' ? 'chamber' : groupOf(f));
 }
 
 function dirTo(from, to) {
@@ -138,7 +143,7 @@ function finishFrame(g, content, f, aborted) {
     if (!aborted && (d === 'RESHUFFLE_DECK' || f.reshuffle)) reshuffle(g, f.deck);
   } else if (f.card && f.reshuffle && !aborted) reshuffle(g, f.deck);
   if (aborted) return;
-  if (f.card && f.turnDisposition === 'continue') g.turn.mayContinue = true;
+  if (f.card && f.turnDisposition === 'continue') allowContinue(g, 'card', { card: f.card });
   if (f.door) return doorOutcome(g, content, f);
   // RB 7.3, SP 6: a branch draws from the named sub-deck; a monster branch is an encounter.
   if (f.followUp === 'MONSTER') startEncounter(g, content, { ambush: false });
@@ -156,7 +161,7 @@ function doorOutcome(g, content, f) {
   } else if (f.kind === 'closed') {
     g.turn.triedDoors.push(edge);
     if (noDetour) g.turn.endAfter = true; // dark-room exit or a return move: D07, stay and retry
-    else g.turn.mayContinue = true;
+    else allowContinue(g, 'door-stayed-closed', { edge });
   } else g.turn.endAfter = true;
 }
 

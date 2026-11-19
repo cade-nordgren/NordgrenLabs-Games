@@ -32,6 +32,18 @@ export function tileWords(def) {
   return parts.join(', ') || 'passage';
 }
 export const place = c => `row ${c.y + 1}, column ${c.x + 1}`;
+const xy = k => { const [x, y] = k.split(',').map(Number); return { x, y }; };
+
+// The square a legal action lights on the map, or null for an action that is not a square. A MOVE leaves from
+// its `from` cell (a chamber half, D39) or the hero's own square; FORCED_MOVE names its square; a card's
+// adjacent-choice CHOOSE is a side of the hero's square. g: the game (or a view of it).
+export function actionSquare(g, a) {
+  const hero = g.heroes[a.seat];
+  if (a.type === 'MOVE') return neighbour(a.from ? xy(a.from) : hero.coord, a.dir);
+  if (a.type === 'FORCED_MOVE') return xy(a.to);
+  if (a.type === 'CHOOSE' && g.pending?.kind === 'move-choice') return neighbour(hero.coord, g.pending.options[a.option]);
+  return null;
+}
 // Towers sit in the corners of whatever rectangle the BoardDefinition gives.
 export const towerAt = c => `${c.y === 0 ? 'north' : 'south'}-${c.x === 0 ? 'west' : 'east'} tower`;
 const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -79,6 +91,12 @@ export function topology(sides) {
 export function cellLabel(v, content, c, names, extra) {
   const info = cellInfo(v, content, c, names);
   return [info.title, info.what, topology(info.sides), info.occupants.length ? list(info.occupants) : 'empty', extra].filter(Boolean).join(', ');
+}
+
+// The chamber's one label: "Treasure chamber, row 6, columns 5 to 6", then who is in it.
+function chamberLabel(v, content, ch, names) {
+  const who = ch.cells.flatMap(t => cellInfo(v, content, t, names).occupants);
+  return [`Treasure chamber, ${ch.where}`, v.board.chamberPlaced ? '' : 'not yet entered', who.length ? list(who) : 'empty'].filter(Boolean).join(', ');
 }
 
 // ---- Glyphs
@@ -149,24 +167,80 @@ let ro = null;
 let zoomKey = null; // the active hero and square the map last auto-zoomed for
 export function resetView() { vp = null; focusKey = null; zoomKey = null; }
 
-// Auto-zoom: is the 3x3 around c (clipped to the board) fully on screen at MIN_CELL px a square or more?
-// view: { s, x, y } as in vp; size: [vw, vh] in px; bd: the BoardDefinition.
+// ---- Viewport geometry, pure (tests/keep/viewport.test.js). view: { s, x, y } as in vp; size: [vw, vh] in px.
+// room: { size, inset, avoid: [{ x, y, w, h }] (the floating map buttons, in viewport px), pad, board: [W, H], lo, hi }.
 export const MIN_CELL = 48;
-export function nearInView(view, c, [vw, vh], bd) {
-  if (C * view.s < MIN_CELL - 0.01) return false;
-  const px = x => view.x + (M + x * C) * view.s, py = y => view.y + (M + y * C) * view.s;
-  const x0 = Math.max(0, c.x - 1), x1 = Math.min(bd.width, c.x + 2), y0 = Math.max(0, c.y - 1), y1 = Math.min(bd.height, c.y + 2);
-  return px(x0) >= -0.5 && py(y0) >= -0.5 && px(x1) <= vw + 0.5 && py(y1) <= vh + 0.5;
+export const INSET = 8; // px at the viewport edge that count as not visible: a square there is hard to tap
+const cellRect = (view, c) => ({ x: view.x + (M + c.x * C) * view.s, y: view.y + (M + c.y * C) * view.s, w: C * view.s, h: C * view.s });
+const hits = (r, a) => r.x < a.x + a.w - 0.5 && a.x < r.x + r.w - 0.5 && r.y < a.y + a.h - 0.5 && a.y < r.y + r.h - 0.5;
+// A square is clear when it is wholly inside the inset viewport and under no floating button.
+export function cellClear(view, c, { size: [vw, vh], inset = 0, avoid = [] }) {
+  const r = cellRect(view, c);
+  return r.x >= inset - 0.5 && r.y >= inset - 0.5 && r.x + r.w <= vw - inset + 0.5 && r.y + r.h <= vh - inset + 0.5 && !avoid.some(a => hits(r, a));
 }
 
-// opts: { v, content, names[seat], targets: [{ x, y, label, pick }], home: {x, y} | null (the active hero),
+// Auto-zoom: is the 3x3 around c (clipped to the board) fully on screen at MIN_CELL px a square or more, and is
+// every square in opts.cells (the lit moves) clear? c may carry w and h (the chamber room): then the room and
+// the ring around it. opts: { inset, avoid, cells } as in room.
+export function nearInView(view, c, [vw, vh], bd, opts = {}) {
+  if (C * view.s < MIN_CELL - 0.01) return false;
+  const i = opts.inset || 0;
+  const px = x => view.x + (M + x * C) * view.s, py = y => view.y + (M + y * C) * view.s;
+  const x0 = Math.max(0, c.x - 1), x1 = Math.min(bd.width, c.x + (c.w || 1) + 1), y0 = Math.max(0, c.y - 1), y1 = Math.min(bd.height, c.y + (c.h || 1) + 1);
+  return px(x0) >= i - 0.5 && py(y0) >= i - 0.5 && px(x1) <= vw - i + 0.5 && py(y1) <= vh - i + 0.5
+    && (opts.cells || []).every(t => cellClear(view, t, { ...opts, size: [vw, vh] }));
+}
+
+// Pan limits. Without pad a board smaller than the viewport is centred and a larger one stops at its edges; pad
+// lets it go that many px past them, so an edge or corner square can be brought out from under a button.
+export function clampView(view, { size: [vw, vh], board: [W, H], pad = 0 }) {
+  const axis = (p, b, v) => (!pad && b <= v ? (v - b) / 2 : Math.min(Math.max(0, v - b) + pad, Math.max(Math.min(0, v - b) - pad, p)));
+  return { ...view, x: axis(view.x, W * view.s, vw), y: axis(view.y, H * view.s, vh) };
+}
+
+// Where to look so that c and every square in cells are clear: centred in the whole viewport, then in the space
+// left of and below each floating button, at scale s0 and then a step (1.25x) smaller each time down to room.lo,
+// where it falls back to centring on them.
+export function frameView(s0, c, cells, room) {
+  const [vw, vh] = room.size, want = [c, ...cells];
+  const mx = (Math.min(...want.map(t => t.x)) + Math.max(...want.map(t => t.x)) + 1) / 2;
+  const my = (Math.min(...want.map(t => t.y)) + Math.max(...want.map(t => t.y)) + 1) / 2;
+  const areas = [[0, 0, vw, vh], ...(room.avoid || []).flatMap(a => [[0, 0, a.x, vh], [0, a.y + a.h, vw, vh]])];
+  for (let s = Math.min(room.hi, Math.max(room.lo, s0)); ; s = Math.max(room.lo, s / 1.25)) {
+    for (const [x0, y0, x1, y1] of areas) {
+      const v = clampView({ s, x: (x0 + x1) / 2 - (M + mx * C) * s, y: (y0 + y1) / 2 - (M + my * C) * s }, room);
+      if (want.every(t => cellClear(v, t, room))) return v;
+    }
+    if (s <= room.lo) return clampView({ s, x: vw / 2 - (M + mx * C) * s, y: vh / 2 - (M + my * C) * s }, room);
+  }
+}
+
+// The treasure chamber: one cell, or two adjacent cells that are one room. Drawn as one tile at the first (top
+// left) cell, which is also its one tap and keyboard target; the other cell's key maps to it. chamber: the view's
+// `chamber` ({ cells, bounds, seats }, D39) when given, else the BoardDefinition's center cells.
+export function chamberRoom(bd, chamber = null) {
+  const cs = chamber?.cells || bd.center || [];
+  const xs = cs.map(t => t.x), ys = cs.map(t => t.y);
+  const b = chamber?.bounds || { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs) + 1, height: Math.max(...ys) - Math.min(...ys) + 1 };
+  const x0 = b.x, y0 = b.y, x1 = b.x + b.width - 1, y1 = b.y + b.height - 1;
+  const room = key({ x: x0, y: y0 }), keys = new Set(cs.map(key));
+  const span = (a, b, w) => (a === b ? `${w} ${a + 1}` : `${w}s ${a + 1} to ${b + 1}`);
+  return { x0, y0, w: (x1 - x0 + 1) * C, h: (y1 - y0 + 1) * C, cols: x1 - x0 + 1, rows: y1 - y0 + 1, cells: cs, room,
+    canon: k => (keys.has(k) ? room : k), where: `${span(y0, y1, 'row')}, ${span(x0, x1, 'column')}` };
+}
+
+// opts: { v, content, names[seat], targets: [{ x, y, label, pick }], home: {x, y} | null (the hero to centre on),
+//   homeSeat (whose hero that is, default the active one),
 //   onInspect(c), onNear(c) for a single tap on an unlit square (defaults to onInspect), tilesLeft,
 //   onFocusTarget(target | undefined) when a square takes keyboard focus }
 export function mountBoard(host, opts) {
   const { v, content, names, targets = [], home = null, onInspect } = opts;
   const bd = content.board;
   const W = bd.width * C + 2 * M, H = bd.height * C + 2 * M;
-  const tmap = new Map(targets.map(t => [key(t), t]));
+  const ch = chamberRoom(bd, v.chamber), canon = ch.canon;
+  // D39: the view lists who is in the chamber; they are drawn inside it whichever half their coord names.
+  const inRoom = new Set(v.chamber?.seats || []);
+  const tmap = new Map(targets.map(t => [canon(key(t)), t]));
 
   const wrap = document.createElement('div');
   wrap.className = 'map';
@@ -190,6 +264,11 @@ export function mountBoard(host, opts) {
   pat('fog', 'fog-bg', 'fog-line');
   pat('off', 'off-bg', 'off-line');
   svg('rect', { x: -M, y: -M, width: W, height: H, class: 'offboard' }, root);
+  // The dusk vignette (its strength follows the sun, index.html): under the squares, so only the margin and gaps darken.
+  const vg = svg('radialGradient', { id: 'vignette', r: '71%' }, defs);
+  svg('stop', { offset: '60%', class: 'dusk-in' }, vg);
+  svg('stop', { offset: '100%', class: 'dusk-out' }, vg);
+  svg('rect', { x: -M, y: -M, width: W, height: H, class: 'dusk' }, root);
 
   const ix = contentIndex(content);
   const heroes = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED));
@@ -198,15 +277,23 @@ export function mountBoard(host, opts) {
     for (let x = 0; x < bd.width; x++) {
       const c = { x, y };
       const kind = squareKind(bd, c);
+      if (kind === 'center' && key(c) !== ch.room) continue; // part of the chamber, drawn with its first cell
       const t = tmap.get(key(c));
+      const [w, h] = kind === 'center' ? [ch.w, ch.h] : [C, C];
       const g = svg('g', { transform: `translate(${x * C} ${y * C})`, class: `cell sq-${kind}`, role: 'gridcell', tabindex: -1, 'data-cell': key(c) }, row);
+      if (ch.cols > 1 && kind === 'center') g.setAttribute('aria-colspan', ch.cols);
+      if (ch.rows > 1 && kind === 'center') g.setAttribute('aria-rowspan', ch.rows);
       const inst = v.board.tiles[key(c)];
       const revealed = kind !== 'maze' || inst;
       if (kind === 'tower') {
         svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 10, class: 'tower' }, g);
         towerGlyph(g);
       } else if (kind === 'center') {
-        svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 4, class: v.board.chamberPlaced ? 'chamber' : 'reserved' }, g);
+        // One outline around the whole room, no line between its squares, one label or chest a little above the middle.
+        svg('rect', { x: 2, y: 2, width: w - 4, height: h - 4, rx: 4, class: v.board.chamberPlaced ? 'chamber' : 'reserved' }, g);
+        const lx = w / 2, ly = ch.cells.length > 1 && w >= h ? 36 : h / 2;
+        if (v.board.chamberPlaced) chestGlyph(g, lx, ly);
+        else svg('text', { x: lx, y: ly + 7, class: 'reserved-label', 'text-anchor': 'middle' }, g).textContent = 'Chamber';
       } else if (inst) {
         const def = ix.tiles.get(inst.defId);
         svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 4, class: 'floor' }, g);
@@ -216,23 +303,32 @@ export function mountBoard(host, opts) {
       } else {
         svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 4, class: 'fog' }, g);
       }
-      for (const side of SIDES) {
-        const own = sideAt(v, content, c, side);
-        if (revealed && (own === 'wall' || own === 'door' || own === 'gate')) sideGlyph(g, own, EDGE[side]);
-        // Open (or unknown) here but shut from the other side, by their wall or a printed wall: a dashed bar inside.
-        const word = sideWord(v, content, c, side);
-        if (word === 'wall on their side' || word === 'printed wall') blockedGlyph(g, side);
+      for (const sq of kind === 'center' ? ch.cells : [c]) {
+        const sg = sq === c ? g : svg('g', { transform: `translate(${(sq.x - x) * C} ${(sq.y - y) * C})` }, g);
+        for (const side of SIDES) {
+          if (kind === 'center' && canon(key(neighbour(sq, side))) === ch.room) continue; // inside the room
+          const own = sideAt(v, content, sq, side);
+          if (revealed && (own === 'wall' || own === 'door' || own === 'gate')) sideGlyph(sg, own, EDGE[side]);
+          // Open (or unknown) here but shut from the other side, by their wall or a printed wall: a dashed bar inside.
+          const word = sideWord(v, content, sq, side);
+          if (word === 'wall on their side' || word === 'printed wall') blockedGlyph(sg, side);
+        }
       }
-      const here = heroes.filter(h => h.coord.x === x && h.coord.y === y);
+      const here = kind === 'center' && v.chamber ? heroes.filter(h => inRoom.has(h.seat)) : heroes.filter(h => !inRoom.has(h.seat) && canon(key(h.coord)) === key(c));
+      // In a two-square chamber the tokens line up across the room under its label; elsewhere off centre, so the
+      // room mark still shows.
+      const long = w >= h, along = (i, n) => (long ? w : h) / 2 + (i - (n - 1) / 2) * 42;
       here.forEach((h, i) => {
-        const off = here.length === 1 ? [72, 72] : [[30, 30], [70, 30], [30, 70], [70, 70]][i % 4];
+        const off = kind === 'center' && ch.cells.length > 1 ? (long ? [along(i, here.length), 72] : [72, along(i, here.length)])
+          : here.length === 1 ? [72, 72] : [[30, 30], [70, 30], [30, 70], [70, 70]][i % 4];
         const tg = svg('g', { class: `token seat-${h.seat}${h.status === ESCAPED ? ' escaped' : ''}${h.seat === v.activeSeat ? ' active' : ''}`, transform: `translate(${off[0]} ${off[1]})`, 'aria-hidden': 'true' }, g);
         svg('circle', { r: here.length === 1 ? 19 : 16, class: 'token-disc' }, tg); // off centre, so the room mark still shows
         svg('text', { y: 7, 'text-anchor': 'middle', class: 'token-num' }, tg).textContent = h.seat + 1;
       });
-      if (t) svg('rect', { x: 5, y: 5, width: C - 10, height: C - 10, rx: 9, class: 'target' }, g);
-      svg('rect', { x: 3, y: 3, width: C - 6, height: C - 6, rx: 10, class: 'focusring' }, g);
-      g.setAttribute('aria-label', t ? `${t.label}. ${cellLabel(v, content, c, names)}` : cellLabel(v, content, c, names)); // the move first
+      if (t) svg('rect', { x: 5, y: 5, width: w - 10, height: h - 10, rx: 9, class: 'target' }, g);
+      svg('rect', { x: 3, y: 3, width: w - 6, height: h - 6, rx: 10, class: 'focusring' }, g);
+      const label = kind === 'center' ? chamberLabel(v, content, ch, names) : cellLabel(v, content, c, names);
+      g.setAttribute('aria-label', t ? `${t.label}. ${label}` : label); // the move first
     }
   }
 
@@ -250,10 +346,6 @@ export function mountBoard(host, opts) {
     const [at, side] = e.split('|');
     sideGlyph(over, 'gate', shared(at, side), 'fallen');
   }
-  const [a, b] = bd.center;
-  const mid = { x: ((a.x + b.x) / 2 + 0.5) * C, y: ((a.y + b.y) / 2 + 0.5) * C };
-  if (v.board.chamberPlaced) chestGlyph(over, mid.x, mid.y);
-  else svg('text', { x: mid.x, y: mid.y + 8, class: 'reserved-label', 'text-anchor': 'middle' }, over).textContent = 'Chamber';
   svg('rect', { x: 0, y: 0, width: bd.width * C, height: bd.height * C, class: 'board-edge' }, over);
 
   // ---- Viewport maths: board units to screen pixels, translate then scale.
@@ -261,16 +353,22 @@ export function mountBoard(host, opts) {
   const fitScale = () => { const [vw, vh] = size(); return Math.min(vw / W, vh / H) || 0.3; };
   const limits = () => { const f = fitScale(); return [f, Math.max(f * 1.01, 1.4)]; };
   const apply = () => { root.style.transform = `translate(${vp.x}px, ${vp.y}px) scale(${vp.s})`; };
-  const clamp = () => {
+  // The viewport as frameView sees it, measured now: the map buttons count only where they float over the map.
+  const room = () => {
     const [vw, vh] = size(), [lo, hi] = limits();
+    const vr = view.getBoundingClientRect(), tr = tools.getBoundingClientRect();
+    const a = { x: tr.left - vr.left - INSET, y: tr.top - vr.top - INSET, w: tr.width + 2 * INSET, h: tr.height + 2 * INSET };
+    const avoid = tr.width && hits(a, { x: 0, y: 0, w: vw, h: vh }) ? [a] : [];
+    return { size: [vw, vh], inset: INSET, avoid, pad: avoid.length ? a.w + INSET : 0, board: [W, H], lo, hi };
+  };
+  const clamp = () => {
+    const [lo, hi] = limits();
     vp.s = Math.min(hi, Math.max(lo, vp.s));
-    const bw = W * vp.s, bh = H * vp.s;
-    vp.x = bw <= vw ? (vw - bw) / 2 : Math.min(0, Math.max(vw - bw, vp.x));
-    vp.y = bh <= vh ? (vh - bh) / 2 : Math.min(0, Math.max(vh - bh, vp.y));
+    Object.assign(vp, clampView(vp, room()));
     apply();
   };
   const glide = on => root.classList.toggle('glide', on); // a CSS transition; style.css turns it off under reduced motion
-  const fit = () => { vp = { s: fitScale(), x: 0, y: 0, fit: true }; clamp(); };
+  const fit = () => { const [vw, vh] = size(), s = fitScale(); vp = { s, x: (vw - W * s) / 2, y: (vh - H * s) / 2, fit: true }; clamp(); };
   const zoomAt = (f, px, py) => {
     const s0 = vp.s, [lo, hi] = limits();
     const s = Math.min(hi, Math.max(lo, s0 * f));
@@ -288,6 +386,12 @@ export function mountBoard(host, opts) {
     vp.fit = false;
     clamp();
   };
+  // A hero in the chamber is framed with the whole room and the squares around it (D39), else their own square.
+  const homeInRoom = !!home && canon(key(home)) === ch.room;
+  const homeBox = homeInRoom ? { x: ch.x0, y: ch.y0, w: ch.cols, h: ch.rows } : home;
+  const homeRing = homeInRoom ? [...ch.cells, ...ch.cells.flatMap(t => SIDES.map(s => neighbour(t, s))).filter(n => squareKind(bd, n) !== 'off' && canon(key(n)) !== ch.room)] : [];
+  // The hero and every lit square clear of the edges and the buttons, zoomed to at least minScale where that fits.
+  const frame = (minScale = 0) => { Object.assign(vp, frameView(Math.max(vp.s, minScale), home, [...homeRing, ...targets], room()), { fit: false }); apply(); };
   // Keep a square in view when keyboard focus moves off the visible part.
   const reveal = c => {
     const [vw, vh] = size();
@@ -296,14 +400,17 @@ export function mountBoard(host, opts) {
   };
   if (vp) apply();
   // When the active hero (or their square) changes, zoom in on them unless their neighbourhood is already
-  // readable. Once per change, after layout (the ResizeObserver), and dropped if the user starts a gesture.
-  const zk = home && `${v.activeSeat} ${key(home)}`;
-  let wantZoom = !!zk && zk !== zoomKey;
+  // readable; on every render, reframe if a lit square is clipped or under a map button. After layout (the
+  // ResizeObserver), and dropped if the user starts a gesture.
+  const zk = home && `${opts.homeSeat ?? v.activeSeat} ${key(home)}`;
+  let wantZoom = !!zk && zk !== zoomKey, wantClear = !!home && targets.length > 0;
   zoomKey = zk;
   const autoZoom = () => {
-    if (!wantZoom || !vp) return;
-    wantZoom = false;
-    if (!nearInView(vp, home, size(), bd)) { glide(true); centreOn(home, MIN_CELL / C); }
+    if (!vp || !(wantZoom || wantClear)) return;
+    const r = room();
+    const ok = wantZoom ? nearInView(vp, homeBox, r.size, bd, { ...r, cells: targets }) : targets.every(t => cellClear(vp, t, r));
+    if (!ok) { glide(true); frame(wantZoom ? MIN_CELL / C : 0); }
+    wantZoom = wantClear = false;
   };
   ro?.disconnect();
   ro = new ResizeObserver(() => { if (!view.clientWidth) return; if (!vp || vp.fit) fit(); else clamp(); autoZoom(); });
@@ -327,7 +434,7 @@ export function mountBoard(host, opts) {
   tool('−', 'Zoom out', () => zoomAt(1 / 1.4, ...middle()));
   tool('+', 'Zoom in', () => zoomAt(1.4, ...middle()));
   tool('Fit board', `Fit board: all ${bd.width * bd.height} squares`, fit, 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5');
-  if (home) tool('Centre on hero', 'Centre on the active hero', () => centreOn(home, fitScale() * 2), 'M12 2v4M12 18v4M2 12h4M18 12h4M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0');
+  if (home) tool('Centre on hero', 'Centre on the hero', () => frame(fitScale() * 2),'M12 2v4M12 18v4M2 12h4M18 12h4M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0');
   if (opts.tilesLeft !== undefined) {
     const s = document.createElement('span');
     s.className = 'tiles';
@@ -338,8 +445,9 @@ export function mountBoard(host, opts) {
   // ---- Focus: one roving tab stop in the grid.
   const cellAt = k => root.querySelector(`[data-cell="${k}"]`);
   const parse = k => { const [x, y] = k.split(',').map(Number); return { x, y }; };
-  if ((home && key(home)) !== lastHome) { focusKey = null; lastHome = home && key(home); } // focus follows a new turn or move
-  const start = (focusKey && cellAt(focusKey) && focusKey) || (home && key(home)) || (targets[0] && key(targets[0])) || '0,0';
+  const homeKey = home && canon(key(home));
+  if (homeKey !== lastHome) { focusKey = null; lastHome = homeKey; } // focus follows a new turn or move
+  const start = (focusKey && cellAt(focusKey) && focusKey) || homeKey || (targets[0] && canon(key(targets[0]))) || '0,0';
   cellAt(start).setAttribute('tabindex', 0);
   const setFocus = (k, move = true) => {
     for (const e of root.querySelectorAll('[data-cell][tabindex="0"]')) e.setAttribute('tabindex', -1);
@@ -361,7 +469,7 @@ export function mountBoard(host, opts) {
     setFocus(k, false);
     if (second) return onInspect(parse(k));
     if (t) { focusKey = null; return t.pick(); }
-    if (how === 'tap' && home && key(home) === k) { if (vp) { glide(true); centreOn(home, fitScale() * 2); } return; }
+    if (how === 'tap' && homeKey === k) { if (vp) { glide(true); frame(fitScale() * 2); } return; }
     (how === 'tap' && opts.onNear ? opts.onNear : onInspect)(parse(k));
   };
 
@@ -371,7 +479,7 @@ export function mountBoard(host, opts) {
   view.addEventListener('pointerdown', e => {
     if (e.pointerType === 'mouse') { if (e.button !== 0) return; pts.clear(); }
     pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
-    wantZoom = false; // the user has the map now: never zoom under their fingers
+    wantZoom = wantClear = false; // the user has the map now: never zoom under their fingers
     glide(false);
     clearTimeout(press);
     if (pts.size === 1) {
@@ -430,8 +538,10 @@ export function mountBoard(host, opts) {
     const c = parse(cell.dataset.cell);
     if (STEP[e.key]) {
       e.preventDefault();
-      const n = { x: c.x + STEP[e.key][0], y: c.y + STEP[e.key][1] };
-      if (squareKind(bd, n) !== 'off') setFocus(key(n));
+      const [dx, dy] = STEP[e.key];
+      let n = { x: c.x + dx, y: c.y + dy };
+      while (canon(key(n)) === cell.dataset.cell) n = { x: n.x + dx, y: n.y + dy }; // across the chamber's other square
+      if (squareKind(bd, n) !== 'off') setFocus(canon(key(n)));
     } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       activate(cell.dataset.cell, 'key');

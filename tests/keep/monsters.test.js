@@ -18,7 +18,8 @@ function meet(monsterId, { players = 2, room = 'FX_ROOM_MONSTER', script = [], h
   prep(g);
   return act(g, 'MOVE', { dir: 'S' });
 }
-const respond = (g, choice) => act(act(g, 'RESPOND', { choice }), 'ANNOUNCE');
+// Multiplayer: the controller announces; solo: the computer announces at once (D37).
+const respond = (g, choice) => (g.seats.length === 1 ? act(g, 'RESPOND', { choice }) : act(act(g, 'RESPOND', { choice }), 'ANNOUNCE'));
 const pick = (g, hero, monster) => act(act(g, 'COMBAT_PICK', { side: 'monster', letter: monster }), 'COMBAT_PICK', { side: 'hero', letter: hero });
 
 test('T19 the hero commits before anything about the monster exists; the right-hand seat controls it (RB 8.1, SP 7, SP 12 #19, D12)', () => {
@@ -183,14 +184,19 @@ test('T23 ambush: D12 - Luck damage first, then Attack or Flee only (RB 8.7, SP 
   assert.equal(killed.encounter, null);
 });
 
-test('T28 solo: commit before the reveal, monster HP visible, manual target entry is the combat (RB 10, SP 9, SP 12 #28, D17)', () => {
+test('T28 solo: commit before the reveal; the computer plays the monster, card and HP hidden (D37); manual target entry is the combat (RB 10, SP 9, SP 12 #28, D17)', () => {
   let g = meet('FX_MON_BRUTE', { players: 1 });
   assert.equal(g.encounter.monster, null);
-  assert.equal(g.encounter.controller, 0, 'the hero reveals the card');
+  assert.equal(g.encounter.priv, 'computer', 'spec v3: the computer is the monster player in solo');
   g = act(g, 'RESPOND', { choice: 'attack' });
-  assert.equal(view(g, FX, 0).encounter.monster.hp, 4, 'no hidden HP in solo');
-  g = act(g, 'ANNOUNCE');
+  assert.equal(g.phase, 'COMBAT_SELECT', 'announced at once, no hand-off');
+  const v = view(g, FX, 0);
+  assert.deepEqual(v.encounter.monster, { groupId: 'FX_S09' }, 'no HP, card or damage tally for the hero, solo included');
+  assert.equal(v.encounter.reaction.type, 'combat', 'the announced reaction is public');
+  assert.ok(!JSON.stringify(v).includes('FX_MON_'), 'no monster card id anywhere in the hero view');
+  assert.equal(view(g, FX, 0, { debug: true }).encounter.monster.hp, 4, 'debug shows it');
   assert.equal(g.encounter.combat.mode, 'target');
+  assert.match(g.encounter.combat.label, /Dice-target combat \(2023 alternative mode/, 'a separate labelled mode');
   assert.ok(acts(g).every(a => a.type === 'TARGET_RESULT'));
   assert.equal(acts(g).length, 18, 'six placements x three faces, no random throw button');
 });

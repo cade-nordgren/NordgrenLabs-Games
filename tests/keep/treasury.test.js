@@ -8,11 +8,10 @@ import { FX, setup, acts, act, types, place, putHero, draws, assertCensus, EMPTY
 const SLEEPING7 = Array(7).fill('FX_DRAGON_SLEEPING');
 const odds = g => g.log.filter(e => e.kind === 'dragon-odds').map(e => `${e.awake}/${e.remaining}`);
 
-// Heroes standing north of the chamber squares (4,5) and (5,5); seat 0 at (4,4).
+// Heroes standing north of the chamber over (4,5) and (5,5) (D39); seat 0 at (4,4).
 function nearChamber({ players = 1, dragon = SLEEPING7, script = [], rules = {}, treasury, tiles = {} } = {}) {
   const g = setup({ players, towers: [0, 1, 2, 3], script, rules, deckOrders: { ROOM: EMPTY_ROOMS, DRAGON: [dragon], ...(treasury ? { TREASURY: treasury } : {}) } });
   place(g, '4,4', 'FX_CROSS');
-  place(g, '5,4', 'FX_TEE', 180); // open N, S, W: S faces the chamber square b, whose N side is a wall
   for (const [at, id] of Object.entries(tiles)) place(g, at, id);
   putHero(g, 0, '4,4');
   return g;
@@ -59,7 +58,7 @@ test('T24 dragon deck: 7 sleeping, 1 awake, no replacement, odds 1/8 down to 1/1
 
 test('T24 one dragon deck shared by every hero in the chamber (RB 9.1, SP 8)', () => {
   let g = nearChamber({ players: 2 });
-  putHero(g, 1, '5,5');
+  putHero(g, 1, '4,5');
   g.board.chamberPlaced = true;
   g = act(g, 'MOVE', { dir: 'S' }); // seat 0 enters: 1/8
   g = act(g, 'COLLECT');            // seat 1 stays: 1/7
@@ -71,13 +70,13 @@ test('T24 one dragon deck shared by every hero in the chamber (RB 9.1, SP 8)', (
 
 test('T24b the dragon deck resets when the chamber empties, also after voluntary exits (D22)', () => {
   let g = nearChamber({ players: 2 });
-  putHero(g, 1, '5,5');
+  putHero(g, 1, '4,5');
   g.board.chamberPlaced = true;
   g = act(g, 'MOVE', { dir: 'S' }); // seat 0 in: 7 left
   g = act(g, 'COLLECT');            // seat 1: 6 left
   g = act(g, 'MOVE', { dir: 'N' }); // seat 0 leaves; seat 1 still inside
   assert.equal(g.dragon.remaining.length, 6, 'no reset while someone is inside');
-  g = act(g, 'MOVE', { dir: 'E' }); // seat 1 leaves into (6,5): unexplored, a tile is revealed
+  g = act(g, 'MOVE', { dir: 'E' }); // seat 1 leaves into (5,5): unexplored, a tile is revealed
   assert.equal(g.dragon.remaining.length, 8);
   assert.equal(g.dragon.resets, 1);
   assert.deepEqual(g.dragon.aside, []);
@@ -85,7 +84,7 @@ test('T24b the dragon deck resets when the chamber empties, also after voluntary
 
 test('T26 the wake: waker first then clockwise; treasure-chamber cards to the bottom; full D12; forced move to a revealed adjacent tile, no room card; then reset (RB 9.2, SP 8, SP 12 #26, D19)', () => {
   // Seat 0 is already in the chamber; seat 1 (hunter, 10 HP) walks in and draws the awake card.
-  let g = nearChamber({ players: 2, dragon: ['FX_DRAGON_SLEEPING', 'FX_DRAGON_AWAKE'], script: [5, 7], tiles: { '5,6': 'FX_CROSS' } });
+  let g = nearChamber({ players: 2, dragon: ['FX_DRAGON_SLEEPING', 'FX_DRAGON_AWAKE'], script: [5, 7], tiles: { '4,6': 'FX_CROSS', '6,5': 'FX_CROSS' } });
   putHero(g, 0, '4,5');
   putHero(g, 1, '4,4');
   g.board.chamberPlaced = true;
@@ -97,13 +96,13 @@ test('T26 the wake: waker first then clockwise; treasure-chamber cards to the bo
   assert.equal(g.phase, 'FORCED_MOVE');
   assert.deepEqual(g.heroes[1].treasury, [], 'waker lost the chamber cards');
   assert.equal(g.heroes[1].hp, 5, 'straight D12 = 5, no Luck');
-  // (5,4) sits behind the printed wall of chamber square b: D19 needs no open passage. (4,6), (3,5), (6,5) are unexplored.
-  assert.deepEqual(g.pending.targets, ['4,4', '5,4', '5,6'], 'only revealed maze tiles next to the chamber, never unexplored ones');
+  // (3,5), (5,4) and (5,6) are unexplored.
+  assert.deepEqual(g.pending.targets, ['4,4', '4,6', '6,5'], 'only revealed maze tiles next to the chamber, never unexplored ones');
   assert.deepEqual(acts(g).map(a => a.seat), [1, 1, 1], 'outside turn order, the waker moves first');
-  g = act(g, 'FORCED_MOVE', { to: '5,6' });
-  assert.deepEqual(g.heroes[1].coord, { x: 5, y: 6 });
+  g = act(g, 'FORCED_MOVE', { to: '6,5' });
+  assert.deepEqual(g.heroes[1].coord, { x: 6, y: 5 });
   assert.equal(g.heroes[0].hp, 10, 'then seat 0: 17 - 7');
-  assert.deepEqual(g.pending.targets, ['4,4', '5,4'], '(3,3) is occupied now');
+  assert.deepEqual(g.pending.targets, ['4,4', '4,6'], '(6,5) is occupied now');
   g = act(g, 'FORCED_MOVE', { to: '4,4' });
   assert.deepEqual(draws(g, 'ROOM'), [], 'no room card for either forced move');
   assert.deepEqual(g.decks.TREASURY.order.slice(-4), [...seat1Cards, ...seat0Cards], 'waker\'s cards first, then clockwise');

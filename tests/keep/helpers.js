@@ -13,16 +13,16 @@ export function withWalledTowers(indexes) {
 
 export const run = (game, actions, content = FX) => actions.reduce((g, a) => reduce(g, a, content), game);
 
-// Create a game and finish setup. firstRolls are the first-player D12s (scripted);
+// Create a game and finish setup. firstRolls are the first-player D12s (scripted; none in a solo game);
 // heroes and rings take the first legal option; towers[seat] picks each seat's tower.
 // deckOrders: scripted deck tops; by default the room deck starts with its ten empty rooms, so
 // tests that only walk the maze draw harmless room cards.
 export const EMPTY_ROOMS = Array(10).fill('FX_ROOM_EMPTY');
 // heroes[seat]: a hero id to draft for that seat (default: the first one left).
 export function setup({ players = 1, content = FX, firstRolls, towers = [], heroes = [], script = [], tileOrder = null, rules = {}, seed = 7, deckOrders = { ROOM: EMPTY_ROOMS } } = {}) {
-  const rolls = firstRolls || Array.from({ length: players }, (_, i) => 12 - i);
+  const rolls = firstRolls || (players === 1 ? [] : Array.from({ length: players }, (_, i) => 12 - i)); // solo: no roll
   let g = createGame({ players: Array.from({ length: players }, (_, i) => `P${i + 1}`), seed, content, rules, diceScript: [...rolls, ...script], tileOrder, deckOrders });
-  g = reduce(g, { type: 'ROLL_FIRST_PLAYER' }, content);
+  if (players > 1) g = reduce(g, { type: 'ROLL_FIRST_PLAYER' }, content);
   while (g.status === 'setup') {
     const acts = legalActions(g, content);
     const seat = acts[0].seat;
