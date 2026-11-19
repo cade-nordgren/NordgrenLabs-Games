@@ -3,10 +3,10 @@
 import FIXTURES from '../content/fixtures/fixtures.js';
 import ORIGINAL from '../content/original/index.js';
 import { createGame, reduce, restore, DEFAULT_RULES, RULE_TAGS } from '../engine/reducer.js';
-import { legalActions } from '../engine/phases.js';
+import { legalActions, sameAction } from '../engine/phases.js';
 import { view, canUndoTo, screenOwner } from '../engine/view.js';
 import { neighbour, squareKind, exits, key } from '../engine/board.js';
-import { isActive, statOf } from '../engine/heroes.js';
+import { isActive } from '../engine/heroes.js';
 import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
 import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
@@ -116,30 +116,22 @@ function act(a) {
 }
 
 // ---- Dice over the board: a roll card for every test or die roll the player sets off.
-// testInfo is the one adapter from game data to what the card shows before the roll. At HEAD the engine rolls a
-// test inside the action that triggers it, so this reads the action about to be sent and the board; it shows
-// only what that data gives (stat, its value, the treasure-card modifier of a well jump). shortcut: when view()
-// carries a pending test from the engine, read it here first and keep the same return shape.
-function testInfo(v, a) {
-  const g = S.game, c = content(), seat = g.activeSeat, h = v.heroes[seat], who = nameOf(seat);
-  const test = (title, k, why, mods = []) => ({ title, why, stat: k, value: statOf(c, h, k), mods, die: 'D12', cancel: true });
-  if (a.type === 'MOVE') {
-    const ex = exits(g, c, seat).find(e => e.dir === a.dir);
-    if (ex?.edge === 'gate') return test('Lift the portcullis', 'STR', `The portcullis to the ${DIR[a.dir]} is down. ${who} lifts it to go through; a fail ends the turn here.`);
-    const inst = ex && ex.edge !== 'door' && g.board.tiles[key(ex.to)];
-    if (inst && contentIndex(c).tiles.get(inst.defId).special === 'well') return test('Enter the well room', 'AGI', 'An Agility test on entry. A fall is death.');
-    return null;
-  }
-  if (a.type === 'WELL_JUMP') {
-    const n = Array.isArray(h.treasury) ? h.treasury.length : h.treasury; // a count in another seat's view
-    return test('Jump the well', 'AGI', 'A failed jump is death.', n ? [{ label: `Treasure chamber ${n === 1 ? 'card' : 'cards'} held`, n }] : []);
-  }
-  if (a.type === 'RUBBLE_FORCE') return test('Force through the rubble', 'AGI', 'Pass, and you may leave by any way this turn. Fail, and the turn ends here.');
-  if (a.type === 'ROLL_DARK_EXIT') return { title: 'Find the way out', why: 'In the dark the D6 picks the way out.', die: 'D6', cancel: false };
-  return null;
-}
-// Titles for a roll the player did not ask for (a test on a card, a well found on entering a new room).
+// testInfo is the one adapter from game data to what the card shows before the roll. It reads the engine's
+// view.pendingTests (dice.testPreview per legal action that may roll: attribute, hero value, modifiers with
+// their sources, passingRolls) and shows only that; the dark-room D6 is not a test, so it is named here.
 const ROLL_TITLE = { portcullis: 'Lift the portcullis', 'well entry': 'Enter the well room', 'well jump': 'Jump the well', 'force rubble': 'Force through the rubble', 'dark room exit': 'Find the way out' };
+const ROLL_WHY = { portcullis: 'The portcullis is down. A pass lifts it and you go through; a fail ends the turn here.', 'well entry': 'An Agility test on entering the well room. A fall is death.', 'well jump': 'A failed jump is death.', 'force rubble': 'Pass, and you may leave by any way this turn. Fail, and the turn ends here.' };
+function testInfo(v, a) {
+  if (a.type === 'ROLL_DARK_EXIT') return { title: 'Find the way out', why: 'In the dark the D6 picks the way out.', die: 'D6', cancel: false };
+  const tests = (v.pendingTests || []).filter(t => sameAction(t.action, a));
+  if (!tests.length) return null;
+  const [t, ...then] = tests; // a portcullis into a well room: the well test follows a pass
+  return {
+    title: ROLL_TITLE[t.reason] || `${STAT[t.stat]} test`, die: t.die, stat: t.stat, value: t.target, need: t.passingRolls, cancel: true,
+    why: [ROLL_WHY[t.reason], ...then.map(x => `Then ${x.reason === 'well entry' ? 'an Agility test on entering the well room' : `a ${STAT[x.stat]} test`}.`)].filter(Boolean).join(' '),
+    mods: t.modifiers.map(m => ({ label: capital(m.source), n: m.value })),
+  };
+}
 let rollFromCell = false; // the roll card was opened from the map grid, so focus goes back there
 
 // An action with a known roll first opens the card: nothing is sent until Roll, and Back (or Esc, or a tap
@@ -155,13 +147,13 @@ function tryAct(a) {
     const facts = el('dl', 'facts');
     const row = (k, val) => { const r = el('div'); r.append(el('dt', '', k), el('dd', '', val)); facts.append(r); };
     row(`${nameOf(S.game.activeSeat)}'s ${STAT[info.stat]}`, String(info.value));
-    for (const m of info.mods) row(m.label, `+ ${m.n}`);
+    for (const m of info.mods) row(m.label, `${m.n < 0 ? '-' : '+'} ${Math.abs(m.n)}`);
     body.push(facts);
   }
   const dice = el('div');
   rollDice(dice, [{ value: '?' }], { sides: info.die === 'D6' ? 6 : 12, animate: false });
   body.push(dice);
-  const need = info.stat ? info.value - info.mods.reduce((s, m) => s + m.n, 0) : null;
+  const need = info.stat ? info.need : null;
   body.push(el('p', 'need', need === null ? `Roll the ${info.die}` : need >= 12 ? 'Any roll on the D12 passes' : need < 1 ? 'No roll on the D12 can pass' : `Roll ${need} or less on a D12`));
   $('rollBody').replaceChildren(...body);
   const go = el('button', 'btn primary', 'Roll');
@@ -823,7 +815,7 @@ function renderPrompt(v, la, targets) {
         for (const a of by('ROLL_DARK_EXIT')) ch.append(choice('Roll the D6', null, () => tryAct(a), 'primary'));
       } else if (kind === 'well-edge') {
         p = panel('At the edge of the well', `Climb back the way you came, or jump: an Agility test on the D12 plus ${hero.treasury.length} treasure chamber ${hero.treasury.length === 1 ? 'card' : 'cards'} against ${agi}. A failed jump is death. You may drop treasure chamber cards first.`);
-        for (const a of by('WELL_RETURN')) ch.append(choice('Climb back', 'Go back the way you came', () => act(a)));
+        for (const a of by('WELL_RETURN')) ch.append(choice('Climb back', 'Go back the way you came', () => tryAct(a)));
         for (const a of by('WELL_DISCARD')) {
           const i = hero.treasury.indexOf(a.card);
           ch.append(choice(`Drop treasure chamber card ${i + 1}`, viewer === g.activeSeat ? `${cardDef(c, a.card).name}, ${cardDef(c, a.card).gold || 0} gold` : 'Check which with Show my cards', () => act(a)));
@@ -831,7 +823,7 @@ function renderPrompt(v, la, targets) {
         for (const a of by('WELL_JUMP')) ch.append(choice('Jump', `Agility test, D12 + ${hero.treasury.length} against ${agi}`, () => tryAct(a), 'primary'));
       } else {
         p = panel('Stuck in rubble', `Go back the way you came, or force through with an Agility test against ${agi}. Pass, and you may leave by any way this turn.`);
-        for (const a of by('RUBBLE_RETURN')) ch.append(choice('Go back', null, () => act(a)));
+        for (const a of by('RUBBLE_RETURN')) ch.append(choice('Go back', null, () => tryAct(a)));
         for (const a of by('RUBBLE_FORCE')) ch.append(choice('Force through', `Agility test against ${agi}`, () => tryAct(a), 'primary'));
       }
       break;
