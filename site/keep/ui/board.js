@@ -32,6 +32,18 @@ export function tileWords(def) {
   return parts.join(', ') || 'passage';
 }
 export const place = c => `row ${c.y + 1}, column ${c.x + 1}`;
+const xy = k => { const [x, y] = k.split(',').map(Number); return { x, y }; };
+
+// The square a legal action lights on the map, or null for an action that is not a square. A MOVE leaves from
+// its `from` cell (a chamber half, D39) or the hero's own square; FORCED_MOVE names its square; a card's
+// adjacent-choice CHOOSE is a side of the hero's square. g: the game (or a view of it).
+export function actionSquare(g, a) {
+  const hero = g.heroes[a.seat];
+  if (a.type === 'MOVE') return neighbour(a.from ? xy(a.from) : hero.coord, a.dir);
+  if (a.type === 'FORCED_MOVE') return xy(a.to);
+  if (a.type === 'CHOOSE' && g.pending?.kind === 'move-choice') return neighbour(hero.coord, g.pending.options[a.option]);
+  return null;
+}
 // Towers sit in the corners of whatever rectangle the BoardDefinition gives.
 export const towerAt = c => `${c.y === 0 ? 'north' : 'south'}-${c.x === 0 ? 'west' : 'east'} tower`;
 const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -168,12 +180,13 @@ export function cellClear(view, c, { size: [vw, vh], inset = 0, avoid = [] }) {
 }
 
 // Auto-zoom: is the 3x3 around c (clipped to the board) fully on screen at MIN_CELL px a square or more, and is
-// every square in opts.cells (the lit moves) clear? opts: { inset, avoid, cells } as in room.
+// every square in opts.cells (the lit moves) clear? c may carry w and h (the chamber room): then the room and
+// the ring around it. opts: { inset, avoid, cells } as in room.
 export function nearInView(view, c, [vw, vh], bd, opts = {}) {
   if (C * view.s < MIN_CELL - 0.01) return false;
   const i = opts.inset || 0;
   const px = x => view.x + (M + x * C) * view.s, py = y => view.y + (M + y * C) * view.s;
-  const x0 = Math.max(0, c.x - 1), x1 = Math.min(bd.width, c.x + 2), y0 = Math.max(0, c.y - 1), y1 = Math.min(bd.height, c.y + 2);
+  const x0 = Math.max(0, c.x - 1), x1 = Math.min(bd.width, c.x + (c.w || 1) + 1), y0 = Math.max(0, c.y - 1), y1 = Math.min(bd.height, c.y + (c.h || 1) + 1);
   return px(x0) >= i - 0.5 && py(y0) >= i - 0.5 && px(x1) <= vw - i + 0.5 && py(y1) <= vh - i + 0.5
     && (opts.cells || []).every(t => cellClear(view, t, { ...opts, size: [vw, vh] }));
 }
@@ -203,11 +216,13 @@ export function frameView(s0, c, cells, room) {
 }
 
 // The treasure chamber: one cell, or two adjacent cells that are one room. Drawn as one tile at the first (top
-// left) cell, which is also its one tap and keyboard target; the other cell's key maps to it.
-export function chamberRoom(bd) {
-  const cs = bd.center || [];
+// left) cell, which is also its one tap and keyboard target; the other cell's key maps to it. chamber: the view's
+// `chamber` ({ cells, bounds, seats }, D39) when given, else the BoardDefinition's center cells.
+export function chamberRoom(bd, chamber = null) {
+  const cs = chamber?.cells || bd.center || [];
   const xs = cs.map(t => t.x), ys = cs.map(t => t.y);
-  const x0 = Math.min(...xs), y0 = Math.min(...ys), x1 = Math.max(...xs), y1 = Math.max(...ys);
+  const b = chamber?.bounds || { x: Math.min(...xs), y: Math.min(...ys), width: Math.max(...xs) - Math.min(...xs) + 1, height: Math.max(...ys) - Math.min(...ys) + 1 };
+  const x0 = b.x, y0 = b.y, x1 = b.x + b.width - 1, y1 = b.y + b.height - 1;
   const room = key({ x: x0, y: y0 }), keys = new Set(cs.map(key));
   const span = (a, b, w) => (a === b ? `${w} ${a + 1}` : `${w}s ${a + 1} to ${b + 1}`);
   return { x0, y0, w: (x1 - x0 + 1) * C, h: (y1 - y0 + 1) * C, cols: x1 - x0 + 1, rows: y1 - y0 + 1, cells: cs, room,
@@ -222,7 +237,9 @@ export function mountBoard(host, opts) {
   const { v, content, names, targets = [], home = null, onInspect } = opts;
   const bd = content.board;
   const W = bd.width * C + 2 * M, H = bd.height * C + 2 * M;
-  const ch = chamberRoom(bd), canon = ch.canon;
+  const ch = chamberRoom(bd, v.chamber), canon = ch.canon;
+  // D39: the view lists who is in the chamber; they are drawn inside it whichever half their coord names.
+  const inRoom = new Set(v.chamber?.seats || []);
   const tmap = new Map(targets.map(t => [canon(key(t)), t]));
 
   const wrap = document.createElement('div');
@@ -269,7 +286,7 @@ export function mountBoard(host, opts) {
       } else if (kind === 'center') {
         // One outline around the whole room, no line between its squares, one label or chest a little above the middle.
         svg('rect', { x: 2, y: 2, width: w - 4, height: h - 4, rx: 4, class: v.board.chamberPlaced ? 'chamber' : 'reserved' }, g);
-        const lx = w / 2, ly = ch.cells.length > 1 ? 36 : h / 2;
+        const lx = w / 2, ly = ch.cells.length > 1 && w >= h ? 36 : h / 2;
         if (v.board.chamberPlaced) chestGlyph(g, lx, ly);
         else svg('text', { x: lx, y: ly + 7, class: 'reserved-label', 'text-anchor': 'middle' }, g).textContent = 'Chamber';
       } else if (inst) {
@@ -292,7 +309,7 @@ export function mountBoard(host, opts) {
           if (word === 'wall on their side' || word === 'printed wall') blockedGlyph(sg, side);
         }
       }
-      const here = heroes.filter(h => canon(key(h.coord)) === key(c));
+      const here = kind === 'center' && v.chamber ? heroes.filter(h => inRoom.has(h.seat)) : heroes.filter(h => !inRoom.has(h.seat) && canon(key(h.coord)) === key(c));
       // In a two-square chamber the tokens line up across the room under its label; elsewhere off centre, so the
       // room mark still shows.
       const long = w >= h, along = (i, n) => (long ? w : h) / 2 + (i - (n - 1) / 2) * 42;
@@ -364,8 +381,12 @@ export function mountBoard(host, opts) {
     vp.fit = false;
     clamp();
   };
+  // A hero in the chamber is framed with the whole room and the squares around it (D39), else their own square.
+  const homeInRoom = !!home && canon(key(home)) === ch.room;
+  const homeBox = homeInRoom ? { x: ch.x0, y: ch.y0, w: ch.cols, h: ch.rows } : home;
+  const homeRing = homeInRoom ? [...ch.cells, ...ch.cells.flatMap(t => SIDES.map(s => neighbour(t, s))).filter(n => squareKind(bd, n) !== 'off' && canon(key(n)) !== ch.room)] : [];
   // The hero and every lit square clear of the edges and the buttons, zoomed to at least minScale where that fits.
-  const frame = (minScale = 0) => { Object.assign(vp, frameView(Math.max(vp.s, minScale), home, targets, room()), { fit: false }); apply(); };
+  const frame = (minScale = 0) => { Object.assign(vp, frameView(Math.max(vp.s, minScale), home, [...homeRing, ...targets], room()), { fit: false }); apply(); };
   // Keep a square in view when keyboard focus moves off the visible part.
   const reveal = c => {
     const [vw, vh] = size();
@@ -382,7 +403,7 @@ export function mountBoard(host, opts) {
   const autoZoom = () => {
     if (!vp || !(wantZoom || wantClear)) return;
     const r = room();
-    const ok = wantZoom ? nearInView(vp, home, r.size, bd, { ...r, cells: targets }) : targets.every(t => cellClear(vp, t, r));
+    const ok = wantZoom ? nearInView(vp, homeBox, r.size, bd, { ...r, cells: targets }) : targets.every(t => cellClear(vp, t, r));
     if (!ok) { glide(true); frame(wantZoom ? MIN_CELL / C : 0); }
     wantZoom = wantClear = false;
   };

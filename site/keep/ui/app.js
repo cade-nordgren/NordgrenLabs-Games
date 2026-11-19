@@ -5,13 +5,13 @@ import ORIGINAL from '../content/original/index.js';
 import { createGame, reduce, restore, DEFAULT_RULES, RULE_TAGS } from '../engine/reducer.js';
 import { legalActions, sameAction } from '../engine/phases.js';
 import { view, screenOwner } from '../engine/view.js';
-import { neighbour, squareKind, exits, key } from '../engine/board.js';
+import { squareKind, exits, exitFor, key } from '../engine/board.js';
 import { isActive } from '../engine/heroes.js';
 import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
 import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
-import { mountBoard, resetView, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
+import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
 import { lines, entries, cardText, monsterText, expr, undoLabel, testWords, exchangeWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, DECK, towerName } from './words.js';
 import { rollDice } from './dice.js';
 import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
@@ -735,15 +735,16 @@ function sunClock(sun) {
 // A move as a title and a reason line, read from the engine's exits (BoardDefinition geometry) and the tile data.
 const MARK_EFFECT = { black: 'draws a room card', red: 'draws a room card, a portcullis drops behind you', yellow: 'you may keep moving', blue: '', none: '' };
 const SPECIAL_EFFECT = { well: 'Agility test on entry, a fall is death', rubble: 'ends your turn', rotating: 'turns a quarter on entry', none: '' };
-function moveInfo(g, dir) {
-  const c = content(), seat = g.activeSeat, hero = g.heroes[seat];
-  const ex = exits(g, c, seat).find(e => e.dir === dir);
+// a: the engine's MOVE action; its `from` names the chamber half it leaves by (D39).
+function moveInfo(g, a) {
+  const c = content(), seat = g.activeSeat, hero = g.heroes[seat], dir = a.dir;
+  const ex = exitFor(g, c, seat, dir, a.from);
   const kind = squareKind(c.board, ex.to);
   const inst = g.board.tiles[key(ex.to)];
   const def = inst && contentIndex(c).tiles.get(inst.defId);
   const parts = [];
   if (ex.edge === 'door') parts.push('door, a door card first');
-  if (ex.edge === 'gate') parts.push(`${sideWord(g, c, hero.coord, dir)}, Strength ${heroDef(hero).stats.STR} test`);
+  if (ex.edge === 'gate') parts.push(`${sideWord(g, c, ex.from, dir)}, Strength ${heroDef(hero).stats.STR} test`);
   if (ex.edge === 'secret') parts.push('secret passage');
   if (kind === 'tower') parts.push('you may escape, stay or go on through it');
   else if (kind === 'center') parts.push('treasure chamber, two secret cards then a dragon card');
@@ -756,7 +757,7 @@ function moveInfo(g, dir) {
 const WHY = { 'door-closed': 'the door stayed shut this turn', 'tower-entry': 'that is the way you came into the tower', 'no-tiles-left': 'no tiles left to reveal', occupied: 'occupied room, one hero per room' };
 function whyNot(g, ex) {
   if (ex.reason !== 'wall') return WHY[ex.reason] || ex.reason;
-  const w = sideWord(g, content(), g.heroes[g.activeSeat].coord, ex.dir);
+  const w = sideWord(g, content(), ex.from, ex.dir);
   return w === 'wall' ? 'wall on this side' : w === 'printed wall' ? 'wall printed on the board' : 'wall on their side';
 }
 
@@ -881,8 +882,8 @@ function renderPrompt(v, la, targets) {
       if (why) p.append(el('p', 'why', why));
       // Phone first: moves are the lit squares on the map (their labels carry the reason); only other actions are buttons.
       for (const a of by('MOVE')) {
-        const m = moveInfo(g, a.dir);
-        targets.push({ ...neighbour(hero.coord, a.dir), label: `${m.title}, ${m.reason}`, pick: () => tryAct(a) });
+        const m = moveInfo(g, a);
+        targets.push({ ...actionSquare(g, a), label: `${m.title}, ${m.reason}`, pick: () => tryAct(a) });
       }
       for (const a of by('TOWER_CHOICE')) ch.append(choice('Escape the castle', "End this hero's run with their treasure. Final: no way back in.", () => act(a), 'primary'));
       for (const a of by('USE_ITEM')) ch.append(choice(`Use ${cardDef(c, a.item).name}`, itemText(cardDef(c, a.item)) || 'Its card allows it now', () => tryAct(a)));
@@ -922,10 +923,7 @@ function renderPrompt(v, la, targets) {
         by('CHOOSE').forEach(a => ch.append(choice(pend.options[a.option], null, () => act(a))));
       } else {
         p = panel('Move', 'Pick a neighbouring square.');
-        for (const a of by('CHOOSE')) {
-          const dir = pend.options[a.option];
-          targets.push({ ...neighbour(hero.coord, dir), label: `Go ${DIR[dir]}`, pick: () => tryAct(a) });
-        }
+        for (const a of by('CHOOSE')) targets.push({ ...actionSquare(g, a), label: `Go ${DIR[pend.options[a.option]]}`, pick: () => tryAct(a) });
       }
       break;
     }
@@ -1006,8 +1004,8 @@ function renderPrompt(v, la, targets) {
       const seat = g.pending.seat;
       p = panel('The dragon drives you out', `${nameOf(seat)} must move to an explored room next to the chamber. No room card is drawn.`);
       for (const a of by('FORCED_MOVE')) {
-        const [x, y] = a.to.split(',').map(Number);
-        targets.push({ x, y, label: `${nameOf(seat)} moves to ${place({ x, y })}`, pick: () => tryAct(a) });
+        const sq = actionSquare(g, a);
+        targets.push({ ...sq, label: `${nameOf(seat)} moves to ${place(sq)}`, pick: () => tryAct(a) });
       }
       break;
     }
@@ -1281,12 +1279,21 @@ function openItems(seat) {
   if (!$('items').open) $('items').showModal();
 }
 
+// The active hero's exit into square c (either chamber half counts as the room, D39), the legal MOVE for it, and
+// whether the hero is in c. Two chamber exits can share a side, so an action matches by side and `from` cell.
+function exitTo(g, cc, c) {
+  const canon = chamberRoom(cc.board).canon;
+  const ex = exits(g, cc, g.activeSeat).find(e => canon(key(e.to)) === canon(key(c)));
+  const a = ex && legalActions(g, cc).find(x => x.type === 'MOVE' && x.dir === ex.dir && (!x.from || x.from === key(ex.from)));
+  return { ex, a, here: canon(key(g.heroes[g.activeSeat].coord)) === canon(key(c)) };
+}
+
 // A single tap on an unlit square: one line, why the active hero cannot go there or else what the square is.
 function near(c) {
   const g = S.game, cc = content();
   if (g.status === 'playing' && ['CHOOSE_ACTION', 'CHOOSE_EXIT'].includes(g.phase) && !S.peek && !S.reveal) {
-    const ex = exits(g, cc, g.activeSeat).find(e => e.to.x === c.x && e.to.y === c.y);
-    if (ex && !legalActions(g, cc).some(x => x.type === 'MOVE' && x.dir === ex.dir)) return toast(`${nameOf(g.activeSeat)} cannot go there: ${whyNot(g, ex)}.`);
+    const { ex, a } = exitTo(g, cc, c);
+    if (ex && !a) return toast(`${nameOf(g.activeSeat)} cannot go there: ${whyNot(g, ex)}.`);
   }
   const info = cellInfo(view(g, cc, viewer), cc, c, g.seats.map(s => s.name));
   toast(`${info.title}: ${info.what}.`);
@@ -1303,16 +1310,15 @@ function inspect(c) {
   out.push(ul, el('p', '', info.occupants.length ? `Here: ${listOf(info.occupants)}.` : 'Nobody is here.'));
   const hero = g.status === 'playing' && g.heroes[g.activeSeat];
   if (hero && ['CHOOSE_ACTION', 'CHOOSE_EXIT'].includes(g.phase) && !S.peek && !S.reveal) {
-    const ex = exits(g, cc, g.activeSeat).find(e => e.to.x === c.x && e.to.y === c.y);
-    const a = ex && legalActions(g, cc).find(x => x.type === 'MOVE' && x.dir === ex.dir);
+    const { ex, a, here } = exitTo(g, cc, c);
     if (a) {
-      const m = moveInfo(g, ex.dir);
+      const m = moveInfo(g, a);
       out.push(el('p', 'why', `${m.title}: ${m.reason}.`));
       const go = el('button', 'btn primary', m.title);
       go.onclick = () => { $('inspect').close(); tryAct(a); };
       out.push(go);
     } else if (ex) out.push(el('p', 'why', `${nameOf(g.activeSeat)} cannot go there: ${whyNot(g, ex)}.`));
-    else if (hero.coord.x === c.x && hero.coord.y === c.y) out.push(el('p', 'why', `${nameOf(g.activeSeat)} is here.`));
+    else if (here) out.push(el('p', 'why', `${nameOf(g.activeSeat)} is here.`));
   }
   $('inspectBody').replaceChildren(...out);
   $('inspect').showModal();
