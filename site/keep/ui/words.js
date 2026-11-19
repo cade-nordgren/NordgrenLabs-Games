@@ -79,9 +79,10 @@ export function exchangeWords(x, hero) {
   return `${head}: same letter, both take ${x.heroDmg}`;
 }
 
-export function cardText(def) {
+// effectText: the engine's line for this card (a log entry's or inventory item's), used when the card has no text.
+export function cardText(def, effectText = null) {
   if (def.text) return def.text;
-  if (def.effectText) return def.effectText;
+  if (effectText || def.effectText) return effectText || def.effectText;
   const out = [effectWords(def.effects)];
   if (def.deck === 'DOOR') out.unshift({ opens: 'The door opens.', closed: 'The door stays shut.', trap: 'The door is trapped.' }[def.kind] || '');
   if (def.followUpDeck) out.push(def.followUpDeck === 'MONSTER' ? 'A monster.' : `Then draw a ${DECK[def.followUpDeck].toLowerCase()}.`);
@@ -106,6 +107,11 @@ const xy = at => { const [x, y] = at.split(',').map(Number); return { x, y }; };
 export const edgeWords = e => { const [at, side] = e.split('|'); return `the ${DIR[side]} side of ${place(xy(at))}`; };
 const markWords = (m, at) => (m === 'tower' ? towerAt(xy(at)) : m === 'center' ? 'the treasure chamber' : MARK_WORD[m] ? `${MARK_WORD[m]}, ${m} mark` : 'no mark');
 const TOWER_CHOICE = { ESCAPE: 'chooses Escape', STAY: 'stays in the tower', CONTINUE: 'continues through the tower' };
+// Why the engine let the hero keep moving (its 'may-continue' reasons); 'card' adds the card's name.
+const MAY_CONTINUE = {
+  'yellow-corridor': 'a corridor has no card', 'door-stayed-closed': 'the door stayed shut, so another way may be used',
+  'secret-passage': 'a secret passage was found', card: 'the card says so', 'tower-transit': 'passing through the tower', 'rubble-forced': 'the rubble forces a move',
+};
 
 // ctx: { content, name(seat) }. Returns null for bookkeeping events that need no line.
 export function describe(e, ctx, next) {
@@ -145,7 +151,11 @@ export function describe(e, ctx, next) {
       const how = { door: ' through the door', gate: ' under the portcullis', flight: ' in flight', forced: ', driven out by the dragon', secret: ' through a secret passage', card: '' }[e.via] || '';
       return `${who(e.seat)} goes ${DIR[e.dir]}${how}, from ${place(xy(e.from))} to ${place(xy(e.to))} (${markWords(e.mark, e.to)}).`;
     }
-    case 'escape': return `${who(e.seat)} escapes the keep${e.atSunset ? ' at sunset (rules config)' : ''}.`;
+    case 'escape': return `${who(e.seat)} escapes the keep${e.atSunset ? ' at sunset (rules config)' : Number.isInteger(e.sun) ? ` on sun ${e.sun}` : ''}.`;
+    case 'may-continue': {
+      const def = e.reason === 'card' && typeof e.card === 'string' && e.card !== 'hidden' && card(e.card);
+      return `${who(e.seat)} may keep moving: ${MAY_CONTINUE[e.reason] || 'the rules allow it'}${def && def.deck !== 'TREASURY' ? ` (${def.name})` : ''}.`;
+    }
     case 'rotate': return 'The room turns a quarter clockwise.';
     case 'gate-falls': return `A portcullis drops behind, on ${edgeWords(e.edge)}.`;
     case 'condition': return `${who(e.seat)} ${CONDITION[e.id] || 'is under a lasting effect'}.`;
@@ -156,12 +166,12 @@ export function describe(e, ctx, next) {
       if (e.deck === 'TILE') return null;
       if (e.deck === 'DRAGON') return `Dragon card: ${e.card === 'awake' ? 'awake' : 'asleep'}.`;
       const def = card(e.value);
-      return def ? `${DECK[e.deck]} ${e.value}: ${def.name}. ${e.deck === 'MONSTER' ? '' : cardText(def)}`.trim() : `${DECK[e.deck]} drawn, kept secret.`;
+      return def ? `${DECK[e.deck]}: ${e.cardName || def.name}. ${e.deck === 'MONSTER' ? '' : cardText(def, e.effectText)}`.trim() : `${DECK[e.deck]} drawn, kept secret.`;
     }
     case 'retain': return null; // the 'item' obtain entry beside it says it
     case 'item': return itemWords(e, ctx);
     case 'remove-card': return `${card(e.value).name} leaves the game.`;
-    case 'door': return `${{ opens: 'The door opens', closed: 'The door stays shut', trap: 'The door was trapped' }[e.result]}${e.edge ? `, on ${edgeWords(e.edge)}` : ''}${e.card && e.card !== 'hidden' ? ` (door card ${e.card})` : ''}.`;
+    case 'door': return `${{ opens: 'The door opens', closed: 'The door stays shut', trap: 'The door was trapped' }[e.result]}${e.edge ? `, on ${edgeWords(e.edge)}` : ''}${e.card && e.card !== 'hidden' ? ` (door card: ${card(e.card).name})` : ''}.`;
     case 'stop': return `${who(e.seat)} stops.`;
     case 'search': return `${who(e.seat)} searches the room.`;
     case 'stay': return `${who(e.seat)} stays in the chamber.`;

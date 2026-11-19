@@ -710,12 +710,11 @@ function renderDraft(v) {
   tumble?.(); // once the dice are in the page, so the turn has a start to run from
 }
 
-// Why the hero may go on (the Keep moving prompt): the engine's logged reason this turn, else a corridor just entered.
+// Why the hero may go on (the Keep moving prompt): the latest 'may-continue' entry the engine logged this turn.
 function keepMovingWhy(v) {
   const turn = v.log.slice(v.log.findLastIndex(e => e.kind === 'turn') + 1);
-  const e = turn.findLast(x => /continue|keep-moving/i.test(x.kind || ''));
-  if (e) return entries(turn, ctx()).find(x => x.e === e)?.text || (typeof e.text === 'string' && e.text) || (typeof e.reason === 'string' && capital(e.reason)) || null;
-  return turn.findLast(x => x.kind === 'move')?.mark === 'yellow' ? 'You came into a corridor: no card, so you may keep going.' : null;
+  const e = turn.findLast(x => x.kind === 'may-continue');
+  return e ? entries([e], ctx())[0]?.text || null : null;
 }
 
 // ---- Main tabletop
@@ -845,7 +844,7 @@ function renderPrompt(v, la, targets) {
     p = panel(`${nameOf(seat)}, your treasure chamber cards`, 'Only you may see these.');
     if (S.peek.from !== null) {
       const drawn = v.log.slice(S.peek.from).filter(e => (e.kind === 'draw' && e.deck === 'TREASURY') && e.private === seat);
-      for (const e of drawn) { const d = cardDef(c, e.value); const f = el('div', 'cardface'); f.append(el('strong', '', `Drawn: ${d.name}`), el('p', '', cardText(d))); p.append(f); }
+      for (const e of drawn) { const d = cardDef(c, e.value); const f = el('div', 'cardface'); f.append(el('strong', '', `Drawn: ${e.cardName || d.name}`), el('p', '', cardText(d, e.effectText))); p.append(f); }
     }
     const f = el('div', 'cardface');
     f.append(el('strong', '', mine.treasury.length ? `You hold ${mine.treasury.length}: ${mine.gold} gold in all` : 'You hold no treasure chamber cards now'));
@@ -886,7 +885,10 @@ function renderPrompt(v, la, targets) {
         targets.push({ ...actionSquare(g, a), label: `${m.title}, ${m.reason}`, pick: () => tryAct(a) });
       }
       for (const a of by('TOWER_CHOICE')) ch.append(choice('Escape the castle', "End this hero's run with their treasure. Final: no way back in.", () => act(a), 'primary'));
-      for (const a of by('USE_ITEM')) ch.append(choice(`Use ${cardDef(c, a.item).name}`, itemText(cardDef(c, a.item)) || 'Its card allows it now', () => tryAct(a)));
+      for (const a of by('USE_ITEM')) {
+        const item = allItems(v.heroes[g.activeSeat].inventory).find(x => x.inst === a.item);
+        ch.append(choice(`Use ${cardDef(c, a.item).name}`, itemText(item) || itemText(cardDef(c, a.item)) || 'Its card allows it now', () => tryAct(a)));
+      }
       for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
       if (!by('SEARCH').length && typeof v.searchUnavailable === 'string' && v.searchUnavailable) ch.append(el('p', 'muted', `Can't search here: ${v.searchUnavailable.replace(/\.$/, '')}.`));
       for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two treasure chamber cards, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
@@ -1339,7 +1341,7 @@ function renderResults(v) {
     p.append(l);
     out.push(p);
   };
-  group('Escaped', r.escaped.length ? r.escaped.map(e => `${hero(e)}: ${e.gold} gold${r.winners.includes(e.seat) ? ', winner' : ''}`) : ['Nobody'], 'ol');
+  group('Escaped', r.escaped.length ? r.escaped.map(e => `${hero(e)}: ${e.gold} gold${Number.isInteger(e.escapeSun) ? (e.escapeSun >= SUNSET ? ', escaped at sunset' : `, escaped on sun ${e.escapeSun}`) : ''}${r.winners.includes(e.seat) ? ', winner' : ''}`) : ['Nobody'], 'ol');
   const dead = r.others.filter(e => e.status === 'DEAD');
   const inside = r.others.filter(e => e.status !== 'DEAD' && e.endResult === 'INSIDE_AT_SUNSET');
   group('Dead', dead.map(e => `${hero(e)}: died in the keep`));

@@ -133,3 +133,22 @@ test('a hero in the chamber sees all six squares around the room lit, and each s
     }
   }
 });
+
+test('why the hero may keep moving, the escape sun and a drawn card read by name', () => {
+  const ctx = { content: FX, name: () => 'Cade' };
+  const mc = (reason, extra = {}) => ({ kind: 'may-continue', seat: 0, reason, rule: 'x', ...extra });
+  assert.deepEqual(lines([
+    mc('yellow-corridor'), mc('door-stayed-closed', { edge: '4,4|S' }), mc('secret-passage', { card: null }), mc('card', { card: 'FX_ROOM_DRAFT#1' }), mc('tower-transit'), mc('rubble-forced'),
+    { kind: 'escape', seat: 0, at: '0,0', sun: 12 },
+    { kind: 'draw', deck: 'ROOM', value: 'FX_ROOM_DRAFT#1', cardName: 'Test draught (keep moving)', effectText: 'Made-up test card: you may keep moving this turn' },
+  ], ctx), [
+    'Cade may keep moving: a corridor has no card.',
+    'Cade may keep moving: the door stayed shut, so another way may be used.',
+    'Cade may keep moving: a secret passage was found.',
+    'Cade may keep moving: the card says so (Test draught (keep moving)).',
+    'Cade may keep moving: passing through the tower.',
+    'Cade may keep moving: the rubble forces a move.',
+    'Cade escapes the keep on sun 12.',
+    `Room card: Test draught (keep moving). ${FX.room.find(d => d.id === 'FX_ROOM_DRAFT').text || 'Made-up test card: you may keep moving this turn'}`,
+  ]);
+});
