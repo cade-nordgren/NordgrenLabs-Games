@@ -107,7 +107,7 @@ export function describe(e, ctx, next) {
     case 'test': {
       const mod = e.modifier || 0;
       return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} ${e.pass ? 'passes' : 'fails'} the ${STAT[e.stat]} test ${TEST_WHY[e.reason] || `(${e.reason})`}.`,
-        `D12 ${e.roll}${mod ? ` + ${mod} = ${e.roll + mod}` : ''} against ${STAT[e.stat]} ${e.target}`];
+        e.arithmetic || `D12 ${e.roll}${mod ? ` + ${mod} = ${e.roll + mod}` : ''} against ${STAT[e.stat]} ${e.target}`];
     }
     case 'formula':
       if (next && ['damage', 'heal', 'monster-wound'].includes(next.kind)) return [null, e.arithmetic]; // carried onto that line
@@ -141,18 +141,20 @@ export function describe(e, ctx, next) {
       const def = card(e.value);
       return def ? `${DECK[e.deck]} ${e.value}: ${def.name}. ${e.deck === 'MONSTER' ? '' : cardText(def)}`.trim() : `${DECK[e.deck]} drawn, kept secret.`;
     }
-    case 'retain': { const def = card(e.value); return def ? `Kept: ${def.name}.` : 'A card is kept in secret.'; }
+    case 'retain': return null; // the 'item' obtain entry beside it says it
+    case 'item': return itemWords(e, ctx);
     case 'remove-card': return `${card(e.value).name} leaves the game.`;
     case 'door': return `${{ opens: 'The door opens', closed: 'The door stays shut', trap: 'The door was trapped' }[e.result]}${e.edge ? `, on ${edgeWords(e.edge)}` : ''}${e.card && e.card !== 'hidden' ? ` (door card ${e.card})` : ''}.`;
     case 'stop': return `${who(e.seat)} stops.`;
     case 'search': return `${who(e.seat)} searches the room.`;
     case 'stay': return `${who(e.seat)} stays in the chamber.`;
     case 'forced-skip': return `${who(e.seat)} has no move and the turn passes.`;
-    case 'well-discard': return `${who(e.seat)} drops a treasure chamber card.`;
+    case 'well-discard': return null; // the 'item' discard entry beside it says it
     case 'encounter': return e.ambush ? 'An ambush.' : `A monster. ${who(e.seat)} chooses before it shows itself.`;
-    case 'commit': return `${who(e.seat)} commits to ${CHOICE[e.choice]} before the monster shows itself.`;
+    case 'commit': return `${who(e.seat)} commits to ${e.item ? `using ${card(e.item).name}` : CHOICE[e.choice]} before the monster shows itself.`;
     case 'reaction': return `The monster's answer: ${REACTION[e.type]}.`;
     case 'monster-wound': return `The monster takes ${e.amount}.`;
+    case 'monster-dead': return 'The monster is dead.'; // spec v3: announced, never with its HP
     case 'encounter-end': return e.outcome === 'hero-fled' ? 'The hero gets away.' : OUTCOME[e.outcome];
     case 'combat': return e.mode === 'target' ? 'Combat on the target.' : e.mode === 'abc' ? 'Combat begins.' : 'Combat begins (digital variant, not an original rule).';
     case 'combat-pick': return e.side === 'hero' ? 'The hero picks a card.' : 'The monster picks a card.';
@@ -170,14 +172,37 @@ export function describe(e, ctx, next) {
     case 'deck-empty': return `The ${DECK[e.deck].toLowerCase()} pile is empty.`;
     case 'lost-at-sunset': return `${who(e.seat)} is inside at sunset: not escaped${e.status === 'IN_TOWER_NOT_ESCAPED' ? ', though in a tower' : ''}.`;
     case 'game-over': return 'The game is over.';
-    default: return null; // shuffle, bottom, resolve-card, monster-dead, pick bookkeeping
+    default: return null; // shuffle, bottom, resolve-card, pick bookkeeping
+  }
+}
+
+// Spec v3 section 4: obtained, used, discarded or lost. Another seat's chamber card reads 'hidden'.
+const TO_DECK = { ROOM: 'room', SEARCH: 'search', ROOM_SEARCH: 'room search', CHEST: 'chest', DOOR: 'door', MONSTER: 'monster', TREASURY: 'treasure chamber' };
+const LOST_WHY = { dragon: ' when the dragon wakes', card: ' to a card', death: ' on death' };
+export function itemName(e, content) {
+  if (e.value === 'hidden') return 'a chamber card';
+  if (e.group === 'equipment') return (content.specialWeapons || []).find(w => w.id === e.value)?.name || 'a special weapon';
+  const def = cardDef(content, e.value);
+  return e.group === 'chamber' ? `${def.name} (treasure chamber card)` : def.name;
+}
+function itemWords(e, ctx) {
+  const who = ctx.name(e.seat), what = itemName(e, ctx.content);
+  const m = /^bottom of (\w+)$/.exec(e.to || '');
+  const dest = m ? `the bottom of the ${TO_DECK[m[1]] || m[1].toLowerCase()} pile` : e.to || '';
+  const to = dest ? ` It goes ${m ? 'to ' : ''}${dest}.` : '';
+  switch (e.action) {
+    case 'obtain': return `${who} gains ${what}.`;
+    case 'use': return `${who} uses ${what}.`;
+    case 'discard': return `${who} discards ${what}.${to}`;
+    case 'lose': return `${who} loses ${what}${LOST_WHY[e.why] || ''}.${to}`;
+    default: return null;
   }
 }
 
 // The thumb-reach undo button: whose action it takes back and, where the log says, what kind. prev is the undo
 // snapshot, next the game now. The actor is the seat the engine offered actions to at prev; in an A, B or C
 // fight both sides may be offered at once, and the screen always asks the hero first.
-const UNDO_WORD = { move: 'move', stop: 'stop', 'tower-choice': 'tower choice', commit: 'choice', 'combat-pick': 'card', 'well-discard': 'card drop', 'pick-hero': 'hero pick', 'pick-ring': 'ring pick', 'pick-tower': 'tower pick' };
+const UNDO_WORD = { item: 'item use', move: 'move', stop: 'stop', 'tower-choice': 'tower choice', commit: 'choice', 'combat-pick': 'card', 'well-discard': 'card drop', 'pick-hero': 'hero pick', 'pick-ring': 'ring pick', 'pick-tower': 'tower pick' };
 export function undoLabel(prev, next, content, name) {
   const la = legalActions(prev, content);
   const seat = (la.find(a => a.side !== 'monster') ?? la[0])?.seat ?? prev.activeSeat;
@@ -190,8 +215,11 @@ export function undoLabel(prev, next, content, name) {
 // arithmetic to the next line). Card registers and stat codes read as the die and the stat's name.
 export function entries(events, ctx) {
   const regs = {}, out = [];
-  let carry = [];
+  let carry = [], dead = false;
   events.forEach((e, i) => {
+    if (e.kind === 'monster-dead') dead = true;
+    else if (e.kind === 'encounter-end' && dead && e.outcome === 'monster-killed') { dead = false; return; } // said already
+    else if (e.kind === 'encounter-end') dead = false;
     const m = e.kind === 'roll' && /^card roll (\S+)$/.exec(e.reason);
     if (m) regs[m[1]] = e.die;
     const r = describe(e, ctx, events[i + 1]);
