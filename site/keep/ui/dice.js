@@ -51,8 +51,10 @@ const r6 = v => +v.toFixed(6);
 // Each face's transform: its frame as matrix3d (column-major), then out along its normal by the inradius (--a is
 // the edge length, set in CSS).
 const FACE_CSS = D12.faces.map(f => `matrix3d(${[...f.x, 0, ...f.y, 0, ...f.z, 0, 0, 0, 0, 1].map(r6).join(',')}) translateZ(calc(var(--a) * ${r6(D12.inradius)}))`);
-// At rest a D12 leans a little, so it reads as a solid; face 0 still looks at the viewer.
-const REST = { d12: [-12, 16, 0], cube: [0, 0, 0] };
+// At rest the result face looks straight at the viewer (owner, 2026-11-19: with a lean, three faces read about
+// equally). Its five neighbours still show round it, foreshortened, and CSS dims them and fades their numbers once
+// the die has landed (.landed), so only the result reads.
+export const REST = { d12: [0, 0, 0], cube: [0, 0, 0] };
 const pose = ([x, y, z]) => `rotateX(${x}deg) rotateY(${y}deg) rotateZ(${z}deg)`;
 
 function d12(value) {
@@ -87,7 +89,7 @@ function cube(value, sides) {
 
 // Draws dice into host: items [{ value, label?, sides? }], each a D12 (a cube for a D6) with an optional caption.
 // With animate, each tumbles from a spin and settles with its value towards the viewer (skipped under reduced
-// motion). Resolves once they have landed.
+// motion), then the result face is picked out with a small pop. Resolves once they have landed.
 export function rollDice(host, items, { sides = 12, animate = true } = {}) {
   const row = document.createElement('div');
   row.className = 'dice';
@@ -100,7 +102,8 @@ export function rollDice(host, items, { sides = 12, animate = true } = {}) {
     return d;
   });
   host.replaceChildren(row);
-  if (!animate || still()) return Promise.resolve();
+  const land = pop => { for (const d of dice) { d.classList.add('landed'); if (pop) d.parentElement.classList.add('pop'); } };
+  if (!animate || still()) { land(false); return Promise.resolve(); }
   // The same transform functions at both ends, so the browser turns the angles, whole spins included, rather than
   // taking the short way between two matrices.
   const rest = d => REST[d.className];
@@ -111,5 +114,5 @@ export function rollDice(host, items, { sides = 12, animate = true } = {}) {
   });
   row.getBoundingClientRect(); // lay out the spin first, so the turn below is transitioned from it
   for (const d of dice) { d.style.transition = ''; d.style.transform = pose(rest(d)); }
-  return new Promise(done => setTimeout(done, LAND));
+  return new Promise(done => setTimeout(() => { land(true); done(); }, LAND));
 }

@@ -2,7 +2,7 @@
 // real D12's. Pure arithmetic; dice.js touches the page only when it draws.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { D12, d12Numbers } from '../../site/keep/ui/dice.js';
+import { D12, d12Numbers, REST } from '../../site/keep/ui/dice.js';
 
 const dot = (a, b) => a.reduce((s, v, i) => s + v * b[i], 0);
 const near = (a, b, msg) => assert.ok(Math.abs(a - b) < 1e-9, `${msg}: ${a} against ${b}`);
@@ -43,4 +43,16 @@ test('the faces carry a real D12: 1 to 12 once each, opposite faces summing to 1
     assert.deepEqual([...nums].sort((a, b) => a - b), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
     nums.forEach((n, i) => assert.equal(n + nums[D12.opposite[i]], 13));
   }
+});
+
+test('at rest the result face looks straight at the viewer and every other face is well turned away', () => {
+  // CSS rotateX(a) rotateY(b) rotateZ(c), applied to a face normal (the rightmost turn first), in CSS axes.
+  const rad = d => d * Math.PI / 180, [ax, ay, az] = REST.d12.map(rad);
+  const rx = ([x, y, z]) => [x, y * Math.cos(ax) - z * Math.sin(ax), y * Math.sin(ax) + z * Math.cos(ax)];
+  const ry = ([x, y, z]) => [x * Math.cos(ay) + z * Math.sin(ay), y, -x * Math.sin(ay) + z * Math.cos(ay)];
+  const rz = ([x, y, z]) => [x * Math.cos(az) - y * Math.sin(az), x * Math.sin(az) + y * Math.cos(az), z];
+  const toward = D12.faces.map(f => rx(ry(rz(f.z)))[2]);
+  assert.ok(toward[0] > 0.99, `face 0 is square on (${toward[0]})`);
+  for (let i = 1; i < 12; i++) assert.ok(toward[i] < 0.5, `face ${i} is turned away (${toward[i]})`);
+  assert.deepEqual(REST.cube, [0, 0, 0]);
 });

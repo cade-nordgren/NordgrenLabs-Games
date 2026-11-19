@@ -249,9 +249,15 @@ details li + li { margin-top: 6px; }
 .again { display: grid; gap: 10px; max-width: 440px; margin: 4px auto 18px; }
 
 /* Dice: a D12 is a 3D dodecahedron of twelve pentagons, a D6 Bank's cube (site/bank/index.html). ui/dice.js places
-   the faces and turns them. 68px a die keeps four in a row on a 375px phone. */
+   the faces and turns them. One or two dice are about 90px; three or more 68px a die, which keeps four in a row on a
+   375px phone. */
 .dice { display: flex; flex-wrap: wrap; justify-content: center; gap: 14px 12px; padding: 14px 0 8px; }
-.dice figure { margin: 0; display: grid; justify-items: center; gap: 8px; flex: 0 1 68px; min-width: 0; perspective: 600px; }
+.dice figure { margin: 0; display: grid; justify-items: center; gap: 8px; flex: 0 1 92px; min-width: 0; perspective: 600px; }
+.dice .d12 { --a: 27px; }
+.dice .cube { --h: 40px; }
+.dice:has(> figure:nth-child(3)) figure { flex-basis: 68px; }
+.dice:has(> figure:nth-child(3)) .d12 { --a: 20px; }
+.dice:has(> figure:nth-child(3)) .cube { --h: 32px; }
 .dice figcaption { font-size: 14px; color: var(--ink2); text-align: center; overflow-wrap: anywhere; }
 .cube { --h: 32px; width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2, .8, .25, 1); }
 .cube .face { position: absolute; inset: 0; border-radius: 12px; background: var(--die); box-shadow: inset 0 0 0 1px var(--die-edge); display: grid; place-items: center; color: var(--pip); font: 700 calc(var(--h) * .85) var(--num); }
@@ -272,6 +278,16 @@ details li + li { margin-top: 6px; }
 .d12 .face::before { content: ''; position: absolute; inset: calc(var(--a) * .06); z-index: -1; background: var(--die);
   -webkit-clip-path: inherit; clip-path: inherit; }
 .d12 .face.mark { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 2px; }
+/* Landed (and the "?" before a roll): the result face, straight on, has an accent rim and a bigger, bolder number;
+   the neighbours darken and their numbers fade, so the result is the one face that reads. A small pop after a roll. */
+.d12 .face, .cube .face { transition: color .25s, background-color .25s, font-size .25s; }
+.d12.landed .face:not(:first-child), .cube.landed .face:not(:first-child) { color: color-mix(in srgb, var(--pip) 18%, transparent); }
+.d12.landed .face:not(:first-child)::before { filter: brightness(.6); }
+.d12.landed .face:first-child { background: var(--accent); font-size: calc(var(--a) * 1.1); font-weight: 800; }
+.d12.landed .face:first-child::before { inset: calc(var(--a) * .11); }
+.cube.landed .face:first-child { box-shadow: inset 0 0 0 4px var(--accent); font-size: calc(var(--h) * 1.05); font-weight: 800; }
+.dice figure.pop > :first-child { animation: diepop .4s cubic-bezier(.3, 1.6, .5, 1); }
+@keyframes diepop { 0% { scale: .94; } 50% { scale: 1.12; } 100% { scale: 1; } }
 
 /* The roll card: over the dimmed board, its buttons at the bottom in thumb reach. */
 #roll::backdrop, #outcome::backdrop { background: rgba(0, 0, 0, .55); }
