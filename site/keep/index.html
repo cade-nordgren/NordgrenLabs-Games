@@ -35,10 +35,11 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
 /* The fixtures banner: on every screen of a test game, never dismissable. It folds open to list exactly which
    content is synthetic (spec v2 #12); folded on phones, open on wide screens. */
 .banner { position: sticky; top: max(10px, env(safe-area-inset-top)); z-index: 18; margin: 0 60px 10px 0; padding: 0 14px; border-radius: 14px;
-  background: var(--danger); color: #fff; font-weight: 700; font-size: 15px; letter-spacing: .02em; text-align: center; min-height: 48px; display: grid; place-items: center; }
+  background: color-mix(in srgb, var(--danger) 75%, #000); color: #fff; /* darkened so white text clears 4.5:1 */ font-weight: 700; font-size: 15px; letter-spacing: .02em; text-align: center; min-height: 48px; display: grid; place-items: center; }
 details.banner { display: block; }
 .banner summary { min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 8px; cursor: pointer; }
 .banner summary small { font-weight: 600; font-size: 13px; }
+.banner ul, .banner li { color: inherit; }
 .banner ul { margin: 0 0 10px; padding-left: 18px; text-align: left; font-weight: 500; font-size: 14px; columns: 2 12em; }
 .applabel { margin: -4px 0 14px; font-size: 15px; color: var(--ink2); }
 
