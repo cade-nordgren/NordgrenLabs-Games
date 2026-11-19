@@ -95,7 +95,7 @@ const OPS = {
       if (e.store) g.registers[e.store] = dealt; // the damage actually taken, after the D03 floor
     }
   },
-  // D53: one net change; a gain heals (capped at starting HP unless uncapped, D04), a loss is damage and may kill.
+  // D53: one net change; a gain heals (capped at starting HP unless uncapped, D04; the flask is uncapped, spec v6), a loss is damage and may kill.
   ADJUST_HP(g, c, e) {
     const v = evalExpr(g, c, e.amount, active(g), 'net HP change');
     if (v > 0) healHero(g, g.activeSeat, v, !!e.uncapped);
@@ -137,6 +137,15 @@ const OPS = {
   },
   RETAIN_CARD(g, c, e, f) { retain(g, owner(g, f), e.into); },
   GRANT_TREASURE(g, c, e, f) { retain(g, owner(g, f), 'held'); }, // the kept card's printed gold counts (RB 7.2)
+  // D56 (spec v6): a kept card whose lasting effect is over (the relit torch) leaves the hero for the bottom of its own deck.
+  RETURN_HELD(g, c, e) {
+    const hero = active(g), inst = hero.held.find(x => x.split('#')[0] === e.card);
+    if (!inst) return;
+    hero.held.splice(hero.held.indexOf(inst), 1);
+    const def = cardDef(c, inst);
+    toBottom(g, def.deck, inst);
+    itemLog(g, g.activeSeat, 'discard', inst, groupOf(def), { to: `bottom of ${def.deck}` });
+  },
   RETURN_CARD_TO_BOTTOM(g, c, e, f) {
     const o = owner(g, f);
     if (o.card && !o.kept) { o.kept = true; toBottom(g, o.deck, o.card); }
@@ -228,7 +237,11 @@ function doorOutcome(g, content, f) {
   if (f.kind === 'opens') {
     g.turn.openedDoor = edge; // RB 6.6: same-turn flight back may still pass before it relocks
     enterTile(g, content, g.activeSeat, neighbour(active(g).coord, dir), { dir, via: 'door' });
-  } else if (f.kind === 'closed' || f.kind === 'reshuffle') { // D62 (to confirm): a door-deck "shuffle again" leaves it shut
+  } else if (f.kind === 'reshuffle') {
+    // D62 (spec v6, 1985-supported): the card went back and the pile was shuffled above; the hero at once draws the door
+    // card they were trying to get and it resolves normally (again, if it is another "shuffle again"). No extra turn.
+    if (!drawAndResolve(g, content, 'DOOR', 'door', { door: f.door })) g.turn.endAfter = true; // empty pile: as in movement.js
+  } else if (f.kind === 'closed') {
     g.turn.triedDoors.push(edge);
     if (noDetour) g.turn.endAfter = true; // dark-room exit or a return move: D07, stay and retry
     else allowContinue(g, 'door-stayed-closed', { edge });

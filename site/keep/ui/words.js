@@ -201,7 +201,7 @@ export function describe(e, ctx, next) {
     case 'remove-card': return [null, '', `${card(e.value)?.name || 'A card'} leaves the game.`];
     case 'bottom': return [null, '', `${card(e.value)?.name || 'A card'} goes to the bottom of the ${pileWord(e.deck, content) || e.deck} pile.`];
     case 'shuffle': return [null, '', `The ${pileWord(e.deck, content) || String(e.deck).toLowerCase()} pile is shuffled.`];
-    case 'door': return `${{ opens: 'The door opens', closed: 'The door stays shut', trap: 'The door was trapped' }[e.result]}${e.edge ? `, on ${edgeWords(e.edge)}` : ''}${e.card && e.card !== 'hidden' ? ` (door card: ${card(e.card).name})` : ''}.`;
+    case 'door': return `${{ opens: 'The door opens', closed: 'The door stays shut', trap: 'The door was trapped', reshuffle: 'Not yet: another door card is drawn for the door' }[e.result]}${e.edge ? `, on ${edgeWords(e.edge)}` : ''}${e.card && e.card !== 'hidden' ? ` (door card: ${card(e.card).name})` : ''}.`;
     case 'stop': return `${who(e.seat)} stops.`;
     case 'search': return `${who(e.seat)} searches the room.`;
     case 'stay': return `${who(e.seat)} stays in ${theChamber(content)}.`;
@@ -308,3 +308,8 @@ export function entries(events, ctx, { debug = false } = {}) {
 // Why a test is rolled, after "passes the Strength test".
 export const TEST_WHY = { portcullis: 'to lift the portcullis', 'well entry': 'on entering the well', 'well jump': 'to jump the well', 'force rubble': 'to force through the rubble', 'card test': 'for the card' };
 export const lines = (events, ctx) => entries(events, ctx).map(x => x.text);
+// The dragon's lair as players read it: the status chip, the collect choice and the forced-move prompt (DOM-free, so the
+// dragon sequence test reads the same words the screen shows).
+export const dragonStatus = v => (v.dragon.awake ? 'The dragon is awake' : `Dragon wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`);
+export const collectWords = (v, content) => `Two ${chamberCards(content)}, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`;
+export const forcedMoveWords = (name, content) => ['The dragon drives you out', `${name} must move to an explored room next to ${theChamber(content)}. No room card is drawn.`];

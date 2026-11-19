@@ -48,8 +48,8 @@ if (cmd === 'check' || cmd === 'report') {
   });
   const n = s.report.errors.length;
   if (cmd === 'check') console.log(n ? `${n} ${n === 1 ? 'error' : 'errors'}.` : 'No errors.');
-  // Not errors: entries written with the most literal reading, waiting on the owner's ruling.
-  if (s.confirm.length) console.log(`${s.confirm.length} ${s.confirm.length === 1 ? 'entry' : 'entries'} marked NEEDS OWNER CONFIRMATION: ${s.confirm.join(', ')}`);
+  // Not errors: flagged entries by evidence status (spec v6); none of them is approved.
+  for (const [status, ids] of s.flagged) console.log(`${ids.length} ${ids.length === 1 ? 'entry' : 'entries'} ${status === 'NEEDS OWNER CONFIRMATION' ? 'marked' : 'with status'} ${status}: ${ids.join(', ')}`);
   console.log(s.start);
   console.log(s.play);
   process.exit(cmd === 'check' && n ? 1 : 0);

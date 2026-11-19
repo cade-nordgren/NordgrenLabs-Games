@@ -100,6 +100,8 @@ const OP_ARGS = {
   HEAL: e => [...exprErrors(e.amount), ...(bool(e.uncapped) ? [] : ['uncapped must be true/false'])],
   DRAW_CARD: e => [...(DRAW_DECKS.includes(e.deck) ? [] : [`deck ${e.deck} not a draw deck`]), ...(['resolve', 'keep'].includes(e.then) ? [] : ['then must be resolve or keep'])],
   RETAIN_CARD: e => (['held', 'treasury'].includes(e.into) ? [] : ['into must be held or treasury']),
+  // D56 (spec v6): one held card of this id goes back under its own deck (the relit torch).
+  RETURN_HELD: e => (typeof e.card === 'string' && e.card ? [] : ['card must be a card id']),
   RETURN_CARD_TO_BOTTOM: e => (e.card === undefined || e.card === 'self' ? [] : ['card must be self']),
   SHUFFLE_DECK: e => (e.deck === undefined || DRAW_DECKS.includes(e.deck) ? [] : [`deck ${e.deck} not a draw deck`]),
   GRANT_TREASURE: () => [],
@@ -304,6 +306,8 @@ function reactionErrors(table, rowForm) {
     if (!r) { err.push(`reaction ${k} missing`); continue; }
     if (!REACTIONS.includes(r.type)) { err.push(`reaction ${k}: type ${r.type} not allowed`); continue; }
     if (r.type.startsWith('strike')) err.push(...exprErrors(r.damage).map(m => `reaction ${k}: damage ${m}`));
+    // Spec v6: source metadata for a cell whose card prints FP where the others print KP; the engine ignores it.
+    if (r.printedStat !== undefined && r.printedStat !== 'FP') err.push(`reaction ${k}: printedStat may only be 'FP'`);
     if (['strike-then-flight', 'flight-succeeds'].includes(r.type) && k !== 'flee') err.push(`reaction ${k}: ${r.type} only under flee`);
     if (r.hp !== undefined ? !Number.isInteger(r.hp) || r.hp < 1 : rowForm && FIGHTS.includes(r.type)) err.push(`reaction ${k}: ${r.type} needs hp, an integer >= 1 (the monster's hit points in that fight)`);
     err.push(...effectErrors(r.effects || []).map(m => `reaction ${k}: ${m}`));
@@ -465,7 +469,16 @@ export const MIXED_BANNER = 'Play-test: your content plus NON-AUTHENTIC fill-in'
 export const DRAFT_BANNER = 'Play-test: your own draft content, not approved yet';
 // Entries whose notes carry this flag are entered with the most literal reading and wait on an owner ruling.
 export const CONFIRM_FLAG = 'NEEDS OWNER CONFIRMATION';
-export const toConfirm = content => CATEGORIES.flatMap(cat => entriesOf(content, cat.key).filter(e => typeof e?.notes === 'string' && e.notes.includes(CONFIRM_FLAG)).map(e => e.id));
+// Spec v6 section 10: each flagged entry names its evidence status in its notes as "Status: <one of these>". None means approved.
+export const STATUSES = ['DIRECT 2023 RULE', 'DIRECT 2023 CARD', '1985-SUPPORTED INTERPRETATION', 'PROVISIONAL/INFERRED', 'OWNER DECISION REQUIRED'];
+const statusOf = e => (typeof e?.notes !== 'string' ? null : STATUSES.find(s => e.notes.includes(`Status: ${s}`)) || (e.notes.includes(CONFIRM_FLAG) ? CONFIRM_FLAG : null));
+// [[status, ids], ...] in STATUSES order (an unclassified NEEDS OWNER CONFIRMATION entry last), empty groups left out.
+export function flaggedByStatus(content) {
+  const all = CATEGORIES.flatMap(cat => entriesOf(content, cat.key)).filter(e => e?.id).map(e => [statusOf(e), e.id]);
+  return [...STATUSES, CONFIRM_FLAG].map(s => [s, all.filter(x => x[0] === s).map(x => x[1])]).filter(([, ids]) => ids.length);
+}
+// Entries still waiting on an owner ruling: OWNER DECISION REQUIRED, or an old flag not classified yet.
+export const toConfirm = content => flaggedByStatus(content).filter(([s]) => s === 'OWNER DECISION REQUIRED' || s === CONFIRM_FLAG).flatMap(([, ids]) => ids);
 // Spec v2 #13: shown until the completion gate passes; the app never claims exactness.
 export const APP_LABEL = 'Mechanics engine under verification';
 // Spec v2 #12: exactly which categories of this content are synthetic (fixture data), for the developer banner.
@@ -477,7 +490,9 @@ export function bannerLines(content) {
   if (content.mode !== 'mixed' || fx.length) return fx;
   const draft = CATEGORIES.filter(cat => entriesOf(content, cat.key).some(e => e.status === 'DRAFT')).map(cat => cat.label);
   const n = toConfirm(content).length;
-  return [...(draft.length ? [`Draft, not approved: ${draft.join(', ')}`] : []), ...(n ? [`${n} ${n === 1 ? 'entry waits' : 'entries wait'} on your ruling (${CONFIRM_FLAG} in its notes)`] : [])];
+  const m = flaggedByStatus(content).reduce((t, [, ids]) => t + ids.length, 0) - n;
+  return [...(draft.length ? [`Draft, not approved: ${draft.join(', ')}`] : []), ...(n ? [`${n} ${n === 1 ? 'entry waits' : 'entries wait'} on your ruling (OWNER DECISION REQUIRED in its notes)`] : []),
+    ...(m ? [`${m} more ${m === 1 ? 'entry is' : 'entries are'} an interpretation or provisional, not approved (its status is in its notes)`] : [])];
 }
 export const syntheticCategories = content => CATEGORIES.flatMap(cat => {
   const all = entriesOf(content, cat.key), fx = all.filter(e => e?.status === 'FIXTURE');
@@ -541,6 +556,7 @@ export function contentStatus(own, fx, mode = 'mixed') {
     start: report.fullStartAllowed ? 'Start is on: every slot holds approved original content.'
       : `Start is off until the content is complete: ${n ? `${n} content ${n === 1 ? 'error' : 'errors'} to fix` : [report.lines[gap], ...report.pending.filter(p => p.category === report.categories[gap].key).map(p => p.message)].join('; ')}.`,
     confirm: toConfirm(own),
+    flagged: flaggedByStatus(own),
     play: mixedAllowed ? (syntheticCategories(mixed).length ? `Play-test is on: your ${report.categories.reduce((s, c) => s + c.defined, 0)} written slots plus NON-AUTHENTIC fill-in.` : `Play-test is on: all ${report.categories.reduce((s, c) => s + c.defined, 0)} slots are your own entries, still draft (no fill-in).`)
       : !written ? 'Play-test is off until you write some entries.'
       : n ? `Play-test is off until the ${n} content ${n === 1 ? 'error is' : 'errors are'} fixed.`

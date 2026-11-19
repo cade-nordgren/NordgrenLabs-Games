@@ -75,9 +75,9 @@ test('catalogue: exact deck sizes and variant frequencies in every category', ()
   assert.equal(v.fullStartAllowed, false, 'drafts keep the full Start off');
 });
 
-test('catalogue: traps are exactly the cards the catalogue names a trap (Protection Ring, D50, D63)', () => {
+test('catalogue: traps are exactly the cards spec v6 lists for the Protection Ring (D50, D63)', () => {
   const traps = ['room', 'roomSearch', 'search', 'door', 'chest', 'treasury'].flatMap(k => C[k].filter(e => e.kind === 'trap').map(e => `${e.id} ${e.name}`));
-  assert.deepEqual(traps, ['ROOM_006 Arrow trap', 'ROOM_015 Trapdoor', 'DOOR_003 Door trap', 'DOOR_004 Door trap', 'CHEST_008 Trap']);
+  assert.deepEqual(traps, ['ROOM_001 Poisonous snakes', 'ROOM_003 Poisonous mist', 'ROOM_005 Explosion', 'ROOM_006 Arrow trap', 'ROOM_008 Ceiling collapses', 'ROOM_015 Trapdoor', 'DOOR_003 Door trap', 'DOOR_004 Door trap', 'CHEST_008 Trap']);
 });
 
 test('catalogue: damage expressions are stored exactly as catalogued', () => {
@@ -149,7 +149,9 @@ for (const [n, ...rows] of MATRIX) {
     assert.deepEqual(Object.keys(def.rows), TYPES, 'four rows, one per monster type');
     TYPES.forEach((type, ti) => rows[ti].split(' ').forEach((cell, ci) => {
       const choice = ['attack', 'wait', 'flee'][ci], want = parseCell(cell), where = `card ${n} ${choice} ${TYPE_NAME[type]}`;
-      assert.deepEqual(def.rows[type][choice], want, `${where}: content`);
+      const { printedStat, ...stored } = def.rows[type][choice];
+      assert.deepEqual(stored, want, `${where}: content`);
+      assert.equal(printedStat, FP.includes(`${n} ${choice} ${type}`) ? 'FP' : undefined, `${where}: printed FP kept as source metadata only`);
       // The engine: the room card names the type, the hero commits, the monster card (this one) answers.
       const strike = want.damage?.die ? [{ D6: 6, D12: 12 }[want.damage.die]] : [];
       let g = enter(ROOM_OF[type], { decks: { MONSTER: [def.id] }, script: strike });
@@ -165,9 +167,10 @@ for (const [n, ...rows] of MATRIX) {
         assert.equal(view(g, T, 0).encounter.monster.hp, want.hp, `${where}: fight HP (solo sees it after the reveal)`);
       }
     }));
-    // The four printed FP cells are flagged for the owner in the card's notes; no other card is.
+    // Spec v6: the four printed FP cells are documented as probable printing errors read as monster HP; no other card is.
     const flagged = FP.filter(x => x.startsWith(`${n} `));
-    assert.equal(def.notes.includes('NEEDS OWNER CONFIRMATION'), flagged.length > 0, 'FP flag in the notes');
+    assert.equal(def.notes.includes('Status: DIRECT 2023 RULE'), flagged.length > 0, 'FP status in the notes');
+    assert.doesNotMatch(def.notes, /NEEDS OWNER CONFIRMATION/);
   });
 }
 
@@ -249,7 +252,7 @@ test('catalogue: small flask: kept, drunk on the hero\'s own turn without using 
   assert.deepEqual(u.heroes[0].held, []);
   assert.equal(u.decks.ROOM.order.at(-1), 'ROOM_002#1', 'to the bottom of the room deck');
   g.heroes[0].hp = 15;
-  assert.equal(hp(go(dice(g, 9, 3), 'USE_ITEM', { item: 'ROOM_002#1' })), 17, 'a gain stops at starting HP (D04)');
+  assert.equal(hp(go(dice(g, 9, 3), 'USE_ITEM', { item: 'ROOM_002#1' })), 21, 'no cap at starting HP (spec v6, D53)');
   u = go(dice(g, 2, 6), 'USE_ITEM', { item: 'ROOM_002#1' });
   assert.equal(hp(u), 11, 'a net loss is damage');
   // Offered while choosing whether to keep moving too (a yellow corridor).
@@ -271,7 +274,7 @@ test('catalogue: a flask never stands in for the forced skip of a hero with no w
   assert.deepEqual(acts(g, T).map(a => a.type).sort(), ['FORCED_SKIP', 'USE_ITEM']);
 });
 
-test('catalogue: torch goes out: kept; each later turn name three numbers; a match relights it, a miss ends the turn', () => {
+test('catalogue: torch goes out: kept while out; each later turn name three numbers; a match relights it, a miss ends the turn', () => {
   let g = enter('ROOM_004');
   assert.deepEqual(g.heroes[0].held, ['ROOM_004#1']);
   assert.equal(g.pending.kind, 'name-numbers');
@@ -285,7 +288,8 @@ test('catalogue: torch goes out: kept; each later turn name three numbers; a mat
   assert.equal(g.phase, 'CHOOSE_ACTION', 'relit: the turn goes on');
   assert.equal(g.sun, 3);
   assert.deepEqual(g.heroes[0].conditions, []);
-  assert.deepEqual(g.heroes[0].held, ['ROOM_004#1'], 'the card stays kept (D56, to confirm)');
+  assert.deepEqual(g.heroes[0].held, [], 'relit: the card leaves the hero (spec v6, D56)');
+  assert.equal(g.decks.ROOM.order.at(-1), 'ROOM_004#1', 'to the bottom of the room deck');
 });
 
 test('catalogue: trapdoor: Luck test avoids it; a fall is D6 damage, then a climb-out Agility test each later turn; a rope frees untested', () => {
@@ -325,14 +329,14 @@ test("catalogue: wizard's curse turns every placed yellow corridor; heroes stay;
   }
 });
 
-test('catalogue: ceiling collapses: name one number; a match is death, otherwise damage equal to the roll (D59, to confirm)', () => {
+test('catalogue: ceiling collapses: name one number; a match is death, otherwise a second D6 is the damage (D59, spec v6)', () => {
   let g = enter('ROOM_008');
   assert.equal(g.pending.count, 1);
   assert.equal(acts(g, T).length, 6);
   const dead = go(dice(g, 4), 'NAME_NUMBERS', { numbers: '4' });
   assert.equal(dead.heroes[0].status, 'DEAD');
-  g = go(dice(g, 3), 'NAME_NUMBERS', { numbers: '4' });
-  assert.equal(hp(g), 14);
+  g = go(dice(g, 3, 5), 'NAME_NUMBERS', { numbers: '4' });
+  assert.equal(hp(g), 12, 'the second roll, not the first');
 });
 
 test('catalogue: chest, sarcophagus and fallen warrior: an optional draw from the chest or search deck', () => {
@@ -393,7 +397,7 @@ test('catalogue: giant spider: Fight or Flee; flee on 3-6; the fight names three
   assert.deepEqual(enter('ROOM_025', { toTile: 'FX_CORNER', rot: 180 }).pending.options, ['Fight']);
 });
 
-test('catalogue: door cards: opens, stays shut (try another way), the two door traps end the turn, shuffle leaves it shut (D62)', () => {
+test('catalogue: door cards: opens, stays shut (try another way), the two door traps end the turn, shuffle draws again (D62)', () => {
   const door = (id, script = []) => enter('ROOM_013', { toTile: 'FX_DOORWAY', decks: { DOOR: [id] }, script });
   assert.equal(at(door('DOOR_001')), '1,1');
   let g = door('DOOR_002');
@@ -403,9 +407,10 @@ test('catalogue: door cards: opens, stays shut (try another way), the two door t
   assert.equal(hp(g), 9);
   assert.equal(g.sun, 2, 'the turn ended');
   assert.equal(hp(door('DOOR_004', [4])), 13);
-  g = door('DOOR_005');
+  g = enter('ROOM_013', { toTile: 'FX_DOORWAY', decks: { DOOR: [['DOOR_005'], ['DOOR_002']] } });
+  assert.deepEqual(draws(g, 'DOOR'), ['DOOR_005#1', 'DOOR_002#1'], 'a second door card at once (spec v6)');
   assert.equal(at(g), '1,0');
-  assert.equal(g.phase, 'CHOOSE_EXIT');
+  assert.equal(g.phase, 'CHOOSE_EXIT', 'the second card decides: it stays shut');
   assert.equal(g.decks.DOOR.shuffles, 2, 'the door deck was reshuffled (R62)');
   assertCensus(assert, g, T);
 });
@@ -475,19 +480,20 @@ test('catalogue: the dragon odds and reset behave as ruled with the owner dragon
   assert.deepEqual(view(g, T, 0).dragon.odds, { awake: 1, remaining: 8 });
 });
 
-test('catalogue: play-test runs on owner data only; the banner says draft, not NON-AUTHENTIC; saves from v6 are refused', () => {
+test('catalogue: play-test runs on owner data only; the banner says draft, not NON-AUTHENTIC; saves from v7 are refused', () => {
   assert.equal(M.label, DRAFT_BANNER);
   const g = createGame({ players: ['A', 'B'], seed: 3, content: M });
   assert.equal(g.banner, DRAFT_BANNER);
   assert.doesNotMatch(g.banner, /NON-AUTHENTIC/);
   const lines = bannerLines(M);
   assert.match(lines[0], /^Draft, not approved: /);
-  assert.match(lines[1], /entries wait on your ruling/);
+  assert.match(lines[1], /^1 entry waits on your ruling \(OWNER DECISION REQUIRED/);
+  assert.match(lines[2], /^34 more entries are an interpretation or provisional, not approved/);
   assert.match(contentStatus(ORIGINAL, FX).play, /all \d+ slots are your own entries, still draft/);
-  assert.deepEqual(toConfirm(C).sort(), ['DOOR_005', 'MONSTER_006', 'MONSTER_014', 'MONSTER_015', 'ROOM_004', 'ROOM_008', ...Array.from({ length: 21 }, (_, i) => `TREASURY_${String(13 + i).padStart(3, '0')}`)].sort());
-  assert.equal(MECHANICS_VERSION, 'rb-0.2/sp-1.0/v7');
+  assert.deepEqual(toConfirm(C), ['ROOM_007'], 'spec v6: only the curse waits on a ruling');
+  assert.equal(MECHANICS_VERSION, 'rb-0.2/sp-1.0/v8');
   const old = JSON.parse(serialize(g));
-  old.mechanicsVersion = 'rb-0.2/sp-1.0/v6';
+  old.mechanicsVersion = 'rb-0.2/sp-1.0/v7';
   assert.throws(() => restore(JSON.stringify(old), M), /Unsupported save version/);
   // A category falling back to fixtures keeps the placeholder banner.
   const part = mixContent({ ...ORIGINAL, room: ORIGINAL.room.slice(1) }, FX);

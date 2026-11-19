@@ -90,7 +90,7 @@ function effectClauses(def, ch) {
   if (def.kind === 'sleeping') return ['the dragon sleeps'];
   if (def.kind === 'awake') return ['the dragon wakes'];
   const out = [];
-  if (def.deck === 'DOOR') out.push({ opens: 'the door opens', closed: 'the door stays shut', trap: 'the door is trapped', reshuffle: 'the door stays shut' }[def.kind]);
+  if (def.deck === 'DOOR') out.push({ opens: 'the door opens', closed: 'the door stays shut', trap: 'the door is trapped', reshuffle: 'try the door again: draw another door card at once' }[def.kind]);
   out.push(describeEffects(def.effects, ch));
   if (def.followUpDeck) out.push(def.followUpDeck === 'MONSTER' ? 'a monster appears' : `draw a ${DECK[def.followUpDeck]} card next`);
   if (def.cardDisposition === 'RETAIN_HELD' || def.cardDisposition === 'RETAIN_TREASURY') out.push('you keep it');
@@ -108,6 +108,9 @@ function effectClauses(def, ch) {
 function mechanics(list = [], where = '') {
   return list.flatMap(e => {
     if (e.op === 'RETURN_CARD_TO_BOTTOM') return [`${where}the card goes to the bottom of its deck`];
+    if (e.op === 'RETURN_HELD') return [`${where}the kept card goes to the bottom of its deck`];
+    if (e.op === 'SET_CONDITION') return mechanics(e.onTurnStart, where);
+    if (e.op === 'NAME_NUMBERS') return [...mechanics(e.onMatch, 'on a match, '), ...mechanics(e.onMiss, 'on a miss, ')];
     if (e.op === 'SHUFFLE_DECK') return [`${where}${e.deck ? `the ${DECK[e.deck]} deck` : 'its deck'} is shuffled`];
     if (e.op === 'REQUEST_CHOICE') return e.options.flatMap(o => mechanics(o.effects, `${o.label}: `));
     if (e.op === 'CHECK_STAT') return [...mechanics(e.onPass, 'on a pass, '), ...mechanics(e.onFail, 'on a fail, ')];

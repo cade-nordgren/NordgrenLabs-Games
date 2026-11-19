@@ -12,7 +12,7 @@ import { SUNSET } from '../engine/clock.js';
 import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, bannerLines, APP_LABEL, chamberName, theChamber, chamberCards } from '../content/schema.js';
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, cardText, monsterText, fightRowModel, soloStripModel, expr,
+import { lines, entries, dragonStatus, collectWords, forcedMoveWords, cardText, monsterText, fightRowModel, soloStripModel, expr,
  undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords } from './words.js';
 import { rollDice } from './dice.js';
 import { shownEffectText, describeEffects } from '../engine/describe.js';
@@ -1135,7 +1135,7 @@ function renderPrompt(v, la, targets) {
       }
       for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
       if (!by('SEARCH').length && typeof v.searchUnavailable === 'string' && v.searchUnavailable) ch.append(el('p', 'muted', `Can't search here: ${v.searchUnavailable.replace(/\.$/, '')}.`));
-      for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two ${chamberCards(c)}, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
+      for (const a of by('COLLECT')) ch.append(choice('Stay and collect', collectWords(v, c), () => act(a), 'primary'));
       if (v.collectUnavailable) ch.append(el('p', 'muted', `Can't collect: ${v.collectUnavailable.replace(/\.$/, '')}.`));
       // D42: across the well, the near side needs a jump back (chamber cards may be dropped first).
       for (const a of by('WELL_JUMP')) ch.append(choice('Jump back across', `Agility test on the D12 plus ${hero.treasury.length} ${chamberCards(c, hero.treasury.length)} against ${heroDef(hero).stats.AGI}. A failed jump is death.`, () => tryAct(a)));
@@ -1272,7 +1272,7 @@ function renderPrompt(v, la, targets) {
     }
     case 'FORCED_MOVE': {
       const seat = g.pending.seat;
-      p = panel('The dragon drives you out', `${nameOf(seat)} must move to an explored room next to ${theChamber(c)}. No room card is drawn.`);
+      p = panel(...forcedMoveWords(nameOf(seat), c));
       for (const a of by('FORCED_MOVE')) {
         const sq = actionSquare(g, a);
         targets.push({ ...sq, label: `${nameOf(seat)} moves to ${place(sq)}`, pick: () => tryAct(a) });
@@ -1308,7 +1308,7 @@ function renderTable(v) {
   const odds = `${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`;
   bar.append(who, sunTrack(v.sun, solo()),
     // D40: while a hero is stuck inside after a wake the dragon stays awake; the odds mean nothing then.
-    chip('dragon', v.dragon.awake ? 'The dragon is awake' : `Dragon wakes on ${odds}`, 'M12 3c.6 3.2 5 5.4 5 10a5 5 0 0 1-10 0c0-2.3 1.2-3.8 2.5-5 .2 2 1 3 2 3.4C11 9 11 6 12 3z', v.dragon.awake ? 'Dragon ' : 'Dragon wakes on ', v.dragon.awake ? 'awake' : odds),
+    chip('dragon', dragonStatus(v), 'M12 3c.6 3.2 5 5.4 5 10a5 5 0 0 1-10 0c0-2.3 1.2-3.8 2.5-5 .2 2 1 3 2 3.4C11 9 11 6 12 3z', v.dragon.awake ? 'Dragon ' : 'Dragon wakes on ', v.dragon.awake ? 'awake' : odds),
 
     // Tiles left: on wide screens the map tools say it, so this chip is for phones (CSS).
     chip('tilesleft', `${v.board.tileBag} tiles left`, 'M4 4h16v16H4zM4 12h16M12 4v16', '', String(v.board.tileBag)));
