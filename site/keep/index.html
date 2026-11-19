@@ -49,6 +49,11 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
 .movewhy { display: none; margin-top: 4px; font-size: 14px; color: var(--ink2); }
 @media (hover: hover) and (pointer: fine) { .movewhy { display: block; } } /* the keyboard hint, not on touch phones */
 .undo-here { display: block; margin-top: 10px; font-size: 15px; }
+.undo-note, .choices p.muted { margin: 10px 0 0; font-size: 14px; color: var(--ink2); }
+.choices p.muted { margin: 0; padding: 0 4px; }
+.panel > p.why, .panel > p.exchange { color: var(--ink); font-weight: 600; }
+.tapdice { cursor: pointer; }
+.panel > p.firstres { font-weight: 700; color: var(--ink); font-size: 17px; }
 .applabel { margin: -4px 0 14px; font-size: 15px; color: var(--ink2); }
 
 /* Title */
@@ -62,7 +67,9 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
 /* Placeholders the height of a real row, so the lists do not jump when the data lands. */
 #saves li.loading { min-height: 59px; }
 #names li.loading { min-height: 49px; display: flex; align-items: center; }
+#savedGroup[open] summary { margin-bottom: 4px; }
 #savedGroup .note { margin: 0 0 8px; }
+#savedGroup .count { display: inline-block; width: 2.2em; height: .9em; vertical-align: -1px; margin-left: 6px; }
 .resume { flex: 1; min-width: 0; min-height: 58px; padding: 9px 0; text-align: left; }
 .resume strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resume span { display: block; font-size: 14px; color: var(--ink2); }
@@ -192,9 +199,6 @@ details li + li { margin-top: 6px; }
 #latest .loglines { margin-top: 8px; font-size: 15px; }
 .loglines li { padding: 3px 0; }
 .loglines small { display: block; font-size: 13px; color: var(--ink2); font-variant-numeric: tabular-nums; }
-#logPanel { scroll-margin-top: max(12px, env(safe-area-inset-top)); }
-#logPanel:focus { outline: none; }
-#logPanel > .btn { margin-top: 10px; }
 .again { display: grid; gap: 10px; max-width: 440px; margin: 4px auto 18px; }
 
 /* Dice: Bank's cubes (site/bank/index.html), numbered faces for a D12 or D6. ui/dice.js turns them. */
@@ -236,8 +240,21 @@ details li + li { margin-top: 6px; }
 #heroes .btn { justify-self: start; margin-top: 4px; min-height: 44px; font-size: 15px; }
 .hp { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; margin: 4px 0; }
 .hp i { display: block; height: 100%; background: var(--good); }
-.pips { display: inline-flex; gap: 4px; vertical-align: middle; }
-.pips i { width: 12px; height: 12px; border-radius: 50%; background: var(--danger); }
+.monsterhp { margin-top: 4px; }
+.hearts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.hearts svg { width: 22px; height: 22px; }
+.hearts .full path { fill: var(--danger); }
+.hearts .lost path { fill: none; stroke: var(--ink2); stroke-width: 2; }
+.combatcard { justify-items: center; text-align: center; }
+.combatcard small { font-size: 13px; }
+.combatcard .rule { color: var(--ink); font-weight: 600; }
+.combatcard .cardname { margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; }
+.inv .itemtext { font-size: 14px; color: var(--ink); }
+/* The event log sheet: the full screen height, its list scrolling between the title and Close. */
+#logSheet { width: min(100% - 24px, 640px); height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))); overflow: hidden; }
+#logSheet > div { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
+#logSheet #log { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 0; }
+#logSheet > div > .btn { flex: none; }
 .vs { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 12px; font: 700 40px var(--num); }
 .vs small { display: block; font: 600 13px var(--text); color: var(--ink2); text-align: center; }
 
@@ -346,17 +363,21 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
       <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
     </button>
     <div class="menu-items" id="menuItems">
-      <a class="item glass" href="../index.html">
+      <a class="item glass" id="gamesLink" href="../index.html">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
         <span class="glass">Games</span>
       </a>
-      <button class="item glass" id="undo" data-keep-open>
+      <button class="item glass" id="undo" data-keep-open hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 4 9l4 4"/><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H10"/></svg>
         <span class="glass">Undo</span>
       </button>
-      <button class="item glass" id="saveExit">
+      <button class="item glass" id="logBtn" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6h11M9 12h11M9 18h11"/><circle cx="4.5" cy="6" r="1"/><circle cx="4.5" cy="12" r="1"/><circle cx="4.5" cy="18" r="1"/></svg>
+        <span class="glass">Event log</span>
+      </button>
+      <button class="item glass" id="exitBtn" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
-        <span class="glass">Save and exit</span>
+        <span class="glass">Exit</span>
       </button>
       <button class="item glass" id="settingsBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
@@ -372,11 +393,11 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
     <p class="applabel" id="appLabel"></p>
     <p class="lede">Explore the keep, take what gold you can carry, and reach a tower before the sun goes down.</p>
 
-    <section class="glass group" id="savedGroup" hidden>
-      <h2>Saved games</h2>
+    <details class="glass group" id="savedGroup" hidden>
+      <summary id="savedSummary">Saved games</summary>
       <p class="note" id="savedNote" role="status" hidden></p>
       <ul id="saves"></ul>
-    </section>
+    </details>
 
     <section class="glass group">
       <h2 id="countTitle">Players</h2>
@@ -460,6 +481,25 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
     <h2 id="itemsTitle"></h2>
     <div id="itemsBody"></div>
     <button class="btn" id="itemsDone">Close</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="logSheet" aria-labelledby="logTitle">
+  <div>
+    <h2 id="logTitle">Event log</h2>
+    <button class="btn" id="logEnd" hidden>Jump to the end</button>
+    <ol id="log"></ol>
+    <button class="btn" id="logDone">Close</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="exitSheet" aria-labelledby="exitTitle">
+  <div>
+    <h2 id="exitTitle"></h2>
+    <p id="exitNote"></p>
+    <button class="btn primary" id="saveExit">Save and exit</button>
+    <button class="btn danger" id="discard"></button>
+    <button class="btn" id="keepPlaying"></button>
   </div>
 </dialog>
 

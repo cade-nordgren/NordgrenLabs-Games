@@ -4,15 +4,17 @@ import FIXTURES from '../content/fixtures/fixtures.js';
 import ORIGINAL from '../content/original/index.js';
 import { createGame, reduce, restore, DEFAULT_RULES, RULE_TAGS } from '../engine/reducer.js';
 import { legalActions, sameAction } from '../engine/phases.js';
-import { view, canUndoTo, screenOwner } from '../engine/view.js';
+import { view, screenOwner } from '../engine/view.js';
 import { neighbour, squareKind, exits, key } from '../engine/board.js';
 import { isActive } from '../engine/heroes.js';
 import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
+import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
 import { mountBoard, resetView, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, cardText, monsterText, expr, undoLabel, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, DECK, towerName } from './words.js';
+import { lines, entries, cardText, monsterText, expr, undoLabel, testWords, exchangeWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, DECK, towerName } from './words.js';
 import { rollDice } from './dice.js';
+import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -30,7 +32,6 @@ const REPORT = STATUS.report;
 const CONTENT = { fixture: FIXTURES, original: ORIGINAL, mixed: STATUS.mixed };
 const FX_REPORT = validateContent(FIXTURES);
 const KEY = 'nl-keep-v1';
-const HIST_CAP = 20; // shortcut: full snapshots, at most 20 and cleared at every commit point; store diffs if long uncommitted runs ever matter
 
 // Rules-config entries with their ruling from the plan's decision register (display only); the authority tags
 // come from the engine's RULE_TAGS. Entries in RULE_TAGS but not in the rules config are fixed rulings.
@@ -85,7 +86,11 @@ function load() {
 }
 function persist() {
   try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {
-    try { localStorage.setItem(KEY, JSON.stringify({ ...S, hist: [] })); } catch {}
+    // Storage full: keep the newest undo steps that fit (about 5 MB is a common browser limit), else none.
+    const hist = fitHist(S.hist, JSON.stringify({ ...S, hist: [] }).length, 4500000);
+    try { localStorage.setItem(KEY, JSON.stringify({ ...S, hist })); } catch {
+      try { localStorage.setItem(KEY, JSON.stringify({ ...S, hist: [] })); } catch {}
+    }
   }
 }
 
@@ -101,7 +106,7 @@ function act(a) {
   let next;
   try { next = reduce(prev, a, c); } catch { if ($('roll').dataset.mode === 'rolling') $('roll').close(); return render(); } // a stale double tap: nothing happens
   // D21: undo only steps back over actions that revealed nothing (the engine counts commit points).
-  S.hist = canUndoTo(prev, next) ? [...S.hist, prev].slice(-HIST_CAP) : [];
+  S.hist = pushUndo(S.hist, prev, next);
   S.seen = prev.log.length;
   const added = next.log.slice(prev.log.length);
   const multi = next.seats.length > 1;
@@ -179,12 +184,11 @@ function showRolls(added) {
   for (const e of shown) {
     const box = el('div');
     if (e.kind === 'test') {
-      const mod = e.modifier || 0, it = said.find(x => x.e === e);
-      box.append(el('p', `verdict ${e.pass ? 'pass' : 'fail'}`, e.pass ? 'Pass' : 'Fail'),
-        el('p', 'sum', it?.detail || `D12 ${e.roll}${mod ? ` + ${mod} = ${e.roll + mod}` : ''}, ${e.pass ? 'at or under' : 'over'} ${STAT[e.stat]} ${e.target}`));
+      const it = said.find(x => x.e === e), [rolled, needed] = testWords(e);
+      box.append(el('p', `verdict ${e.pass ? 'pass' : 'fail'}`, e.pass ? 'Pass' : 'Fail'), el('p', 'sum', rolled), el('p', 'sum', needed));
       const line = it?.text;
       if (line) box.append(el('p', '', line));
-      summary.push(`${e.pass ? 'Pass' : 'Fail'}. ${line || ''}`);
+      summary.push(`${e.pass ? 'Pass' : 'Fail'}. ${rolled} ${needed} ${line || ''}`);
     } else {
       const next = added.slice(added.indexOf(e) + 1).find(x => x.kind === 'dark-exit' || x.kind === 'dark-blocked');
       const line = next ? said.find(x => x.e === next)?.text : '';
@@ -213,14 +217,26 @@ function showRolls(added) {
   });
   return true;
 }
-const canUndo = () => !!S.game && S.hist.length > 0 && canUndoTo(S.hist.at(-1), S.game);
+const canUndo = () => canUndoHist(S.hist, S.game);
+// The thumb-reach undo under a prompt, named for what it takes back; or, with note, why there is nothing to undo.
+function undoHere(v, note) {
+  if (canUndo()) {
+    const u = el('button', 'btn undo-here', undoLabel(S.hist.at(-1), S.game, content(), nameOf));
+    u.onclick = undo;
+    return [u];
+  }
+  const why = note && undoBlocked(v.log);
+  return why ? [el('p', 'undo-note', why)] : [];
+}
 function undo() {
   if (!canUndo()) return;
+  const here = document.activeElement?.classList.contains('undo-here');
   S.game = S.hist.pop();
   S.seen = Math.min(S.seen, S.game.log.length);
   S.reveal = null;
   S.peek = null;
   render();
+  if (here) document.querySelector('main:not([hidden]) .undo-here')?.focus(); // press again for one more step
 }
 
 function newGame(mode) {
@@ -260,8 +276,8 @@ async function saveGame() {
   if (!S.saveId) Object.assign(S, { saveId: crypto.randomUUID(), createdAt: now }); // before any await, so a double tap updates one record
   if (!S.createdAt) S.createdAt = (await NL.saves.get(S.saveId).catch(() => null))?.createdAt || now;
   persist();
-  let state = { mode: S.mode, game: g, hist: S.hist };
-  if (JSON.stringify(state).length > 240000) state = { mode: S.mode, game: g, hist: [] }; // the server keeps 256 KB per save
+  // The server keeps 256 KB per save: the newest undo steps that fit go with it, so undo survives a resume.
+  const state = { mode: S.mode, game: g, hist: fitHist(S.hist, JSON.stringify({ mode: S.mode, game: g, hist: [] }).length, 240000) };
   return NL.saves.put({
     schemaVersion: 1, id: S.saveId, game: 'keep', personPublicId: NL.person(),
     title: saveTitle(g), status: g.status === 'over' ? 'finished' : 'in_progress',
@@ -310,11 +326,15 @@ async function refreshSaves() {
   if (!S.game) drawSaves();
 }
 addEventListener('nl-saves', () => { if (!S.game) refreshSaves(); }); // an upload finished or was refused
+const OPEN_KEY = 'nl-keep-saved-open'; // open or closed, for this visit
+try { $('savedGroup').open = sessionStorage.getItem(OPEN_KEY) === '1'; } catch {}
+$('savedGroup').ontoggle = () => { try { sessionStorage.setItem(OPEN_KEY, $('savedGroup').open ? '1' : '0'); } catch {} };
 
 function drawSaves() {
   const recs = (shown || []).filter(okRecord), group = $('savedGroup');
   group.hidden = !loadingSaves && !savesNote && !recs.length;
   group.setAttribute('aria-busy', loadingSaves);
+  $('savedSummary').replaceChildren('Saved games', loadingSaves ? el('span', 'skeleton count') : recs.length ? ` (${recs.length})` : '');
   $('savedNote').textContent = savesNote;
   $('savedNote').hidden = !savesNote;
   if (savesNote && !shown) {
@@ -441,9 +461,14 @@ function render() {
   $('banner').hidden = !g?.banner;
   $('bannerText').textContent = g?.banner || '';
   $('synthetic').replaceChildren(...(g?.banner ? syntheticCategories(content()) : []).map(t => el('li', '', t)));
-  $('undo').hidden = $('saveExit').hidden = !g;
-  $('undo').disabled = !canUndo();
-  $('saveExit').disabled = false;
+  // Menu: like Bank, the Games link gives way to Exit during a game. Undo shows only when a press works, named.
+  const undoOk = canUndo() && !S.peek && !S.reveal;
+  if (!undoOk && document.activeElement === $('undo')) $('menu').querySelector('.menu-trigger').focus();
+  $('undo').hidden = !undoOk;
+  if (undoOk) $('undo').querySelector('span').textContent = undoLabel(S.hist.at(-1), g, content(), nameOf);
+  $('exitBtn').hidden = $('logBtn').hidden = !g;
+  $('gamesLink').hidden = !!g;
+  [...$('menuItems').children].filter(i => !i.hidden).forEach((item, k) => item.style.setProperty('--i', k + 1)); // NL.menu sets these on open only
   if (!g) {
     say('');
     $('cover').hidden = true;
@@ -570,10 +595,13 @@ const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 function firstRolls(g) {
   const rolls = g.log.filter(e => e.kind === 'roll' && /^first player, seat \d+$/.test(e.reason));
-  return rolls.map(e => `${nameOf(+e.reason.split(' ').pop())} ${e.value}`).join(', ');
+  return rolls.map(e => `${nameOf(+e.reason.split(' ').pop())} rolled ${e.value}`).join(', ');
 }
 
-let firstRolled = false; // the first-player roll was just made: its dice tumble on the next draw
+// The first-player roll is a step of its own: "?" dice and Roll (or a tap on the dice); once they land, the result
+// and "Pick heroes", which brings in the hero picker. Never saved: a reload or resume goes straight to the picker.
+let firstRolled = false; // just rolled: the dice tumble on the next draw
+let firstWait = false; // the result shows on its own until "Pick heroes"
 function renderDraft(v) {
   const g = S.game, c = content(), la = legalActions(g, c);
   const out = [el('h1', '', 'Setting up')];
@@ -582,34 +610,51 @@ function renderDraft(v) {
   let tumble = null;
   if (step === 'first-player') {
     const p = panel('Who goes first', 'Everyone rolls a D12. The highest goes first; tied highest roll again.');
-    const dice = el('div');
+    const dice = el('div', 'tapdice');
     rollDice(dice, g.seats.map(s => ({ value: '?', label: s.name })), { animate: false });
+    const go = () => { firstRolled = firstWait = true; act(la[0]); };
+    dice.onclick = go; // the Roll button is the keyboard and screen reader way
     const ch = el('div', 'choices');
-    ch.append(choice('Roll for first player', `${g.seats.length} D12s`, () => { firstRolled = true; act(la[0]); }, 'primary'));
+    ch.append(choice('Roll', `${g.seats.length} D12s`, go, 'primary'));
     p.append(dice, ch);
     out.push(p);
   } else {
     // Every player's die, rerolls for a tie included, landing on what the engine rolled: animated once, just
     // after the roll, and the result said once it has landed.
-    const p = panel('First player');
+    const p = panel(firstWait ? 'Who goes first' : 'First player');
     const dice = el('div'), seen = new Set();
     const items = g.log.filter(e => e.kind === 'roll' && /^first player, seat \d+$/.test(e.reason)).map(e => {
       const s = +e.reason.split(' ').pop(), again = seen.has(s);
       seen.add(s);
       return { value: e.value, label: again ? `${nameOf(s)}, again` : nameOf(s) };
     });
-    const res = el('p', '', `${firstRolls(g)}. ${nameOf(g.firstSeat)} goes first.`);
+    const tie = items.some(x => x.label.endsWith(', again'));
+    const res = el('p', 'firstres', `${nameOf(g.firstSeat)} goes first.`);
+    const rolls = el('p', '', `${firstRolls(g)}.${tie ? ' Tied highest rolled again.' : ''}`);
     const order = el('p', '', `Order of play, clockwise: ${listOf(g.seats.map((_, k) => nameOf((g.firstSeat + k) % g.seats.length)))}.`);
-    p.append(dice, res, order);
+    p.append(dice, res, rolls, order);
+    const shown = [res, rolls, order];
+    if (firstWait && step === 'heroes') {
+      const ch = el('div', 'choices');
+      ch.append(choice('Pick heroes', null, () => { firstWait = false; render(); }, 'primary'));
+      p.append(ch);
+      shown.push(ch);
+    }
     out.push(p);
     const animate = firstRolled;
     firstRolled = false;
-    if (animate) res.style.visibility = order.style.visibility = 'hidden';
+    if (animate) for (const x of shown) x.style.visibility = 'hidden';
     tumble = () => rollDice(dice, items, { animate }).then(() => {
       if (!animate) return;
-      res.style.visibility = order.style.visibility = '';
-      say(`${res.textContent} ${order.textContent}`);
+      for (const x of shown) x.style.visibility = '';
+      say(`${res.textContent} ${rolls.textContent} ${order.textContent}`);
+      p.querySelector('.choice')?.focus();
     });
+    if (firstWait && step === 'heroes') {
+      $('draft').replaceChildren(...out);
+      return tumble();
+    }
+    firstWait = false; // past the hero step (an undo, or another device): the picker as usual
   }
   if (step === 'heroes') {
     const p = panel(`${nameOf(seat)}, pick your hero`, 'Heroes are picked clockwise from the first player.');
@@ -650,6 +695,7 @@ function renderDraft(v) {
     p.append(ch);
     out.push(p);
   }
+  if (step !== 'first-player') out[2]?.append(...undoHere(v, false)); // under the pick: [h1, first player, pick, ...]
   if (step !== 'first-player') {
     const p = panel('Picks so far');
     const ul = el('ul');
@@ -662,6 +708,14 @@ function renderDraft(v) {
   }
   $('draft').replaceChildren(...out);
   tumble?.(); // once the dice are in the page, so the turn has a start to run from
+}
+
+// Why the hero may go on (the Keep moving prompt): the engine's logged reason this turn, else a corridor just entered.
+function keepMovingWhy(v) {
+  const turn = v.log.slice(v.log.findLastIndex(e => e.kind === 'turn') + 1);
+  const e = turn.findLast(x => /continue|keep-moving/i.test(x.kind || ''));
+  if (e) return entries(turn, ctx()).find(x => x.e === e)?.text || (typeof e.text === 'string' && e.text) || (typeof e.reason === 'string' && capital(e.reason)) || null;
+  return turn.findLast(x => x.kind === 'move')?.mark === 'yellow' ? 'You came into a corridor: no card, so you may keep going.' : null;
 }
 
 // ---- Main tabletop
@@ -721,10 +775,8 @@ function combatBox(v, enc) {
   if (enc.combat?.label) box.append(el('p', 'mode', enc.combat.label));
   box.append(el('strong', '', m?.inst ? cardDef(content(), m.inst).name : 'The monster'));
   if (Number.isInteger(m?.hp)) {
-    const wounds = el('span', 'pips');
-    for (let i = 0; i < m.wounds; i++) wounds.append(el('i'));
-    const line = el('p');
-    line.append(`Only you see this: ${m.wounds} damage taken of ${m.hp} HP `, wounds);
+    const line = el('div', 'monsterhp');
+    line.append(el('p', '', 'Only you see this:'), hpMeter(Math.max(0, m.hp - m.wounds), m.hp));
     box.append(line);
   }
   const hero = v.heroes[enc.seat];
@@ -732,21 +784,46 @@ function combatBox(v, enc) {
   const ex = enc.combat?.exchanges || [];
   if (ex.length) {
     const ol = el('ol');
-    for (const x of ex) ol.append(el('li', '', x.placement ? (x.rethrow ? 'Unclear, thrown again' : `${PLACEMENT[x.placement]}, ${FACE[x.face].toLowerCase()}: hero ${x.heroDmg}, monster ${x.monsterDmg}`) : `${x.hero} against ${x.monster}: hero ${x.heroDmg}, monster ${x.monsterDmg}`));
+    for (const x of ex) ol.append(el('li', '', x.placement ? (x.rethrow ? 'Unclear, thrown again' : `${PLACEMENT[x.placement]}, ${FACE[x.face].toLowerCase()}: hero ${x.heroDmg}, monster ${x.monsterDmg}`) : `${exchangeWords(x, nameOf(enc.seat))}.`));
     box.append(ol);
   }
   return box;
 }
 
+// The monster's HP for the monster player only: a heart per HP (filled left, empty lost), or above 10 the hero
+// panel's green bar.
+function hpMeter(left, max) {
+  let m;
+  if (max > 10) {
+    m = el('div', 'hp');
+    const fill = el('i');
+    fill.style.width = `${100 * left / max}%`;
+    m.append(fill);
+  } else {
+    m = el('div', 'hearts');
+    for (let i = 0; i < max; i++) {
+      const h = svg('svg', { viewBox: '0 0 24 24', class: i < left ? 'full' : 'lost', 'aria-hidden': 'true' });
+      svg('path', { d: 'M12 20.5s-7.6-4.6-9.4-9.3C1.3 7.8 3.4 4.5 6.8 4.5c2 0 3.6 1.1 5.2 3 1.6-1.9 3.2-3 5.2-3 3.4 0 5.5 3.3 4.2 6.7-1.8 4.7-9.4 9.3-9.4 9.3z' }, h);
+      m.append(h);
+    }
+  }
+  m.setAttribute('role', 'img');
+  m.setAttribute('aria-label', `Monster: ${left} of ${max} HP left`);
+  return m;
+}
+
+// A, B and C: the letter large, what it beats and loses to (BEATS, the engine's rule), and the card's name small.
+const LOSES_TO = Object.fromEntries(Object.entries(BEATS).map(([w, l]) => [l, w]));
 function combatCards(seatSet, onPick) {
   const ch = el('div', 'choices grid3');
   for (const letter of ['A', 'B', 'C']) {
     const card = (content().combat || []).find(x => x.setId === seatSet && x.letter === letter);
-    const b = el('button', 'choice');
-    b.append(el('span', 'big', letter));
-    b.append(el('small', '', card ? card.name : 'pending'));
-    if (card?.doubleAgainst?.length) b.append(el('small', '', `Hits ${card.doubleAgainst.join(', ')} twice`));
-    b.setAttribute('aria-label', `Play ${letter}${card ? `, ${card.name}` : ''}`);
+    const beats = BEATS[letter], twice = !!card?.doubleAgainst?.includes(beats);
+    const b = el('button', 'choice combatcard');
+    b.append(el('span', 'big', letter), el('small', 'rule', `Beats ${beats}`), el('small', 'rule', `Loses to ${LOSES_TO[letter]}`), el('small', '', 'Same letter: both take 1'));
+    if (twice) b.append(el('small', 'rule', `Hits twice when it beats ${beats}`));
+    b.append(el('small', 'cardname', card ? card.name : 'Card pending'));
+    b.setAttribute('aria-label', `Play ${letter}. Beats ${beats}${twice ? ', hitting twice' : ''}. Loses to ${LOSES_TO[letter]}. Same letter: both take 1.${card ? ` ${card.name}.` : ''}`);
     b.onclick = () => onPick(letter);
     ch.append(b);
   }
@@ -784,7 +861,7 @@ function renderPrompt(v, la, targets) {
     const vs = el('div', 'vs');
     const side = (who, letter, dmg) => { const d = el('div'); d.append(el('span', '', letter), el('small', '', `${who} takes ${dmg}`)); return d; };
     vs.append(side(nameOf(last.seat), last.hero, last.heroDmg), el('small', '', 'against'), side('Monster', last.monster, last.monsterDmg));
-    p.append(vs);
+    p.append(vs, el('p', 'exchange', `${exchangeWords(last, nameOf(last.seat))}.`));
     if (enc) p.append(combatBox(v, enc));
     const ch = el('div', 'choices');
     ch.append(choice('Continue', null, () => { S.reveal = null; render(); }, 'primary'));
@@ -800,14 +877,17 @@ function renderPrompt(v, la, targets) {
       p = g.phase === 'CHOOSE_ACTION'
         ? panel(`${name}, your move`, inTower ? `You are in the ${towerAt(hero.coord)}, not escaped.` : null)
         : panel('Keep moving?', 'You may go on this turn, or stop here.');
+      const why = g.phase === 'CHOOSE_EXIT' && keepMovingWhy(v);
+      if (why) p.append(el('p', 'why', why));
       // Phone first: moves are the lit squares on the map (their labels carry the reason); only other actions are buttons.
       for (const a of by('MOVE')) {
         const m = moveInfo(g, a.dir);
         targets.push({ ...neighbour(hero.coord, a.dir), label: `${m.title}, ${m.reason}`, pick: () => tryAct(a) });
       }
       for (const a of by('TOWER_CHOICE')) ch.append(choice('Escape the castle', "End this hero's run with their treasure. Final: no way back in.", () => act(a), 'primary'));
-      for (const a of by('USE_ITEM')) ch.append(choice(`Use ${cardDef(c, a.item).name}`, 'Its card allows it now', () => tryAct(a)));
+      for (const a of by('USE_ITEM')) ch.append(choice(`Use ${cardDef(c, a.item).name}`, itemText(cardDef(c, a.item)) || 'Its card allows it now', () => tryAct(a)));
       for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
+      if (!by('SEARCH').length && typeof v.searchUnavailable === 'string' && v.searchUnavailable) ch.append(el('p', 'muted', `Can't search here: ${v.searchUnavailable.replace(/\.$/, '')}.`));
       for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two treasure chamber cards, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
       for (const a of by('STOP')) ch.append(inTower ? choice('Stop in the tower', 'End your turn here, not escaped', () => act(a)) : choice('Stop here', 'End your turn', () => act(a)));
       for (const a of by('FORCED_SKIP')) ch.append(choice('No way on', 'The turn passes', () => act(a)));
@@ -969,17 +1049,16 @@ function renderTable(v) {
   bp.setAttribute('aria-label', 'Map');
   const host = el('div', 'board-host');
   bp.append(host);
-  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[g.activeSeat].coord, onInspect: inspect, onNear: near, tilesLeft: v.board.tileBag,
+  // Centre on hero follows whoever is looking: the viewer's own hero on a private screen, the active one at the table.
+  const vh = viewer !== null && g.heroes[viewer];
+  const homeSeat = vh?.coord && isActive(vh) ? viewer : g.activeSeat;
+  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[homeSeat].coord, homeSeat, onInspect: inspect, onNear: near, tilesLeft: v.board.tileBag,
     onFocusTarget: t => { if (t && $('moveWhy')) $('moveWhy').textContent = t.label; } });
 
   // The dock holds the prompt and what just happened; on a phone in portrait it sits under the board, latest
   // first. The fold is what a phone in portrait reaches by scrolling the page past board and dock.
   const dock = el('div', 'dock'), fold = el('div', 'fold'), side = el('div', 'side');
-  if (canUndo() && !S.peek && !S.reveal) { // not on a private card panel or the shared reveal
-    const u = el('button', 'btn undo-here', undoLabel(S.hist.at(-1), g, c, nameOf));
-    u.onclick = undo;
-    prompt.append(u);
-  }
+  if (!S.peek && !S.reveal) prompt.append(...undoHere(v, true)); // not on a private card panel or the shared reveal
   dock.append(prompt);
   const latest = v.log.slice(S.seen);
   if (latest.length) {
@@ -992,7 +1071,7 @@ function renderTable(v) {
   }
   if (PHONE.matches) { const kp = el('div', 'glass panel board-wrap'); kp.append(mapKey()); fold.append(kp); } // board-wrap: the key's colours
   else bp.append(mapKey());
-  fold.append(heroesPanel(v), logPanel(v));
+  fold.append(heroesPanel(v));
   side.append(dock, fold);
   grid.append(bp, side);
   out.push(grid);
@@ -1037,7 +1116,6 @@ function mapKey() {
 // their dice arithmetic in smaller text. In game the newest turn is on top (a turn still reads in order); the
 // results screen reads oldest first. "Debug log" (a setting, off by default) reads the debug view instead:
 // every hidden card, deck ids, shuffles and the RNG state, with each entry's raw fields.
-let logOpen = false;
 function logGroups(log, start = 'Setup') {
   const said = new Map(entries(log, ctx()).map(x => [x.e, x]));
   const groups = [];
@@ -1053,22 +1131,13 @@ function logGroups(log, start = 'Setup') {
   }
   return groups.filter(x => x.lines.length);
 }
-function logPanel(v, { results = false } = {}) {
-  const g = S.game, c = content();
-  const title = prefs.debugLog ? 'Event log, debug: hidden cards shown' : 'Event log';
-  let d;
-  if (results) {
-    d = panel(title);
-    d.id = 'logPanel';
-    d.tabIndex = -1;
-  } else {
-    d = el('details', 'glass panel');
-    d.open = logOpen;
-    d.ontoggle = () => { logOpen = d.open; };
-    d.append(el('summary', '', title));
-  }
-  const ol = el('ol');
-  ol.id = 'log';
+// The sheet, opened from the menu's Event log or the results screen's button. Read from the current viewer's view.
+function openLog() {
+  // Behind a hand-over cover the last private viewer may no longer be looking: the public log there.
+  const g = S.game, c = content(), v = view(g, c, $('cover').hidden ? viewer : null), results = g.status === 'over';
+  $('logTitle').textContent = prefs.debugLog ? 'Event log, debug: hidden cards shown' : 'Event log';
+  const ol = $('log');
+  ol.replaceChildren();
   const when = e => el('span', 'when', e.round ? `Round ${e.round}` : 'Setup');
   if (prefs.debugLog) {
     const dv = view(g, c, null, { debug: true });
@@ -1091,14 +1160,11 @@ function logPanel(v, { results = false } = {}) {
       return li;
     });
     ol.append(...(results ? groups : groups.reverse()));
+    if (!groups.length) ol.append(el('li', 'turnlog', 'Nothing has happened yet.'));
   }
-  if (results) {
-    const end = el('button', 'btn', 'Jump to the end');
-    end.onclick = () => { const last = ol.lastElementChild; if (last) { last.tabIndex = -1; last.scrollIntoView({ block: 'end' }); last.focus({ preventScroll: true }); } };
-    d.append(end);
-  }
-  d.append(ol);
-  return d;
+  $('logEnd').hidden = !results;
+  if (!$('logSheet').open) $('logSheet').showModal();
+  ol.scrollTop = 0;
 }
 
 const STATUS_WORD = { READY_IN_START_TOWER: 'Ready in the start tower', EXPLORING: 'Exploring', IN_TOWER_NOT_ESCAPED: 'In a tower, not escaped', ESCAPED: 'Escaped', DEAD: 'Dead' };
@@ -1196,6 +1262,9 @@ function openItems(seat) {
       if (item.gold) facts.push(`${item.gold} gold`);
       if (Number.isInteger(item.usesLeft)) facts.push(`${item.usesLeft} ${item.usesLeft === 1 ? 'use' : 'uses'} left`);
       li.append(el('span', 'meta', facts.filter(Boolean).join(' · ')));
+      const def = item.inst ? cardDef(content(), item.inst) : item.group === 'ring' ? contentIndex(content()).rings.get(item.id) : (content().specialWeapons || []).find(w => w.id === item.id);
+      const text = itemText(item) || itemText(def);
+      if (text) li.append(el('span', 'itemtext', text));
       if (item.pending) li.append(el('span', 'pending', 'Effect pending'));
       const acts = item.usable ? useActions(item) : [];
       for (const a of acts) {
@@ -1274,9 +1343,9 @@ function renderResults(v) {
   const go = el('button', 'btn primary', 'New game');
   go.onclick = toTitle;
   const see = el('button', 'btn', 'See the event log');
-  see.onclick = () => { const lp = $('logPanel'); lp.scrollIntoView({ block: 'start' }); lp.focus({ preventScroll: true }); };
+  see.onclick = openLog;
   again.append(go, see);
-  out.push(again, logPanel(v, { results: true }));
+  out.push(again);
   $('results').replaceChildren(...out);
 }
 
@@ -1285,19 +1354,32 @@ $('start').onclick = () => newGame('original');
 $('fixtures').onclick = () => newGame('fixture');
 $('mixed').onclick = () => newGame('mixed');
 $('undo').onclick = undo;
+// Exit, as in Bank: Save and exit, Exit without saving, or Keep playing (Esc and a backdrop tap keep playing too).
+$('exitBtn').onclick = () => {
+  const fin = S.game.status === 'over';
+  $('exitTitle').textContent = fin ? 'Leave the results?' : 'Exit this game?';
+  $('exitNote').textContent = fin ? 'A finished game saves itself to Saved games.' : 'Save it to pick up later from Saved games.';
+  $('discard').textContent = 'Exit without saving';
+  $('keepPlaying').textContent = fin ? 'Back to results' : 'Keep playing';
+  $('exitSheet').showModal();
+};
 // Back to the title at once with the save in the list; the upload finishes in the background.
 $('saveExit').onclick = async () => {
-  $('saveExit').disabled = true;
   try {
     await saveGame();
-    loadingSaves = false;
-    toTitle();
-    toast('Saved.');
   } catch {
-    $('saveExit').disabled = false;
-    toast('Could not save on this device.');
+    $('exitNote').textContent = 'Could not save on this device.';
+    return;
   }
+  loadingSaves = false;
+  $('exitSheet').close();
+  toTitle();
 };
+$('discard').onclick = () => { $('exitSheet').close(); toTitle(); };
+$('keepPlaying').onclick = () => $('exitSheet').close();
+$('logBtn').onclick = openLog;
+$('logDone').onclick = () => $('logSheet').close();
+$('logEnd').onclick = () => { const last = $('log').lastElementChild; if (last) { last.tabIndex = -1; last.scrollIntoView({ block: 'end' }); last.focus({ preventScroll: true }); } };
 for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
 const showDebug = NL.segmented($('debugSeg'), v => { prefs.debugLog = v === 'on'; savePrefs(); showDebug(v); if (S.game) render(); });
 $('settingsBtn').onclick = () => {
