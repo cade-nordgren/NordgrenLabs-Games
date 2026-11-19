@@ -1,9 +1,16 @@
-// The Worker (docs/decisions/0002). Static assets serve site/ without reaching this code; the Worker answers /api/*,
-// /config.js, and any request no asset matched, all on one origin.
-import { verify, AUTHORIZED_PARTY } from './seam.js';
+// The Worker (docs/decisions/0002, 0003). It runs first for every request: /api/* and /config.js are its own, and every
+// other path is a file from site/ through the ASSETS binding, behind the sign-in gate when Clerk is configured.
+import { verify, verifyCookie, AUTHORIZED_PARTY } from './seam.js';
 import { handleSaves } from './saves.js';
 
 const REQUIRED = ['CLERK_PUBLISHABLE_KEY', 'CLERK_JWT_KEY', 'CLERK_ISSUER'];
+// What the sign-in page and a home-screen install need (phones fetch these without a usable session), nothing else. Exact paths, so any other file,
+// present or future, needs a session. The sign-in page itself is self-contained and served in place (below).
+const PUBLIC = new Set(['/manifest.webmanifest', '/apple-touch-icon.png', '/favicon.ico', '/icons/favicon.svg',
+  '/icons/icon-192.png', '/icons/icon-512.png']);
+// site/signin.html; html_handling serves it at /signin. It carries this placeholder for the Worker to fill in.
+const SIGN_IN = '/signin';
+const PLACEHOLDER = 'window.NL_CONFIG = null;';
 
 // Names only, never values (decision 7 of 0001). A Worker cannot refuse to start, so it refuses to serve instead.
 // All three empty is the signed-out dev environment; anything else partial is a broken deploy.
@@ -53,12 +60,23 @@ export default {
     if (request.method !== 'GET' && request.method !== 'HEAD') {
       return send(405, 'text/plain', 'Method not allowed', { Allow: 'GET, HEAD' });
     }
-    if (pathname === '/config.js') {
-      // An empty key (the dev environment) gives the same signed-out config as the static placeholder.
-      const config = env.CLERK_PUBLISHABLE_KEY ? { clerkPublishableKey: env.CLERK_PUBLISHABLE_KEY } : null;
-      return send(200, 'text/javascript; charset=utf-8', `window.NL_CONFIG = ${JSON.stringify(config)};\n`,
-        { 'Cache-Control': 'no-store' });
+    // An empty key (the dev environment) gives the same signed-out config as the static placeholder.
+    const config = `window.NL_CONFIG = ${JSON.stringify(env.CLERK_PUBLISHABLE_KEY ? { clerkPublishableKey: env.CLERK_PUBLISHABLE_KEY } : null)};`;
+    if (pathname === '/config.js') return send(200, 'text/javascript; charset=utf-8', `${config}\n`, { 'Cache-Control': 'no-store' });
+    // All three empty (problems() allows nothing in between) is local development: no gate.
+    if (!env.CLERK_JWT_KEY || PUBLIC.has(pathname)) return env.ASSETS.fetch(request);
+    const r = await verifyCookie(request.headers.get('cookie') ?? undefined,
+      { jwtKey: env.CLERK_JWT_KEY, issuer: env.CLERK_ISSUER, authorizedParty: AUTHORIZED_PARTY });
+    if (!r.ok) {
+      // Served in place, never a redirect, so the page can reload this same URL once Clerk has a fresh cookie.
+      const page = await (await env.ASSETS.fetch(new URL(SIGN_IN, request.url))).text();
+      return send(401, 'text/html; charset=utf-8', page.replace(PLACEHOLDER, config), { 'Cache-Control': 'no-store' });
     }
-    return send(404, 'text/plain', 'Not found');
+    // private: never in a shared cache. no-cache: every use comes back here to have the cookie checked again, and the
+    // asset's ETag passes through so an unchanged file answers 304.
+    const asset = await env.ASSETS.fetch(request);
+    const res = new Response(asset.body, asset);
+    res.headers.set('Cache-Control', 'private, no-cache');
+    return res;
   },
 };

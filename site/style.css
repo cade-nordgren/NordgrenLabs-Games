@@ -1,4 +1,4 @@
-/* Shared look for every NordgrenLabs game: tokens, ambient backdrop, glass, buttons, menu, sheets, segmented control. */
+/* Shared look for every NordgrenLabs game: tokens, ambient backdrop, glass, buttons, menu, sheets, segmented control, skeletons. */
 :root {
   color-scheme: light dark;
   --canvas: #f2f2f7; --solid: #fff; --ink: #1d1d1f; --ink2: #6e6e73;
@@ -9,6 +9,7 @@
   /* Dice invert against the theme: white dice on the light glass were about 1.1:1. */
   --die: linear-gradient(145deg, #48484a, #1c1c1e); --die-edge: rgba(255, 255, 255, .14); --pip: #fff;
   --glass-menu: rgba(250, 250, 252, .92);
+  --tap: rgba(0, 0, 0, .16);
   --shadow: 0 1px 2px rgba(0, 0, 0, .04), 0 12px 40px rgba(0, 0, 0, .08);
   --text: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
   --num: ui-rounded, "SF Pro Rounded", -apple-system, BlinkMacSystemFont, "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
@@ -27,6 +28,7 @@
   --thumb: #636366;
   --die: linear-gradient(145deg, #fff, #e6e6eb); --die-edge: rgba(0, 0, 0, .07); --pip: #1d1d1f;
   --glass-menu: rgba(20, 20, 22, .9);
+  --tap: rgba(0, 0, 0, .5);
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .5);
 }
 @media (prefers-color-scheme: dark) {
@@ -38,11 +40,14 @@
     --thumb: #636366;
     --die: linear-gradient(145deg, #fff, #e6e6eb); --die-edge: rgba(0, 0, 0, .07); --pip: #1d1d1f;
     --glass-menu: rgba(20, 20, 22, .9);
+    --tap: rgba(0, 0, 0, .5);
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .5);
   }
 }
 
-* { box-sizing: border-box; }
+/* Scrolling stays (touch, wheel, keyboard); only the scroll bar chrome goes, on the page and every inner scroller. */
+* { box-sizing: border-box; scrollbar-width: none; }
+::-webkit-scrollbar { display: none; }
 [hidden] { display: none !important; }
 /* iOS otherwise enlarges text when the phone turns to landscape. */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
@@ -97,6 +102,9 @@ button { border: 0; background: none; padding: 0; cursor: pointer; transition: t
 button, .menu .item { touch-action: manipulation; -webkit-user-select: none; user-select: none; }
 button:active:not(:disabled) { transform: scale(.96); }
 button:disabled { opacity: .35; cursor: default; }
+/* Pressed look, set by platform.js on pointerdown and kept about 350ms after the finger lifts. A layer over whatever
+   background the control has, so it shows on glass, colour and transparent controls alike. Never on disabled ones. */
+.tapped { background-image: linear-gradient(var(--tap), var(--tap)) !important; }
 .btn { min-height: 44px; padding: 0 18px; border-radius: 999px; background: var(--fill); font-weight: 600; }
 .btn.primary { width: 100%; min-height: 54px; background: var(--primary); color: #fff; font-size: 18px; }
 .btn.danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
@@ -152,5 +160,11 @@ dialog.sheet[open] { animation: sheet-in var(--spring-dur) var(--spring); }
 :root[data-theme="dark"] .theme-icon line { stroke-dashoffset: 1; opacity: 0; }
 :root[data-theme="dark"] .theme-icon circle { transform: scale(0); }
 :root[data-theme="dark"] .theme-icon path { transform: scale(1); opacity: 1; }
+
+/* Skeletons: soft placeholders the size of what will replace them, while data is on its way. */
+.skeleton { display: block; margin: 0; background: var(--fill); border-radius: 999px; animation: shimmer 1.4s ease-in-out infinite; }
+.skeleton.line { width: 60%; height: 21px; border-radius: 8px; }
+.skeleton.button { height: 44px; }
+@keyframes shimmer { 50% { opacity: .45; } }
 
 @media (prefers-reduced-motion: reduce) { *, ::before, ::after { animation: none !important; transition: none !important; } }
