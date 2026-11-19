@@ -15,6 +15,7 @@
 //   owner: 'hero',                // 'hero' for S01-S08, 'monster-group' for S09-S12
 //   letter: 'A',                  // 'A' | 'B' | 'C'; each set has exactly one of each
 //   doubleAgainst: [],            // [] or the one letter this card beats, to hit it twice: A beats B, B beats C, C beats A
+//   groupName: '',                // monster sets only: the monster type's name players read, for example 'Orc'
 //   art: null,                    // later: a picture file, or null
 // },
 // SKELETON END
@@ -44,4 +45,28 @@ export default [
   { id: 'COMBAT_S08_A', copies: 1, status: 'draft', name: 'Talia Greyveil, card A', setId: 'S08', owner: 'hero', letter: 'A', doubleAgainst: [], art: null },
   { id: 'COMBAT_S08_B', copies: 1, status: 'draft', name: 'Talia Greyveil, card B', setId: 'S08', owner: 'hero', letter: 'B', doubleAgainst: ['C'], art: null },
   { id: 'COMBAT_S08_C', copies: 1, status: 'draft', name: 'Talia Greyveil, card C', setId: 'S08', owner: 'hero', letter: 'C', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S09_A', copies: 1, status: 'draft', name: 'Dark Elf, card A', groupName: 'Dark Elf', setId: 'S09', owner: 'monster-group', letter: 'A', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. Draft until the owner approves.' },
+  { id: 'COMBAT_S09_B', copies: 1, status: 'draft', name: 'Dark Elf, card B', groupName: 'Dark Elf', setId: 'S09', owner: 'monster-group', letter: 'B', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. The B corner letter was covered in the stacked photo and is inferred from its hit target (plan D52). Draft until the owner approves.' },
+  { id: 'COMBAT_S09_C', copies: 1, status: 'draft', name: 'Dark Elf, card C', groupName: 'Dark Elf', setId: 'S09', owner: 'monster-group', letter: 'C', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. The C corner letter was covered in the stacked photo and is inferred from its hit target (plan D52). Draft until the owner approves.' },
+  { id: 'COMBAT_S10_A', copies: 1, status: 'draft', name: 'Mountain Troll, card A', groupName: 'Mountain Troll', setId: 'S10', owner: 'monster-group', letter: 'A', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. Draft until the owner approves.' },
+  { id: 'COMBAT_S10_B', copies: 1, status: 'draft', name: 'Mountain Troll, card B', groupName: 'Mountain Troll', setId: 'S10', owner: 'monster-group', letter: 'B', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. The B corner letter was covered in the stacked photo and is inferred from its hit target (plan D52). Draft until the owner approves.' },
+  { id: 'COMBAT_S10_C', copies: 1, status: 'draft', name: 'Mountain Troll, card C', groupName: 'Mountain Troll', setId: 'S10', owner: 'monster-group', letter: 'C', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. The C corner letter was covered in the stacked photo and is inferred from its hit target (plan D52). Draft until the owner approves.' },
+  { id: 'COMBAT_S11_A', copies: 1, status: 'draft', name: 'Skeleton, card A', groupName: 'Skeleton', setId: 'S11', owner: 'monster-group', letter: 'A', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. Draft until the owner approves.' },
+  { id: 'COMBAT_S11_B', copies: 1, status: 'draft', name: 'Skeleton, card B', groupName: 'Skeleton', setId: 'S11', owner: 'monster-group', letter: 'B', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. The B corner letter was covered in the stacked photo and is inferred from its hit target (plan D52). Draft until the owner approves.' },
+  { id: 'COMBAT_S11_C', copies: 1, status: 'draft', name: 'Skeleton, card C', groupName: 'Skeleton', setId: 'S11', owner: 'monster-group', letter: 'C', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. The C corner letter was covered in the stacked photo and is inferred from its hit target (plan D52). Draft until the owner approves.' },
+  { id: 'COMBAT_S12_A', copies: 1, status: 'draft', name: 'Orc, card A', groupName: 'Orc', setId: 'S12', owner: 'monster-group', letter: 'A', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. Draft until the owner approves.' },
+  { id: 'COMBAT_S12_B', copies: 1, status: 'draft', name: 'Orc, card B', groupName: 'Orc', setId: 'S12', owner: 'monster-group', letter: 'B', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. The B corner letter was covered in the stacked photo and is inferred from its hit target (plan D52). Draft until the owner approves.' },
+  { id: 'COMBAT_S12_C', copies: 1, status: 'draft', name: 'Orc, card C', groupName: 'Orc', setId: 'S12', owner: 'monster-group', letter: 'C', doubleAgainst: [], art: null,
+    notes: 'Owner catalogue 2026-11-19 (monster combat photos): a normal hit only, no double hit. The C corner letter was covered in the stacked photo and is inferred from its hit target (plan D52). Draft until the owner approves.' },
 ];

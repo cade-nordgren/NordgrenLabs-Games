@@ -14,8 +14,9 @@ import { edgeKind } from '../../site/keep/engine/board.js';
 import { FX, setup, act, acts, types, place, putHero, draws, assertCensus, EMPTY_ROOMS } from './helpers.js';
 
 const M = mixContent(ORIGINAL, FX);
-// The owner's heroes, weapons, rings and combat cards (plus the fixture monster sets) on the fixture board and decks.
-const C = { ...FX, mode: 'mixed', heroes: M.heroes, specialWeapons: M.specialWeapons, rings: M.rings, combat: M.combat };
+// The owner's heroes, weapons, rings and hero combat cards (plus the fixture monster sets the fixture monsters fight with)
+// on the fixture board and decks.
+const C = { ...FX, mode: 'mixed', heroes: M.heroes, specialWeapons: M.specialWeapons, rings: M.rings, combat: [...M.combat.filter(c => c.owner === 'hero'), ...FX.combat.filter(c => c.owner === 'monster-group')] };
 const ringId = name => C.rings.find(r => r.name === name).id;
 
 const HEROES = [
@@ -250,19 +251,19 @@ test('spec v5 content integrity: 8 heroes, 24 hero combat cards, 2 crossbows, 4 
   const s = contentStatus(ORIGINAL, FX);
   assert.deepEqual(s.report.errors, []);
   const n = key => s.report.categories.find(c => c.key === key);
-  assert.deepEqual(['heroes', 'specialWeapons', 'rings', 'combat'].map(k => n(k).defined), [8, 2, 4, 24]);
+  assert.deepEqual(['heroes', 'specialWeapons', 'rings', 'combat'].map(k => n(k).defined), [8, 2, 4, 36]);
   assert.equal(ORIGINAL.combat.filter(c => c.owner === 'hero').length, 24);
   for (const k of ['heroes', 'specialWeapons', 'rings']) assert.ok(!M[k].some(e => e.status === 'FIXTURE'), k);
   assert.ok(!M.combat.some(c => c.status === 'FIXTURE' && c.owner === 'hero'), 'no fixture hero sets');
-  assert.ok(M.combat.some(c => c.status === 'FIXTURE' && c.owner === 'monster-group'), 'fixture monster sets fill in');
-  assert.ok(syntheticCategories(M).includes('Combat cards: partly synthetic, monster sets FX_S09, FX_S10'));
+  assert.ok(!M.combat.some(c => c.status === 'FIXTURE'), 'the owner monster sets complete combat: no fixture combat cards');
+  assert.ok(!syntheticCategories(M).some(x => /^Combat cards:/.test(x)));
   assert.ok(!syntheticCategories(M).some(x => /^(Heroes|Special weapon cards|Ring cards):/.test(x)));
   assert.deepEqual(s.report.pending, [], 'the heroes no longer wait on S01-S08');
   assert.equal(s.report.fullStartAllowed, false, 'drafts and incomplete categories keep Start off');
-  for (const k of ['treasury', 'dragon', 'room', 'search', 'roomSearch', 'chest', 'door', 'monster']) assert.ok(n(k).defined < n(k).required, `${k} still incomplete`);
+  for (const k of ['treasury', 'dragon', 'room', 'search', 'roomSearch', 'chest', 'door']) assert.ok(n(k).defined < n(k).required, `${k} still incomplete`);
   const r = spawnSync(process.execPath, ['tools/keep-content.js', 'check'], { encoding: 'utf8' });
   assert.equal(r.status, 0, r.stdout + r.stderr);
-  assert.match(r.stdout, /^Combat cards 24\/36: hero sets 24\/24, monster sets 0\/12 \(0 approved, 24 draft\)$/m);
+  assert.match(r.stdout, /^Combat cards 36\/36: hero sets 24\/24, monster sets 12\/12 \(0 approved, 36 draft\)$/m);
   assert.match(r.stdout, /^Heroes 8\/8 \(0 approved, 8 draft\)$/m);
   assert.doesNotMatch(r.stdout, /waiting on/);
 });

@@ -183,6 +183,7 @@ function fieldErrors(key, e, content) {
     if (!['A', 'B', 'C'].includes(e.letter)) err.push(`letter ${e.letter} not A/B/C`);
     // D13, plan 4.7: a card may only list the letter it beats; ties are always 1 each.
     else if (!Array.isArray(e.doubleAgainst || []) || (e.doubleAgainst || []).some(l => l !== BEATS[e.letter])) err.push(`doubleAgainst may only list ${BEATS[e.letter]} (the letter ${e.letter} beats)`);
+    if (e.groupName !== undefined && (typeof e.groupName !== 'string' || (e.groupName.trim() && e.owner !== 'monster-group'))) err.push('groupName is words in quotes, on monster-group cards only (the monster type players read)');
   }
   if (key === 'specialWeapons') {
     if (!Array.isArray(e.heroIds) || !e.heroIds.length || e.heroIds.some(h => !(content.heroes || []).some(x => x.id === h))) err.push('heroIds must name existing heroes');
@@ -497,6 +498,8 @@ export function contentStatus(own, fx, mode = 'mixed') {
 export const chamberName = content => content?.chamber?.name?.trim().replace(/^the\s+/i, '') || 'treasure chamber';
 export const theChamber = content => `the ${chamberName(content)}`;
 export const chamberCards = (content, n = 2) => `${chamberName(content)} ${n === 1 ? 'card' : 'cards'}`;
+// The monster type's name players read (a monster-group card's groupName), else a generic word (owner catalogue 2026-11-19).
+export const monsterTypeName = (content, setId) => (content?.combat || []).find(c => c.setId === setId && c.groupName)?.groupName || 'Monster';
 export const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 
 // Lookup maps, built once per content object.
