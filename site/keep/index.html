@@ -4,6 +4,15 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Dusk Keep · NordgrenLabs Games</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Games">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f2f7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
 <script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
 <link rel="stylesheet" href="../style.css">
 <style>
@@ -14,6 +23,7 @@ body::before {
     radial-gradient(50vmax 45vmax at 100% 14%, rgba(214, 92, 84, .20), transparent 60%),
     radial-gradient(70vmax 55vmax at 60% 100%, rgba(240, 150, 60, .30), transparent 60%);
 }
+/* black-translucent puts the page under the status bar, so everything starts below env(safe-area-inset-top). */
 .app { padding-top: max(10px, env(safe-area-inset-top)); }
 .app.wide { max-width: 1060px; }
 main > h1 { margin-top: 2px; }
@@ -34,6 +44,10 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
 .segmented { margin-top: 10px; }
 #saves { list-style: none; margin: 8px 0 0; padding: 0; }
 #saves li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; }
+/* Placeholders the height of a real row, so the lists do not jump when the data lands. */
+#saves li.loading { min-height: 59px; }
+#names li.loading { min-height: 49px; display: flex; align-items: center; }
+#savedGroup .note { margin: 0 0 8px; }
 .resume { flex: 1; min-width: 0; min-height: 58px; padding: 9px 0; text-align: left; }
 .resume strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .resume span { display: block; font-size: 14px; color: var(--ink2); }
@@ -223,6 +237,7 @@ details li + li { margin-top: 6px; }
 
     <section class="glass group" id="savedGroup" hidden>
       <h2>Saved games</h2>
+      <p class="note" id="savedNote" role="status" hidden></p>
       <ul id="saves"></ul>
     </section>
 

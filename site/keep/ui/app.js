@@ -36,8 +36,9 @@ const RULE_INFO = {
   soloCombat: v => (v === 'target' ? 'D17, original rule. Solo fights use the target with results entered by hand.' : 'D17, application only. A, B or C against a computer pick is a digital variant, not an original rule.'),
 };
 
-// ---- State. The engine game plus what the screen needs; saved on every change.
-const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null, zoom: 1 });
+// ---- State. The engine game plus what the screen needs; saved on every change. It belongs to whoever was signed in
+// (owner), so a game in progress never shows to the next person on this browser.
+const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null, zoom: 1, owner: NL.person() });
 let S = fresh();
 let viewer = null; // the seat looking now; never saved, so a refresh always covers a private screen
 let target = { placement: null, face: null }; // solo target entry, before it is sent
@@ -47,8 +48,8 @@ const okSnap = (h, c) => { try { restore(JSON.stringify(h), c); return true; } c
 function load() {
   let s;
   try { s = JSON.parse(localStorage.getItem(KEY)); } catch { return; }
-  if (!s || s.v !== 1) return;
   const b = fresh();
+  if (!s || s.v !== 1 || (s.owner && s.owner !== b.owner)) return; // another person's autosave stays unread
   if ([1, 2, 3, 4].includes(s.count)) b.count = s.count;
   if (Array.isArray(s.names)) b.names = b.names.map((n, i) => (typeof s.names[i] === 'string' ? s.names[i].slice(0, 20) : ''));
   if (['target', 'abc-digital-variant'].includes(s.soloCombat)) b.soloCombat = s.soloCombat;
@@ -129,8 +130,10 @@ function newGame(mode) {
 function toTitle() {
   Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
   viewer = null;
+  shown = NL.saves.cached('keep') ?? shown; // this browser's copy of a save just made shows at once
   render();
   window.scrollTo(0, 0);
+  refreshSaves();
 }
 
 // ---- Saves through NL.saves.
@@ -139,28 +142,28 @@ function saveTitle(g) {
   const when = g.status === 'over' ? 'finished' : g.status === 'setup' ? 'setting up' : `sun ${g.sun}`;
   return `Dusk Keep, ${n} ${n === 1 ? 'player' : 'players'}, ${when}${g.banner ? `, ${g.banner}` : ''}`;
 }
+// put() writes to this browser at once and uploads in the background for a signed-in person.
 async function saveGame() {
   const g = S.game;
-  S.saveId ||= crypto.randomUUID(); // set before awaiting so a double tap updates one record
   const now = new Date().toISOString();
-  S.createdAt ||= now;
+  if (!S.saveId) Object.assign(S, { saveId: crypto.randomUUID(), createdAt: now }); // before any await, so a double tap updates one record
+  if (!S.createdAt) S.createdAt = (await NL.saves.get(S.saveId).catch(() => null))?.createdAt || now;
   persist();
   let state = { mode: S.mode, game: g, hist: S.hist };
   if (JSON.stringify(state).length > 240000) state = { mode: S.mode, game: g, hist: [] }; // the server keeps 256 KB per save
-  const old = await NL.saves.get(S.saveId).catch(() => null);
-  await NL.saves.put({
-    schemaVersion: 1, id: S.saveId, game: 'keep',
-    personPublicId: old ? old.personPublicId : NL.identity()?.personPublicId ?? null,
+  return NL.saves.put({
+    schemaVersion: 1, id: S.saveId, game: 'keep', personPublicId: NL.person(),
     title: saveTitle(g), status: g.status === 'over' ? 'finished' : 'in_progress',
-    createdAt: old ? old.createdAt : S.createdAt, updatedAt: now, state,
+    createdAt: S.createdAt, updatedAt: now, state,
   });
 }
 const okRecord = r => !!r?.state && CONTENT[r.state.mode] && !!r.state.game && typeof r.state.game === 'object';
 
 async function resume(id) {
-  const r = await NL.saves.get(id).catch(() => null);
+  const r = await NL.saves.get(id).catch(() => null); // a signed-in save can fail to load when the server is unreachable
+  if (!r) return toast('Could not open that save. Check your connection and try again.');
   let game, c;
-  try { c = CONTENT[r.state.mode]; game = restore(JSON.stringify(r.state.game), c); } catch { toast('That save cannot be opened.'); return renderSaves(); }
+  try { c = CONTENT[r.state.mode]; game = restore(JSON.stringify(r.state.game), c); } catch { return toast('That save cannot be opened.'); }
   Object.assign(S, {
     mode: r.state.mode, game, hist: Array.isArray(r.state.hist) ? r.state.hist.filter(h => okSnap(h, c)).slice(-HIST_CAP) : [],
     saveId: r.id, createdAt: r.createdAt, finishedSaved: r.status === 'finished', seen: game.log.length, reveal: null, peek: null,
@@ -178,29 +181,84 @@ function toast(text) {
   toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3200);
 }
 
-async function renderSaves() {
-  const recs = (await NL.saves.list('keep').catch(() => [])).filter(okRecord);
-  $('savedGroup').hidden = !recs.length;
-  $('saves').replaceChildren(...recs.map(r => {
-    const li = el('li'), open = el('button', 'resume'), del = el('button');
-    const when = new Date(r.updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
-    open.append(el('strong', '', r.title), el('span', '', `${r.status === 'finished' ? 'Finished' : 'In progress'} · ${when}`));
-    open.onclick = () => resume(r.id);
-    const arm = on => {
-      del.className = on ? 'btn danger' : 'circle remove';
-      del.replaceChildren(on ? 'Delete' : xIcon());
-      del.setAttribute('aria-label', on ? `Confirm delete ${r.title}` : `Delete ${r.title}`);
-    };
-    del.onclick = async () => {
-      if (!del.classList.contains('btn')) { arm(true); del.focus(); return; }
-      try { await NL.saves.remove(r.id); } catch {}
-      renderSaves();
-    };
-    del.onblur = () => arm(false);
+// The list shown now: the last known one at once (stale while revalidate), null while nothing is known yet.
+let shown = NL.saves.cached('keep'), loadingSaves = !shown, savesNote = '';
+const newestFirst = (a, b) => b.updatedAt.localeCompare(a.updatedAt);
+const NOT_SYNCED = { save_limit: 'Not synced: 200 saves is the limit, delete one', too_large: 'Not synced: too large to upload', refused: 'Not synced: the server refused it' };
+
+async function refreshSaves() {
+  try {
+    shown = await NL.saves.list('keep');
+    savesNote = '';
+  } catch {
+    // Keep what is shown; never invent an empty list.
+    savesNote = shown ? 'Could not reach the server. Showing the last known list.' : 'Could not load saved games.';
+  }
+  loadingSaves = false;
+  if (!S.game) drawSaves();
+}
+addEventListener('nl-saves', () => { if (!S.game) refreshSaves(); }); // an upload finished or was refused
+
+function drawSaves() {
+  const recs = (shown || []).filter(okRecord), group = $('savedGroup');
+  group.hidden = !loadingSaves && !savesNote && !recs.length;
+  group.setAttribute('aria-busy', loadingSaves);
+  $('savedNote').textContent = savesNote;
+  $('savedNote').hidden = !savesNote;
+  if (savesNote && !shown) {
+    const retry = el('button', 'btn', 'Try again');
+    retry.onclick = () => { loadingSaves = true; savesNote = ''; drawSaves(); refreshSaves(); };
+    $('saves').replaceChildren(retry);
+    return;
+  }
+  const skeleton = () => { const li = el('li', 'loading'); li.append(el('span', 'skeleton line')); return li; };
+  $('saves').replaceChildren(...(loadingSaves ? [skeleton(), skeleton()] : recs.map(saveRow)));
+}
+
+function saveRow(r) {
+  const li = el('li'), open = el('button', 'resume'), del = el('button');
+  const when = new Date(r.updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const sync = r.pending ? ` · ${NOT_SYNCED[r.pending] || 'Not synced yet'}` : '';
+  open.append(el('strong', '', r.title), el('span', '', `${r.status === 'finished' ? 'Finished' : 'In progress'} · ${when}${sync}`));
+  open.onclick = () => resume(r.id);
+  // Two-step delete in place: the X turns into a Delete button until the confirm tap, a tap anywhere else, or 4 seconds.
+  // Not focus and blur: Safari on iOS drops focus from a tapped button before the second tap's click arrives.
+  let disarm = null;
+  const arm = on => {
+    disarm?.();
+    disarm = null;
+    del.className = on ? 'btn danger' : 'circle remove';
+    del.replaceChildren(on ? 'Delete' : xIcon());
+    del.setAttribute('aria-label', on ? `Confirm delete ${r.title}` : `Delete ${r.title}`);
+    if (!on) return;
+    const away = e => { if (!del.contains(e.target)) arm(false); };
+    const timer = setTimeout(() => arm(false), 4000);
+    document.addEventListener('pointerdown', away, true);
+    disarm = () => { clearTimeout(timer); document.removeEventListener('pointerdown', away, true); };
+  };
+  del.onclick = () => {
+    if (!disarm) return arm(true);
     arm(false);
-    li.append(open, del);
-    return li;
-  }));
+    removeSave(r);
+  };
+  arm(false);
+  li.append(open, del);
+  return li;
+}
+
+// Optimistic: the row goes at once and comes back with a message if the server refuses or cannot be reached.
+async function removeSave(r) {
+  shown = (shown || []).filter(x => x.id !== r.id);
+  savesNote = '';
+  drawSaves();
+  try {
+    await NL.saves.remove(r.id);
+    shown = (shown || []).filter(x => x.id !== r.id); // a refresh that landed meanwhile may have brought it back
+  } catch {
+    shown = [...(shown || []).filter(x => x.id !== r.id), r].sort(newestFirst);
+    savesNote = 'Could not delete that save. Check your connection and try again.';
+  }
+  if (!S.game) drawSaves();
 }
 function xIcon() {
   const s = svg('svg', { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'aria-hidden': 'true' });
@@ -291,17 +349,19 @@ const showSolo = NL.segmented($('soloSeg'), v => { S.soloCombat = v; render(); }
 const showTheme = NL.segmented($('themeSeg'), v => { NL.theme.set(v); showTheme(v); });
 NL.menu($('menu'));
 NL.account($('account'));
-NL.ready.then(i => {
-  // A signed-in name arrives late: only into an empty first name, with no game in progress.
-  if (i?.displayName && !S.names[0] && !S.game) { S.names[0] = i.displayName.slice(0, 20); render(); }
-});
+const emptyRoster = () => !S.names.some(n => n.trim()) && !S.game;
+const prefill = i => { if (i?.displayName && emptyRoster()) S.names[0] = i.displayName.slice(0, 20); };
 
 function renderTitle() {
   showCount(String(S.count));
-  if (!S.names.some(Boolean) && NL.identity()?.displayName) S.names[0] = NL.identity().displayName.slice(0, 20);
-  const inputs = [...$('names').querySelectorAll('input')];
-  if (inputs.length !== S.count) {
+  // Sign-in still on its way with no cached name: hold the first player's row for it.
+  const waiting = !NL.settled && emptyRoster();
+  const shape = `${S.count} ${waiting}`;
+  $('names').setAttribute('aria-busy', waiting);
+  if ($('names').dataset.shape !== shape) {
+    $('names').dataset.shape = shape;
     $('names').replaceChildren(...S.names.slice(0, S.count).map((n, i) => {
+      if (i === 0 && waiting) { const li = el('li', 'loading'); li.setAttribute('aria-hidden', 'true'); li.append(el('span', 'skeleton line')); return li; }
       const li = el('li'), input = el('input');
       input.value = n;
       input.maxLength = 20;
@@ -328,7 +388,7 @@ function renderTitle() {
   $('start').disabled = !REPORT.fullStartAllowed;
   $('startReason').textContent = REPORT.fullStartAllowed ? '' : `Start is off until the content is complete: ${REPORT.lines.find(l => !/ (\d+)\/\1 /.test(l)) || 'content incomplete'}.`;
   $('fixtures').disabled = !FX_REPORT.fixturePlayable;
-  renderSaves();
+  drawSaves();
 }
 
 // ---- Draft: first player, heroes clockwise, rings counterclockwise, towers.
@@ -823,10 +883,12 @@ function renderResults(v) {
 $('start').onclick = () => newGame('original');
 $('fixtures').onclick = () => newGame('fixture');
 $('undo').onclick = undo;
+// Back to the title at once with the save in the list; the upload finishes in the background.
 $('saveExit').onclick = async () => {
   $('saveExit').disabled = true;
   try {
     await saveGame();
+    loadingSaves = false;
     toTitle();
     toast('Saved.');
   } catch {
@@ -864,4 +926,13 @@ document.addEventListener('keydown', e => {
 document.addEventListener('pointerdown', () => { keyboard = false; });
 
 load();
+const me = NL.identity(); // the cached name, if this browser knows this person already
+prefill(me);
 render();
+if (!S.game) refreshSaves();
+// A signed-in name can arrive later: only into an empty roster with no game in progress. Either way this render
+// drops the placeholder row.
+NL.ready.then(i => {
+  if (!me) prefill(i);
+  if (!S.game) render();
+});
