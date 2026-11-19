@@ -80,9 +80,9 @@ test('M-A four players, two heroes in the chamber, one wakes the dragon: the oth
     prep: g => {
       place(g, '4,4', 'FX_CROSS');
       place(g, '5,4', 'FX_TEE', 180);
-      place(g, '5,6', 'FX_CROSS');
+      place(g, '5,5', 'FX_CROSS');
       putHero(g, 1, '4,4');
-      putHero(g, 3, '5,5');
+      putHero(g, 3, '4,5');
       g.board.chamberPlaced = true;
       give(g, 3, 'TREASURY', 'FX_TREASURY_B');
       give(g, 3, 'TREASURY', 'FX_TREASURY_C');
@@ -96,7 +96,7 @@ test('M-A four players, two heroes in the chamber, one wakes the dragon: the oth
         assert.deepEqual(g.heroes[1].treasury, []);
         assert.equal(g.pending.seat, 1);
       },
-      ['FORCED_MOVE', { to: '5,6' }],
+      ['FORCED_MOVE', { to: '5,5' }],
       g => {
         assert.equal(g.pending.seat, 3, 'next clockwise from the waker, outside turn order');
         assert.equal(g.heroes[3].hp, 8, 'hero 4: 14 - D12 6');
@@ -108,7 +108,7 @@ test('M-A four players, two heroes in the chamber, one wakes the dragon: the oth
   });
   assert.equal(g.activeSeat, 2, 'turn order resumes with the seat after the waker');
   assert.equal(g.sun, 1);
-  assert.deepEqual([g.heroes[1].coord, g.heroes[3].coord], [{ x: 5, y: 6 }, { x: 4, y: 4 }]);
+  assert.deepEqual([g.heroes[1].coord, g.heroes[3].coord], [{ x: 5, y: 5 }, { x: 4, y: 4 }]);
   assert.deepEqual(draws(g, 'ROOM'), [], 'no room card for the forced moves');
   assert.equal(g.decks.TREASURY.order.slice(-4).filter(c => c.startsWith('FX_TREASURY_')).length, 4, 'all four chamber cards under the deck');
   assert.equal(g.dragon.remaining.length, 8);

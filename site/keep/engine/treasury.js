@@ -43,7 +43,7 @@ export function collect(g, content, seat) {
 }
 
 // D19 (interpretation; plan 13 #2): an already revealed ordinary maze tile orthogonally adjacent to the
-// chamber (either square: it is one double room), free under single occupancy; no open passage needed.
+// one-cell chamber (D36), free under single occupancy; no open passage needed.
 export function forcedMoveTargets(g, content) {
   const out = [];
   for (const c of content.board.center) for (const dir of SIDES) {

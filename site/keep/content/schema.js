@@ -125,7 +125,7 @@ function fieldErrors(key, e, content) {
     }
   }
   if (key === 'board') err.push(...boardErrors(e));
-  if (key === 'chamber' && !(sidesValid(e.sides?.a) && sidesValid(e.sides?.b))) err.push('chamber sides a and b must give N/E/S/W');
+  if (key === 'chamber' && e.sides !== undefined) err.push('sides are no longer used: the chamber is one cell, open on every side (spec v3, D36)');
   if (key === 'heroes') {
     if (!e.stats || STATS.some(s => !Number.isInteger(e.stats[s]) || e.stats[s] < 1 || e.stats[s] > 12)) err.push('stats STR/AGI/ARM/LCK must be integers 1..12');
     if (!Number.isInteger(e.hp) || e.hp < 1) err.push('hp must be an integer >= 1');
@@ -191,7 +191,8 @@ function monsterErrors(e, content) {
 }
 
 // Spec v2 (owner, 2026-11-19), RB 4, SP 3: a 10 x 11 footprint (110 squares) in either orientation,
-// four corner towers, a two-square chamber in the exact middle. Orientation and the pair come from data.
+// four corner towers. D36 (spec v3): the chamber is one cell at a centre position (on an even side either
+// of the two middle squares), open on every side. Orientation and the cell come from data.
 export const BOARD_CELLS = 110;
 function boardErrors(b) {
   const err = [];
@@ -200,8 +201,9 @@ function boardErrors(b) {
   if (!Array.isArray(b.towers) || b.towers.length !== 4 || !corners.every(([x, y]) => b.towers.some(t => t.x === x && t.y === y))) err.push('towers must be the four corners');
   else if (!b.towers.every(t => sidesValid(t.sides))) err.push('every tower needs N/E/S/W sides');
   const c = b.center;
-  if (!Array.isArray(c) || c.length !== 2 || Math.abs(c[0].x - c[1].x) + Math.abs(c[0].y - c[1].y) !== 1) err.push('center must be two orthogonally adjacent squares');
-  else if ((c[0].x + c[1].x) / 2 !== (b.width - 1) / 2 || (c[0].y + c[1].y) / 2 !== (b.height - 1) / 2) err.push('center must sit in the middle of the board');
+  const mid = (v, n) => Math.abs(v - (n - 1) / 2) <= 0.5;
+  if (!Array.isArray(c) || c.length !== 1 || !Number.isInteger(c[0]?.x) || !Number.isInteger(c[0]?.y)) err.push('center must be exactly one square, [{ x, y }]: the chamber is one cell (spec v3)');
+  else if (!mid(c[0].x, b.width) || !mid(c[0].y, b.height)) err.push('center must sit in the middle of the board');
   // Movement geometry (owner ruling): printed walls, fixed edges and the chamber's outer sides.
   const edgeRef = /^(\d+),(\d+)\|[NESW]$/;
   const onBoard = k => { const m = edgeRef.exec(k); return m && +m[1] < b.width && +m[2] < b.height; };
@@ -210,12 +212,12 @@ function boardErrors(b) {
     if (!b.edges || typeof b.edges !== 'object' || Array.isArray(b.edges)) err.push("edges must be { 'x,y|SIDE': 'wall' | 'door' | 'gate' }");
     else for (const [k, v] of Object.entries(b.edges)) if (!onBoard(k) || !['wall', 'door', 'gate'].includes(v)) err.push(`edge ${k}: must be 'x,y|SIDE' on the board, set to 'wall', 'door' or 'gate'`);
   }
-  if (b.chamberSides !== undefined && !(sidesValid(b.chamberSides?.a) && sidesValid(b.chamberSides?.b))) err.push('chamberSides a and b must give N/E/S/W');
+  if (b.chamberSides !== undefined) err.push('chamberSides is no longer used: the chamber is one cell, open on every side (spec v3, D36)');
   return err;
 }
 
-// Ordinary squares: 104 on a 110-square board, more than the 88 tiles; D27 makes the rest impassable.
-export const mazeSquares = b => b.width * b.height - 4 - 2;
+// Ordinary squares: 105 on a 110-square board, more than the 88 tiles; D27 makes the rest impassable.
+export const mazeSquares = b => b.width * b.height - 4 - 1;
 
 export function validateContent(content) {
   const errors = [];

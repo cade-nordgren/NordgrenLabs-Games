@@ -11,10 +11,6 @@
 //   name: '',                     // optional
 //   text: '',                     // optional: your own wording
 //   notes: '',                    // optional: notes to yourself, never shown
-//   sides: {                      // a: the first board center square, b: the second; each 'wall' | 'open' | 'door' | 'gate'
-//     a: { N: 'open', E: 'open', S: 'open', W: 'wall' },
-//     b: { N: 'wall', E: 'open', S: 'open', W: 'open' },
-//   },
 //   art: null,                    // later: a picture file, or null
 // }
 // SKELETON END

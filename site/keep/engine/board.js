@@ -1,7 +1,6 @@
 // Board, connectivity and occupancy (system 2; RB 5, RB 6.1, SP 3, SP 5).
 // The BoardDefinition is the authority for movement geometry: grid size (anything outside it is off the
-// board), tower openings, the chamber's outer sides (board.chamberSides, else the chamber tile), printed
-// walls and fixed edges. Correcting the map is a data edit only.
+// board), tower openings, the one chamber cell (open on every side, D36), printed walls and fixed edges. Correcting the map is a data edit only.
 import { SIDES, OPPOSITE, sideOnBoard } from './tiles.js';
 import { contentIndex } from '../content/schema.js';
 import { isActive } from './heroes.js';
@@ -25,10 +24,10 @@ export function squareKind(boardDef, c) {
 
 // Feature on one side of a square: wall/open/door/gate, or 'unknown' for an unexplored maze square.
 export function sideAt(game, content, c, side) {
-  const { board: bd, chamber } = content;
+  const bd = content.board;
   const kind = squareKind(bd, c);
   if (kind === 'tower') return bd.towers.find(t => same(t, c)).sides[side];
-  if (kind === 'center') return (bd.chamberSides || chamber.sides)[same(bd.center[0], c) ? 'a' : 'b'][side];
+  if (kind === 'center') return 'open'; // D36 (spec v3): one cell, open toward every orthogonal neighbour
   const inst = game.board.tiles[key(c)];
   if (!inst) return 'unknown';
   return sideOnBoard(contentIndex(content).tiles.get(inst.defId), inst.rotation, side);

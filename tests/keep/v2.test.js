@@ -11,27 +11,34 @@ import { FX, setup, act, acts, types, run, move, place, putHero, slotsOf, draws,
 const choices = g => acts(g).filter(a => a.type === 'TOWER_CHOICE').map(a => a.choice);
 const at = g => `${g.heroes[g.activeSeat].coord.x},${g.heroes[g.activeSeat].coord.y}`;
 
-test('v2 board: 110 squares, four corner towers, chamber of two adjacent centre squares, either orientation', () => {
+test('v2/v3 board: 110 squares, four corner towers, a one-cell chamber at a centre position, either orientation (D36)', () => {
   const b = FX.board;
   assert.equal(b.width * b.height, 110);
   assert.deepEqual(b.towers.map(t => `${t.x},${t.y}`), ['0,0', '9,0', '0,10', '9,10']);
-  assert.deepEqual(b.center, [{ x: 4, y: 5 }, { x: 5, y: 5 }]);
+  assert.deepEqual(b.center, [{ x: 4, y: 5 }]);
   let maze = 0;
   for (let y = 0; y < b.height; y++) for (let x = 0; x < b.width; x++) if (squareKind(b, { x, y }) === 'maze') maze++;
-  assert.equal(maze, 104);
+  assert.equal(maze, 105);
+  assert.equal(squareKind(b, { x: 5, y: 5 }), 'maze', 'the old second chamber square is an ordinary square now');
   assert.equal(squareKind(b, { x: 10, y: 0 }), 'off');
   assert.equal(squareKind(b, { x: 0, y: 11 }), 'off');
-  // 11 x 10 with the vertical pair is the other legal orientation.
+  // 11 x 10 is the other legal orientation; either middle square of the even side is a centre position.
   const t = (x, y) => ({ x, y, sides: b.towers[0].sides });
-  const turned = { ...FX, board: { ...b, width: 11, height: 10, towers: [t(0, 0), t(10, 0), t(0, 9), t(10, 9)], center: [{ x: 5, y: 4 }, { x: 5, y: 5 }], walls: [], edges: {} } };
-  assert.deepEqual(validateContent(turned).errors, []);
   const errs = c => validateContent(c).errors.map(e => e.message).join(' | ');
+  for (const center of [[{ x: 5, y: 4 }], [{ x: 5, y: 5 }]]) {
+    const turned = { ...FX, board: { ...b, width: 11, height: 10, towers: [t(0, 0), t(10, 0), t(0, 9), t(10, 9)], center, walls: [], edges: {} } };
+    assert.deepEqual(validateContent(turned).errors, [], JSON.stringify(center));
+  }
+  assert.deepEqual(validateContent({ ...FX, board: { ...b, center: [{ x: 5, y: 5 }] } }).errors, []);
+  assert.match(errs({ ...FX, board: { ...b, center: [{ x: 4, y: 5 }, { x: 5, y: 5 }] } }), /center must be exactly one square/);
+  assert.match(errs({ ...FX, board: { ...b, center: [{ x: 4, y: 4 }] } }), /center must sit in the middle/);
+  assert.match(errs({ ...FX, chamber: { ...FX.chamber, sides: {} } }), /sides are no longer used/);
   assert.match(errs({ ...FX, board: { ...b, width: 10, height: 10 } }), /board must be 110 squares/);
   assert.match(errs({ ...FX, board: { ...b, edges: { '12,0|E': 'wall' } } }), /edge 12,0\|E/);
-  assert.match(errs({ ...FX, board: { ...b, chamberSides: { a: { N: 'open' } } } }), /chamberSides a and b/);
+  assert.match(errs({ ...FX, board: { ...b, chamberSides: {} } }), /chamberSides is no longer used/);
 });
 
-test('v2 chamber reserve: the two centre squares never take a maze tile and draw no tile on entry', () => {
+test('v2 chamber reserve: the chamber square never takes a maze tile and draws no tile on entry', () => {
   let g = setup({ deckOrders: { ROOM: EMPTY_ROOMS, DRAGON: [Array(7).fill('FX_DRAGON_SLEEPING')] } });
   place(g, '4,4', 'FX_CROSS');
   putHero(g, 0, '4,4');
@@ -39,14 +46,13 @@ test('v2 chamber reserve: the two centre squares never take a maze tile and draw
   g = act(g, 'MOVE', { dir: 'S' });
   assert.deepEqual(g.heroes[0].coord, { x: 4, y: 5 });
   assert.equal(g.board.tileBag.length, bag, 'no tile drawn');
-  assert.ok(!g.board.tiles['4,5'] && !g.board.tiles['5,5'], 'no tile placed in the reserve');
+  assert.ok(!g.board.tiles['4,5'], 'no tile placed in the reserve');
   assert.equal(g.board.chamberPlaced, true);
 });
 
 test('v2 bilateral wall: a printed wall, a fixed board edge or a wall on either tile side blocks both directions', () => {
   // Test-local board data: the fixture board prints no walls or fixed edges, but owner data may.
-  const open = { N: 'open', E: 'open', S: 'open', W: 'open' };
-  const B = { ...FX, board: { ...FX.board, walls: ['7,2|S'], edges: { '7,8|E': 'door' }, chamberSides: { a: open, b: { ...open, N: 'wall' } } } };
+  const B = { ...FX, board: { ...FX.board, walls: ['7,2|S'], edges: { '7,8|E': 'door' } } };
   const g = setup();
   for (const at of ['7,2', '7,3', '7,8', '8,8', '1,1', '2,1']) place(g, at, 'FX_CROSS');
   assert.equal(edgeKind(g, B, { x: 7, y: 2 }, 'S'), 'wall', 'printed wall 7,2|S');
@@ -57,14 +63,10 @@ test('v2 bilateral wall: a printed wall, a fixed board edge or a wall on either 
   place(g, '2,1', 'FX_DEADEND', 0); // only S open: its W side is a wall
   assert.equal(edgeKind(g, B, { x: 1, y: 1 }, 'E'), 'wall', 'open on one side, wall on the other');
   assert.equal(edgeKind(g, B, { x: 2, y: 1 }, 'W'), 'wall');
-  // The chamber's outer sides come from the board: here b's N side is a wall.
-  place(g, '5,4', 'FX_CROSS');
-  assert.equal(edgeKind(g, B, { x: 5, y: 4 }, 'S'), 'wall');
-  assert.equal(edgeKind(g, FX, { x: 5, y: 4 }, 'S'), 'open', 'correcting the map is a data edit');
 });
 
-test('v2 chamber open on every side (owner ruling D35): enterable from each of its 6 neighbouring squares', () => {
-  const cases = [['4,4', 'S'], ['5,4', 'S'], ['4,6', 'N'], ['5,6', 'N'], ['3,5', 'E'], ['6,5', 'W']];
+test('v3 one-cell chamber open on every side (D35, D36): enterable from each of its 4 neighbouring squares', () => {
+  const cases = [['4,4', 'S'], ['4,6', 'N'], ['3,5', 'E'], ['5,5', 'W']];
   for (const [from, dir] of cases) {
     let g = setup({ deckOrders: { ROOM: EMPTY_ROOMS, DRAGON: [Array(7).fill('FX_DRAGON_SLEEPING')] } });
     place(g, from, 'FX_CROSS');
@@ -77,6 +79,17 @@ test('v2 chamber open on every side (owner ruling D35): enterable from each of i
     place(h, from, 'FX_DEADEND', dir === 'S' ? 180 : 0); // its only opening points away from the chamber
     putHero(h, 0, from);
     assert.equal(exits(h, FX, 0).find(e => e.dir === dir).reason, 'wall', `${from} walled toward the chamber`);
+  }
+  // Out again (spec v3: "can be moved out of to any adjacent cell"): every side, explored or not.
+  const g = setup({ tileOrder: slotsOf('FX_CROSS').slice(0, 4), deckOrders: { ROOM: EMPTY_ROOMS } });
+  place(g, '4,4', 'FX_CROSS');
+  place(g, '5,5', 'FX_CROSS');
+  putHero(g, 0, '4,5');
+  g.board.chamberPlaced = true;
+  assert.deepEqual(exits(g, FX, 0).map(e => [e.dir, e.edge, e.legal]), [['N', 'open', true], ['E', 'open', true], ['S', 'unexplored', true], ['W', 'unexplored', true]]);
+  for (const [dir, to] of [['N', '4,4'], ['E', '5,5'], ['S', '4,6'], ['W', '3,5']]) {
+    const out = act(g, 'MOVE', { dir });
+    assert.equal(`${out.heroes[0].coord.x},${out.heroes[0].coord.y}`, to, `out ${dir}`);
   }
 });
 

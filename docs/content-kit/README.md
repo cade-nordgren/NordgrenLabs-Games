@@ -173,14 +173,13 @@ Rulings named here (D01 to D31) are in the plan's decision register, section 9. 
 |---|---|---|
 | `width`, `height` | 10 and 11, or 11 and 10 | Squares across and down: the board is always 110 squares. Columns count from 0 in the west, rows from 0 in the north. |
 | `towers` | four `{ x, y, sides }` | The four corner towers, one on each corner. `sides` gives `N`, `E`, `S`, `W`, each `'wall'`, `'open'`, `'door'` or `'gate'`. |
-| `center` | two `{ x, y }` | The two squares of the treasure chamber, side by side, in the exact middle of the board. |
-| `chamberSides` | `{ a: { N, E, S, W }, b: { N, E, S, W } }` | Optional. The chamber's outer sides as printed on the board, for the first and second `center` square. When given, it wins over `chamber.js`. |
+| `center` | one `{ x, y }` in a list | The one square of the treasure chamber, in the middle of the board. It is open on every side (spec v3, D36). |
 | `walls` | list of `'x,y\|SIDE'` | Printed walls between squares, for example `'3,2\|E'` is a wall on the east side of column 3, row 2. Optional. |
 | `edges` | `{ 'x,y\|SIDE': 'wall' \| 'door' \| 'gate' }` | Other fixed edges printed on the board, for example a door between two squares. Optional. |
 
-The board is the authority for movement geometry: the engine reads tower openings, the chamber's outer sides, printed walls and fixed edges only from here, and every square outside `width` x `height` is off the board. Correcting the map from the real board is a data edit, never a code change. An edge is blocked if either side, a printed wall or a fixed edge says `'wall'`.
+The board is the authority for movement geometry: the engine reads tower openings, the chamber square, printed walls and fixed edges only from here, and every square outside `width` x `height` is off the board. Correcting the map from the real board is a data edit, never a code change. An edge is blocked if either side, a printed wall or a fixed edge says `'wall'`.
 
-Rules the checker applies (owner specification v2): 110 squares, 10 x 11 or 11 x 10; towers on the four corners (RB 4); the chamber is exactly two side-by-side squares in the exact middle, so on a 10-wide, 11-deep board it is `{ x: 4, y: 5 }` and `{ x: 5, y: 5 }`, and on an 11-wide, 10-deep board `{ x: 5, y: 4 }` and `{ x: 5, y: 5 }`. That leaves 104 ordinary squares for 88 tiles: squares left without a tile are impassable once the bag runs out (D27). There are no room cards in towers or the chamber, and tower sides come from this entry (D31). Towers are shared rooms: any hero may enter any tower, and entering one from the castle offers a choice to escape, stay, or continue through another passage (spec v2, replacing D23).
+Rules the checker applies (owner specifications v2 and v3): 110 squares, 10 x 11 or 11 x 10; towers on the four corners (RB 4); the chamber is exactly one square in the middle (spec v3, D36). The odd side has one middle row or column, the even side two, so on a 10-wide, 11-deep board it is `{ x: 4, y: 5 }` or `{ x: 5, y: 5 }`, and on an 11-wide, 10-deep board `{ x: 5, y: 4 }` or `{ x: 5, y: 5 }`. A hero may enter it from, and leave it to, every orthogonally next square (subject, as for any move, to that square's tile having an opening toward it); `chamberSides` is no longer used and is reported as an error. That leaves 105 ordinary squares for 88 tiles: squares left without a tile are impassable once the bag runs out (D27). There are no room cards in towers or the chamber, and tower sides come from this entry (D31). Towers are shared rooms: any hero may enter any tower, and entering one from the castle offers a choice to escape, stay, or continue through another passage (spec v2, replacing D23).
 
 **Example only, not real content, not authentic:**
 
@@ -194,7 +193,7 @@ export default {
     { x: 0, y: 10, sides: { N: 'open', E: 'open', S: 'wall', W: 'wall' } },
     { x: 9, y: 10, sides: { N: 'open', E: 'wall', S: 'wall', W: 'open' } },
   ],
-  center: [{ x: 4, y: 5 }, { x: 5, y: 5 }],
+  center: [{ x: 4, y: 5 }],
   walls: ['2,3|E'],
   edges: { '6,7|S': 'door' },
 };
@@ -204,19 +203,13 @@ export default {
 
 `chamber.js`, exactly 1 entry, id `CHAMBER_01`. No `copies`.
 
-| Field | Allowed values | Meaning |
-|---|---|---|
-| `sides.a` | `N`, `E`, `S`, `W`: `'wall' \| 'open' \| 'door' \| 'gate'` | The outer sides of the first `center` square on the board. |
-| `sides.b` | the same | The outer sides of the second `center` square. |
-
-The side between the two squares is ignored: the chamber is one double room. Its orientation is fixed by this entry, since the rules don't document one (plan 13 #9). A hero entering collects at once (D18); the chamber deck resets when it empties (D22).
+The entry holds only `id`, `status` and the optional `name`, `text`, `notes` and `art`. The chamber is one square, open on every side (spec v3, D36), so it has no `sides`; a `sides` field is reported as an error. Where it sits comes from `center` in `board.js`. A hero entering collects at once (D18); the chamber deck resets when it empties (D22).
 
 **Example only, not real content, not authentic:**
 
 ```js
 export default {
   id: 'CHAMBER_01', status: 'draft', name: 'Example chamber',
-  sides: { a: { N: 'open', E: 'open', S: 'wall', W: 'open' }, b: { N: 'wall', E: 'open', S: 'open', W: 'open' } },
   art: null,
 };
 ```
@@ -481,7 +474,7 @@ export default [
 |---|---|---|
 | `kind` | `'sleeping'` or `'awake'` | All copies together must be 7 sleeping and 1 awake (RB 9, SP 8). This structure is the rule; names and art are yours. |
 
-One dragon card is drawn per chamber turn without replacement, shared by all heroes, so the odds climb from 1 in 8 (RB 9.3). When the awake card comes up, every hero in the chamber loses their treasury cards, takes a full D12 of damage and is driven to an already revealed neighbouring maze tile, never a new one (D19); the deck resets when the chamber empties (D22).
+One dragon card is drawn per chamber turn without replacement, shared by all heroes, so the odds climb from 1 in 8 (RB 9.3). When the awake card comes up, every hero in the chamber loses their treasury cards, takes a full D12 of damage and is driven to an already revealed maze tile next to the chamber square, never a new one (D19); the deck resets when the chamber empties (D22).
 
 **Example only, not real content, not authentic:**
 
