@@ -79,11 +79,12 @@ export function createGame({ players, seed, content, rules = {}, diceScript = nu
     rules: { ...DEFAULT_RULES, ...rules },
     phase: 'SETUP',
     status: 'setup',
-    setup: { step: 'first-player', order: [], index: 0 },
+    // A solo game has no first-player roll (owner, 2026-11-19): the one seat goes first and drafts at once.
+    setup: players.length === 1 ? { step: 'heroes', order: [0], index: 0 } : { step: 'first-player', order: [], index: 0 },
     round: 0,
     sun: 0,
     seats: players.map((name, seat) => ({ seat, name: String(name), heroId: null, ringId: null })), // index order is clockwise
-    firstSeat: null,
+    firstSeat: players.length === 1 ? 0 : null,
     activeSeat: null,
     rng: newRng(seed, diceScript, orders),
     log: [],

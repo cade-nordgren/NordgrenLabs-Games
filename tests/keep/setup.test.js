@@ -27,7 +27,7 @@ test('T02 player count: 1 to 4 accepted, 0 and 5 rejected (RB 1, SP 2, SP 12 #2)
 // Walk setup recording which seat acts at each step.
 function draftOrder(players, firstRolls) {
   let g = createGame({ players: names(players), seed: 1, content: FX, diceScript: firstRolls });
-  g = reduce(g, { type: 'ROLL_FIRST_PLAYER' }, FX);
+  if (players > 1) g = reduce(g, { type: 'ROLL_FIRST_PLAYER' }, FX);
   const order = { heroes: [], rings: [], towers: [] };
   while (g.status === 'setup') {
     const a = legalActions(g, FX)[0];
@@ -43,7 +43,7 @@ test('T03 first player by highest D12; heroes clockwise; rings from last picker 
     { cite: 'RB 4', players: 4, rolls: [2, 4, 11, 7], first: 2, heroes: [2, 3, 0, 1], rings: [1, 0, 3, 2], towers: [2, 3, 0, 1] },
     { cite: 'RB 4', players: 4, rolls: [12, 4, 11, 7], first: 0, heroes: [0, 1, 2, 3], rings: [3, 2, 1, 0], towers: [0, 1, 2, 3] },
     { cite: 'RB 4', players: 2, rolls: [1, 6], first: 1, heroes: [1, 0], rings: [0, 1], towers: [1, 0] },
-    { cite: 'RB 10 solo', players: 1, rolls: [5], first: 0, heroes: [0], rings: [0], towers: [0] },
+    { cite: 'RB 10 solo', players: 1, rolls: [], first: 0, heroes: [0], rings: [0], towers: [0] },
   ];
   for (const c of cases) {
     const { g, order } = draftOrder(c.players, c.rolls);
@@ -62,6 +62,16 @@ test('T03 first player by highest D12; heroes clockwise; rings from last picker 
       assert.equal(h.hpStart, def.hp);
     }
   }
+});
+
+test('a solo game skips the first-player roll: straight to hero choice, no die rolled, nothing logged (owner, 2026-11-19)', () => {
+  const g = createGame({ players: names(1), seed: 1, content: FX });
+  assert.equal(g.setup.step, 'heroes');
+  assert.equal(g.firstSeat, 0);
+  assert.deepEqual(g.log.filter(e => e.kind === 'roll' || e.kind === 'first-player'), []);
+  assert.deepEqual(new Set(legalActions(g, FX).map(a => a.type)), new Set(['PICK_HERO']));
+  assert.ok(legalActions(g, FX).every(a => a.seat === 0));
+  assert.throws(() => reduce(g, { type: 'ROLL_FIRST_PLAYER' }, FX), /Illegal/);
 });
 
 test('T03b tied highest first-player rolls reroll among the tied only (D05, house rule)', () => {
