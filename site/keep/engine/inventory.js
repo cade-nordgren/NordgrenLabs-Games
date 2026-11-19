@@ -22,6 +22,22 @@ export function usableHeld(g, content, seat, timing) {
   });
 }
 
+// Spec v5: the seat's ring when it is unused and its card data allows a use with this timing, else null.
+export function ringFor(g, content, seat, timing) {
+  const id = g.seats[seat]?.ringId, hero = g.heroes[seat];
+  const r = id && !hero?.ringUsed && contentIndex(content).rings.get(id);
+  return r && r.use?.timing === timing ? r : null;
+}
+
+// Spec v5: every ring is single-use. Its use consumes it: out of the hero's usable inventory, removed from play.
+export function consumeRing(g, content, seat) {
+  const id = g.seats[seat].ringId;
+  g.heroes[seat].ringUsed = true;
+  itemLog(g, seat, 'use', id, 'ring');
+  itemLog(g, seat, 'discard', id, 'ring', { to: 'out of the game' });
+  return contentIndex(content).rings.get(id).use.effects || [];
+}
+
 // Spec v3: obtain, use, discard and lose each leave a log entry. Chamber cards stay private to the holder.
 export function itemLog(g, seat, action, inst, group, extra = {}) {
   logEvent(g, { kind: 'item', action, seat, value: inst, group, ...extra, ...(group === 'chamber' ? { private: seat } : {}) });
@@ -49,6 +65,14 @@ const TIMING_REASON = {
   'turn-action': 'Only as your action at the start of your turn',
   'encounter-special': 'Only as a special weapon, before a monster is revealed',
 };
+const RING_REASON = {
+  'turn-action': 'Only at the start of your turn, in place of your turn',
+  'door-or-portcullis': 'Only when you are about to go through a door or under a portcullis',
+  'encounter-choice': 'Only when a monster appears, before it shows itself; never in an ambush',
+  'trap-drawn': 'Only when a card you have just drawn is a trap',
+};
+// A weapon's unit word: 'shot' for the crossbow (its data says so), else 'use'.
+export const unitWord = (w, n) => `${w.unit || 'use'}${n === 1 ? '' : 's'}`;
 function cardReason(def, left, group, content) {
   if (group === 'chamber') return `${capital(chamberCards(content, 1))}: no use; its gold counts if you escape, and each one adds 1 to a well jump`;
   if (def.specialWeapon && !def.use) return 'Special weapon: its card effect is pending (not yet supplied)';
@@ -74,16 +98,23 @@ export function inventoryView(g, content, seat, viewer, legal) {
       usesLeft: left, pending: !!def.specialWeapon && !def.use, usable, reason: usable ? null : cardReason(def, left, group, content), actions,
     };
   };
-  const equipment = (Array.isArray(hdef.equipment) ? hdef.equipment : []).map(name => ({ name, group: 'equipment', source: 'hero', owner: seat, pending: true, usable: false, reason: 'Equipment effect pending: no structured card data yet' }));
   const w = hdef.specialWeaponId && (content.specialWeapons || []).find(x => x.id === hdef.specialWeaponId);
+  // Spec v5: starting equipment is words only, with no rules of its own. The word naming the hero's special weapon
+  // card (the crossbow) is shown once, as that card.
+  const words = (Array.isArray(hdef.equipment) ? hdef.equipment : []).filter(name => !w || name.trim().toLowerCase() !== String(w.name).trim().toLowerCase());
+  const equipment = words.map(name => ({ name, group: 'equipment', source: 'hero', owner: seat, pending: false, usable: false, reason: 'Starting equipment: it has no rules of its own' }));
   if (w) {
     const left = w.uses == null ? null : w.uses - hero.weaponUses;
     const actions = mine(a => a.type === 'RESPOND' && a.choice === 'special' && !a.item);
-    equipment.push({ id: w.id, name: w.name, effectText: shownEffectText(w, chamberName(content)), group: 'equipment', source: 'specialWeapons', owner: seat, uses: w.uses ?? null, usesLeft: left, pending: false, usable: actions.length > 0, reason: actions.length ? null : left === 0 ? 'No uses left' : TIMING_REASON['encounter-special'], actions });
+    const out = left === 0 ? `No ${unitWord(w, 2)} left: all ${w.uses} are used, and it cannot be used again` : TIMING_REASON['encounter-special'];
+    equipment.push({ id: w.id, name: w.name, verb: w.verb || null, unit: w.unit || 'use', effectText: shownEffectText(w, chamberName(content)), group: 'equipment', source: 'specialWeapons', owner: seat, uses: w.uses ?? null, usesLeft: left, pending: false, usable: actions.length > 0, reason: actions.length ? null : out, actions });
   }
   const ringId = g.seats[seat].ringId;
   const r = ringId && contentIndex(content).rings.get(ringId);
-  const ring = r ? { id: r.id, name: r.name, effectText: shownEffectText(r, chamberName(content)), group: 'ring', owner: seat, trigger: r.trigger, pending: true, usable: false, reason: 'Ring power pending: ring effects are not applied by the engine yet' } : null;
+  const ringActions = mine(a => a.type === 'USE_RING');
+  // A used ring is gone from the inventory (spec v5); hero.ringUsed says it was used.
+  const ring = r && !hero.ringUsed ? { id: r.id, name: r.name, effectText: shownEffectText(r, chamberName(content)), group: 'ring', owner: seat, trigger: r.trigger, timing: r.use?.timing ?? null, pending: !r.use, usable: ringActions.length > 0, actions: ringActions,
+    reason: ringActions.length ? null : r.use ? RING_REASON[r.use.timing] : 'Ring power pending: this ring has no use in its card data yet' } : null;
   const held = hero.held.map(inst => card(groupOf(cardDef(content, inst)))(inst));
   return {
     equipment, ring,

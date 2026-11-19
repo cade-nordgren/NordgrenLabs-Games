@@ -3,12 +3,21 @@
 import { exits, key, squareKind } from './board.js';
 import { contentIndex, theChamber } from '../content/schema.js';
 import { responseOptions, combatActions } from './monsters.js';
-import { usableHeld } from './inventory.js';
+import { usableHeld, ringFor } from './inventory.js';
 
 // D39: a move out of the chamber also names the cell it leaves by (from: 'x,y'), as two sides share a direction.
 const moves = (game, content, seat) => {
   const room = squareKind(content.board, game.heroes[seat].coord) === 'center';
   return exits(game, content, seat).filter(e => e.legal).map(e => ({ type: 'MOVE', seat, dir: e.dir, ...(room ? { from: key(e.from) } : {}) }));
+};
+
+// Spec v5 ring uses, each only at its own moment (owner: no universal ring use). Opening Ring: one per door or
+// portcullis the hero could try now, in place of the door card or the Strength test.
+const ringAt = (game, content, seat, timing) => (ringFor(game, content, seat, timing) ? [{ type: 'USE_RING', seat }] : []);
+const ringPassages = (game, content, seat) => {
+  if (!ringFor(game, content, seat, 'door-or-portcullis')) return [];
+  const room = squareKind(content.board, game.heroes[seat].coord) === 'center';
+  return exits(game, content, seat).filter(e => e.legal && (e.edge === 'door' || e.edge === 'gate')).map(e => ({ type: 'USE_RING', seat, dir: e.dir, ...(room ? { from: key(e.from) } : {}) }));
 };
 
 export function legalActions(game, content) {
@@ -42,6 +51,8 @@ export function legalActions(game, content) {
       if (hero.roomState?.special === 'well' && hero.roomState.phase === 'CROSSED') out.push(...hero.treasury.map(card => ({ type: 'WELL_DISCARD', seat, card })), { type: 'WELL_JUMP', seat });
       // Spec v3 section 4: a Use action only where the item's own card data allows it now.
       out.push(...usableHeld(game, content, seat, 'turn-action').map(item => ({ type: 'USE_ITEM', seat, item })));
+      // Spec v5: the Strength Ring skips this turn (turn-action); the Opening Ring at a door or portcullis.
+      out.push(...ringAt(game, content, seat, 'turn-action'), ...ringPassages(game, content, seat));
       // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
       if (hero.status === 'READY_IN_START_TOWER' && game.rules.escapeWithoutExploring) out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
       // Plan 13 #25 (interpretation): a hero who stayed in a tower after exploring may escape on any later turn.
@@ -49,7 +60,7 @@ export function legalActions(game, content) {
       // D20: no voluntary pass; a forced skip exists only when no legal action does.
       return out.length ? out : [{ type: 'FORCED_SKIP', seat }];
     }
-    case 'CHOOSE_EXIT': return [...moves(game, content, seat), { type: 'STOP', seat }];
+    case 'CHOOSE_EXIT': return [...moves(game, content, seat), ...ringPassages(game, content, seat), { type: 'STOP', seat }];
     case 'TURN_START': {
       if (p.kind === 'dark') return [{ type: 'ROLL_DARK_EXIT', seat }];
       const back = exits(game, content, seat).find(e => e.dir === hero.enteredFrom)?.legal;
@@ -58,7 +69,10 @@ export function legalActions(game, content) {
       }
       return [...(back ? [{ type: 'RUBBLE_RETURN', seat }] : []), { type: 'RUBBLE_FORCE', seat }];
     }
-    case 'RESOLVE_CARD': return p.options.map((_, option) => ({ type: 'CHOOSE', seat: p.seat, option }));
+    case 'RESOLVE_CARD':
+      // Spec v5: a trap card just drawn, with the Protection Ring unused: use it, or let the trap happen.
+      if (p.kind === 'trap-ring') return [{ type: 'USE_RING', seat: p.seat }, { type: 'DECLINE_RING', seat: p.seat }];
+      return p.options.map((_, option) => ({ type: 'CHOOSE', seat: p.seat, option }));
     case 'TOWER_CHOICE': {
       // Continue only through another legal tower passage (not back the way in).
       const onward = p.transit && exits(game, content, seat).some(e => e.legal && e.dir !== hero.enteredFrom);
@@ -68,7 +82,8 @@ export function legalActions(game, content) {
       ...responseOptions(game, content).map(choice => ({ type: 'RESPOND', seat, choice })),
       // Spec v3: a held special weapon card whose data allows it. D41 (spec v4): also in an ambush, after its damage.
       ...usableHeld(game, content, seat, 'encounter-special').map(item => ({ type: 'RESPOND', seat, choice: 'special', item })),
-
+      // Spec v5: the Thunder Ring in a normal encounter only, never in an ambush.
+      ...(game.encounter.ambush ? [] : ringAt(game, content, seat, 'encounter-choice')),
     ];
     case 'MONSTER_REACT': return [{ type: 'ANNOUNCE', seat: p.seat }];
     case 'COMBAT_SELECT': return combatActions(game);

@@ -5,10 +5,10 @@
 import { roll, testStat, logEvent } from './dice.js';
 import { draw, toBottom, reshuffle, cardDef } from './decks.js';
 import { damageHero, healHero, statOf, setCondition, clearCondition, returnTreasury, isActive } from './heroes.js';
-import { enterTile, rotateTile, moveChoices, beginCarryOver, allowContinue } from './movement.js';
-import { startEncounter, woundMonster, applyReaction } from './monsters.js';
+import { enterTile, rotateTile, moveChoices, beginCarryOver, allowContinue, passBarrier } from './movement.js';
+import { startEncounter, woundMonster, applyReaction, killMonster, revealReaction, endEncounter } from './monsters.js';
 import { continueWake } from './treasury.js';
-import { itemLog, groupOf } from './inventory.js';
+import { itemLog, groupOf, ringFor } from './inventory.js';
 import { endTurn } from './clock.js';
 import { neighbour } from './board.js';
 
@@ -25,6 +25,7 @@ export function evalExpr(g, content, e, hero, reason = 'formula') {
   if (e.plus) add('', e.plus);
   if (e.minusStat) add(e.minusStat, -statOf(content, hero, e.minusStat));
   if (e.plusCount === 'treasuryCards') add('treasury cards', hero.treasury.length);
+  if (e.div) { const whole = v; v = Math.floor(v / e.div); parts.splice(0, parts.length, `floor((${parts.join(' ')}) / ${e.div})`); if (!Number.isInteger(whole)) v = 0; }
   logEvent(g, { kind: 'formula', reason, value: v, arithmetic: `${parts.join(' ').replace(/ {2,}/g, ' ')} = ${v}` });
   return v;
 }
@@ -43,14 +44,39 @@ export function drawAndResolve(g, content, cat, reason, extra = {}) {
   const inst = draw(g, cat, reason);
   if (inst) {
     logEvent(g, { kind: 'resolve-card', deck: cat, value: inst });
-    g.stack.push(cardFrame(content, inst, extra));
+    const f = cardFrame(content, inst, extra);
+    g.stack.push(f);
+    // Spec v5 (interpretation): a drawn card whose kind is 'trap' first offers the Protection Ring, if the hero has it.
+    if (f.kind === 'trap' && ringFor(g, content, g.activeSeat, 'trap-drawn')) {
+      g.phase = 'RESOLVE_CARD';
+      g.pending = { kind: 'trap-ring', seat: g.activeSeat, card: inst };
+    }
   }
   return inst;
 }
 
 const OPS = {
-  ROLL_D12: (g, c, e) => { g.registers[e.store] = roll(g, 'D12', `card roll ${e.store}`); },
-  ROLL_D6: (g, c, e) => { g.registers[e.store] = roll(g, 'D6', `card roll ${e.store}`); },
+  // A roll inside a ROLL_TABLE row is a 'table roll' (the UI shows those on the roll card).
+  ROLL_D12: (g, c, e, f) => { g.registers[e.store] = roll(g, 'D12', `${f.table ? 'table' : 'card'} roll ${e.store}`); },
+  ROLL_D6: (g, c, e, f) => { g.registers[e.store] = roll(g, 'D6', `${f.table ? 'table' : 'card'} roll ${e.store}`); },
+  // Spec v5: roll the die, run the row its result falls in.
+  ROLL_TABLE(g, c, e) {
+    const v = roll(g, e.die, `table roll${e.store ? ` ${e.store}` : ''}`);
+    if (e.store) g.registers[e.store] = v;
+    const row = e.rows.find(r => v >= r.min && v <= r.max);
+    logEvent(g, { kind: 'table-row', value: v, row: e.rows.indexOf(row), empty: !row.effects?.length });
+    g.stack.push({ effects: row.effects || [], i: 0, table: true });
+  },
+  KILL_MONSTER: g => killMonster(g),
+  // Ring powers (spec v5): the passage the ring was used at, the monster met, the trap just drawn.
+  OPEN_PASSAGE(g, c) { const p = [...g.stack].reverse().find(x => x.passage)?.passage; if (p) passBarrier(g, c, p.dir, p.from); },
+  MONSTER_FLEES: g => { if (g.encounter) endEncounter(g, 'monster-fled', 'endNow'); },
+  IGNORE_TRAP(g, c, e, f) {
+    const trap = [...g.stack].reverse().find(x => x !== f && x.card && x.kind === 'trap');
+    if (!trap) return;
+    trap.i = trap.effects.length; // only the card's effects are the trap; its disposition and outcome stay
+    logEvent(g, { kind: 'trap-ignored', seat: g.activeSeat, card: trap.card });
+  },
   // RB 5.1: D12 (+ modifier) <= stat passes.
   CHECK_STAT(g, c, e) {
     const hero = active(g);
@@ -108,7 +134,8 @@ const OPS = {
   OPEN_TEMPORARY_PASSAGE(g, c, e, f) { g.turn.secret = e.side; logEvent(g, { kind: 'secret-passage', side: e.side }); allowContinue(g, 'secret-passage', { card: owner(g, f).card }); },
   ROTATE_TILE: (g, c, e) => rotateTile(g, active(g).coord),
   CONTINUE_MOVEMENT: (g, c, e, f) => allowContinue(g, 'card', { card: owner(g, f).card ?? null }),
-  // Internal (not allowed in content): apply the announced monster reaction.
+  // Internal (not allowed in content): announce the monster's reaction if it survived, then apply it.
+  _REVEAL: (g, c) => revealReaction(g, c),
   _REACT: (g, c) => applyReaction(g, c),
 };
 export const EFFECT_OPS = Object.keys(OPS).filter(k => !k.startsWith('_'));

@@ -12,11 +12,11 @@ import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
 import { collect, forcedMove, checkDragonReset } from './treasury.js';
 import { legalActions, sameAction } from './phases.js';
-import { spendUse, itemLog } from './inventory.js';
+import { spendUse, itemLog, consumeRing } from './inventory.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v5'; // v5: spec v4 (solo monster HP, dragon awake state, ambush special weapon, well far side); older saves are refused
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v6'; // v6: spec v5 (ring uses and hero.ringUsed, crossbow tables, a monster killed outright); older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
@@ -143,7 +143,7 @@ const apply = {
   PICK_HERO(g, { seat, heroId }, content) {
     const def = contentIndex(content).heroes.get(heroId);
     g.seats[seat].heroId = heroId;
-    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0, itemUses: {}, escapeSun: null };
+    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0, itemUses: {}, ringUsed: false, escapeSun: null };
     logEvent(g, { kind: 'pick-hero', seat, heroId });
     if (++g.setup.index === n(g)) nextPick(g, 'rings', [...g.setup.order].reverse());
   },
@@ -201,6 +201,16 @@ const apply = {
     g.stack.push({ effects: spendUse(g, content, seat, item), i: 0 });
     run(g, content);
   },
+  // Spec v5: the seat's ring, at the one moment its card data allows (phases.js offers it only then). It is consumed;
+  // its effects run with the door or portcullis it was used at (Opening Ring).
+  USE_RING(g, { seat, dir, from }, content) {
+    g.pending = null;
+    const effects = consumeRing(g, content, seat);
+    g.stack.push({ effects, i: 0, ...(dir ? { passage: { dir, from: from ?? null } } : {}) });
+    run(g, content);
+  },
+  // The trap happens: the card resolves as drawn and the ring stays unused.
+  DECLINE_RING(g, { seat }, content) { g.pending = null; logEvent(g, { kind: 'ring-kept', seat }); run(g, content); },
   // RB 6.3, SP 5: AGI test on D12 + held treasure-chamber cards. D08 (interpretation): a failed jump is death.
   // D42 (spec v4): success leaves the hero on the well tile at the opposite edge (CROSSED) and ends the turn; a jump
   // from CROSSED goes back to the near edge (interpretation), which is the clinging state again.

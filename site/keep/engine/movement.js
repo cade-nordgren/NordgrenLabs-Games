@@ -83,6 +83,26 @@ export function attemptMove(g, content, dir, { noDetour = false, from = null } =
   enterTile(g, content, seat, ex.to, { dir, via: ex.edge === 'secret' ? 'secret' : 'move' });
 }
 
+// Spec v5 Opening Ring (interpretation): instead of the door card or the Strength test, the door opens or the
+// portcullis lifts, and the hero goes through exactly as after an opened door (it relocks behind them, same-turn
+// flight back excepted, RB 6.6) or a lifted portcullis (it stays down, RB 6.7).
+export function passBarrier(g, content, dir, from = null) {
+  const seat = g.activeSeat;
+  const hero = g.heroes[seat];
+  const ex = exitFor(g, content, seat, dir, from);
+  if (ex.edge !== 'door' && ex.edge !== 'gate') return;
+  hero.coord = { ...ex.from };
+  g.turn.mayContinue = false;
+  const edge = edgeKey(hero.coord, dir);
+  if (ex.edge === 'door') {
+    logEvent(g, { kind: 'door', result: 'opens', edge, ring: true });
+    g.turn.openedDoor = edge;
+    return enterTile(g, content, seat, ex.to, { dir, via: 'door' });
+  }
+  logEvent(g, { kind: 'gate', edge, pass: true, ring: true });
+  enterTile(g, content, seat, ex.to, { dir, via: 'gate' });
+}
+
 // RB 6.4, SP 5: 90 degrees clockwise, connectivity changes for everyone.
 export function rotateTile(g, c) {
   const inst = g.board.tiles[key(c)];

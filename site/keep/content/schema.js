@@ -54,6 +54,8 @@ const USE_TIMINGS = ['turn-action', 'encounter-special'];
 const AFTER_USE = ['keep', 'bottom', 'remove'];
 const REACTIONS = ['monster-flees', 'combat', 'strike-then-flight', 'strike-then-combat', 'flight-succeeds', 'other'];
 const RING_TRIGGERS = ['passive', 'once-per-game', 'on-test', 'on-encounter'];
+// Spec v5: when a ring's `use` is offered. Every ring is single-use: consumed by its one use (engine, not data).
+export const RING_TIMINGS = ['turn-action', 'door-or-portcullis', 'encounter-choice', 'trap-drawn'];
 const BEATS = { A: 'B', B: 'C', C: 'A' };
 const SIDE_NAMES = ['N', 'E', 'S', 'W'];
 
@@ -67,6 +69,7 @@ export function exprErrors(x) {
   if (x.plus !== undefined && !Number.isInteger(x.plus)) err.push('plus must be an integer');
   if (x.minusStat !== undefined && x.minusStat !== null && !STATS.includes(x.minusStat)) err.push(`minusStat ${x.minusStat} not a stat`);
   if (x.plusCount !== undefined && x.plusCount !== null && x.plusCount !== 'treasuryCards') err.push(`plusCount ${x.plusCount} not allowed`);
+  if (x.div !== undefined && (!Number.isInteger(x.div) || x.div < 1)) err.push('div must be a whole number 1 or more (the total is divided by it, rounded down)');
   return err;
 }
 
@@ -96,7 +99,27 @@ const OP_ARGS = {
   MONSTER_ENCOUNTER: e => encounterArgErrors(e),
   OPEN_TEMPORARY_PASSAGE: e => ([...SIDE_NAMES, 'any-orthogonal'].includes(e.side) ? [] : [`side ${e.side} not allowed`]),
   ROTATE_TILE: e => (e.degrees === 90 ? [] : ['degrees must be 90']),
+  // Spec v5: a die result table (each face in exactly one row), killing the monster met, and the ring powers.
+  ROLL_TABLE: e => tableErrors(e),
+  KILL_MONSTER: () => [],
+  OPEN_PASSAGE: () => [],
+  MONSTER_FLEES: () => [],
+  IGNORE_TRAP: () => [],
 };
+function tableErrors(e) {
+  const faces = { D6: 6, D12: 12 }[e.die];
+  if (!faces) return [`die ${e.die} not D6/D12`];
+  if (e.store !== undefined && typeof e.store !== 'string') return ['store must be a name'];
+  if (!Array.isArray(e.rows) || !e.rows.length) return ['rows required: [{ min, max, effects }, ...]'];
+  const err = [], hit = Array(faces + 1).fill(0);
+  for (const r of e.rows) {
+    if (!Number.isInteger(r?.min) || !Number.isInteger(r?.max) || r.min < 1 || r.max > faces || r.min > r.max) { err.push(`row min/max must be whole numbers 1 to ${faces}, min <= max`); continue; }
+    for (let v = r.min; v <= r.max; v++) hit[v]++;
+    err.push(...effectErrors(r.effects || []));
+  }
+  if (!err.length && hit.slice(1).some(n => n !== 1)) err.push(`rows must cover each face 1 to ${faces} exactly once`);
+  return err;
+}
 export const EFFECT_OPS = Object.keys(OP_ARGS);
 export function effectErrors(list) {
   if (!Array.isArray(list)) return ['effects must be a list'];
@@ -164,11 +187,19 @@ function fieldErrors(key, e, content) {
   if (key === 'specialWeapons') {
     if (!Array.isArray(e.heroIds) || !e.heroIds.length || e.heroIds.some(h => !(content.heroes || []).some(x => x.id === h))) err.push('heroIds must name existing heroes');
     if (!(e.uses === null || e.uses === undefined || (Number.isInteger(e.uses) && e.uses > 0))) err.push('uses must be a positive integer or null');
+    for (const k of ['verb', 'unit']) if (e[k] !== undefined && (typeof e[k] !== 'string' || !e[k].trim())) err.push(`${k} must be words in quotes`);
     err.push(...effectErrors(e.effects || []));
   }
   if (key === 'rings') {
     if (!RING_TRIGGERS.includes(e.trigger)) err.push(`trigger ${e.trigger} not allowed`);
     err.push(...effectErrors(e.effects || []));
+    if (e.use !== undefined) {
+      if (!e.use || typeof e.use !== 'object' || Array.isArray(e.use)) err.push('use must be { timing, effects }');
+      else {
+        if (!RING_TIMINGS.includes(e.use.timing)) err.push(`use timing ${e.use.timing} not one of ${RING_TIMINGS.join('/')}`);
+        err.push(...effectErrors(e.use.effects || []).map(m => `use: ${m}`));
+      }
+    }
   }
   if (key === 'dragon' && !['sleeping', 'awake'].includes(e.kind)) err.push('dragon kind must be sleeping or awake');
   if (CARD_KEYS.includes(key) && e.gold !== undefined && (!Number.isInteger(e.gold) || e.gold < 0)) err.push('gold must be an integer >= 0');
@@ -252,6 +283,7 @@ function monsterTypeErrors(content) {
   const walk = (id, list) => (Array.isArray(list) ? list : []).forEach(e => {
     if (['MONSTER_ENCOUNTER', 'REQUEST_COMBAT'].includes(e?.op)) named.push({ id, type: e.monster });
     walk(id, e?.onPass); walk(id, e?.onFail); walk(id, e?.onTurnStart);
+    (Array.isArray(e?.rows) ? e.rows : []).forEach(r => walk(id, r?.effects));
     (Array.isArray(e?.options) ? e.options : []).forEach(o => walk(id, o?.effects));
   });
   for (const k of ALL_CARD_KEYS) for (const c of entriesOf(content, k)) {
@@ -336,7 +368,10 @@ export function validateContent(content) {
     const awake = dragon.filter(e => e.kind === 'awake').reduce((s, e) => s + copiesOf(e), 0);
     if (awake !== 1) errors.push({ category: 'dragon', id: null, message: 'Dragon cards: need exactly 7 sleeping and 1 awake' });
   }
-  const lines = categories.map(c => `${c.label} ${c.defined}/${c.required} (${c.approved} approved, ${c.draft} draft)`);
+  // Spec v5: combat cards show the hero / monster split (24 hero cards in S01-S08, 12 monster cards in S09-S12).
+  const combatOf = owner => entriesOf(content, 'combat').filter(c => c.owner === owner).reduce((s, c) => s + copiesOf(c), 0);
+  const split = c => (c.key === 'combat' ? `: hero sets ${combatOf('hero')}/24, monster sets ${combatOf('monster-group')}/12` : '');
+  const lines = categories.map(c => `${c.label} ${c.defined}/${c.required}${split(c)} (${c.approved} approved, ${c.draft} draft)`);
   // Not errors: what the owner's heroes are waiting on (a line per category waited on).
   const waits = entriesOf(content, 'heroes').map(h => heroWaits(content, h));
   const count = key => { const c = categories.find(x => x.key === key); return `${c.label} ${c.defined}/${c.required}`; };
@@ -389,9 +424,16 @@ export const MIXED_BANNER = 'Play-test: your content plus NON-AUTHENTIC fill-in'
 // Spec v2 #13: shown until the completion gate passes; the app never claims exactness.
 export const APP_LABEL = 'Mechanics engine under verification';
 // Spec v2 #12: exactly which categories of this content are synthetic (fixture data), for the developer banner.
-export const syntheticCategories = content => CATEGORIES.filter(cat => entriesOf(content, cat.key).some(e => e?.status === 'FIXTURE')).map(cat => `${cat.label}: synthetic`);
+// A category holding owner entries too is partly synthetic; for combat cards the fixture sets are named.
+export const syntheticCategories = content => CATEGORIES.flatMap(cat => {
+  const all = entriesOf(content, cat.key), fx = all.filter(e => e?.status === 'FIXTURE');
+  if (!fx.length) return [];
+  if (fx.length === all.length) return [`${cat.label}: synthetic`];
+  const sets = [...new Set(fx.map(e => e.setId))];
+  return [`${cat.label}: partly synthetic${cat.key === 'combat' ? `, ${fx.every(e => e.owner === 'monster-group') ? 'monster' : 'fixture'} sets ${sets.join(', ')}` : ''}`];
+});
 // Play-test content: every owner entry, plus the whole fixture deck for each slot the owner has not filled.
-// Fixture heroes and monsters keep their fixture combat sets; a fixture crossbow needs its fixture hero. An owner hero
+// Fixture heroes and monsters keep their fixture combat sets (unused fixture hero sets are dropped); a fixture crossbow needs its fixture hero. An owner hero
 // whose combat set is not written yet fights with the fixture hero set of the same number (S03 -> FX_S03), and an
 // owner hero whose weapon card is not written yet has no weapon.
 export function mixContent(own, fx) {
@@ -404,6 +446,9 @@ export function mixContent(own, fx) {
   if (full.has('combat') && (fxUsed(m.heroes) || fxUsed(m.monster))) m.combat = [...m.combat, ...fx.combat];
   const heroSet = id => m.combat.some(c => c.setId === id && c.owner === 'hero');
   m.heroes = m.heroes.map(h => (h.status !== 'FIXTURE' && !heroSet(h.combatSetId) && heroSet(`FX_${h.combatSetId}`) ? { ...h, combatSetId: `FX_${h.combatSetId}` } : h));
+  // Spec v5: a fixture hero set no hero in play uses is dropped, so owner heroes never meet fixture hero cards.
+  const setsInPlay = new Set(m.heroes.map(h => h.combatSetId));
+  m.combat = m.combat.filter(c => c.status !== 'FIXTURE' || c.owner !== 'hero' || setsInPlay.has(c.setId));
   const heroIds = new Set(m.heroes.map(h => h.id));
   m.specialWeapons = m.specialWeapons.filter(w => w.status !== 'FIXTURE' || w.heroIds.every(id => heroIds.has(id)));
   const weaponIds = new Set(m.specialWeapons.map(w => w.id));

@@ -9,6 +9,7 @@ const DECK = { ROOM: 'room', SEARCH: 'search', ROOM_SEARCH: 'room search', CHEST
 const DIR = { N: 'north', E: 'east', S: 'south', W: 'west' };
 const REACTION = { 'monster-flees': 'it flees', combat: 'a fight', 'strike-then-flight': 'it strikes, then you get away', 'strike-then-combat': 'it strikes, then a fight', 'flight-succeeds': 'you get away', other: 'something else happens' };
 const TIMING = { 'turn-action': "as your turn's action", 'encounter-special': 'as a special weapon before a monster is revealed' };
+const RING_TIMING = { 'turn-action': 'at the start of your turn, in place of your turn', 'door-or-portcullis': 'at a door or portcullis, in place of the door card or the Strength test', 'encounter-choice': 'when a monster appears, before it shows itself, never in an ambush', 'trap-drawn': 'when a card you draw is a trap' };
 const AFTER = { bottom: 'goes to the bottom of its deck', remove: 'is removed from the game' };
 const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -21,6 +22,7 @@ export function amountWords(x, ch = 'treasure chamber') {
   if (x.plus) parts.push(`${x.plus < 0 ? 'minus' : 'plus'} ${Math.abs(x.plus)}`);
   if (x.minusStat) parts.push(`minus your ${STAT[x.minusStat]}`);
   if (x.plusCount === 'treasuryCards') parts.push(`plus your ${ch} cards`);
+  if (x.div) return `${x.div === 2 ? 'half' : `1/${x.div} of`} ${parts.join(' ')}, rounded down`;
   return parts.join(' ');
 }
 
@@ -31,7 +33,10 @@ export function describeEffects(list = [], ch = 'treasure chamber') {
   const end = list.findIndex(e => e.op === 'END_TURN'); // END_TURN aborts the rest of the card (effects.run)
   return (end < 0 ? list : list.slice(0, end + 1)).map(e => {
     switch (e.op) {
-      case 'DEAL_DAMAGE': return e.target === 'monster' ? `the monster takes ${amountWords(e.amount, ch)} damage` : `you take ${amountWords(e.amount, ch)} damage`;
+      case 'DEAL_DAMAGE': {
+        const n = e.amount?.div ? `damage equal to ${amountWords(e.amount, ch)}` : `${amountWords(e.amount, ch)} damage`;
+        return e.target === 'monster' ? `the monster takes ${n}` : `you take ${n}`;
+      }
       case 'HEAL': return `heals ${amountWords(e.amount, ch)} HP${e.uncapped ? ', even above starting HP' : ''}`;
       case 'CHECK_STAT': return `${STAT[e.stat]} test${e.modifier ? ` (${amountWords(e.modifier, ch)})` : ''}: on a pass ${nothing(e.onPass, ch)}, on a fail ${nothing(e.onFail, ch)}`;
       case 'ROLL_D6': return 'roll a D6';
@@ -48,6 +53,11 @@ export function describeEffects(list = [], ch = 'treasure chamber') {
       case 'REQUEST_CHOICE': return `choose ${e.options.map(o => { const d = describeEffects(o.effects, ch); return d ? `${o.label} (${d})` : o.label; }).join(' or ')}`;
       case 'OPEN_TEMPORARY_PASSAGE': return e.side === 'any-orthogonal' ? 'a secret passage: you may move to any neighbouring square this turn, even through a wall' : `a secret passage on the ${DIR[e.side]} side, this turn`;
       case 'ROTATE_TILE': return 'the room turns a quarter clockwise';
+      case 'ROLL_TABLE': return `roll a ${e.die}: ${e.rows.map(r => `${r.min === r.max ? `on ${r.min}` : `on ${r.min} to ${r.max}`}, ${describeEffects(r.effects, ch) || (e.rows.some(x => x.effects?.some(y => y.op === 'DEAL_DAMAGE' && y.target === 'monster')) ? 'a miss' : 'nothing happens')}`).join('; ')}`;
+      case 'KILL_MONSTER': return 'the monster dies at once';
+      case 'OPEN_PASSAGE': return 'the door opens, or the portcullis lifts, and you go through';
+      case 'MONSTER_FLEES': return 'the monster flees';
+      case 'IGNORE_TRAP': return 'the trap does not affect you';
       default: return '';
     }
   }).filter(Boolean).join(', ');
@@ -64,8 +74,8 @@ function effectClauses(def, ch) {
   if (def.reactions) return [table(def.reactions)];
   if (def.rows) return Object.entries(def.rows).map(([type, row]) => `monster type ${type}: ${table(row)}`);
   if (def.letter) return [def.doubleAgainst?.length ? `card ${def.letter}, hits ${def.doubleAgainst.join(', ')} twice` : `card ${def.letter}, no double hit`];
-  if (def.trigger) return [`${describeEffects(def.effects, ch) || 'no effect'} (ring powers are not applied by the engine yet)`];
-  if (def.heroIds) return [`${describeEffects(def.effects, ch) || 'no effect'}${def.uses ? `, ${def.uses} use${def.uses === 1 ? '' : 's'}` : ''}`];
+  if (def.trigger) return def.use ? [`once only, ${RING_TIMING[def.use.timing]}: ${nothing(def.use.effects, ch)}`, 'then the ring is gone'] : [`${describeEffects(def.effects, ch) || 'no effect'} (this ring's use is not written yet)`];
+  if (def.heroIds) return [`${def.verb ? `${def.verb}: ` : ''}${describeEffects(def.effects, ch) || 'no effect'}${def.uses ? `, ${def.uses} ${def.unit || 'use'}${def.uses === 1 ? '' : 's'}` : ''}`];
   if (def.kind === 'sleeping') return ['the dragon sleeps'];
   if (def.kind === 'awake') return ['the dragon wakes'];
   const out = [];

@@ -57,6 +57,7 @@ export function expr(e, content) {
   if (e.plus) parts.push(e.plus > 0 ? `+ ${e.plus}` : `- ${-e.plus}`);
   if (e.minusStat) parts.push(`- ${STAT[e.minusStat]}`);
   if (e.plusCount === 'treasuryCards') parts.push(`+ ${chamberCards(content)} held`);
+  if (e.div) return `${parts.filter(Boolean).join(' ')} / ${e.div}, rounded down`;
   return parts.filter(Boolean).join(' ');
 }
 
@@ -177,9 +178,9 @@ export function describe(e, ctx, next) {
       if (m) return `${who(+m[1])} rolls ${e.value} on the D12.`;
       if (e.reason === 'dark room exit') return null; // its own line follows
       if (e.reason === 'ambush' || e.reason === 'dragon fire') return [null, `${e.die} ${e.value}`]; // the damage line carries it
-      const card = /^card roll /.test(e.reason);
-      if (card && next?.kind === 'formula') return null; // the formula's arithmetic shows the roll
-      return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} rolls ${e.value} on the ${e.die}${card ? ' for the card' : ''}.`, card ? '' : e.reason];
+      const card = /^card roll /.test(e.reason), table = /^table roll/.test(e.reason);
+      if ((card || table) && next?.kind === 'formula') return null; // the formula's arithmetic shows the roll
+      return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} rolls ${e.value} on the ${e.die}${card ? ' for the card' : ''}.`, card || table ? '' : e.reason];
     }
     case 'test':
       return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} ${e.pass ? 'passes' : 'fails'} the ${STAT[e.stat]} test ${TEST_WHY[e.reason] || `(${e.reason})`}.`, testWords(e).join(' ')];
@@ -252,6 +253,8 @@ export function describe(e, ctx, next) {
 
     case 'flight': return `${who(e.seat)} flees back.`;
     case 'secret-passage': return 'A secret passage opens.';
+    case 'table-row': return e.empty ? 'Miss.' : null; // spec v5: a weapon table's empty row
+    case 'trap-ignored': return `The trap does not affect ${who(e.seat)}.`;
     case 'deck-empty': return `The ${deckWord(e.deck, content)} pile is empty.`;
     case 'lost-at-sunset': return `${who(e.seat)} is inside at sunset: not escaped${e.status === 'IN_TOWER_NOT_ESCAPED' ? ', though in a tower' : ''}.`;
     case 'game-over': return 'The game is over.';
@@ -266,6 +269,7 @@ const LOST_WHY = { dragon: ' when the dragon wakes', card: ' to a card', death: 
 export function itemName(e, content) {
   if (e.value === 'hidden') return `a ${chamberCards(content, 1)}`;
   if (e.group === 'equipment') return (content.specialWeapons || []).find(w => w.id === e.value)?.name || 'a special weapon';
+  if (e.group === 'ring') return contentIndex(content).rings.get(e.value)?.name || 'a ring';
   const def = cardDef(content, e.value);
   return e.group === 'chamber' ? `${def.name} (${chamberCards(content, 1)})` : def.name;
 }
@@ -305,7 +309,7 @@ export function entries(events, ctx, { debug = false } = {}) {
     if (e.kind === 'monster-dead') dead = true;
     else if (e.kind === 'encounter-end' && dead && e.outcome === 'monster-killed') { dead = false; return; } // said already
     else if (e.kind === 'encounter-end') dead = false;
-    const m = e.kind === 'roll' && /^card roll (\S+)$/.exec(e.reason);
+    const m = e.kind === 'roll' && /^(?:card|table) roll (\S+)$/.exec(e.reason);
     if (m) regs[m[1]] = e.die;
     const r = describe(e, ctx, events[i + 1]);
     let [text, detail, mech = ''] = Array.isArray(r) ? r : [r, ''];

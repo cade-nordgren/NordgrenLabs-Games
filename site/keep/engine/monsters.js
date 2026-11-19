@@ -82,13 +82,12 @@ export function respond(g, content, choice, item = null) {
   g.pending = { kind: 'announce', seat: enc.controller };
 }
 
-// The controller announces the reaction (the hot-seat cover step). Weapon effects, then the
-// reaction's own effects, then its type.
+// The controller announces the reaction (the hot-seat cover step). Weapon effects first; then, only if the
+// monster survived them (spec v5: a crossbow 6 kills outright), the reaction is said and its effects and type apply.
 export function announce(g, content) {
   const enc = g.encounter;
   enc.announced = true;
   g.pending = null;
-  logEvent(g, { kind: 'reaction', seat: enc.seat, type: enc.reaction.type });
   const effects = [];
   if (enc.choice === 'special' && enc.item) effects.push(...spendUse(g, content, enc.seat, enc.item));
   else if (enc.choice === 'special') {
@@ -97,8 +96,24 @@ export function announce(g, content) {
     itemLog(g, enc.seat, 'use', w.id, 'equipment');
     effects.push(...(w.effects || []));
   }
-  effects.push(...(enc.reaction.effects || []), { op: '_REACT' });
+  effects.push({ op: '_REVEAL' });
   g.stack.push({ effects, i: 0 });
+}
+
+// After the weapon: a dead monster ends the encounter unanswered; otherwise the reaction is logged and resolved.
+export function revealReaction(g) {
+  const enc = g.encounter;
+  if (!enc) return; // the hero died to a weapon effect
+  if (monsterDead(g)) return endEncounter(g, 'monster-killed', 'endAfter');
+  logEvent(g, { kind: 'reaction', seat: enc.seat, type: enc.reaction.type });
+  g.stack.push({ effects: [...(enc.reaction.effects || []), { op: '_REACT' }], i: 0 });
+}
+
+// Spec v5: KILL_MONSTER (a crossbow 6): the monster dies at once, whatever its HP. The kill is announced by the
+// encounter's end, never with its HP.
+export function killMonster(g) {
+  const m = g.encounter?.monster;
+  if (m) m.killed = true;
 }
 
 export function woundMonster(g, amount) {
@@ -110,7 +125,7 @@ export function woundMonster(g, amount) {
 
 }
 
-const monsterDead = g => g.encounter.monster.hp !== null && g.encounter.monster.wounds >= g.encounter.monster.hp; // null: a reaction with no fight
+const monsterDead = g => { const m = g.encounter.monster; return !!m.killed || (m.hp !== null && m.wounds >= m.hp); }; // hp null: a reaction with no fight
 
 // RB 8.2: monster flees -> cards under their decks, turn ends. RB 8.6: strike then flight or combat.
 export function applyReaction(g, content) {
@@ -129,7 +144,7 @@ export function applyReaction(g, content) {
   }
 }
 
-function endEncounter(g, outcome, turnEffect) {
+export function endEncounter(g, outcome, turnEffect) {
   const enc = g.encounter;
   if (enc.monster) toBottom(g, 'MONSTER', enc.monster.inst, enc.priv);
   logEvent(g, { kind: 'encounter-end', outcome });

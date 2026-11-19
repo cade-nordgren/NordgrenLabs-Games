@@ -50,7 +50,7 @@ test('kit: every shipped file keeps its skeleton, parses, and whatever entries e
 test('kit: checker on the empty templates reports every slot at zero and exits 0', () => {
   const r = tool('check', '--dir', folder());
   assert.equal(r.status, 0, r.stderr);
-  for (const c of CATEGORIES) assert.match(r.stdout, new RegExp(`^${c.label} 0/${c.ids.length} \\(0 approved, 0 draft\\)$`, 'm'));
+  for (const c of CATEGORIES) assert.match(r.stdout, new RegExp(`^${c.label} 0/${c.ids.length}${c.key === 'combat' ? ': hero sets 0/24, monster sets 0/12' : ''} \\(0 approved, 0 draft\\)$`, 'm'));
   assert.match(r.stdout, /^No errors\.$/m);
   assert.match(r.stdout, /Play-test is off until you write some entries/);
 });

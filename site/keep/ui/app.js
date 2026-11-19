@@ -15,6 +15,8 @@ import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, s
 import { lines, entries, cardText, monsterText, fightRowModel, soloStripModel, expr,
  undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName } from './words.js';
 import { rollDice } from './dice.js';
+import { shownEffectText } from '../engine/describe.js';
+import { unitWord } from '../engine/inventory.js';
 import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
 import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
 
@@ -261,13 +263,22 @@ function tryAct(a) {
 
 // After an action: its tests and dice rolls tumble on the card, then pass or fail with the arithmetic and
 // Continue. Rolls are public entries, so this shows nothing the table may not see. False when there were none.
-const rollShown = e => e.kind === 'test' || (e.kind === 'roll' && e.reason === 'dark room exit');
+// Spec v5: a weapon table's rolls (the crossbow's D6, and the second D6 on a 4 or 5) show here too.
+const tableRoll = e => e.kind === 'roll' && /^table roll/.test(e.reason);
+const rollShown = e => e.kind === 'test' || (e.kind === 'roll' && e.reason === 'dark room exit') || tableRoll(e);
+// What a weapon table did, in plain words. Never the monster's HP: only the hit, or the kill everyone hears of.
+function tableResult(added) {
+  if (added.some(e => e.kind === 'monster-dead' || (e.kind === 'encounter-end' && e.outcome === 'monster-killed'))) return 'The monster is dead.';
+  const hit = added.find(e => e.kind === 'monster-wound');
+  return hit ? `Hit for ${hit.amount}.` : 'Miss.';
+}
 function showRolls(added) {
   const shown = added.filter(rollShown);
   if (!shown.length) return false;
   const d = $('roll'), said = entries(added, ctx());
   const first = shown[0];
-  $('rollTitle').textContent = d.dataset.mode === 'rolling' && d.dataset.title ? d.dataset.title : ROLL_TITLE[first.reason] || `${STAT[first.stat]} test`;
+  const verb = tableRoll(first) && (content().specialWeapons || []).find(w => w.id === heroDef(S.game.heroes[S.game.activeSeat]).specialWeaponId)?.verb;
+  $('rollTitle').textContent = d.dataset.mode === 'rolling' && d.dataset.title ? d.dataset.title : ROLL_TITLE[first.reason] || (tableRoll(first) ? verb || 'Roll' : `${STAT[first.stat]} test`);
   const dice = el('div'), out = el('div', 'outcome'), summary = [];
   for (const e of shown) {
     const box = el('div');
@@ -277,6 +288,11 @@ function showRolls(added) {
       const line = it?.text;
       if (line) box.append(el('p', '', line));
       summary.push(`${e.pass ? 'Pass' : 'Fail'}. ${rolled} ${needed} ${line || ''}`);
+    } else if (tableRoll(e)) {
+      box.append(el('p', 'verdict', `${e.die}: ${e.value}`));
+      const last = e === shown.findLast(tableRoll);
+      if (last) box.append(el('p', '', tableResult(added)));
+      summary.push(`${e.die} ${e.value}.${last ? ` ${tableResult(added)}` : ''}`);
     } else {
       const next = added.slice(added.indexOf(e) + 1).find(x => x.kind === 'dark-exit' || x.kind === 'dark-blocked');
       const line = next ? said.find(x => x.e === next)?.text : '';
@@ -297,7 +313,7 @@ function showRolls(added) {
   d.dataset.mode = 'result';
   if (!d.open) { rollFromCell = !!document.activeElement?.closest?.('[data-cell]'); d.showModal(); }
   $('rollTitle').focus(); // until Continue shows
-  rollDice(dice, shown.map(e => (e.kind === 'test' ? { value: e.roll } : { value: e.value, sides: 6 }))).then(() => {
+  rollDice(dice, shown.map(e => (e.kind === 'test' ? { value: e.roll } : { value: e.value, sides: e.die === 'D12' ? 12 : 6 }))).then(() => {
     if (!d.open || !out.isConnected) return;
     out.style.visibility = ok.style.visibility = '';
     ok.focus();
@@ -783,7 +799,8 @@ function renderDraft(v) {
     for (const r of c.rings) {
       const a = la.find(x => x.ringId === r.id);
       const takenBy = g.seats.find(s => s.ringId === r.id);
-      const b = choice(r.name || r.id, takenBy ? `${r.text || r.power || 'Power pending'}. Taken by ${takenBy.name}.` : r.text || r.power || 'Power pending', a ? () => act(a) : null);
+      const said = r.text || r.power || shownEffectText(r, chamberName(c)).replace(/\.$/, '');
+      const b = choice(r.name || r.id, takenBy ? `${said}. Taken by ${takenBy.name}.` : said, a ? () => act(a) : null);
       b.disabled = !a;
       ch.append(b);
     }
@@ -905,7 +922,7 @@ function fightRow(v, seat, enc) {
   const row = el('div', 'fightrow'), f = fightRowModel(v, seat, enc, nameOf, content());
   row.append(el('span', 'who', f.who));
   const hp = el('span', 'herohp'), bar = el('span', 'hp'), fill = el('i');
-  fill.style.width = `${100 * f.hero.left / f.hero.max}%`;
+  fill.style.width = `${Math.min(100, 100 * f.hero.left / f.hero.max)}%`;
   bar.append(fill);
   hp.append(bar, `${f.hero.left}/${f.hero.max}`);
   hp.setAttribute('role', 'img');
@@ -1044,6 +1061,11 @@ function renderPrompt(v, la, targets) {
         const item = allItems(v.heroes[g.activeSeat].inventory).find(x => x.inst === a.item);
         ch.append(choice(`Use ${cardDef(c, a.item).name}`, itemText(item) || itemText(cardDef(c, a.item)) || 'Its card allows it now', () => tryAct(a)));
       }
+      // Spec v5 rings, only where phases.js offers them: Strength in place of the turn, Opening at a door or portcullis.
+      for (const a of by('USE_RING')) {
+        const r = ringOfSeat(a.seat), edge = a.dir && exitFor(g, c, a.seat, a.dir, a.from || null).edge;
+        ch.append(choice(`Use ${r.name}`, a.dir ? `${edge === 'door' ? 'Open the door' : 'Lift the portcullis'} to the ${DIR[a.dir]} and go through, with no door card or test. The ring is then gone.` : r.text || shownEffectText(r, chamberName(c)), () => act(a)));
+      }
       for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
       if (!by('SEARCH').length && typeof v.searchUnavailable === 'string' && v.searchUnavailable) ch.append(el('p', 'muted', `Can't search here: ${v.searchUnavailable.replace(/\.$/, '')}.`));
       for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two ${chamberCards(c)}, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
@@ -1082,6 +1104,12 @@ function renderPrompt(v, la, targets) {
       if (pend.kind === 'choice') {
         p = panel('Choose', frame ? `${cardDef(c, frame.card).name}. ${cardText(cardDef(c, frame.card), null, c)}` : null);
         by('CHOOSE').forEach(a => ch.append(choice(pend.options[a.option], null, () => act(a))));
+      } else if (pend.kind === 'trap-ring') {
+        // Spec v5: a trap card was just drawn and the Protection Ring is unused.
+        const def = cardDef(c, pend.card), r = ringOfSeat(pend.seat);
+        p = panel('A trap', `${def.name}. ${cardText(def, null, c)}`);
+        for (const a of by('USE_RING')) ch.append(choice(`Use ${r.name}`, 'The trap does not affect you. The ring is then gone.', () => act(a), 'primary'));
+        for (const a of by('DECLINE_RING')) ch.append(choice('Keep the ring', 'The trap happens', () => act(a)));
       } else {
         p = panel('Move', 'Pick a neighbouring square.');
         for (const a of by('CHOOSE')) targets.push({ ...actionSquare(g, a), label: `Go ${DIR[pend.options[a.option]]}`, pick: () => tryAct(a) });
@@ -1102,10 +1130,15 @@ function renderPrompt(v, la, targets) {
       const weapon = (c.specialWeapons || []).find(w => w.id === heroDef(hero).specialWeaponId);
       const SUB = { flee: 'Back where you came from', special: "Meets the monster's Attack answer" };
       ch.classList.add('grid2');
+      // Spec v5: a weapon whose data has a verb reads it ("Shoot"), with what is left ("3 shots left").
+      const left = weapon && Number.isInteger(weapon.uses) ? weapon.uses - hero.weaponUses : null;
       for (const a of by('RESPOND')) {
-        const label = a.choice !== 'special' ? CHOICE[a.choice] : `Use ${a.item ? cardDef(c, a.item).name : weapon?.name || 'your special weapon'}`;
-        ch.append(choice(label, SUB[a.choice] || null, () => act(a), a.choice === 'attack' ? 'primary' : ''));
+        const own = a.choice === 'special' && !a.item;
+        const label = a.choice !== 'special' ? CHOICE[a.choice] : own && weapon?.verb ? weapon.verb : `Use ${a.item ? cardDef(c, a.item).name : weapon?.name || 'your special weapon'}`;
+        const sub = own && left !== null ? `${left} ${unitWord(weapon, left)} left. ${SUB.special}` : SUB[a.choice] || null;
+        ch.append(choice(label, sub, () => act(a), a.choice === 'attack' ? 'primary' : ''));
       }
+      for (const a of by('USE_RING')) ch.append(choice(`Use ${ringOfSeat(a.seat).name}`, 'The monster flees. The ring is then gone.', () => act(a)));
       p.append(ch, tools());
       break;
     }
@@ -1257,7 +1290,7 @@ function soloStrip(v) {
   b.setAttribute('aria-label', m.label);
   b.onclick = () => openItems(0);
   const hp = el('span', 'herohp'), bar = el('span', 'hp'), fill = el('i');
-  fill.style.width = `${100 * m.hp.left / m.hp.max}%`;
+  fill.style.width = `${Math.min(100, 100 * m.hp.left / m.hp.max)}%`;
   bar.append(fill);
   hp.append(bar, `${m.hp.left}/${m.hp.max}`);
   const stats = el('span', 'stats');
@@ -1393,7 +1426,7 @@ function heroesPanel(v) {
     body.append(stats);
     const hp = el('div', 'hp');
     const fill = el('i');
-    fill.style.width = `${Math.max(0, 100 * h.hp / h.hpStart)}%`;
+    fill.style.width = `${Math.min(100, Math.max(0, 100 * h.hp / h.hpStart))}%`;
     hp.append(fill);
     body.append(hp);
     // Ordinary gold is held loot, public (D25); chamber cards are private, so only their number shows here.
@@ -1402,8 +1435,8 @@ function heroesPanel(v) {
     body.append(el('div', 'meta', `HP ${Math.max(0, h.hp)} of ${h.hpStart} · Gold ${ordinary} · ${chamberCount} hidden ${chamberCards(c, chamberCount)}`));
     const ring = g.seats[seat].ringId && contentIndex(c).rings.get(g.seats[seat].ringId);
     const weapon = def.specialWeaponId && (c.specialWeapons || []).find(w => w.id === def.specialWeaponId);
-    const uses = weapon && Number.isInteger(weapon.uses) ? `, ${Math.max(0, weapon.uses - h.weaponUses)} of ${weapon.uses} uses left` : '';
-    body.append(el('div', 'meta', `Ring: ${ring ? ring.name || ring.id : 'none'} · Special weapon: ${weapon ? weapon.name + uses : 'none'}`));
+    const uses = weapon && Number.isInteger(weapon.uses) ? `, ${Math.max(0, weapon.uses - h.weaponUses)} of ${weapon.uses} ${unitWord(weapon, weapon.uses)} left` : '';
+    body.append(el('div', 'meta', `Ring: ${ring ? `${ring.name || ring.id}${h.ringUsed ? ' (used, removed from play)' : ''}` : 'none'} · Special weapon: ${weapon ? weapon.name + uses : 'none'}`));
     const room = roomStateWords(h);
     if (room) body.append(el('div', 'meta room', room));
     const end = h.endResult === 'INSIDE_AT_SUNSET' ? ', inside at sunset' : '';
@@ -1437,6 +1470,7 @@ function itemsButton(v, seat, cls) {
   return b;
 }
 const SOURCE = { hero: 'Hero equipment', specialWeapons: 'Special weapon card' };
+const ringOfSeat = seat => contentIndex(content()).rings.get(S.game.seats[seat].ringId);
 const ITEM_GROUPS = [['equipment', 'Starting equipment'], ['ring', 'Magic ring'], ['items', 'Weapons and useful items'], ['treasure', 'Treasure'], ['chamber', null]]; // null: the chamber's name, from the content
 function openItems(seat) {
   const g = S.game, v = view(g, content(), viewer), inv = v.heroes[seat].inventory;
@@ -1445,6 +1479,8 @@ function openItems(seat) {
   for (const [k, title] of ITEM_GROUPS) {
     out.push(el('h3', '', title || capital(chamberCards(content()))));
     const list = k === 'ring' ? (inv.ring ? [inv.ring] : []) : inv[k];
+    const spent = k === 'ring' && g.heroes[seat].ringUsed && ringOfSeat(seat);
+    if (spent) { out.push(el('p', 'meta', `${spent.name}: used, removed from play`)); continue; }
     if (typeof list === 'number') { out.push(el('p', 'meta', list ? `${list} ${list === 1 ? 'card' : 'cards'}, kept secret by ${nameOf(seat)}` : 'None')); continue; }
     if (!list.length) { out.push(el('p', 'meta', 'None')); continue; }
     const ul = el('ul', 'inv');
@@ -1453,7 +1489,7 @@ function openItems(seat) {
       li.append(el('strong', '', item.name || item.id || 'Unnamed'));
       const facts = [item.deck ? capital(deckWord(item.deck, content())) : SOURCE[item.source] || (k === 'ring' ? 'Ring' : '')];
       if (item.gold) facts.push(`${item.gold} gold`);
-      if (Number.isInteger(item.usesLeft)) facts.push(`${item.usesLeft} ${item.usesLeft === 1 ? 'use' : 'uses'} left`);
+      if (Number.isInteger(item.usesLeft)) facts.push(`${item.usesLeft} ${item.unit ? unitWord(item, item.usesLeft) : item.usesLeft === 1 ? 'use' : 'uses'} left`);
       li.append(el('span', 'meta', facts.filter(Boolean).join(' · ')));
       const def = item.inst ? cardDef(content(), item.inst) : item.group === 'ring' ? contentIndex(content()).rings.get(item.id) : (content().specialWeapons || []).find(w => w.id === item.id);
       const text = itemText(item) || itemText(def);
@@ -1461,7 +1497,7 @@ function openItems(seat) {
       if (item.pending) li.append(el('span', 'pending', 'Effect pending'));
       const acts = item.usable ? useActions(item) : [];
       for (const a of acts) {
-        const b = el('button', 'btn primary', `Use ${item.name}`);
+        const b = el('button', 'btn primary', a.dir ? `Use ${item.name}, ${DIR[a.dir]}` : item.verb || `Use ${item.name}`);
         b.onclick = () => { $('items').close(); tryAct(a); };
         li.append(b);
       }
