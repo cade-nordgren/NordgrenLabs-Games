@@ -146,6 +146,47 @@ test('v2 tower transit: Continue moves on through another passage the same turn;
   assert.equal(stopped.heroes[0].status, 'IN_TOWER_NOT_ESCAPED');
 });
 
+test('v2 plan 13 #25: never a later-turn Escape for a READY_IN_START_TOWER hero, on any turn', () => {
+  let g = setup({ players: 2, towers: [0, 1] });
+  assert.ok(!acts(g).some(a => a.type === 'TOWER_CHOICE'), 'first turn');
+  g = act(g, 'MOVE', { dir: 'E' });
+  assert.equal(g.heroes[1].status, 'READY_IN_START_TOWER');
+  assert.equal(g.activeSeat, 1);
+  assert.ok(!acts(g).some(a => a.type === 'TOWER_CHOICE'), 'second seat still in its start tower');
+});
+
+test('v2 plan 13 #25: after Stay, Escape is offered on the next turn beside the moves', () => {
+  let g = setup({ players: 2, towers: [0, 1] });
+  place(g, '1,0', 'FX_STRAIGHT', 90);
+  putHero(g, 0, '1,0');
+  g = act(g, 'MOVE', { dir: 'W' });
+  g = act(g, 'TOWER_CHOICE', { choice: 'STAY' });
+  assert.equal(g.heroes[1].status, 'READY_IN_START_TOWER');
+  assert.ok(!acts(g).some(a => a.type === 'TOWER_CHOICE'), 'still never for a start-tower hero');
+  g = act(g, 'MOVE', { dir: 'S' }); // seat 1 leaves its tower
+  assert.equal(g.activeSeat, 0);
+  assert.equal(g.phase, 'CHOOSE_ACTION');
+  assert.deepEqual(types(g), ['MOVE', 'TOWER_CHOICE'], 'Escape beside the legal moves on the next turn');
+  assert.deepEqual(acts(g).filter(a => a.type === 'TOWER_CHOICE').map(a => a.choice), ['ESCAPE'], 'Escape only, no Stay or Continue');
+  const esc = act(g, 'TOWER_CHOICE', { choice: 'ESCAPE' });
+  assert.equal(esc.heroes[0].status, 'ESCAPED');
+  assert.equal(esc.activeSeat, 1, 'the turn passes');
+  assert.ok(esc.log.some(e => e.kind === 'tower-choice' && e.choice === 'ESCAPE' && e.seat === 0));
+});
+
+test('v2 plan 13 #25: Escape from a tower is still offered on the final turn', () => {
+  let g = setup();
+  place(g, '1,0', 'FX_STRAIGHT', 90);
+  putHero(g, 0, '1,0');
+  g = act(g, 'MOVE', { dir: 'W' });
+  g = act(g, 'TOWER_CHOICE', { choice: 'STAY' });
+  g.sun = 26; g.round = 26;
+  assert.ok(acts(g).some(a => a.type === 'TOWER_CHOICE' && a.choice === 'ESCAPE'), 'offered at sun 26');
+  const esc = act(g, 'TOWER_CHOICE', { choice: 'ESCAPE' });
+  assert.equal(esc.heroes[0].status, 'ESCAPED');
+  assert.deepEqual(esc.result.winners, [0]);
+});
+
 test('v2 final-turn tower entry: the choice is offered at sun 26 and Escape counts', () => {
   let g = setup();
   g.sun = 26; g.round = 26;

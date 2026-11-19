@@ -43,6 +43,8 @@ export const RULE_TAGS = {
   soloCombat: ['explicit2023', 'app-only'], // target mode explicit; the A/B/C computer variant app-only
   towerAtSunsetCountsAsEscape: ['interpretation'],
   escapeWithoutExploring: ['interpretation'],
+  // Fixed rulings without a switch (not in DEFAULT_RULES), tagged all the same:
+  towerEscapeOnLaterTurns: ['interpretation'], // plan 13 #25: after Stay, Escape stays offered on later turns
 };
 
 // D21 (application-only): an action that rolled, drew, shuffled or revealed is a commit point;

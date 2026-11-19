@@ -34,8 +34,8 @@ export function legalActions(game, content) {
       if (kind === 'center') out.push({ type: 'COLLECT', seat }); // RB 9.1: stay and collect
       // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
       if (hero.status === 'READY_IN_START_TOWER' && game.rules.escapeWithoutExploring) out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
-      // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
-      if (hero.status === 'READY_IN_START_TOWER' && game.rules.escapeWithoutExploring) out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
+      // Plan 13 #25 (interpretation): a hero who stayed in a tower after exploring may escape on any later turn.
+      if (hero.status === 'IN_TOWER_NOT_ESCAPED') out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
       // D20: no voluntary pass; a forced skip exists only when no legal action does.
       return out.length ? out : [{ type: 'FORCED_SKIP', seat }];
     }
@@ -49,11 +49,6 @@ export function legalActions(game, content) {
       return [...(back ? [{ type: 'RUBBLE_RETURN', seat }] : []), { type: 'RUBBLE_FORCE', seat }];
     }
     case 'RESOLVE_CARD': return p.options.map((_, option) => ({ type: 'CHOOSE', seat: p.seat, option }));
-    case 'TOWER_CHOICE': {
-      // Continue only through another legal tower passage (not back the way in).
-      const onward = p.transit && exits(game, content, seat).some(e => e.legal && e.dir !== hero.enteredFrom);
-      return ['ESCAPE', 'STAY', ...(onward ? ['CONTINUE'] : [])].map(choice => ({ type: 'TOWER_CHOICE', seat, choice }));
-    }
     case 'TOWER_CHOICE': {
       // Continue only through another legal tower passage (not back the way in).
       const onward = p.transit && exits(game, content, seat).some(e => e.legal && e.dir !== hero.enteredFrom);

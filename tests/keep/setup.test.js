@@ -103,7 +103,8 @@ test('rules config: defaults, settable values, unknown rules and values rejected
   assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomOnReentry: true } }), /Unknown rule/, 'the old flag is gone');
   assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomPolicy: 'NEVER' } }), /cannot be/);
   assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { voluntaryPass: true } }), /Unknown rule/);
-  assert.deepEqual(Object.keys(RULE_TAGS).sort(), Object.keys(DEFAULT_RULES).sort(), 'every rules-config entry has an authority tag');
+  assert.ok(Object.keys(DEFAULT_RULES).every(k => RULE_TAGS[k]), 'every rules-config entry has an authority tag');
+  assert.deepEqual(Object.keys(RULE_TAGS).filter(k => !(k in DEFAULT_RULES)), ['towerEscapeOnLaterTurns'], 'fixed rulings tagged without a switch');
   for (const tags of Object.values(RULE_TAGS)) assert.ok(tags.length && tags.every(t => AUTHORITY_TAGS.includes(t)));
   assert.deepEqual([RULE_TAGS.towerAtSunsetCountsAsEscape, RULE_TAGS.escapeWithoutExploring, RULE_TAGS.darkRoomPolicy], [['interpretation'], ['interpretation'], ['interpretation']]);
 });
