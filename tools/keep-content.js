@@ -48,6 +48,8 @@ if (cmd === 'check' || cmd === 'report') {
   });
   const n = s.report.errors.length;
   if (cmd === 'check') console.log(n ? `${n} ${n === 1 ? 'error' : 'errors'}.` : 'No errors.');
+  // Not errors: entries written with the most literal reading, waiting on the owner's ruling.
+  if (s.confirm.length) console.log(`${s.confirm.length} ${s.confirm.length === 1 ? 'entry' : 'entries'} marked NEEDS OWNER CONFIRMATION: ${s.confirm.join(', ')}`);
   console.log(s.start);
   console.log(s.play);
   process.exit(cmd === 'check' && n ? 1 : 0);

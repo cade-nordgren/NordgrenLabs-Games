@@ -77,3 +77,46 @@ Every interpretation is a register row (plan section 9, D51-D66). Items marked *
 13. **Optional draws** (chest, sarcophagus, fallen warrior): the 2023 rulebook says room cards sometimes let the hero choose to try their luck in other decks (box after 8.1), so the draw is a choice (D61).
 14. **Reshuffle cards** in five decks: existing R62 (own pile only, used cards go back under their own deck); not reopened.
 15. Package section L items already settled: 4 (Protection Ring scope) D50 plus item 12 above; 5 (Strength Ring cap) D47; 6 (ring timings) D47-D50; 7 (reshuffle) R62; 8 (biographies) hero `text` stays empty.
+
+## 4. What changed (stages 2-5)
+
+- **Content (all `draft`):** `monster.js` 15 cards (180 cells), `combat.js` + 12 monster cards (S09-S12, `groupName`), `room.js` 60 (27 variants), `treasury.js` 33, `room-search.js` 14, `search.js` 15, `door.js` 15, `chest.js` 14, `dragon.js` 8 (data entry only; the dragon rules are unchanged). Each card's notes cite its catalogue id and any register row. Tiles, board, chamber, heroes, hero combat cards, crossbows and rings untouched.
+- **Engine (general ops, no per-card code):** `ADJUST_HP`, `SKIP_TURNS`, `NAME_NUMBERS` (+ action), `KILL_HERO`, `FLEE`, `ROTATE_TILES`, `DEAL_DAMAGE.store`, Expr `minusReg`, `ROLL_TABLE` parity rows, `REQUEST_CHOICE` option `requires: 'can-flee'`, `SET_CONDITION.label`, card `frees`, use timing `free` (`turn.resume`), door kind `reshuffle`. `MECHANICS_VERSION` v7 (older saves refused).
+- **Schema and checker:** kinds `event`/`reshuffle`; value checks (treasure gold and kept, chamber cards are treasure, shuffle cards shuffle, usable or freeing items kept, a complete monster deck covers every type); the checker lists entries marked NEEDS OWNER CONFIRMATION.
+- **Play-test:** with every slot written it runs on owner data only, under "Play-test: your own draft content, not approved yet" (Details: draft categories, entries to confirm). A category falling back to fixtures keeps the NON-AUTHENTIC banner. Full Start blocked until approval.
+- **UI:** name-the-numbers picker (six toggles, Roll the D6) with the roll card; optional-draw prompts ("Open the chest?"); reason lines for lasting effects on the hero and the prompt ("Unconscious: 2 turns to miss", "Torch out", "In a trapdoor pit"); a notice for each skipped turn; flask Use buttons (also while choosing whether to keep moving) with both dice on the roll card; card tables (curse, bones, spider flight) on the roll card with their result line; the board redraws rotated corridors from state; monster type names in the fight row; the rope listed as kept ("works by itself"). Card text everywhere now comes from `describe.js`.
+- **Tests:** `tests/keep/catalogue.test.js` (42 tests) plus updates to `spec-v5`, `content` and `kit` tests for the now-complete content.
+
+## 5. Status per category
+
+"Source counted" is the package's count; "implemented" means data entered and every mechanic it needs runs in the engine; "tested in Node" names the tests; "owner approved" is the owner's alone (no entry is approved by the build). Nothing was tested in a browser by this work.
+
+| Category | Source counted | Implemented | Tested in Node | Owner approved |
+|---|---|---|---|---|
+| Room deck | 60 (27 variants), photo-counted | 60/60, all 27 variants; D53-D59, D61, D63 | frequencies, every mechanic with forced dice, soak | no (draft) |
+| Treasure chamber | 33 (21 coin cards inferred) | 33/33; D64 to confirm | frequencies, values, scoring at escape, loss on a wake | no (draft) |
+| Room search | 14, photo-counted | 14/14; secret door R56 | frequencies, secret door, flask, soak | no (draft) |
+| Search | 15, photo-counted | 15/15; rope D55 | frequencies, rope, fallen warrior draw, soak | no (draft) |
+| Door | 15, photo-counted | 15/15; D62 to confirm | every outcome incl. both traps and shuffle | no (draft) |
+| Monster reaction | 15 cards, 180 cells | 15/15, 180 cells; D51 (4 FP cells to confirm) | all 180 cells, content and engine; ambush; hidden information | no (draft) |
+| Chest | 14, photo-counted | 14/14; bones D60, trap D12-3-Armour | frequencies, bones, trap, flask copies, soak | no (draft) |
+| Dragon | 8 (7 asleep, 1 awake) | 8/8 data only; rules unchanged | odds 1 in 8 / 1 in 7, reset on an empty lair, wake takes chamber cards only | no (draft) |
+| Hero combat | 24 | 24/24 (unchanged, D45) | spec-v5 tests (kept) | no (draft) |
+| Monster combat | 12 (B/C inferred) | 12/12; D52 | letters, no doubles, A/B/C arithmetic | no (draft) |
+| Rings | 4 | 4/4 (unchanged, D47-D50) | spec-v5 tests (kept); Protection Ring on the catalogue traps | no (draft) |
+| Crossbows | 2 | 2/2 (unchanged, D46) | spec-v5 tests (kept) | no (draft) |
+| Heroes | 8 | 8/8 (unchanged; names owner to settle, D66) | spec-v5 tests, stat tuples re-checked | no (draft) |
+
+## 6. NEEDS OWNER CONFIRMATION
+
+1. Monster cells printed FP: #6 Flee/Skeleton (strike 3, then fight at 2), #14 Flee/Orc (strike D6-4, then fight at 2), #15 Flee/Dark Elf (strike 1, then fight at 1), #15 Flee/Skeleton (strike D6-3, then fight at 4). Proposed: FP is a misprint of KP; keep as entered.
+2. Ceiling collapses (ROOM_008). Proposed: keep one roll (a match kills, else that roll is the damage), or say if the damage is a second D6.
+3. Door deck "shuffle again" (DOOR_005). Proposed: the door stays shut as now; or draw another door card at once.
+4. Torch goes out (ROOM_004): does the card go back under the room deck once the torch is lit again? Proposed: yes, under the room deck (one data change).
+5. Treasure chamber coins (TREASURY_013-033): exactly one card of each value 100-300? Proposed: yes, as entered.
+6. Trap classification (D63): which of poisonous snakes, poisonous mist, explosion, ceiling collapses, wizard's curse, vampire bats, giant spider, torch goes out, centipede and scorpion the Protection Ring should also cover. Proposed: none (only the cards the catalogue calls traps).
+7. Interpretations to confirm, not flagged in card notes: flask timing and net reading (D53), the turn after climbing out of a trapdoor goes on (D55), a spider kill on a later turn ends the turn (D58), heroes on a turned corridor stay put (D57), and the hero names (D66).
+
+## 7. What to look at in a browser (not done here)
+
+Play-test my content on a phone width and wide: the red draft banner and its Details; a room with the torch, the giant spider and the ceiling (number picker, keyboard and screen reader, the roll card); a trapdoor fall then the Climb out prompt, with and without a rope; mist (Unconscious line, skipped-turn notice); a flask Use button at the start of a turn and while choosing whether to keep moving; Open the chest? / Search the body?; the wizard's curse roll and the corridors redrawn; a multiplayer encounter (hand-over cover, no monster HP for the hero, "against the Orc"); the Items sheet with a rope and a torch kept.
