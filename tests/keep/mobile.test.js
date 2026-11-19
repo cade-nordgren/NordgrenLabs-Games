@@ -88,3 +88,15 @@ test('roll and exchange results read as plain words', async () => {
   assert.equal(exchangeWords({ hero: 'A', monster: 'B', heroDmg: 0, monsterDmg: 2 }, 'Cade'), 'Cade played A, the monster played B: A beats B, the monster takes 2');
   assert.equal(exchangeWords({ hero: 'B', monster: 'B', heroDmg: 1, monsterDmg: 1 }, 'Cade'), 'Cade played B, the monster played B: same letter, both take 1');
 });
+
+test('a fight panel says the last exchange in a few words, and the reveal in one sentence', async () => {
+  const { lastWords, revealWords } = await import('../../site/keep/ui/words.js');
+  assert.equal(lastWords({ hero: 'C', monster: 'A', heroDmg: 0, monsterDmg: 1 }, 'you'), 'you C, monster A. Monster takes 1.');
+  assert.equal(lastWords({ hero: 'A', monster: 'C', heroDmg: 2, monsterDmg: 0 }, 'you'), 'you A, monster C. You take 2.');
+  assert.equal(lastWords({ hero: 'B', monster: 'B', heroDmg: 1, monsterDmg: 1 }, 'Cade'), 'Cade B, monster B. Both take 1.');
+  assert.equal(lastWords({ placement: 'unclear', face: 'other', rethrow: true, heroDmg: 0, monsterDmg: 0 }, 'you'), 'unclear, thrown again.');
+  assert.equal(lastWords({ placement: 'inner', face: 'sword', heroDmg: 0, monsterDmg: 2 }, 'Cade'), 'inner circle, sword. Monster takes 2.');
+  assert.equal(revealWords({ hero: 'C', monster: 'A', heroDmg: 0, monsterDmg: 1 }, 'Cade'), 'C beats A: the monster takes 1.');
+  assert.equal(revealWords({ hero: 'A', monster: 'C', heroDmg: 2, monsterDmg: 0 }, 'Cade'), 'C beats A: Cade takes 2.');
+  assert.equal(revealWords({ hero: 'B', monster: 'B', heroDmg: 1, monsterDmg: 1 }, 'Cade'), 'Same letter: both take 1.');
+});

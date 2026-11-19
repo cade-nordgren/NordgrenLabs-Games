@@ -12,7 +12,7 @@ import { SUNSET } from '../engine/clock.js';
 import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, cardText, monsterText, expr, undoLabel, testWords, exchangeWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, DECK, towerName } from './words.js';
+import { lines, entries, cardText, monsterText, expr, undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, DECK, towerName } from './words.js';
 import { rollDice } from './dice.js';
 import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
 
@@ -767,27 +767,53 @@ function logLine({ text, detail }) {
   return li;
 }
 
-// D37 (spec v3): the monster's card, HP and damage taken appear only in the monster player's own view
-// (the engine strips them from everyone else's, the hero's and the table's included).
-function combatBox(v, enc) {
-  const box = el('div', 'cardface');
-  const m = enc.monster;
-  if (enc.combat?.label) box.append(el('p', 'mode', enc.combat.label));
-  box.append(el('strong', '', m?.inst ? cardDef(content(), m.inst).name : 'The monster'));
-  if (Number.isInteger(m?.hp)) {
-    const line = el('div', 'monsterhp');
-    line.append(el('p', '', 'Only you see this:'), hpMeter(Math.max(0, m.hp - m.wounds), m.hp));
-    box.append(line);
-  }
-  const hero = v.heroes[enc.seat];
-  box.append(el('p', '', `${nameOf(enc.seat)}: ${Math.max(0, hero.hp)} of ${hero.hpStart} HP`));
-  const ex = enc.combat?.exchanges || [];
-  if (ex.length) {
-    const ol = el('ol');
-    for (const x of ex) ol.append(el('li', '', x.placement ? (x.rethrow ? 'Unclear, thrown again' : `${PLACEMENT[x.placement]}, ${FACE[x.face].toLowerCase()}: hero ${x.heroDmg}, monster ${x.monsterDmg}`) : `${exchangeWords(x, nameOf(enc.seat))}.`));
-    box.append(ol);
-  }
-  return box;
+// ---- Fight panels (owner, 2026-11-19): compact, so on a phone the buttons are in the dock without scrolling,
+// however long the fight. A one-line header with a small tag, the fight in one row, the last exchange in one line
+// and the earlier ones behind History.
+function fightPanel(title, tag) {
+  const p = el('section', 'glass panel fight'), h = el('h2', '', title);
+  if (tag) h.append(el('span', 'tag', tag));
+  p.append(h);
+  return p;
+}
+// Who is fighting and the hero's HP. D37 (spec v3): the monster's card name and HP only in the monster player's own
+// view (the engine strips them from everyone else's, the hero's and the table's included).
+function fightRow(v, seat, enc) {
+  const row = el('div', 'fightrow'), m = enc?.monster, hero = v.heroes[seat];
+  row.append(el('span', 'who', `${nameOf(seat)} against ${m?.inst ? cardDef(content(), m.inst).name : 'the monster'}`));
+  const hp = el('span', 'herohp'), bar = el('span', 'hp'), fill = el('i'), left = Math.max(0, hero.hp);
+  fill.style.width = `${100 * left / hero.hpStart}%`;
+  bar.append(fill);
+  hp.append(bar, `${left}/${hero.hpStart}`);
+  hp.setAttribute('role', 'img');
+  hp.setAttribute('aria-label', `${nameOf(seat)}: ${left} of ${hero.hpStart} HP`);
+  row.append(hp);
+  if (Number.isInteger(m?.hp)) row.append(hpMeter(Math.max(0, m.hp - m.wounds), m.hp));
+  return row;
+}
+function lastLine(v, enc) {
+  const x = enc.combat?.exchanges?.at(-1);
+  return x ? el('p', 'last', `Last: ${lastWords(x, viewer === enc.seat ? 'you' : nameOf(enc.seat))}`) : null;
+}
+// The exchanges before the last one, opened in place (the open state lasts for the visit, like the map key).
+let historyOpen = false;
+function history(enc) {
+  const ex = enc?.combat?.exchanges || [];
+  if (ex.length < 2) return null;
+  const d = el('details', 'history');
+  d.open = historyOpen;
+  d.ontoggle = () => { historyOpen = d.open; };
+  d.append(el('summary', '', `History (${ex.length - 1})`));
+  const ol = el('ol');
+  for (const x of ex.slice(0, -1)) ol.append(el('li', '', x.placement ? (x.rethrow ? 'Unclear, thrown again' : `${PLACEMENT[x.placement]}, ${FACE[x.face].toLowerCase()}: hero ${x.heroDmg}, monster ${x.monsterDmg}`) : `${exchangeWords(x, nameOf(enc.seat))}.`));
+  d.append(ol);
+  return d;
+}
+// The small controls under a fight panel's buttons: Items and History here, Undo from renderTable.
+function tools(...items) {
+  const t = el('div', 'tools');
+  t.append(...items.filter(Boolean));
+  return t;
 }
 
 // The monster's HP for the monster player only: a heart per HP (filled left, empty lost), or above 10 the hero
@@ -812,7 +838,8 @@ function hpMeter(left, max) {
   return m;
 }
 
-// A, B and C: the letter large, what it beats and loses to (BEATS, the engine's rule), and the card's name small.
+// A, B and C: the letter large, what it beats and loses to (BEATS, the engine's rule), and a double hit only on a card
+// that has one. The card's placeholder name is in the accessible label only; "same letter" is said once, under them.
 const LOSES_TO = Object.fromEntries(Object.entries(BEATS).map(([w, l]) => [l, w]));
 function combatCards(seatSet, onPick) {
   const ch = el('div', 'choices grid3');
@@ -820,15 +847,15 @@ function combatCards(seatSet, onPick) {
     const card = (content().combat || []).find(x => x.setId === seatSet && x.letter === letter);
     const beats = BEATS[letter], twice = !!card?.doubleAgainst?.includes(beats);
     const b = el('button', 'choice combatcard');
-    b.append(el('span', 'big', letter), el('small', 'rule', `Beats ${beats}`), el('small', 'rule', `Loses to ${LOSES_TO[letter]}`), el('small', '', 'Same letter: both take 1'));
-    if (twice) b.append(el('small', 'rule', `Hits twice when it beats ${beats}`));
-    b.append(el('small', 'cardname', card ? card.name : 'Card pending'));
-    b.setAttribute('aria-label', `Play ${letter}. Beats ${beats}${twice ? ', hitting twice' : ''}. Loses to ${LOSES_TO[letter]}. Same letter: both take 1.${card ? ` ${card.name}.` : ''}`);
+    b.append(el('span', 'big', letter), el('small', 'rule', `beats ${beats}`), el('small', '', `loses to ${LOSES_TO[letter]}`));
+    if (twice) b.append(el('small', 'rule', `hits ${beats} twice`));
+    b.setAttribute('aria-label', `Play ${letter}, ${card ? card.name : 'card pending'}. Beats ${beats}${twice ? ', hitting twice' : ''}. Loses to ${LOSES_TO[letter]}.`);
     b.onclick = () => onPick(letter);
     ch.append(b);
   }
   return ch;
 }
+const SAME = 'Same letter: both take 1.';
 
 // The prompt panel: one per phase the engine can raise, built from its legal actions.
 function renderPrompt(v, la, targets) {
@@ -857,15 +884,18 @@ function renderPrompt(v, la, targets) {
   }
   if (S.reveal) {
     const last = S.reveal;
-    p = panel('Reveal', 'Both cards turn over at once.');
+    // The two letters large, one sentence, Continue; the fight row above and History below.
+    p = fightPanel('Reveal');
+    p.append(fightRow(v, last.seat, enc));
     const vs = el('div', 'vs');
-    const side = (who, letter, dmg) => { const d = el('div'); d.append(el('span', '', letter), el('small', '', `${who} takes ${dmg}`)); return d; };
-    vs.append(side(nameOf(last.seat), last.hero, last.heroDmg), el('small', '', 'against'), side('Monster', last.monster, last.monsterDmg));
-    p.append(vs, el('p', 'exchange', `${exchangeWords(last, nameOf(last.seat))}.`));
-    if (enc) p.append(combatBox(v, enc));
+    const side = (who, letter) => { const d = el('div'); d.append(el('span', '', letter), el('small', '', who)); return d; };
+    vs.append(side(nameOf(last.seat), last.hero), el('small', '', 'against'), side('Monster', last.monster));
+    p.append(vs, el('p', 'exchange', revealWords(last, nameOf(last.seat))));
     const ch = el('div', 'choices');
     ch.append(choice('Continue', null, () => { S.reveal = null; render(); }, 'primary'));
     p.append(ch);
+    const h = history(enc);
+    if (h) p.append(tools(h));
     return p;
   }
 
@@ -937,37 +967,41 @@ function renderPrompt(v, la, targets) {
       break;
     }
     case 'CHOOSE_MONSTER_RESPONSE': {
-      p = panel(g.encounter.ambush ? 'Ambush' : 'Something stirs', `${name}, choose before the monster shows itself.${g.encounter.ambush ? ' In an ambush you may only attack or flee.' : ''}`);
+      p = fightPanel(`${name}, choose`, g.encounter.ambush ? 'ambush: attack or flee' : 'before it shows');
+      p.append(fightRow(v, g.encounter.seat, enc));
       // One button per legal action: the hero's own special weapon and each held weapon card are separate answers.
       const weapon = (c.specialWeapons || []).find(w => w.id === heroDef(hero).specialWeaponId);
-      const SUB = { flee: 'Back to the square you came from', special: "Resolved with the monster's Attack reaction" };
+      const SUB = { flee: 'Back where you came from', special: "Meets the monster's Attack answer" };
+      ch.classList.add('grid2');
       for (const a of by('RESPOND')) {
         const label = a.choice !== 'special' ? CHOICE[a.choice] : `Use ${a.item ? cardDef(c, a.item).name : weapon?.name || 'your special weapon'}`;
         ch.append(choice(label, SUB[a.choice] || null, () => act(a), a.choice === 'attack' ? 'primary' : ''));
       }
+      p.append(ch, tools());
       break;
     }
     case 'MONSTER_REACT': {
       // Multiplayer only: in solo the computer is the monster player and the engine announces at once (D37).
       const def = cardDef(c, enc.monster.inst);
-      p = panel(`${nameOf(enc.controller)}, you play the monster`, 'Read the card, then announce its answer to the table.');
-      const f = el('div', 'cardface');
-      f.append(el('strong', '', def.name), el('p', '', `HP ${def.hp}. ${monsterText(def)}`));
-      p.append(f);
+      p = fightPanel(`${nameOf(enc.controller)}, you play the monster`, 'in secret');
+      p.append(fightRow(v, enc.seat, enc));
       const r = enc.reaction;
-      const ans = el('div', 'cardface');
-      const chose = enc.choice === 'special' ? `a special weapon${enc.item ? `, ${cardDef(c, enc.item).name}` : ''} (its Attack reaction)` : CHOICE[enc.choice];
-      ans.append(el('p', '', `${nameOf(enc.seat)} chose ${chose}.`), el('strong', '', `Its answer: ${REACTION[r.type]}${r.damage ? `, ${expr(r.damage)} damage` : ''}.`));
-      p.append(ans);
+      const chose = enc.choice === 'special' ? `a special weapon${enc.item ? `, ${cardDef(c, enc.item).name}` : ''} (its Attack answer)` : CHOICE[enc.choice];
+      p.append(el('p', '', `${nameOf(enc.seat)} chose ${chose}.`), el('p', 'last', `Its answer: ${REACTION[r.type]}${r.damage ? `, ${expr(r.damage)} damage` : ''}. Announce it to the table.`));
       for (const a of by('ANNOUNCE')) ch.append(choice('Announce to the table', null, () => act(a), 'primary'));
+      const card = el('details', 'history');
+      card.append(el('summary', '', 'Whole card'), el('p', '', `${def.name}, HP ${def.hp}. ${monsterText(def)}`));
+      p.append(ch, tools(card));
       break;
     }
     case 'COMBAT_SELECT': {
       const cb = g.encounter.combat;
       const heroSet = heroDef(g.heroes[g.encounter.seat]).combatSetId;
       if (cb.mode === 'target') {
-        p = panel('Throw at the target', 'Throw the combat die at the target, then enter where it came to rest and the face that shows.');
-        p.append(combatBox(v, enc));
+        p = fightPanel('Throw at the target');
+        p.append(el('p', 'help', `${cb.label}. Throw the combat die, then enter where it came to rest and the face up.`), fightRow(v, enc.seat, enc));
+        const last = lastLine(v, enc);
+        if (last) p.append(last);
         p.append(el('h3', '', 'Where it landed'));
         const pl = el('div', 'choices grid2');
         for (const k of Object.keys(PLACEMENT)) {
@@ -987,18 +1021,17 @@ function renderPrompt(v, la, targets) {
         const go = choice('Enter the result', null, () => a && act(a), 'primary');
         go.disabled = !a;
         ch.append(go);
+        p.append(ch, tools(history(enc)));
       } else {
         const heroTurn = viewer === g.encounter.seat && !cb.heroPick;
-        p = panel(heroTurn ? `${nameOf(g.encounter.seat)}, pick your card` : `${nameOf(g.encounter.controller)}, pick the monster's card`, `${solo() ? '' : 'In secret. '}Cards go back to the hand after each exchange.`);
+        p = fightPanel(heroTurn ? `${nameOf(g.encounter.seat)}, pick your card` : `${nameOf(g.encounter.controller)}, pick the monster's card`, solo() ? null : 'in secret');
         if (cb.variant) p.append(el('div', 'variant', 'Digital variant, not an original rule: the computer picks the monster card.'));
-        p.append(combatBox(v, enc));
-        if (heroTurn) {
-          const picks = by('COMBAT_PICK').filter(a => a.side === 'hero');
-          p.append(combatCards(heroSet, letter => act(picks.find(a => a.letter === letter))));
-        } else {
-          const picks = by('COMBAT_PICK').filter(a => a.side === 'monster');
-          p.append(combatCards(g.encounter.monster.groupId, letter => act(picks.find(a => a.letter === letter))));
-        }
+        p.append(fightRow(v, enc.seat, enc));
+        const last = lastLine(v, enc);
+        if (last) p.append(last);
+        const side = heroTurn ? 'hero' : 'monster', picks = by('COMBAT_PICK').filter(a => a.side === side);
+        p.append(combatCards(heroTurn ? heroSet : g.encounter.monster.groupId, letter => act(picks.find(a => a.letter === letter))));
+        p.append(el('p', 'help', SAME), tools(history(enc)));
       }
       break;
     }
@@ -1014,9 +1047,11 @@ function renderPrompt(v, la, targets) {
     default:
       p = panel('Waiting', `Phase ${g.phase}.`);
   }
-  if (enc && g.phase !== 'COMBAT_SELECT' && g.phase !== 'MONSTER_REACT' && enc.monster) p.append(combatBox(v, enc));
-  // Thumb reach: the active hero's inventory, one tap from the prompt (not while the monster player is looking).
-  if (viewer === null || viewer === g.activeSeat) ch.append(itemsButton(v, g.activeSeat, 'choice'));
+  if (enc?.monster && !p.classList.contains('fight')) p.append(fightRow(v, enc.seat, enc));
+  // Thumb reach: the active hero's inventory, one tap from the prompt (not while the monster player is looking); a
+  // fight panel keeps it small, beside History and Undo.
+  const small = p.querySelector('.tools');
+  if (viewer === null || viewer === g.activeSeat) (small || ch).append(itemsButton(v, g.activeSeat, small ? 'btn' : 'choice'));
   if (targets.length) {
     p.append(el('p', 'movehint', 'Tap a highlighted square to move. Press and hold any square to see what is there.'));
     // The reason line of the focused lit square (the cell's own label already says it, so hidden from readers).
@@ -1025,7 +1060,7 @@ function renderPrompt(v, la, targets) {
     why.setAttribute('aria-hidden', 'true');
     p.append(why);
   }
-  p.append(ch);
+  if (!p.contains(ch) && ch.children.length) p.append(ch);
   return p;
 }
 
@@ -1058,8 +1093,9 @@ function renderTable(v) {
   // The dock holds the prompt and what just happened; on a phone in portrait it sits under the board, latest
   // first. The fold is what a phone in portrait reaches by scrolling the page past board and dock.
   const dock = el('div', 'dock'), fold = el('div', 'fold'), side = el('div', 'side');
-  if (!S.peek && !S.reveal) prompt.append(...undoHere(v, true)); // not on a private card panel or the shared reveal
+  if (!S.peek && !S.reveal) (prompt.querySelector('.tools') || prompt).append(...undoHere(v, true)); // not on a private card panel or the shared reveal
   dock.append(prompt);
+  dock.classList.toggle('fight', prompt.classList.contains('fight')); // the prompt above what just happened
   const latest = v.log.slice(S.seen);
   if (latest.length) {
     const lp = panel(latest[0].seat !== undefined ? `What just happened on ${nameOf(latest[0].seat)}'s turn` : 'What just happened');

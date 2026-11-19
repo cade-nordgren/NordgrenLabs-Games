@@ -258,17 +258,45 @@ details li + li { margin-top: 6px; }
 .hearts svg { width: 22px; height: 22px; }
 .hearts .full path { fill: var(--danger); }
 .hearts .lost path { fill: none; stroke: var(--ink2); stroke-width: 2; }
-.combatcard { justify-items: center; text-align: center; }
+/* Fight panels: compact, so on a phone in portrait the buttons sit inside the half-screen dock without scrolling
+   (about 300px of panel at 375x667): a one-line header, the fight in one row, one "Last:" line, the buttons, one
+   muted help line and a row of small controls. */
+.panel.fight { padding: 12px 14px; }
+.panel.fight > h2 { font-size: 18px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 8px; overflow-wrap: anywhere; }
+.tag { padding: 2px 8px; border-radius: 999px; background: var(--fill); color: var(--ink); font: 600 13px var(--text); white-space: nowrap; }
+.fightrow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin-top: 6px; font-size: 14px; color: var(--ink2); }
+.fightrow .who { min-width: 0; overflow-wrap: anywhere; }
+.herohp { display: inline-flex; align-items: center; gap: 6px; color: var(--ink); font-variant-numeric: tabular-nums; }
+.herohp .hp { display: block; width: 56px; margin: 0; }
+.fightrow .hearts { margin: 0; gap: 2px; }
+.fightrow .hearts svg { width: 15px; height: 15px; }
+.panel.fight > p { margin-top: 6px; }
+.panel.fight > p.last, .panel.fight > p.exchange { color: var(--ink); font-weight: 600; font-size: 15px; }
+.panel.fight > p.help { font-size: 13px; }
+.panel.fight .choices { margin-top: 8px; }
+.panel.fight .variant { margin-top: 6px; padding: 4px 10px; font-size: 13px; }
+.combatcard { justify-items: center; text-align: center; padding: 6px 4px; gap: 0; }
+.combatcard .big { line-height: 1.05; }
 .combatcard small { font-size: 13px; }
 .combatcard .rule { color: var(--ink); font-weight: 600; }
-.combatcard .cardname { margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; }
+.tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+.tools:empty { display: none; }
+.tools > .btn { font-size: 15px; padding: 0 14px; }
+.tools > .undo-here { display: inline-flex; align-items: center; margin: 0; }
+.tools > .undo-note { flex-basis: 100%; margin: 0; }
+.tools details summary { min-height: 44px; padding: 0 14px; border-radius: 999px; background: var(--fill); font-size: 15px; }
+.tools details[open] { flex-basis: 100%; order: 9; } /* opened, it takes its own line under the buttons */
+.tools details[open] summary { display: inline-flex; }
+.tools details ol { margin: 6px 0 0; padding-left: 22px; font-size: 14px; color: var(--ink2); }
+.tools details p { margin: 6px 0 0; font-size: 14px; color: var(--ink2); }
+.dock.fight > #latest { order: 0; } /* a fight prompt first: its buttons before what just happened */
 .inv .itemtext { font-size: 14px; color: var(--ink); }
 /* The event log sheet: the full screen height, its list scrolling between the title and Close. */
 #logSheet { width: min(100% - 24px, 640px); height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))); overflow: hidden; }
 #logSheet > div { height: 100%; box-sizing: border-box; display: flex; flex-direction: column; }
 #logSheet #log { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; margin: 0; }
 #logSheet > div > .btn { flex: none; }
-.vs { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 12px; font: 700 40px var(--num); }
+.vs { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 8px; font: 700 40px/1.1 var(--num); }
 .vs small { display: block; font: 600 13px var(--text); color: var(--ink2); text-align: center; }
 
 /* Hot-seat cover: opaque on purpose, so nothing private shows through. */
@@ -293,7 +321,6 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 .inv { list-style: none; margin: 0; padding: 0; }
 .inv li { padding: 8px 0; border-top: 1px solid var(--hair); display: grid; gap: 2px; }
 .inv .btn.primary { margin-top: 6px; }
-.cardface p.mode { margin: 0 0 4px; font-size: 14px; }
 
 @media (max-width: 480px) { .board-panel { padding: 8px; } }
 @media (min-width: 820px) {

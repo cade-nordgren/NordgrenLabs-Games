@@ -79,6 +79,24 @@ export function exchangeWords(x, hero) {
   return `${head}: same letter, both take ${x.heroDmg}`;
 }
 
+// One exchange in a few words, for a fight panel's "Last:" line (owner, 2026-11-19). hero: the hero's name, or 'you'.
+export function lastWords(x, hero) {
+  if (x.placement) return x.rethrow ? 'unclear, thrown again.' : `${PLACEMENT[x.placement].toLowerCase()}, ${FACE[x.face].toLowerCase()}. ${takesWords(x, hero)}`;
+  return `${hero} ${x.hero}, monster ${x.monster}. ${takesWords(x, hero)}`;
+}
+function takesWords(x, hero) {
+  if (x.heroDmg && x.heroDmg === x.monsterDmg) return `Both take ${x.heroDmg}.`;
+  const out = [];
+  if (x.heroDmg) out.push(`${capital(hero)} ${hero === 'you' ? 'take' : 'takes'} ${x.heroDmg}`);
+  if (x.monsterDmg) out.push(`${out.length ? 'the monster' : 'Monster'} takes ${x.monsterDmg}`);
+  return out.length ? `${out.join(', ')}.` : 'Nobody is hurt.';
+}
+// The one result sentence of the Reveal panel.
+export function revealWords(x, hero) {
+  if (x.hero === x.monster) return `Same letter: both take ${x.heroDmg}.`;
+  return x.monsterDmg ? `${x.hero} beats ${x.monster}: the monster takes ${x.monsterDmg}.` : `${x.monster} beats ${x.hero}: ${hero} takes ${x.heroDmg}.`;
+}
+
 // effectText: the engine's line for this card (a log entry's or inventory item's), used when the card has no text.
 export function cardText(def, effectText = null) {
   if (def.text) return def.text;
