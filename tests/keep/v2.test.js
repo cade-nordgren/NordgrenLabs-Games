@@ -44,20 +44,40 @@ test('v2 chamber reserve: the two centre squares never take a maze tile and draw
 });
 
 test('v2 bilateral wall: a printed wall, a fixed board edge or a wall on either tile side blocks both directions', () => {
+  // Test-local board data: the fixture board prints no walls or fixed edges, but owner data may.
+  const open = { N: 'open', E: 'open', S: 'open', W: 'open' };
+  const B = { ...FX, board: { ...FX.board, walls: ['7,2|S'], edges: { '7,8|E': 'door' }, chamberSides: { a: open, b: { ...open, N: 'wall' } } } };
   const g = setup();
   for (const at of ['7,2', '7,3', '7,8', '8,8', '1,1', '2,1']) place(g, at, 'FX_CROSS');
-  assert.equal(edgeKind(g, FX, { x: 7, y: 2 }, 'S'), 'wall', 'printed wall 7,2|S');
-  assert.equal(edgeKind(g, FX, { x: 7, y: 3 }, 'N'), 'wall', 'the same wall from below');
-  assert.equal(edgeKind(g, FX, { x: 7, y: 8 }, 'E'), 'door', 'fixed door edge');
-  assert.equal(edgeKind(g, FX, { x: 8, y: 8 }, 'W'), 'door', 'the same door from the other side');
+  assert.equal(edgeKind(g, B, { x: 7, y: 2 }, 'S'), 'wall', 'printed wall 7,2|S');
+  assert.equal(edgeKind(g, B, { x: 7, y: 3 }, 'N'), 'wall', 'the same wall from below');
+  assert.equal(edgeKind(g, B, { x: 7, y: 8 }, 'E'), 'door', 'fixed door edge');
+  assert.equal(edgeKind(g, B, { x: 8, y: 8 }, 'W'), 'door', 'the same door from the other side');
+  assert.equal(edgeKind(g, FX, { x: 7, y: 2 }, 'S'), 'open', 'the fixture board prints none');
   place(g, '2,1', 'FX_DEADEND', 0); // only S open: its W side is a wall
-  assert.equal(edgeKind(g, FX, { x: 1, y: 1 }, 'E'), 'wall', 'open on one side, wall on the other');
-  assert.equal(edgeKind(g, FX, { x: 2, y: 1 }, 'W'), 'wall');
-  // The chamber's outer sides come from the board: b's N side is a wall.
+  assert.equal(edgeKind(g, B, { x: 1, y: 1 }, 'E'), 'wall', 'open on one side, wall on the other');
+  assert.equal(edgeKind(g, B, { x: 2, y: 1 }, 'W'), 'wall');
+  // The chamber's outer sides come from the board: here b's N side is a wall.
   place(g, '5,4', 'FX_CROSS');
-  assert.equal(edgeKind(g, FX, { x: 5, y: 4 }, 'S'), 'wall');
-  const opened = { ...FX, board: { ...FX.board, chamberSides: { ...FX.board.chamberSides, b: { ...FX.board.chamberSides.b, N: 'open' } } } };
-  assert.equal(edgeKind(g, opened, { x: 5, y: 4 }, 'S'), 'open', 'correcting the map is a data edit');
+  assert.equal(edgeKind(g, B, { x: 5, y: 4 }, 'S'), 'wall');
+  assert.equal(edgeKind(g, FX, { x: 5, y: 4 }, 'S'), 'open', 'correcting the map is a data edit');
+});
+
+test('v2 chamber open on every side (owner ruling D35): enterable from each of its 6 neighbouring squares', () => {
+  const cases = [['4,4', 'S'], ['5,4', 'S'], ['4,6', 'N'], ['5,6', 'N'], ['3,5', 'E'], ['6,5', 'W']];
+  for (const [from, dir] of cases) {
+    let g = setup({ deckOrders: { ROOM: EMPTY_ROOMS, DRAGON: [Array(7).fill('FX_DRAGON_SLEEPING')] } });
+    place(g, from, 'FX_CROSS');
+    putHero(g, 0, from);
+    assert.ok(exits(g, FX, 0).find(e => e.dir === dir).legal, `${from} ${dir} is legal`);
+    g = act(g, 'MOVE', { dir });
+    assert.equal(squareKind(FX.board, g.heroes[0].coord), 'center', `entered from ${from}`);
+    // The neighbour's own side still counts: a wall facing the chamber blocks as for any move.
+    const h = setup();
+    place(h, from, 'FX_DEADEND', dir === 'S' ? 180 : 0); // its only opening points away from the chamber
+    putHero(h, 0, from);
+    assert.equal(exits(h, FX, 0).find(e => e.dir === dir).reason, 'wall', `${from} walled toward the chamber`);
+  }
 });
 
 test('v2 setup hero is not escaped; no Escape before leaving the tower (owner ruling 2, D33)', () => {

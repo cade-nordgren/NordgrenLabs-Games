@@ -32,15 +32,23 @@ main > h1 { margin-top: 2px; }
 h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
-/* The fixtures banner: on every screen of a test game, never dismissable. It folds open to list exactly which
-   content is synthetic (spec v2 #12); folded on phones, open on wide screens. */
-.banner { position: sticky; top: max(10px, env(safe-area-inset-top)); z-index: 18; margin: 0 60px 10px 0; padding: 0 14px; border-radius: 14px;
-  background: color-mix(in srgb, var(--danger) 75%, #000); color: #fff; /* darkened so white text clears 4.5:1 */ font-weight: 700; font-size: 15px; letter-spacing: .02em; text-align: center; min-height: 48px; display: grid; place-items: center; }
-details.banner { display: block; }
-.banner summary { min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 8px; cursor: pointer; }
-.banner summary small { font-weight: 600; font-size: 13px; }
+/* The fixtures banner: on every screen of a test game, never dismissable. One slim line in normal flow above the
+   board (never over it); its toggle folds open the list of exactly which content is synthetic (spec v2 #12). */
+.banner { margin: 0 60px 10px 0; padding: 0 14px; border-radius: 14px;
+  background: color-mix(in srgb, var(--danger) 75%, #000); color: #fff; /* darkened so white text clears 4.5:1 */ font-weight: 700; font-size: 15px; letter-spacing: .02em; text-align: center; min-height: 44px; display: grid; place-items: center; }
+#banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 8px; }
+#banner[hidden] { display: none; }
+#banner:not(.open) { flex-wrap: nowrap; } /* folded: the title and its toggle side by side on one slim line */
+#bannerText { min-width: 0; }
+#bannerToggle { flex: none; white-space: nowrap; min-height: 44px; padding: 0 6px; background: none; border: 0; color: inherit; font: 600 13px var(--text); text-decoration: underline; cursor: pointer; }
 .banner ul, .banner li { color: inherit; }
-.banner ul { margin: 0 0 10px; padding-left: 18px; text-align: left; font-weight: 500; font-size: 14px; columns: 2 12em; }
+.banner ul { flex-basis: 100%; margin: 0 0 10px; padding-left: 18px; text-align: left; font-weight: 500; font-size: 14px; }
+.banner li { break-inside: avoid; overflow-wrap: anywhere; }
+@media (min-width: 640px) { .banner ul { columns: 2; column-gap: 24px; } } /* one column on phones, so items never collide */
+.movehint { margin: 12px 0 0; font-weight: 600; }
+.movewhy { display: none; margin-top: 4px; font-size: 14px; color: var(--ink2); }
+@media (hover: hover) and (pointer: fine) { .movewhy { display: block; } } /* the keyboard hint, not on touch phones */
+.undo-here { display: block; margin-top: 10px; font-size: 15px; }
 .applabel { margin: -4px 0 14px; font-size: 15px; color: var(--ink2); }
 
 /* Title */
@@ -107,7 +115,8 @@ details li + li { margin-top: 6px; }
 /* The map viewport: the board keeps its rectangle; pan and zoom are a CSS transform on the SVG. */
 .map-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; align-items: center; }
 .map-tools .btn { min-width: 44px; padding: 0 12px; font-size: 15px; }
-.map-tools span { margin-left: auto; font-size: 14px; color: var(--ink2); }
+.map-tools .tiles { margin-left: auto; font-size: 14px; color: var(--ink2); }
+.map-tools .ico { display: none; }
 .viewport { position: relative; overflow: hidden; touch-action: none; border-radius: 14px; background: var(--off-bg); width: 100%; aspect-ratio: var(--board-ratio, 1); max-height: calc(100dvh - 200px);
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .board-svg { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; }
@@ -164,6 +173,7 @@ details li + li { margin-top: 6px; }
 .statusbar .who { min-width: 0; flex: 1; }
 .statusbar strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .statusbar span { display: block; font-size: 14px; color: var(--ink2); }
+.statusbar .short { display: none; }
 .tablegrid { display: grid; gap: 14px; }
 .tablegrid > * { min-width: 0; }
 .tablegrid .panel { scroll-margin-top: 76px; }
@@ -194,7 +204,7 @@ details li + li { margin-top: 6px; }
 .cover > div { max-width: 360px; width: 100%; text-align: center; display: grid; gap: 14px; justify-items: center; }
 .cover h2 { font: 700 30px/1.15 var(--num); overflow-wrap: anywhere; }
 .cover p { margin: 0; color: var(--ink2); }
-.cover .banner { position: static; margin: 0; width: 100%; }
+.cover .banner { margin: 0; width: 100%; }
 #toast { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); translate: -50% 0; z-index: 21; padding: 10px 16px; border-radius: 999px; background: var(--ink); color: var(--canvas); font-size: 15px; }
 
 /* Settings */
@@ -213,6 +223,35 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .board-panel { position: sticky; top: 12px; }
   #draftList.grid2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+/* Phone in portrait (PHONE in app.js): board and prompt share one screen. The app is one screen tall, the status
+   bar one line, the map takes what is left with its tools floating in a corner, and the dock (latest first, then
+   the prompt) sits under it and scrolls itself. Map key, heroes and log are below the fold: the fold box is zero
+   high, so its panels overflow the one-screen app and the page scrolls to them. */
+@media (max-width: 819.98px) and (orientation: portrait) {
+  .app.table { height: 100dvh; min-height: 0; padding-bottom: 0; }
+  .app.table > #table:not([hidden]) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .banner { margin-bottom: 6px; font-size: 14px; }
+  .statusbar { flex: none; min-height: 44px; padding: 4px 12px; margin: 0 0 8px; } /* sits below the menu button, so full width */
+  .statusbar .sun, .statusbar .long { display: none; }
+  .statusbar .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; white-space: nowrap; } /* a long name wraps rather than being cut */
+  .statusbar strong { min-width: 0; font-size: 15px; }
+  .statusbar .short { display: inline; flex: none; font-size: 13px; }
+  .tablegrid { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  .tablegrid > .side { display: contents; }
+  #table .board-panel { flex: 1; min-height: 140px; display: flex; flex-direction: column; padding: 6px; }
+  #table .board-host, #table .map { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #table .map { position: relative; }
+  #table .viewport { flex: 1; min-height: 0; aspect-ratio: auto; max-height: none; }
+  #table .map-tools { position: absolute; z-index: 1; top: 6px; right: 6px; flex-direction: column; flex-wrap: nowrap; gap: 6px; margin: 0; }
+  #table .map-tools .btn { width: 44px; height: 44px; min-width: 0; padding: 0; display: grid; place-items: center; background: var(--solid); color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, .3); font-size: 22px; }
+  #table .map-tools .ico { display: block; width: 22px; height: 22px; }
+  #table .map-tools .tool-text, #table .map-tools .tiles { display: none; }
+  .dock { flex: none; max-height: 50dvh; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; border-radius: 26px; }
+  .dock > .panel { flex: none; margin: 0; }
+  .dock > #latest { order: -1; }
+  .fold { flex: none; height: 0; min-height: 0; margin-top: max(8px, env(safe-area-inset-bottom)); }
+  .fold::after { content: ''; display: block; height: max(16px, env(safe-area-inset-bottom)); }
+}
 @media (orientation: landscape) and (max-height: 540px) {
   .app, .app.wide { max-width: 1060px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   #title { columns: 2; column-gap: 14px; }
@@ -223,10 +262,8 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .viewport { max-height: calc(100dvh - 90px); }
   .map-tools { flex-wrap: nowrap; gap: 6px; }
   .map-tools .btn { padding: 0 10px; font-size: 14px; }
-  .map-tools span { display: none; }
-  .banner { position: static; } /* still on every screen; not sticky, so the sticky map has the height */
-  .banner summary { min-height: 32px; }
-  .banner { min-height: 44px; padding: 6px 12px; margin-bottom: 8px; }
+  .map-tools .tiles { display: none; }
+  .banner { padding: 0 12px; margin-bottom: 8px; }
   .statusbar { margin-bottom: 10px; min-height: 48px; padding: 4px 12px; }
   .statusbar span { display: inline; margin-right: 8px; }
   .sun { width: 56px; height: 30px; }
@@ -261,7 +298,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
     </div>
   </nav>
 
-  <details class="banner" id="banner" hidden><summary><span id="bannerText"></span><small>What is synthetic</small></summary><ul id="synthetic" aria-label="Synthetic content"></ul></details>
+  <div class="banner" id="banner" hidden><span id="bannerText"></span><button type="button" id="bannerToggle" aria-expanded="false" aria-controls="synthetic" aria-label="What is synthetic">Details</button><ul id="synthetic" aria-label="Synthetic content" hidden></ul></div>
 
   <main id="title">
     <h1>Dusk Keep</h1>
@@ -341,6 +378,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 </div>
 
 <p id="toast" role="status" hidden></p>
+<p class="sr" id="said" role="status" aria-live="polite"></p>
 
 <dialog class="sheet glass" id="inspect" aria-labelledby="inspectTitle">
   <div>

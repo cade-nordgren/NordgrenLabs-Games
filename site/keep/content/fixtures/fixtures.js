@@ -27,12 +27,11 @@ export default {
       { x: 9, y: 10, sides: { N: o, E: w, S: w, W: o } },
     ],
     center: [{ x: 4, y: 5 }, { x: 5, y: 5 }],
-    // Plausible NON-AUTHENTIC geometry: the chamber's outer sides, one printed wall, one fixed door.
-    chamberSides: { a: { N: o, E: o, S: o, W: w }, b: { N: w, E: o, S: o, W: o } },
-    walls: ['7,2|S'],
-    edges: { '7,8|E': d },
+    // Owner ruling D35: the chamber is open on every side. No printed walls or fixed edges, so an empty
+    // board is a clean grid (the engine still supports board.walls and board.edges; tests use local data).
+    chamberSides: { a: { N: o, E: o, S: o, W: o }, b: { N: o, E: o, S: o, W: o } },
   },
-  chamber: { ...F, id: 'FX_CHAMBER', sides: { a: { N: o, E: o, S: o, W: w }, b: { N: w, E: o, S: o, W: o } } },
+  chamber: { ...F, id: 'FX_CHAMBER', sides: { a: { N: o, E: o, S: o, W: o }, b: { N: o, E: o, S: o, W: o } } },
   // Reference orientation: entry dot on S. Copies total 104, one per maze square, so a whole board
   // can be revealed (owner content is 88; D27 leaves the rest impassable).
   tiles: [
