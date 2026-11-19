@@ -11,7 +11,7 @@ import { cardDef } from '../engine/decks.js';
 import { SUNSET } from '../engine/clock.js';
 import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
 import { mountBoard, resetView, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, cardText, monsterText, expr, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, towerName } from './words.js';
+import { lines, entries, cardText, monsterText, expr, undoLabel, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, towerName } from './words.js';
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -292,22 +292,17 @@ function showCover(need) {
   const g = S.game;
   $('coverBanner').hidden = !g.banner;
   $('coverBanner').textContent = g.banner || '';
-  if (need === null) {
-    $('coverTitle').textContent = 'Pass back to the table';
-    $('coverNote').textContent = 'Everyone may look again.';
-    $('coverGo').textContent = 'Show the table';
-  } else {
-    const name = nameOf(need);
-    $('coverTitle').textContent = `Pass to ${name}`;
-    $('coverNote').textContent = S.peek ? `Only ${name} should look: secret treasure chamber cards.`
-      : g.phase === 'MONSTER_REACT' ? `${name} plays the monster and reads its card in secret.`
-      : need === g.encounter?.seat ? `${name} picks a combat card in secret.` : `${name} picks the monster's card in secret.`;
-    $('coverGo').textContent = `I am ${name}, show me`;
-  }
+  const name = nameOf(need);
+  $('coverTitle').textContent = `Pass to ${name}`;
+  $('coverNote').textContent = S.peek ? `Only ${name} should look: secret treasure chamber cards.`
+    : g.phase === 'MONSTER_REACT' ? `${name} plays the monster and reads its card in secret.`
+    : need === g.encounter?.seat ? `${name} picks a combat card in secret.` : `${name} picks the monster's card in secret.`;
+  $('coverGo').textContent = `I am ${name}, show me`;
   $('coverGo').onclick = () => {
     viewer = need;
     render();
-    $('table').querySelector('.tablegrid section.panel')?.scrollIntoView({ block: 'start' }); // straight to the prompt, not the map
+    // Straight to the prompt, not the map (on a phone in portrait the prompt is docked under the board already).
+    if (!PHONE.matches) $('table').querySelector('.tablegrid section.panel')?.scrollIntoView({ block: 'start' });
   };
   $('cover').hidden = false;
   window.scrollTo(0, 0);
@@ -315,6 +310,22 @@ function showCover(need) {
 }
 
 // ---- Rendering
+// Phone in portrait: board and prompt share one screen (index.html has the same media query).
+const PHONE = matchMedia('(max-width: 819.98px) and (orientation: portrait)');
+PHONE.addEventListener('change', () => { if (S.game) render(); }); // the map key moves between board and fold
+// The one permanent live region: the latest result lines, only ever from the current viewer's view.
+const say = text => { if ($('said').textContent !== text) $('said').textContent = text; };
+
+// Keep the screen on while a game is in progress (feature-detected; a refusal or an old browser is fine).
+let wake = null; // a promise of the WakeLockSentinel while one is held or asked for
+function keepAwake(on) {
+  if (!on) { const w = wake; wake = null; w?.then(s => s?.release()).catch(() => {}); return; }
+  if (wake || document.hidden || !navigator.wakeLock) return;
+  const p = wake = navigator.wakeLock.request('screen').then(
+    s => { s.addEventListener('release', () => { if (wake === p) wake = null; }); return s; }, // the browser drops it when hidden
+    () => { if (wake === p) wake = null; return null; });
+}
+
 let boardApi = null; // the mounted map, to put keyboard focus back on its grid after a re-render
 function render() {
   persist();
@@ -322,7 +333,9 @@ function render() {
   const screen = !g ? 'title' : g.status === 'setup' ? 'draft' : g.status === 'over' ? 'results' : 'table';
   const onCell = !!document.activeElement?.closest?.('[data-cell]');
   boardApi = null;
+  keepAwake(screen === 'draft' || screen === 'table');
   document.querySelector('.app').classList.toggle('wide', screen !== 'title');
+  document.querySelector('.app').classList.toggle('table', screen === 'table');
   // Spec v2 #12: the banner names exactly which categories are synthetic.
   $('banner').hidden = !g?.banner;
   $('bannerText').textContent = g?.banner || '';
@@ -331,6 +344,7 @@ function render() {
   $('undo').disabled = !canUndo();
   $('saveExit').disabled = false;
   if (!g) {
+    say('');
     $('cover').hidden = true;
     for (const id of ['draft', 'table', 'results']) { $(id).hidden = true; $(id).replaceChildren(); }
     $('title').hidden = false;
@@ -344,11 +358,16 @@ function render() {
   }
   if (solo()) viewer = 0;
   const need = needViewer();
-  if (need !== viewer) return showCover(need);
+  // Nothing private on screen now: straight to the public view, no hand-back cover. view(g, c, null) only ever
+  // redacts more than any seat's view, so the last private holder sees nothing new. A cover still hands the
+  // screen TO a seat.
+  if (need === null) viewer = null;
+  if (need !== viewer) { say(''); return showCover(need); }
   $('cover').hidden = true;
   for (const id of ['title', 'draft', 'table', 'results']) $(id).hidden = id !== screen;
   for (const id of ['draft', 'table', 'results']) if (id !== screen) $(id).replaceChildren();
   const v = view(g, content(), viewer);
+  say(screen === 'table' ? lines(v.log.slice(S.seen), ctx()).join(' ') : '');
   if (screen === 'draft') renderDraft(v);
   else if (screen === 'table') renderTable(v);
   else renderResults(v);
@@ -785,7 +804,6 @@ function renderPrompt(v, la, targets) {
     p.append(why);
   }
   p.append(ch);
-  p.setAttribute('aria-live', 'polite');
   return p;
 }
 
@@ -794,8 +812,10 @@ function renderTable(v) {
   const out = [];
   const bar = el('header', 'glass statusbar');
   const who = el('div', 'who');
-  who.append(el('strong', '', `${nameOf(g.activeSeat)}'s turn`), el('span', '', `Sun ${g.sun} of ${SUNSET - 1}, ${SUNSET - g.sun} ${SUNSET - g.sun === 1 ? 'turn' : 'turns'} left`),
-    el('span', '', `Dragon wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`));
+  who.append(el('strong', '', `${nameOf(g.activeSeat)}'s turn`), el('span', 'long', `Sun ${g.sun} of ${SUNSET - 1}, ${SUNSET - g.sun} ${SUNSET - g.sun === 1 ? 'turn' : 'turns'} left`),
+    el('span', 'long', `Dragon wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`),
+    // The one-line phone form: CSS shows these instead of the two above (and of the map tools' tiles left).
+    el('span', 'short', `Sun ${g.sun}/${SUNSET - 1}`), el('span', 'short', `Dragon ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`), el('span', 'short', `${v.board.tileBag} tiles`));
   bar.append(sunClock(g.sun), who);
   out.push(bar);
 
@@ -805,24 +825,34 @@ function renderTable(v) {
 
   const bp = el('section', 'glass board-panel board-wrap');
   bp.setAttribute('aria-label', 'Map');
-  const host = el('div');
-  bp.append(host, mapKey());
-  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[g.activeSeat].coord, onInspect: inspect, tilesLeft: v.board.tileBag,
+  const host = el('div', 'board-host');
+  bp.append(host);
+  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[g.activeSeat].coord, onInspect: inspect, onNear: near, tilesLeft: v.board.tileBag,
     onFocusTarget: t => { if (t && $('moveWhy')) $('moveWhy').textContent = t.label; } });
 
-  const side = el('div');
-  side.append(prompt);
+  // The dock holds the prompt and what just happened; on a phone in portrait it sits under the board, latest
+  // first. The fold is what a phone in portrait reaches by scrolling the page past board and dock.
+  const dock = el('div', 'dock'), fold = el('div', 'fold'), side = el('div', 'side');
+  if (canUndo() && !S.peek && !S.reveal) { // not on a private card panel or the shared reveal
+    const u = el('button', 'btn undo-here', undoLabel(S.hist.at(-1), g, c, nameOf));
+    u.onclick = undo;
+    prompt.append(u);
+  }
+  dock.append(prompt);
   const latest = v.log.slice(S.seen);
   if (latest.length) {
-    const lp = panel('What just happened');
+    const lp = panel(latest[0].seat !== undefined ? `What just happened on ${nameOf(latest[0].seat)}'s turn` : 'What just happened');
     lp.id = 'latest';
     lp.append(...testLines(latest));
     const ol = el('ol');
     for (const t of lines(latest, ctx())) ol.append(el('li', '', t));
     lp.append(ol);
-    side.append(lp);
+    dock.append(lp);
   }
-  side.append(heroesPanel(v), logPanel(v));
+  if (PHONE.matches) { const kp = el('div', 'glass panel board-wrap'); kp.append(mapKey()); fold.append(kp); } // board-wrap: the key's colours
+  else bp.append(mapKey());
+  fold.append(heroesPanel(v), logPanel(v));
+  side.append(dock, fold);
   grid.append(bp, side);
   out.push(grid);
   $('table').replaceChildren(...out);
@@ -960,6 +990,17 @@ function heroesPanel(v) {
   return p;
 }
 
+// A single tap on an unlit square: one line, why the active hero cannot go there or else what the square is.
+function near(c) {
+  const g = S.game, cc = content();
+  if (g.status === 'playing' && ['CHOOSE_ACTION', 'CHOOSE_EXIT'].includes(g.phase) && !S.peek && !S.reveal) {
+    const ex = exits(g, cc, g.activeSeat).find(e => e.to.x === c.x && e.to.y === c.y);
+    if (ex && !legalActions(g, cc).some(x => x.type === 'MOVE' && x.dir === ex.dir)) return toast(`${nameOf(g.activeSeat)} cannot go there: ${whyNot(g, ex)}.`);
+  }
+  const info = cellInfo(view(g, cc, viewer), cc, c, g.seats.map(s => s.name));
+  toast(`${info.title}: ${info.what}.`);
+}
+
 // The inspect sheet: what a square is, side by side, who is in it, and whether the active hero may go there.
 function inspect(c) {
   const g = S.game, cc = content(), v = view(g, cc, viewer);
@@ -1055,7 +1096,18 @@ $('bannerToggle').onclick = () => {
   const open = $('bannerToggle').getAttribute('aria-expanded') !== 'true';
   $('bannerToggle').setAttribute('aria-expanded', open);
   $('synthetic').hidden = !open;
+  $('banner').classList.toggle('open', open);
 };
+// Back from a locked phone or another app: ask for the wake lock again. Going away during a private screen in a
+// multiplayer game puts the "I am X, show me" cover back for whoever unlocks the phone.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) return keepAwake(!!S.game && S.game.status !== 'over');
+  if (S.game && !solo() && viewer !== null) {
+    for (const d of document.querySelectorAll('dialog[open]')) d.close();
+    viewer = null;
+    render();
+  }
+});
 
 // Esc cancels an uncommitted choice (the target placement and face, before Enter the result); sheets close natively.
 document.addEventListener('keydown', e => {

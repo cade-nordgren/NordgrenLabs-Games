@@ -38,13 +38,17 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
   background: color-mix(in srgb, var(--danger) 75%, #000); color: #fff; /* darkened so white text clears 4.5:1 */ font-weight: 700; font-size: 15px; letter-spacing: .02em; text-align: center; min-height: 44px; display: grid; place-items: center; }
 #banner { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 8px; }
 #banner[hidden] { display: none; }
-#bannerToggle { min-height: 44px; padding: 0 6px; background: none; border: 0; color: inherit; font: 600 13px var(--text); text-decoration: underline; cursor: pointer; }
+#banner:not(.open) { flex-wrap: nowrap; } /* folded: the title and its toggle side by side on one slim line */
+#bannerText { min-width: 0; }
+#bannerToggle { flex: none; white-space: nowrap; min-height: 44px; padding: 0 6px; background: none; border: 0; color: inherit; font: 600 13px var(--text); text-decoration: underline; cursor: pointer; }
 .banner ul, .banner li { color: inherit; }
 .banner ul { flex-basis: 100%; margin: 0 0 10px; padding-left: 18px; text-align: left; font-weight: 500; font-size: 14px; }
 .banner li { break-inside: avoid; overflow-wrap: anywhere; }
 @media (min-width: 640px) { .banner ul { columns: 2; column-gap: 24px; } } /* one column on phones, so items never collide */
 .movehint { margin: 12px 0 0; font-weight: 600; }
-.movewhy { display: block; margin-top: 4px; font-size: 14px; color: var(--ink2); }
+.movewhy { display: none; margin-top: 4px; font-size: 14px; color: var(--ink2); }
+@media (hover: hover) and (pointer: fine) { .movewhy { display: block; } } /* the keyboard hint, not on touch phones */
+.undo-here { display: block; margin-top: 10px; font-size: 15px; }
 .applabel { margin: -4px 0 14px; font-size: 15px; color: var(--ink2); }
 
 /* Title */
@@ -111,7 +115,8 @@ details li + li { margin-top: 6px; }
 /* The map viewport: the board keeps its rectangle; pan and zoom are a CSS transform on the SVG. */
 .map-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; align-items: center; }
 .map-tools .btn { min-width: 44px; padding: 0 12px; font-size: 15px; }
-.map-tools span { margin-left: auto; font-size: 14px; color: var(--ink2); }
+.map-tools .tiles { margin-left: auto; font-size: 14px; color: var(--ink2); }
+.map-tools .ico { display: none; }
 .viewport { position: relative; overflow: hidden; touch-action: none; border-radius: 14px; background: var(--off-bg); width: 100%; aspect-ratio: var(--board-ratio, 1); max-height: calc(100dvh - 200px);
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 .board-svg { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; }
@@ -168,6 +173,7 @@ details li + li { margin-top: 6px; }
 .statusbar .who { min-width: 0; flex: 1; }
 .statusbar strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .statusbar span { display: block; font-size: 14px; color: var(--ink2); }
+.statusbar .short { display: none; }
 .tablegrid { display: grid; gap: 14px; }
 .tablegrid > * { min-width: 0; }
 .tablegrid .panel { scroll-margin-top: 76px; }
@@ -217,6 +223,35 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .board-panel { position: sticky; top: 12px; }
   #draftList.grid2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
+/* Phone in portrait (PHONE in app.js): board and prompt share one screen. The app is one screen tall, the status
+   bar one line, the map takes what is left with its tools floating in a corner, and the dock (latest first, then
+   the prompt) sits under it and scrolls itself. Map key, heroes and log are below the fold: the fold box is zero
+   high, so its panels overflow the one-screen app and the page scrolls to them. */
+@media (max-width: 819.98px) and (orientation: portrait) {
+  .app.table { height: 100dvh; min-height: 0; padding-bottom: 0; }
+  .app.table > #table:not([hidden]) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .banner { margin-bottom: 6px; font-size: 14px; }
+  .statusbar { flex: none; min-height: 44px; padding: 4px 12px; margin: 0 52px 8px 0; }
+  .statusbar .sun, .statusbar .long { display: none; }
+  .statusbar .who { display: flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+  .statusbar strong { min-width: 0; font-size: 15px; }
+  .statusbar .short { display: inline; flex: none; font-size: 13px; }
+  .tablegrid { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  .tablegrid > .side { display: contents; }
+  #table .board-panel { flex: 1; min-height: 140px; display: flex; flex-direction: column; padding: 6px; }
+  #table .board-host, #table .map { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  #table .map { position: relative; }
+  #table .viewport { flex: 1; min-height: 0; aspect-ratio: auto; max-height: none; }
+  #table .map-tools { position: absolute; z-index: 1; top: 6px; right: 6px; flex-direction: column; flex-wrap: nowrap; gap: 6px; margin: 0; }
+  #table .map-tools .btn { width: 44px; height: 44px; min-width: 0; padding: 0; display: grid; place-items: center; background: var(--solid); color: var(--ink); box-shadow: 0 1px 4px rgba(0, 0, 0, .3); font-size: 22px; }
+  #table .map-tools .ico { display: block; width: 22px; height: 22px; }
+  #table .map-tools .tool-text, #table .map-tools .tiles { display: none; }
+  .dock { flex: none; max-height: 50dvh; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; border-radius: 26px; }
+  .dock > .panel { flex: none; margin: 0; }
+  .dock > #latest { order: -1; }
+  .fold { flex: none; height: 0; min-height: 0; margin-top: max(8px, env(safe-area-inset-bottom)); }
+  .fold::after { content: ''; display: block; height: max(16px, env(safe-area-inset-bottom)); }
+}
 @media (orientation: landscape) and (max-height: 540px) {
   .app, .app.wide { max-width: 1060px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
   #title { columns: 2; column-gap: 14px; }
@@ -227,7 +262,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .viewport { max-height: calc(100dvh - 90px); }
   .map-tools { flex-wrap: nowrap; gap: 6px; }
   .map-tools .btn { padding: 0 10px; font-size: 14px; }
-  .map-tools span { display: none; }
+  .map-tools .tiles { display: none; }
   .banner { padding: 0 12px; margin-bottom: 8px; }
   .statusbar { margin-bottom: 10px; min-height: 48px; padding: 4px 12px; }
   .statusbar span { display: inline; margin-right: 8px; }
@@ -343,6 +378,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 </div>
 
 <p id="toast" role="status" hidden></p>
+<p class="sr" id="said" role="status" aria-live="polite"></p>
 
 <dialog class="sheet glass" id="inspect" aria-labelledby="inspectTitle">
   <div>
