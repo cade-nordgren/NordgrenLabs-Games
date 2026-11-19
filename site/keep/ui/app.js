@@ -1,0 +1,1066 @@
+// Dusk Keep frontend (system 10). A projection of the engine: it dispatches legal actions to
+// reduce() and renders view(game, content, seat) for whoever is looking. No rules live here.
+import FIXTURES from '../content/fixtures/fixtures.js';
+import ORIGINAL from '../content/original/index.js';
+import { createGame, reduce, restore, DEFAULT_RULES, RULE_TAGS } from '../engine/reducer.js';
+import { legalActions } from '../engine/phases.js';
+import { view, canUndoTo, screenOwner } from '../engine/view.js';
+import { neighbour, squareKind, exits, key } from '../engine/board.js';
+import { isActive } from '../engine/heroes.js';
+import { cardDef } from '../engine/decks.js';
+import { SUNSET } from '../engine/clock.js';
+import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_LABEL } from '../content/schema.js';
+import { mountBoard, resetView, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
+import { lines, entries, cardText, monsterText, expr, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, towerName } from './words.js';
+
+const $ = id => document.getElementById(id);
+const el = (tag, cls, text) => {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (text != null) e.textContent = text; // textContent, never innerHTML: names are user input
+  return e;
+};
+const listOf = names => new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
+
+const STATUS = contentStatus(ORIGINAL, FIXTURES); // the same status `node tools/keep-content.js report` prints
+const REPORT = STATUS.report;
+const CONTENT = { fixture: FIXTURES, original: ORIGINAL, mixed: STATUS.mixed };
+const FX_REPORT = validateContent(FIXTURES);
+const KEY = 'nl-keep-v1';
+const HIST_CAP = 20; // shortcut: full snapshots, at most 20 and cleared at every commit point; store diffs if long uncommitted runs ever matter
+
+// Rules-config entries with their ruling from the plan's decision register (display only); the authority tags
+// come from the engine's RULE_TAGS. Entries in RULE_TAGS but not in the rules config are fixed rulings.
+const RULE_INFO = {
+  darkRoomPolicy: v => ['D06', v === 'EVERY_ENTRY' ? 'Every entry into a dark room makes you roll your way out.' : 'A dark room acts when it is first revealed and when you flee back into it; walking back in is safe.'],
+  forcedMoveTileEffects: v => ['Open point 3 (with D16, D19)', v ? 'Room effects apply where the dragon drives a hero.' : 'No room effects there.'],
+  soloCombat: v => ['D17', v === 'target' ? 'Solo fights use the target with results entered by hand.' : 'A, B or C against a computer pick: a digital variant, not an original rule.'],
+  towerAtSunsetCountsAsEscape: v => ['D32', v ? 'A hero in a tower at sunset counts as escaped.' : 'A hero in a tower at sunset who never chose Escape is inside at sunset: not escaped, not dead.'],
+  escapeWithoutExploring: v => ['D33', v ? 'A hero may escape straight from the start tower.' : 'A hero still in the start tower is never offered Escape.'],
+  towerEscapeOnLaterTurns: () => ['D34', 'After Stay, Escape is offered on every later turn, the last one included.'],
+};
+const PREFS = 'nl-keep-prefs-v1'; // per-browser display preferences, not game state
+let prefs = { debugLog: false };
+try { prefs = { debugLog: JSON.parse(localStorage.getItem(PREFS))?.debugLog === true }; } catch {}
+const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch {} };
+
+// ---- State. The engine game plus what the screen needs; saved on every change. It belongs to whoever was signed in
+// (owner), so a game in progress never shows to the next person on this browser.
+const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null, owner: NL.person() });
+let S = fresh();
+let viewer = null; // the seat looking now; never saved, so a refresh always covers a private screen
+let target = { placement: null, face: null }; // solo target entry, before it is sent
+let keyboard = false;
+
+const okSnap = (h, c) => { try { restore(JSON.stringify(h), c); return true; } catch { return false; } };
+function load() {
+  let s;
+  try { s = JSON.parse(localStorage.getItem(KEY)); } catch { return; }
+  const b = fresh();
+  if (!s || s.v !== 1 || (s.owner && s.owner !== b.owner)) return; // another person's autosave stays unread
+  if ([1, 2, 3, 4].includes(s.count)) b.count = s.count;
+  if (Array.isArray(s.names)) b.names = b.names.map((n, i) => (typeof s.names[i] === 'string' ? s.names[i].slice(0, 20) : ''));
+  if (['target', 'abc-digital-variant'].includes(s.soloCombat)) b.soloCombat = s.soloCombat;
+  // Stored data is a trust boundary: the engine's restore() checks versions, content and shape.
+  if (s.game && CONTENT[s.mode]) {
+    try {
+      const c = CONTENT[s.mode];
+      b.game = restore(JSON.stringify(s.game), c);
+      b.mode = s.mode;
+      b.hist = Array.isArray(s.hist) ? s.hist.filter(h => okSnap(h, c)).slice(-HIST_CAP) : [];
+      if (UUID.test(s.saveId)) b.saveId = s.saveId;
+      if (ISO.test(s.createdAt)) b.createdAt = s.createdAt;
+      b.finishedSaved = s.finishedSaved === true;
+      b.seen = Number.isInteger(s.seen) && s.seen <= b.game.log.length ? s.seen : b.game.log.length;
+      const r = s.reveal;
+      if (r && Number.isInteger(r.seat) && r.seat >= 0 && r.seat < b.game.seats.length && ['A', 'B', 'C'].includes(r.hero) && ['A', 'B', 'C'].includes(r.monster) && Number.isInteger(r.heroDmg) && Number.isInteger(r.monsterDmg)) b.reveal = r;
+      const n = b.game.seats.length;
+      if (s.peek && Number.isInteger(s.peek.seat) && s.peek.seat >= 0 && s.peek.seat < n) b.peek = { seat: s.peek.seat, from: Number.isInteger(s.peek.from) ? s.peek.from : null };
+    } catch { b.game = null; b.mode = null; }
+  }
+  S = b;
+}
+function persist() {
+  try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {
+    try { localStorage.setItem(KEY, JSON.stringify({ ...S, hist: [] })); } catch {}
+  }
+}
+
+const content = () => CONTENT[S.mode];
+const solo = () => S.game.seats.length === 1;
+const nameOf = seat => S.game.seats[seat].name;
+const heroDef = (h) => contentIndex(content()).heroes.get(h.heroId);
+const ctx = () => ({ content: content(), name: nameOf });
+
+// ---- Actions: every one goes to the engine, which refuses anything not legal now.
+function act(a) {
+  const prev = S.game, c = content();
+  let next;
+  try { next = reduce(prev, a, c); } catch { return render(); } // a stale double tap: nothing happens
+  // D21: undo only steps back over actions that revealed nothing (the engine counts commit points).
+  S.hist = canUndoTo(prev, next) ? [...S.hist, prev].slice(-HIST_CAP) : [];
+  S.seen = prev.log.length;
+  const added = next.log.slice(prev.log.length);
+  const multi = next.seats.length > 1;
+  const ex = added.find(e => e.kind === 'exchange');
+  S.reveal = multi && ex ? { seat: prev.encounter.seat, hero: ex.hero, monster: ex.monster, heroDmg: ex.heroDmg, monsterDmg: ex.monsterDmg } : null;
+  const priv = added.find(e => (e.kind === 'draw' || e.kind === 'retain') && e.private !== undefined && e.deck !== 'MONSTER');
+  S.peek = multi && priv ? { seat: priv.private, from: prev.log.length } : null;
+  target = { placement: null, face: null };
+  S.game = next;
+  render();
+}
+const canUndo = () => !!S.game && S.hist.length > 0 && canUndoTo(S.hist.at(-1), S.game);
+function undo() {
+  if (!canUndo()) return;
+  S.game = S.hist.pop();
+  S.seen = Math.min(S.seen, S.game.log.length);
+  S.reveal = null;
+  S.peek = null;
+  render();
+}
+
+function newGame(mode) {
+  const players = S.names.slice(0, S.count).map((n, i) => n.trim() || `Player ${i + 1}`);
+  const seed = crypto.getRandomValues(new Uint32Array(1))[0];
+  let game;
+  try { game = createGame({ players, seed, content: CONTENT[mode], rules: { soloCombat: S.soloCombat } }); } catch (err) {
+    $('startReason').textContent = err.message;
+    return;
+  }
+  Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
+  viewer = players.length === 1 ? 0 : null;
+  resetView();
+  render();
+  window.scrollTo(0, 0);
+}
+
+function toTitle() {
+  Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, finishedSaved: false, seen: 0, reveal: null, peek: null });
+  viewer = null;
+  shown = NL.saves.cached('keep') ?? shown; // this browser's copy of a save just made shows at once
+  render();
+  window.scrollTo(0, 0);
+  refreshSaves();
+}
+
+// ---- Saves through NL.saves.
+function saveTitle(g) {
+  const n = g.seats.length;
+  const when = g.status === 'over' ? 'finished' : g.status === 'setup' ? 'setting up' : `sun ${g.sun}`;
+  return `Dusk Keep, ${n} ${n === 1 ? 'player' : 'players'}, ${when}${g.banner ? `, ${g.banner}` : ''}`;
+}
+// put() writes to this browser at once and uploads in the background for a signed-in person.
+async function saveGame() {
+  const g = S.game;
+  const now = new Date().toISOString();
+  if (!S.saveId) Object.assign(S, { saveId: crypto.randomUUID(), createdAt: now }); // before any await, so a double tap updates one record
+  if (!S.createdAt) S.createdAt = (await NL.saves.get(S.saveId).catch(() => null))?.createdAt || now;
+  persist();
+  let state = { mode: S.mode, game: g, hist: S.hist };
+  if (JSON.stringify(state).length > 240000) state = { mode: S.mode, game: g, hist: [] }; // the server keeps 256 KB per save
+  return NL.saves.put({
+    schemaVersion: 1, id: S.saveId, game: 'keep', personPublicId: NL.person(),
+    title: saveTitle(g), status: g.status === 'over' ? 'finished' : 'in_progress',
+    createdAt: S.createdAt, updatedAt: now, state,
+  });
+}
+const okRecord = r => !!r?.state && CONTENT[r.state.mode] && !!r.state.game && typeof r.state.game === 'object';
+
+async function resume(id) {
+  const r = await NL.saves.get(id).catch(() => null); // a signed-in save can fail to load when the server is unreachable
+  if (!r) return toast('Could not open that save. Check your connection and try again.');
+  let game, c;
+  try { c = CONTENT[r.state.mode]; game = restore(JSON.stringify(r.state.game), c); } catch { return toast('That save cannot be opened.'); }
+  Object.assign(S, {
+    mode: r.state.mode, game, hist: Array.isArray(r.state.hist) ? r.state.hist.filter(h => okSnap(h, c)).slice(-HIST_CAP) : [],
+    saveId: r.id, createdAt: r.createdAt, finishedSaved: r.status === 'finished', seen: game.log.length, reveal: null, peek: null,
+  });
+  viewer = game.seats.length === 1 ? 0 : null;
+  resetView();
+  render();
+  window.scrollTo(0, 0);
+}
+
+let toastTimer;
+function toast(text) {
+  $('toast').textContent = text;
+  $('toast').hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { $('toast').hidden = true; }, 3200);
+}
+
+// The list shown now: the last known one at once (stale while revalidate), null while nothing is known yet.
+let shown = NL.saves.cached('keep'), loadingSaves = !shown, savesNote = '';
+const newestFirst = (a, b) => b.updatedAt.localeCompare(a.updatedAt);
+const NOT_SYNCED = { save_limit: 'Not synced: 200 saves is the limit, delete one', too_large: 'Not synced: too large to upload', refused: 'Not synced: the server refused it' };
+
+async function refreshSaves() {
+  try {
+    shown = await NL.saves.list('keep');
+    savesNote = '';
+  } catch {
+    // Keep what is shown; never invent an empty list.
+    savesNote = shown ? 'Could not reach the server. Showing the last known list.' : 'Could not load saved games.';
+  }
+  loadingSaves = false;
+  if (!S.game) drawSaves();
+}
+addEventListener('nl-saves', () => { if (!S.game) refreshSaves(); }); // an upload finished or was refused
+
+function drawSaves() {
+  const recs = (shown || []).filter(okRecord), group = $('savedGroup');
+  group.hidden = !loadingSaves && !savesNote && !recs.length;
+  group.setAttribute('aria-busy', loadingSaves);
+  $('savedNote').textContent = savesNote;
+  $('savedNote').hidden = !savesNote;
+  if (savesNote && !shown) {
+    const retry = el('button', 'btn', 'Try again');
+    retry.onclick = () => { loadingSaves = true; savesNote = ''; drawSaves(); refreshSaves(); };
+    $('saves').replaceChildren(retry);
+    return;
+  }
+  const skeleton = () => { const li = el('li', 'loading'); li.append(el('span', 'skeleton line')); return li; };
+  $('saves').replaceChildren(...(loadingSaves ? [skeleton(), skeleton()] : recs.map(saveRow)));
+}
+
+function saveRow(r) {
+  const li = el('li'), open = el('button', 'resume'), del = el('button');
+  const when = new Date(r.updatedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  const sync = r.pending ? ` · ${NOT_SYNCED[r.pending] || 'Not synced yet'}` : '';
+  open.append(el('strong', '', r.title), el('span', '', `${r.status === 'finished' ? 'Finished' : 'In progress'} · ${when}${sync}`));
+  open.onclick = () => resume(r.id);
+  // Two-step delete in place: the X turns into a Delete button until the confirm tap, a tap anywhere else, or 4 seconds.
+  // Not focus and blur: Safari on iOS drops focus from a tapped button before the second tap's click arrives.
+  let disarm = null;
+  const arm = on => {
+    disarm?.();
+    disarm = null;
+    del.className = on ? 'btn danger' : 'circle remove';
+    del.replaceChildren(on ? 'Delete' : xIcon());
+    del.setAttribute('aria-label', on ? `Confirm delete ${r.title}` : `Delete ${r.title}`);
+    if (!on) return;
+    const away = e => { if (!del.contains(e.target)) arm(false); };
+    const timer = setTimeout(() => arm(false), 4000);
+    document.addEventListener('pointerdown', away, true);
+    disarm = () => { clearTimeout(timer); document.removeEventListener('pointerdown', away, true); };
+  };
+  del.onclick = () => {
+    if (!disarm) return arm(true);
+    arm(false);
+    removeSave(r);
+  };
+  arm(false);
+  li.append(open, del);
+  return li;
+}
+
+// Optimistic: the row goes at once and comes back with a message if the server refuses or cannot be reached.
+async function removeSave(r) {
+  shown = (shown || []).filter(x => x.id !== r.id);
+  savesNote = '';
+  drawSaves();
+  try {
+    await NL.saves.remove(r.id);
+    shown = (shown || []).filter(x => x.id !== r.id); // a refresh that landed meanwhile may have brought it back
+  } catch {
+    shown = [...(shown || []).filter(x => x.id !== r.id), r].sort(newestFirst);
+    savesNote = 'Could not delete that save. Check your connection and try again.';
+  }
+  if (!S.game) drawSaves();
+}
+function xIcon() {
+  const s = svg('svg', { viewBox: '0 0 24 24', width: 14, height: 14, fill: 'none', stroke: 'currentColor', 'stroke-width': 2.6, 'stroke-linecap': 'round', 'aria-hidden': 'true' });
+  svg('path', { d: 'M6 6l12 12M18 6 6 18' }, s);
+  return s;
+}
+
+// ---- Who should be looking. The engine says whose private moment it is (plan 4.9); the screen
+// adds two of its own: a holder reading their secret cards, and the shared reveal of an exchange.
+function needViewer() {
+  if (solo()) return 0;
+  if (S.peek) return S.peek.seat;
+  if (S.reveal || S.game.status !== 'playing') return null;
+  return screenOwner(S.game);
+}
+
+function showCover(need) {
+  for (const id of ['title', 'draft', 'table', 'results']) $(id).hidden = true;
+  for (const id of ['draft', 'table', 'results']) $(id).replaceChildren(); // nothing private stays in the page behind the cover
+  const g = S.game;
+  $('coverBanner').hidden = !g.banner;
+  $('coverBanner').textContent = g.banner || '';
+  if (need === null) {
+    $('coverTitle').textContent = 'Pass back to the table';
+    $('coverNote').textContent = 'Everyone may look again.';
+    $('coverGo').textContent = 'Show the table';
+  } else {
+    const name = nameOf(need);
+    $('coverTitle').textContent = `Pass to ${name}`;
+    $('coverNote').textContent = S.peek ? `Only ${name} should look: secret treasure chamber cards.`
+      : g.phase === 'MONSTER_REACT' ? `${name} plays the monster and reads its card in secret.`
+      : need === g.encounter?.seat ? `${name} picks a combat card in secret.` : `${name} picks the monster's card in secret.`;
+    $('coverGo').textContent = `I am ${name}, show me`;
+  }
+  $('coverGo').onclick = () => {
+    viewer = need;
+    render();
+    $('table').querySelector('.tablegrid section.panel')?.scrollIntoView({ block: 'start' }); // straight to the prompt, not the map
+  };
+  $('cover').hidden = false;
+  window.scrollTo(0, 0);
+  $('coverGo').focus();
+}
+
+// ---- Rendering
+let boardApi = null; // the mounted map, to put keyboard focus back on its grid after a re-render
+function render() {
+  persist();
+  const g = S.game;
+  const screen = !g ? 'title' : g.status === 'setup' ? 'draft' : g.status === 'over' ? 'results' : 'table';
+  const onCell = !!document.activeElement?.closest?.('[data-cell]');
+  boardApi = null;
+  document.querySelector('.app').classList.toggle('wide', screen !== 'title');
+  // Spec v2 #12: the banner names exactly which categories are synthetic.
+  $('banner').hidden = !g?.banner;
+  $('bannerText').textContent = g?.banner || '';
+  $('synthetic').replaceChildren(...(g?.banner ? syntheticCategories(content()) : []).map(t => el('li', '', t)));
+  $('undo').hidden = $('saveExit').hidden = !g;
+  $('undo').disabled = !canUndo();
+  $('saveExit').disabled = false;
+  if (!g) {
+    $('cover').hidden = true;
+    for (const id of ['draft', 'table', 'results']) { $(id).hidden = true; $(id).replaceChildren(); }
+    $('title').hidden = false;
+    return renderTitle();
+  }
+  if (g.status === 'over' && !S.finishedSaved) {
+    // A finished game saves itself once, reusing the record of a resumed or saved game.
+    S.finishedSaved = true;
+    persist();
+    saveGame().catch(() => toast('Could not save the finished game.'));
+  }
+  if (solo()) viewer = 0;
+  const need = needViewer();
+  if (need !== viewer) return showCover(need);
+  $('cover').hidden = true;
+  for (const id of ['title', 'draft', 'table', 'results']) $(id).hidden = id !== screen;
+  for (const id of ['draft', 'table', 'results']) if (id !== screen) $(id).replaceChildren();
+  const v = view(g, content(), viewer);
+  if (screen === 'draft') renderDraft(v);
+  else if (screen === 'table') renderTable(v);
+  else renderResults(v);
+  const lost = a => !a || a === document.body || !a.isConnected || !!a.closest('[hidden]');
+  if (onCell && boardApi && lost(document.activeElement)) boardApi.focus();
+  else if (keyboard && lost(document.activeElement)) {
+    const first = $(screen).querySelector('.choices button:not(:disabled), button.choice:not(:disabled)');
+    first?.focus();
+  }
+}
+
+// ---- Title and setup
+const showCount = NL.segmented($('countSeg'), v => { S.count = +v; render(); });
+const showSolo = NL.segmented($('soloSeg'), v => { S.soloCombat = v; render(); });
+const showTheme = NL.segmented($('themeSeg'), v => { NL.theme.set(v); showTheme(v); });
+NL.menu($('menu'));
+NL.account($('account'));
+const emptyRoster = () => !S.names.some(n => n.trim()) && !S.game;
+const prefill = i => { if (i?.displayName && emptyRoster()) S.names[0] = i.displayName.slice(0, 20); };
+
+function renderTitle() {
+  showCount(String(S.count));
+  // Sign-in still on its way with no cached name: hold the first player's row for it.
+  const waiting = !NL.settled && emptyRoster();
+  const shape = `${S.count} ${waiting}`;
+  $('names').setAttribute('aria-busy', waiting);
+  if ($('names').dataset.shape !== shape) {
+    $('names').dataset.shape = shape;
+    $('names').replaceChildren(...S.names.slice(0, S.count).map((n, i) => {
+      if (i === 0 && waiting) { const li = el('li', 'loading'); li.setAttribute('aria-hidden', 'true'); li.append(el('span', 'skeleton line')); return li; }
+      const li = el('li'), input = el('input');
+      input.value = n;
+      input.maxLength = 20;
+      input.placeholder = `Player ${i + 1}`;
+      input.autocomplete = 'off';
+      input.setAttribute('aria-label', `Player ${i + 1} name`);
+      input.oninput = () => { S.names[i] = input.value; persist(); };
+      li.append(input);
+      return li;
+    }));
+  }
+  $('soloBox').hidden = S.count !== 1;
+  showSolo(S.soloCombat);
+  $('soloNote').textContent = S.soloCombat === 'target'
+    ? 'The original solo fight: throw the combat die at the printed target and enter where it lands.'
+    : 'Digital variant, not an original rule: you pick A, B or C and the computer picks for the monster.';
+  $('statusNote').textContent = STATUS.note;
+  $('status').replaceChildren(...REPORT.categories.map((c, i) => {
+    const li = el('li');
+    li.append(el('span', '', c.label), el('span', '', STATUS.lines[i].slice(c.label.length + 1)));
+    return li;
+  }));
+  $('start').disabled = !REPORT.fullStartAllowed;
+  $('startReason').textContent = REPORT.fullStartAllowed ? '' : STATUS.start;
+  $('fixtures').disabled = !FX_REPORT.fixturePlayable;
+  $('mixed').disabled = !STATUS.mixedAllowed;
+  $('mixedReason').textContent = STATUS.play;
+  drawSaves();
+}
+
+// ---- Draft: first player, heroes clockwise, rings counterclockwise, towers.
+function panel(title, text) {
+  const p = el('section', 'glass panel');
+  p.append(el('h2', '', title));
+  if (text) p.append(el('p', '', text));
+  return p;
+}
+function choice(label, sub, onclick, cls = '') {
+  const b = el('button', `choice ${cls}`.trim());
+  b.append(el('span', '', label));
+  if (sub) b.append(el('small', '', sub));
+  b.onclick = onclick;
+  return b;
+}
+const pendingText = (value, what) => (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length) ? el('span', 'pending', `${what} pending`) : null);
+
+function heroCard(def, extra) {
+  const box = el('div');
+  box.append(el('strong', '', def.name || def.id));
+  const line = el('div', 'stats');
+  line.append(el('span', '', def.class ? capital(def.class) : 'Class pending'));
+  for (const k of ['STR', 'AGI', 'ARM', 'LCK']) line.append(el('span', '', `${STAT[k]} ${def.stats?.[k] ?? 'pending'}`));
+  line.append(el('span', '', `HP ${def.hp ?? 'pending'}`));
+  box.append(line);
+  if (def.text) box.append(el('p', '', def.text));
+  const eq = pendingText(def.equipment, 'Equipment');
+  box.append(eq || el('div', 'stats', `Equipment: ${def.equipment.join(', ')}`));
+  if (def.specialWeaponId) box.append(el('div', 'stats', `Special weapon: ${(content().specialWeapons || []).find(w => w.id === def.specialWeaponId)?.name || 'pending'}`));
+  if (!def.art) box.append(el('div', 'pending', 'Art pending'));
+  if (extra) box.append(el('div', 'stats', extra));
+  return box;
+}
+const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
+
+function firstRolls(g) {
+  const rolls = g.log.filter(e => e.kind === 'roll' && /^first player, seat \d+$/.test(e.reason));
+  return rolls.map(e => `${nameOf(+e.reason.split(' ').pop())} ${e.value}`).join(', ');
+}
+
+function renderDraft(v) {
+  const g = S.game, c = content(), la = legalActions(g, c);
+  const out = [el('h1', '', 'Setting up')];
+  const { step } = g.setup;
+  const seat = la[0].seat;
+  if (step === 'first-player') {
+    const p = panel('Who goes first', 'Everyone rolls a D12. The highest goes first; tied highest roll again.');
+    const ch = el('div', 'choices');
+    ch.append(choice('Roll for first player', `${g.seats.length} D12s`, () => act(la[0]), 'primary'));
+    p.append(ch);
+    out.push(p);
+  } else {
+    const p = panel('First player', `${firstRolls(g)}. ${nameOf(g.firstSeat)} goes first.`);
+    p.append(el('p', '', `Order of play, clockwise: ${listOf(g.seats.map((_, k) => nameOf((g.firstSeat + k) % g.seats.length)))}.`));
+    out.push(p);
+  }
+  if (step === 'heroes') {
+    const p = panel(`${nameOf(seat)}, pick your hero`, 'Heroes are picked clockwise from the first player.');
+    const ch = el('div', 'choices grid2');
+    ch.id = 'draftList';
+    for (const def of c.heroes) {
+      const a = la.find(x => x.heroId === def.id);
+      const takenBy = g.seats.find(s => s.heroId === def.id);
+      const b = el('button', 'choice');
+      b.append(heroCard(def, takenBy ? `Taken by ${takenBy.name}` : null));
+      b.disabled = !a;
+      if (a) b.onclick = () => act(a);
+      ch.append(b);
+    }
+    p.append(ch);
+    out.push(p);
+  }
+  if (step === 'rings') {
+    const p = panel(`${nameOf(seat)}, pick your ring`, 'Rings go counterclockwise, starting with the last hero pick.');
+    const ch = el('div', 'choices');
+    for (const r of c.rings) {
+      const a = la.find(x => x.ringId === r.id);
+      const takenBy = g.seats.find(s => s.ringId === r.id);
+      const b = choice(r.name || r.id, takenBy ? `${r.text || r.power || 'Power pending'}. Taken by ${takenBy.name}.` : r.text || r.power || 'Power pending', a ? () => act(a) : null);
+      b.disabled = !a;
+      ch.append(b);
+    }
+    p.append(ch);
+    out.push(p);
+  }
+  if (step === 'towers') {
+    const p = panel(`${nameOf(seat)}, pick your starting tower`, 'Towers are picked clockwise from the first player and may be shared.');
+    const wrap = el('div', 'board-wrap');
+    boardApi = mountBoard(wrap, { v, content: c, names: g.seats.map(s => s.name), onInspect: inspect, targets: la.map(a => ({ ...c.board.towers[a.tower], label: `Start in the ${towerName(c, a.tower)}`, pick: () => act(a) })) });
+    p.append(wrap);
+    const ch = el('div', 'choices grid2');
+    for (const a of la) ch.append(choice(capital(towerName(c, a.tower)), null, () => act(a)));
+    p.append(ch);
+    out.push(p);
+  }
+  if (step !== 'first-player') {
+    const p = panel('Picks so far');
+    const ul = el('ul');
+    for (const s of g.seats) {
+      const h = s.heroId && contentIndex(c).heroes.get(s.heroId), r = s.ringId && contentIndex(c).rings.get(s.ringId);
+      ul.append(el('li', '', `${s.name}: ${h ? h.name : 'no hero yet'}${r ? `, ${r.name}` : ''}`));
+    }
+    p.append(ul);
+    out.push(p);
+  }
+  $('draft').replaceChildren(...out);
+}
+
+// ---- Main tabletop
+function sunClock(sun) {
+  const s = svg('svg', { viewBox: '0 0 120 64', class: 'sun', 'aria-hidden': 'true' });
+  svg('line', { x1: 4, y1: 60, x2: 116, y2: 60, class: 'horizon' }, s);
+  for (let k = 1; k < SUNSET; k++) {
+    const t = Math.PI * (1 - (k - 1) / (SUNSET - 2));
+    const [c, si] = [Math.cos(t), Math.sin(t)];
+    svg('line', { x1: 60 + 50 * c, y1: 58 - 50 * si, x2: 60 + 56 * c, y2: 58 - 56 * si, class: `tick${k >= sun ? ' left' : ''}` }, s);
+  }
+  const t = Math.PI * (1 - (Math.min(sun, SUNSET - 1) - 1) / (SUNSET - 2));
+  svg('circle', { cx: 60 + 40 * Math.cos(t), cy: 58 - 40 * Math.sin(t), r: 9, class: 'disc' }, s);
+  return s;
+}
+
+function heldNames(h) { return h.held.map(inst => cardDef(content(), inst).name); }
+
+// A move as a title and a reason line, read from the engine's exits (BoardDefinition geometry) and the tile data.
+const MARK_EFFECT = { black: 'draws a room card', red: 'draws a room card, a portcullis drops behind you', yellow: 'you may keep moving', blue: '', none: '' };
+const SPECIAL_EFFECT = { well: 'Agility test on entry, a fall is death', rubble: 'ends your turn', rotating: 'turns a quarter on entry', none: '' };
+function moveInfo(g, dir) {
+  const c = content(), seat = g.activeSeat, hero = g.heroes[seat];
+  const ex = exits(g, c, seat).find(e => e.dir === dir);
+  const kind = squareKind(c.board, ex.to);
+  const inst = g.board.tiles[key(ex.to)];
+  const def = inst && contentIndex(c).tiles.get(inst.defId);
+  const parts = [];
+  if (ex.edge === 'door') parts.push('door, a door card first');
+  if (ex.edge === 'gate') parts.push(`${sideWord(g, c, hero.coord, dir)}, Strength ${heroDef(hero).stats.STR} test`);
+  if (ex.edge === 'secret') parts.push('secret passage');
+  if (kind === 'tower') parts.push('you may escape, stay or go on through it');
+  else if (kind === 'center') parts.push('treasure chamber, two secret cards then a dragon card');
+  else if (!def) parts.push('unexplored, will reveal a tile');
+  else parts.push(tileWords(def), MARK_EFFECT[def.mark], def.mark === 'blue' && g.rules.darkRoomPolicy === 'EVERY_ENTRY' ? 'ends your turn, a D6 picks the way out' : '', SPECIAL_EFFECT[def.special]);
+  const title = ex.edge === 'door' || ex.edge === 'gate' ? `Try ${DIR[dir]}` : kind === 'tower' ? `Enter the ${towerAt(ex.to)}` : `Go ${DIR[dir]}`;
+  return { title, reason: parts.filter(Boolean).join(', ') };
+}
+// Why an adjacent square cannot be entered now (the engine's exits() reason, in words).
+const WHY = { 'door-closed': 'the door stayed shut this turn', 'tower-entry': 'that is the way you came into the tower', 'no-tiles-left': 'no tiles left to reveal', occupied: 'occupied room, one hero per room' };
+function whyNot(g, ex) {
+  if (ex.reason !== 'wall') return WHY[ex.reason] || ex.reason;
+  const w = sideWord(g, content(), g.heroes[g.activeSeat].coord, ex.dir);
+  return w === 'wall' ? 'wall on this side' : w === 'printed wall' ? 'wall printed on the board' : 'wall on their side';
+}
+
+function testLines(events) {
+  return events.filter(e => e.kind === 'test').map(e => {
+    const d = el('div', 'testline');
+    d.append(el('span', 'die', e.roll + (e.modifier ? `+${e.modifier}` : '')), el('span', '', `${STAT[e.stat]} ${e.target}, ${e.reason}: ${e.pass ? 'pass' : 'fail'}`));
+    return d;
+  });
+}
+
+function combatBox(v, enc) {
+  const box = el('div', 'cardface');
+  const m = enc.monster;
+  const wounds = el('span', 'pips');
+  for (let i = 0; i < (m?.wounds || 0); i++) wounds.append(el('i'));
+  const line = el('p');
+  line.append(`Monster wounds: ${m?.wounds || 0}${m?.hp ? ` of ${m.hp} HP` : ''} `, wounds);
+  box.append(el('strong', '', m?.inst ? cardDef(content(), m.inst).name : 'The monster'), line);
+  const hero = v.heroes[enc.seat];
+  box.append(el('p', '', `${nameOf(enc.seat)}: ${Math.max(0, hero.hp)} of ${hero.hpStart} HP`));
+  const ex = enc.combat?.exchanges || [];
+  if (ex.length) {
+    const ol = el('ol');
+    for (const x of ex) ol.append(el('li', '', x.placement ? (x.rethrow ? 'Unclear, thrown again' : `${PLACEMENT[x.placement]}, ${FACE[x.face].toLowerCase()}: hero ${x.heroDmg}, monster ${x.monsterDmg}`) : `${x.hero} against ${x.monster}: hero ${x.heroDmg}, monster ${x.monsterDmg}`));
+    box.append(ol);
+  }
+  return box;
+}
+
+function combatCards(seatSet, onPick) {
+  const ch = el('div', 'choices grid3');
+  for (const letter of ['A', 'B', 'C']) {
+    const card = (content().combat || []).find(x => x.setId === seatSet && x.letter === letter);
+    const b = el('button', 'choice');
+    b.append(el('span', 'big', letter));
+    b.append(el('small', '', card ? card.name : 'pending'));
+    if (card?.doubleAgainst?.length) b.append(el('small', '', `Hits ${card.doubleAgainst.join(', ')} twice`));
+    b.setAttribute('aria-label', `Play ${letter}${card ? `, ${card.name}` : ''}`);
+    b.onclick = () => onPick(letter);
+    ch.append(b);
+  }
+  return ch;
+}
+
+// The prompt panel: one per phase the engine can raise, built from its legal actions.
+function renderPrompt(v, la, targets) {
+  const g = S.game, c = content();
+  const name = nameOf(g.activeSeat);
+  const hero = g.heroes[g.activeSeat];
+  const enc = v.encounter;
+  const by = type => la.filter(a => a.type === type);
+  let p;
+
+  if (S.peek) {
+    const seat = S.peek.seat, mine = v.heroes[seat];
+    p = panel(`${nameOf(seat)}, your treasure chamber cards`, 'Only you may see these.');
+    if (S.peek.from !== null) {
+      const drawn = v.log.slice(S.peek.from).filter(e => (e.kind === 'draw' && e.deck === 'TREASURY') && e.private === seat);
+      for (const e of drawn) { const d = cardDef(c, e.value); const f = el('div', 'cardface'); f.append(el('strong', '', `Drawn: ${d.name}`), el('p', '', cardText(d))); p.append(f); }
+    }
+    const f = el('div', 'cardface');
+    f.append(el('strong', '', mine.treasury.length ? `You hold ${mine.treasury.length}: ${mine.gold} gold in all` : 'You hold no treasure chamber cards now'));
+    mine.treasury.forEach((inst, i) => f.append(el('p', '', `${i + 1}. ${cardDef(c, inst).name}, ${cardDef(c, inst).gold || 0} gold`)));
+    p.append(f);
+    const ch = el('div', 'choices');
+    ch.append(choice('Hide my cards', null, () => { S.peek = null; render(); }, 'primary'));
+    p.append(ch);
+    return p;
+  }
+  if (S.reveal) {
+    const last = S.reveal;
+    p = panel('Reveal', 'Both cards turn over at once.');
+    const vs = el('div', 'vs');
+    const side = (who, letter, dmg) => { const d = el('div'); d.append(el('span', '', letter), el('small', '', `${who} takes ${dmg}`)); return d; };
+    vs.append(side(nameOf(last.seat), last.hero, last.heroDmg), el('small', '', 'against'), side('Monster', last.monster, last.monsterDmg));
+    p.append(vs);
+    if (enc) p.append(combatBox(v, enc));
+    const ch = el('div', 'choices');
+    ch.append(choice('Continue', null, () => { S.reveal = null; render(); }, 'primary'));
+    p.append(ch);
+    return p;
+  }
+
+  const ch = el('div', 'choices');
+  switch (g.phase) {
+    case 'CHOOSE_ACTION':
+    case 'CHOOSE_EXIT': {
+      const inTower = hero.status === 'IN_TOWER_NOT_ESCAPED';
+      p = g.phase === 'CHOOSE_ACTION'
+        ? panel(`${name}, your move`, `${inTower ? `You are in the ${towerAt(hero.coord)}, not escaped. ` : ''}Pick a lit square on the map, or choose below. Tap or press Enter on any other square to see why it is shut.`)
+        : panel('Keep moving?', 'You may go on this turn, or stop here.');
+      for (const a of by('MOVE')) {
+        const m = moveInfo(g, a.dir);
+        ch.append(choice(m.title, m.reason, () => act(a)));
+        targets.push({ ...neighbour(hero.coord, a.dir), label: `${m.title}, ${m.reason}`, pick: () => act(a) });
+      }
+      for (const a of by('TOWER_CHOICE')) ch.append(choice('Escape the castle', "End this hero's run with their treasure. Final: no way back in.", () => act(a), 'primary'));
+      for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
+      for (const a of by('COLLECT')) ch.append(choice('Stay and collect', `Two treasure chamber cards, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`, () => act(a), 'primary'));
+      for (const a of by('STOP')) ch.append(inTower ? choice('Stop in the tower', 'End your turn here, not escaped', () => act(a)) : choice('Stop here', 'End your turn', () => act(a)));
+      for (const a of by('FORCED_SKIP')) ch.append(choice('No way on', 'The turn passes', () => act(a)));
+      break;
+    }
+    case 'TURN_START': {
+      const kind = g.pending.kind;
+      const agi = heroDef(hero).stats.AGI;
+      if (kind === 'dark') {
+        p = panel('In the dark', 'You cannot choose a way out: the D6 picks it.');
+        for (const a of by('ROLL_DARK_EXIT')) ch.append(choice('Roll the D6', null, () => act(a), 'primary'));
+      } else if (kind === 'well-edge') {
+        p = panel('At the edge of the well', `Climb back the way you came, or jump: an Agility test on the D12 plus ${hero.treasury.length} treasure chamber ${hero.treasury.length === 1 ? 'card' : 'cards'} against ${agi}. A failed jump is death. You may drop treasure chamber cards first.`);
+        for (const a of by('WELL_RETURN')) ch.append(choice('Climb back', 'Go back the way you came', () => act(a)));
+        for (const a of by('WELL_DISCARD')) {
+          const i = hero.treasury.indexOf(a.card);
+          ch.append(choice(`Drop treasure chamber card ${i + 1}`, viewer === g.activeSeat ? `${cardDef(c, a.card).name}, ${cardDef(c, a.card).gold || 0} gold` : 'Check which with Show my cards', () => act(a)));
+        }
+        for (const a of by('WELL_JUMP')) ch.append(choice('Jump', `Agility test, D12 + ${hero.treasury.length} against ${agi}`, () => act(a), 'primary'));
+      } else {
+        p = panel('Stuck in rubble', `Go back the way you came, or force through with an Agility test against ${agi}. Pass, and you may leave by any way this turn.`);
+        for (const a of by('RUBBLE_RETURN')) ch.append(choice('Go back', null, () => act(a)));
+        for (const a of by('RUBBLE_FORCE')) ch.append(choice('Force through', `Agility test against ${agi}`, () => act(a), 'primary'));
+      }
+      break;
+    }
+    case 'RESOLVE_CARD': {
+      const pend = g.pending;
+      const frame = [...g.stack].reverse().find(f => f.card);
+      if (pend.kind === 'choice') {
+        p = panel('Choose', frame ? `${cardDef(c, frame.card).name}: ${cardText(cardDef(c, frame.card))}` : null);
+        by('CHOOSE').forEach(a => ch.append(choice(pend.options[a.option], null, () => act(a))));
+      } else {
+        p = panel('Move', 'Pick a neighbouring square.');
+        for (const a of by('CHOOSE')) {
+          const dir = pend.options[a.option];
+          ch.append(choice(`Go ${DIR[dir]}`, null, () => act(a)));
+          targets.push({ ...neighbour(hero.coord, dir), label: `Go ${DIR[dir]}`, pick: () => act(a) });
+        }
+      }
+      break;
+    }
+    case 'TOWER_CHOICE': {
+      // Spec v2: being in a tower is not escaping; only Escape ends the run.
+      p = panel('You reached a tower', `${name} is in the ${towerAt(hero.coord)}. Only Escape ends the run; a hero who stays is still inside.${g.sun === SUNSET - 1 ? ' This is the last round: anyone inside after it is inside at sunset.' : ''}`);
+      const L = { ESCAPE: ['Escape the castle', "End this hero's run with their treasure. Final: no way back in."], STAY: ['Stay in the tower', g.sun === SUNSET - 1 ? 'End your turn here, not escaped; the sun sets after this round' : 'End your turn here and keep playing; you may escape on a later turn'], CONTINUE: ['Continue through the other passage', 'Keep moving this turn, not back the way you came'] };
+      for (const a of by('TOWER_CHOICE')) ch.append(choice(...L[a.choice], () => act(a), a.choice === 'ESCAPE' ? 'primary' : ''));
+      break;
+    }
+    case 'CHOOSE_MONSTER_RESPONSE': {
+      p = panel(g.encounter.ambush ? 'Ambush' : 'Something stirs', `${name}, choose before the monster shows itself.${g.encounter.ambush ? ' In an ambush you may only attack or flee.' : ''}`);
+      const weapon = (c.specialWeapons || []).find(w => w.id === heroDef(hero).specialWeaponId);
+      for (const a of by('RESPOND')) ch.append(choice(a.choice === 'special' && weapon ? `${CHOICE.special}: ${weapon.name}` : CHOICE[a.choice], a.choice === 'flee' ? 'Back to the square you came from' : null, () => act(a), a.choice === 'attack' ? 'primary' : ''));
+      break;
+    }
+    case 'MONSTER_REACT': {
+      const def = cardDef(c, enc.monster.inst);
+      p = panel(solo() ? 'The monster' : `${nameOf(enc.controller)}, you play the monster`, solo() ? null : 'Read the card, then announce its answer to the table.');
+      const f = el('div', 'cardface');
+      f.append(el('strong', '', def.name), el('p', '', `HP ${def.hp}. ${monsterText(def)}`));
+      p.append(f);
+      const r = enc.reaction;
+      const ans = el('div', 'cardface');
+      ans.append(el('p', '', `${nameOf(enc.seat)} chose ${CHOICE[enc.choice]}.`), el('strong', '', `Its answer: ${REACTION[r.type]}${r.damage ? `, ${expr(r.damage)} damage` : ''}.`));
+      p.append(ans);
+      for (const a of by('ANNOUNCE')) ch.append(choice(solo() ? 'Continue' : 'Announce to the table', null, () => act(a), 'primary'));
+      break;
+    }
+    case 'COMBAT_SELECT': {
+      const cb = g.encounter.combat;
+      const heroSet = heroDef(g.heroes[g.encounter.seat]).combatSetId;
+      if (cb.mode === 'target') {
+        p = panel('Throw at the target', 'Throw the combat die at the target, then enter where it came to rest and the face that shows.');
+        p.append(combatBox(v, enc));
+        p.append(el('h3', '', 'Where it landed'));
+        const pl = el('div', 'choices grid2');
+        for (const k of Object.keys(PLACEMENT)) {
+          const b = choice(PLACEMENT[k], null, () => { target.placement = k; render(); });
+          b.setAttribute('aria-pressed', target.placement === k);
+          pl.append(b);
+        }
+        p.append(pl, el('h3', '', 'Face up'));
+        const fc = el('div', 'choices grid3');
+        for (const k of Object.keys(FACE)) {
+          const b = choice(FACE[k], null, () => { target.face = k; render(); });
+          b.setAttribute('aria-pressed', target.face === k);
+          fc.append(b);
+        }
+        p.append(fc);
+        const a = la.find(x => x.placement === target.placement && x.face === target.face);
+        const go = choice('Enter the result', null, () => a && act(a), 'primary');
+        go.disabled = !a;
+        ch.append(go);
+      } else {
+        const heroTurn = viewer === g.encounter.seat && !cb.heroPick;
+        p = panel(heroTurn ? `${nameOf(g.encounter.seat)}, pick your card` : `${nameOf(g.encounter.controller)}, pick the monster's card`, `${solo() ? '' : 'In secret. '}Cards go back to the hand after each exchange.`);
+        if (cb.variant) p.append(el('div', 'variant', 'Digital variant, not an original rule: the computer picks the monster card.'));
+        p.append(combatBox(v, enc));
+        if (heroTurn) {
+          const picks = by('COMBAT_PICK').filter(a => a.side === 'hero');
+          p.append(combatCards(heroSet, letter => act(picks.find(a => a.letter === letter))));
+        } else {
+          const picks = by('COMBAT_PICK').filter(a => a.side === 'monster');
+          p.append(combatCards(g.encounter.monster.groupId, letter => act(picks.find(a => a.letter === letter))));
+        }
+      }
+      break;
+    }
+    case 'FORCED_MOVE': {
+      const seat = g.pending.seat;
+      p = panel('The dragon drives you out', `${nameOf(seat)} must move to an explored room next to the chamber. No room card is drawn.`);
+      for (const a of by('FORCED_MOVE')) {
+        const [x, y] = a.to.split(',').map(Number);
+        ch.append(choice(`Room at ${place({ x, y })}`, null, () => act(a)));
+        targets.push({ x, y, label: `${nameOf(seat)} moves to ${place({ x, y })}`, pick: () => act(a) });
+      }
+      break;
+    }
+    default:
+      p = panel('Waiting', `Phase ${g.phase}.`);
+  }
+  if (enc && g.phase !== 'COMBAT_SELECT' && g.phase !== 'MONSTER_REACT' && enc.monster) p.append(combatBox(v, enc));
+  p.append(ch);
+  p.setAttribute('aria-live', 'polite');
+  return p;
+}
+
+function renderTable(v) {
+  const g = S.game, c = content(), la = legalActions(g, c);
+  const out = [];
+  const bar = el('header', 'glass statusbar');
+  const who = el('div', 'who');
+  who.append(el('strong', '', `${nameOf(g.activeSeat)}'s turn`), el('span', '', `Sun ${g.sun} of ${SUNSET - 1}, ${SUNSET - g.sun} ${SUNSET - g.sun === 1 ? 'turn' : 'turns'} left`),
+    el('span', '', `Dragon wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`));
+  bar.append(sunClock(g.sun), who);
+  out.push(bar);
+
+  const grid = el('div', 'tablegrid');
+  const targets = [];
+  const prompt = renderPrompt(v, la, targets);
+
+  const bp = el('section', 'glass board-panel board-wrap');
+  bp.setAttribute('aria-label', 'Map');
+  const host = el('div');
+  bp.append(host, mapKey());
+  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[g.activeSeat].coord, onInspect: inspect, tilesLeft: v.board.tileBag });
+
+  const side = el('div');
+  side.append(prompt);
+  const latest = v.log.slice(S.seen);
+  if (latest.length) {
+    const lp = panel('What just happened');
+    lp.id = 'latest';
+    lp.append(...testLines(latest));
+    const ol = el('ol');
+    for (const t of lines(latest, ctx())) ol.append(el('li', '', t));
+    lp.append(ol);
+    side.append(lp);
+  }
+  side.append(heroesPanel(v), logPanel(v));
+  grid.append(bp, side);
+  out.push(grid);
+  $('table').replaceChildren(...out);
+}
+
+let keyOpen = false;
+function mapKey() {
+  const d = el('details');
+  d.open = keyOpen;
+  d.ontoggle = () => { keyOpen = d.open; };
+  d.append(el('summary', '', 'Map key'));
+  const k = el('div', 'key');
+  const item = (label, draw, box = 60) => {
+    const s = el('span');
+    const ic = svg('svg', { viewBox: `0 0 ${box} ${box}`, 'aria-hidden': 'true' });
+    draw(ic);
+    s.append(ic, label);
+    k.append(s);
+  };
+  item('Room: a room card', s => markGlyph(s, 'black', 30, 30));
+  item('Red room: card, then a portcullis drops behind', s => markGlyph(s, 'red', 30, 30));
+  item('Corridor: no card, keep going', s => markGlyph(s, 'yellow', 30, 32));
+  item('Dark room', s => markGlyph(s, 'blue', 28, 30));
+  item('Entry dot: the side the tile was entered from', s => { svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 4, class: 'floor' }, s); entryGlyph(s, 'S', 30, 54); });
+  item('Wall', s => sideGlyph(s, 'wall', [8, 30, 52, 30]));
+  item('Shut from the other side', s => { svg('rect', { x: 0, y: 0, width: 100, height: 100, rx: 4, class: 'floor' }, s); blockedGlyph(s, 'N'); }, 100);
+  item('Wall printed on the board', s => sideGlyph(s, 'wall', [8, 30, 52, 30], 'fixed'));
+  item('Door', s => sideGlyph(s, 'door', [4, 30, 56, 30]));
+  item('Portcullis', s => sideGlyph(s, 'gate', [4, 30, 56, 30]));
+  item('Portcullis down behind a red room', s => sideGlyph(s, 'gate', [4, 30, 56, 30], 'fallen'));
+  item('Tower', s => { svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 10, class: 'tower' }, s); towerGlyph(s); }, 100);
+  item('Chamber reserve, not yet entered', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 4, class: 'reserved' }, s));
+  item('Unexplored', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 4, class: 'fog' }, s));
+  item('Off the board', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, class: 'offboard' }, s));
+  item('Lit: a legal move', s => svg('rect', { x: 6, y: 6, width: 48, height: 48, rx: 6, class: 'target' }, s));
+  d.append(k);
+  return d;
+}
+
+// Spec v2 #11: the semantic log, with the round on every line. "Debug log" (a setting, off by default) reads the
+// debug view instead: every hidden card, deck ids, shuffles and the RNG state, with each entry's raw fields.
+let logOpen = false;
+function logPanel(v) {
+  const g = S.game, c = content();
+  const d = el('details', 'glass panel');
+  d.open = logOpen;
+  d.ontoggle = () => { logOpen = d.open; };
+  d.append(el('summary', '', prefs.debugLog ? 'Event log, debug: hidden cards shown' : 'Event log'));
+  const ol = el('ol');
+  ol.id = 'log';
+  const when = e => el('span', 'when', e.round ? `Round ${e.round}` : 'Setup');
+  if (prefs.debugLog) {
+    const dv = view(g, c, null, { debug: true });
+    const tops = Object.entries(dv.decks || {}).map(([cat, dk]) => `${cat} ${dk.order.length} (top ${dk.order.slice(0, 2).join(', ') || 'none'})`);
+    ol.append(el('li', 'debug', `RNG seed ${dv.rng.seed}, state ${dv.rng.state}. Tile bag ${dv.board.tileBag.length} (next ${dv.board.tileBag[0] || 'none'}). Decks: ${tops.join('; ')}.`));
+    const text = new Map(entries(dv.log, ctx()).map(x => [x.e, x.text]));
+    for (const e of dv.log.slice(-400)) {
+      const { seq, round, seat, kind, ...rest } = e;
+      const li = el('li', 'debug');
+      li.append(when(e), ` ${text.get(e) || ''} `, el('code', '', `#${seq} ${kind}${seat !== undefined ? ` seat ${seat}` : ''} ${JSON.stringify(rest)}`));
+      ol.append(li);
+    }
+  } else {
+    for (const { e, text } of entries(v.log, ctx()).slice(-300)) {
+      const li = el('li');
+      li.append(when(e), ` ${text}`);
+      ol.append(li);
+    }
+  }
+  d.append(ol);
+  return d;
+}
+
+const STATUS_WORD = { READY_IN_START_TOWER: 'Ready in the start tower', EXPLORING: 'Exploring', IN_TOWER_NOT_ESCAPED: 'In a tower, not escaped', ESCAPED: 'Escaped', DEAD: 'Dead' };
+function roomStateWords(h) {
+  const r = h.roomState;
+  if (r?.special === 'well') return `${r.phase === 'CROSSED' ? 'Across the well' : 'At the near edge of the well'}, entered from the ${DIR[r.entryEdge]}`;
+  if (r?.special === 'rubble') return `In the rubble, came in heading ${DIR[r.arrivalDir]}`;
+  if (h.conditions.some(x => x.id === 'dark')) return 'In the dark: a D6 picks the way out';
+  return null;
+}
+function whereWords(v, h) {
+  if (!h.coord) return 'Not placed yet';
+  const c = content(), kind = squareKind(c.board, h.coord), inst = v.board.tiles[key(h.coord)];
+  const what = kind === 'tower' ? towerAt(h.coord) : kind === 'center' ? 'treasure chamber' : inst ? tileWords(contentIndex(c).tiles.get(inst.defId)) : 'unexplored';
+  return `${capital(place(h.coord))}, ${what}`;
+}
+
+function heroesPanel(v) {
+  const g = S.game, c = content(), n = g.seats.length;
+  const p = panel('Heroes');
+  p.id = 'heroes';
+  const ul = el('ul');
+  for (let k = 0; k < n; k++) {
+    const seat = (g.firstSeat + k) % n;
+    const h = v.heroes[seat], def = heroDef(h);
+    const li = el('li', seat === g.activeSeat ? 'active' : '');
+    const pawn = el('span', 'pawn', seat + 1);
+    pawn.style.background = `var(--seat${seat})`;
+    const body = el('div');
+    body.append(el('div', 'name', `${g.seats[seat].name}, ${def.name}`));
+    const stats = el('div', 'stats');
+    for (const s of ['STR', 'AGI', 'ARM', 'LCK']) stats.append(el('span', '', `${STAT[s]} ${def.stats[s]}`));
+    body.append(stats);
+    const hp = el('div', 'hp');
+    const fill = el('i');
+    fill.style.width = `${Math.max(0, 100 * h.hp / h.hpStart)}%`;
+    hp.append(fill);
+    body.append(hp);
+    // Ordinary gold is held loot, public (D25); chamber cards are private, so only their number shows here.
+    const ordinary = h.held.reduce((sum, inst) => sum + (cardDef(c, inst).gold || 0), 0);
+    const chamberCount = Array.isArray(h.treasury) ? h.treasury.length : h.treasury;
+    body.append(el('div', 'meta', `HP ${Math.max(0, h.hp)} of ${h.hpStart} · Gold ${ordinary} · ${chamberCount} hidden chamber ${chamberCount === 1 ? 'card' : 'cards'}`));
+    const ring = g.seats[seat].ringId && contentIndex(c).rings.get(g.seats[seat].ringId);
+    const weapon = def.specialWeaponId && (c.specialWeapons || []).find(w => w.id === def.specialWeaponId);
+    const uses = weapon && Number.isInteger(weapon.uses) ? `, ${Math.max(0, weapon.uses - h.weaponUses)} of ${weapon.uses} uses left` : '';
+    body.append(el('div', 'meta', `Ring: ${ring ? ring.name || ring.id : 'none'} · Special weapon: ${weapon ? weapon.name + uses : 'none'}`));
+    const room = roomStateWords(h);
+    if (room) body.append(el('div', 'meta room', room));
+    const end = h.endResult === 'INSIDE_AT_SUNSET' ? ', inside at sunset' : '';
+    body.append(el('div', 'meta', `${whereWords(v, h)} · ${STATUS_WORD[h.status]}${end}`));
+    const held = heldNames(h);
+    if (held.length) body.append(el('div', 'meta', `Holds: ${held.join(', ')}`));
+    if (Array.isArray(h.treasury) && h.treasury.length && n === 1) body.append(el('div', 'meta', `Chamber cards: ${h.treasury.map(i => cardDef(c, i).name).join(', ')}`));
+    if (n > 1 && chamberCount > 0 && isActive(h)) {
+      const b = el('button', 'btn', 'Show my cards');
+      b.setAttribute('aria-label', `Show ${g.seats[seat].name}'s treasure chamber cards`);
+      b.onclick = () => { S.peek = { seat, from: null }; render(); };
+      body.append(b);
+    }
+    li.append(pawn, body);
+    ul.append(li);
+  }
+  p.append(ul);
+  return p;
+}
+
+// The inspect sheet: what a square is, side by side, who is in it, and whether the active hero may go there.
+function inspect(c) {
+  const g = S.game, cc = content(), v = view(g, cc, viewer);
+  const info = cellInfo(v, cc, c, g.seats.map(s => s.name));
+  $('inspectTitle').textContent = info.title;
+  const out = [el('p', '', capital(info.what))];
+  const ul = el('ul', 'sides');
+  for (const { side, word } of info.sides) ul.append(el('li', '', `${capital(DIR[side])}: ${word === 'unknown' ? 'not known until revealed' : word}`));
+  out.push(ul, el('p', '', info.occupants.length ? `Here: ${listOf(info.occupants)}.` : 'Nobody is here.'));
+  const hero = g.status === 'playing' && g.heroes[g.activeSeat];
+  if (hero && ['CHOOSE_ACTION', 'CHOOSE_EXIT'].includes(g.phase) && !S.peek && !S.reveal) {
+    const ex = exits(g, cc, g.activeSeat).find(e => e.to.x === c.x && e.to.y === c.y);
+    const a = ex && legalActions(g, cc).find(x => x.type === 'MOVE' && x.dir === ex.dir);
+    if (a) {
+      const m = moveInfo(g, ex.dir);
+      out.push(el('p', 'why', `${m.title}: ${m.reason}.`));
+      const go = el('button', 'btn primary', m.title);
+      go.onclick = () => { $('inspect').close(); act(a); };
+      out.push(go);
+    } else if (ex) out.push(el('p', 'why', `${nameOf(g.activeSeat)} cannot go there: ${whyNot(g, ex)}.`));
+    else if (hero.coord.x === c.x && hero.coord.y === c.y) out.push(el('p', 'why', `${nameOf(g.activeSeat)} is here.`));
+  }
+  $('inspectBody').replaceChildren(...out);
+  $('inspect').showModal();
+}
+
+// ---- Results: escapees by gold, shared top gold wins together (D01); none means the keep wins. Dead and
+// inside at sunset are listed apart (owner tower and sunset ruling).
+function renderResults(v) {
+  const g = S.game, r = g.result, c = content();
+  const hero = e => `${nameOf(e.seat)}, ${contentIndex(c).heroes.get(e.heroId).name}`;
+  const out = [el('h1', '', r.castleWins ? 'The keep wins' : `${listOf(r.winners.map(nameOf))} ${r.winners.length > 1 ? 'share the win' : 'wins'}`)];
+  out.push(el('p', 'lede', r.castleWins ? 'Nobody escaped before sunset.' : r.shared ? 'Equal top gold among those who escaped: a shared win.' : 'Most gold among those who escaped.'));
+  const group = (title, rows, tag = 'ul') => {
+    if (!rows.length) return;
+    const p = panel(title);
+    const l = el(tag);
+    for (const t of rows) l.append(el('li', '', t));
+    p.append(l);
+    out.push(p);
+  };
+  group('Escaped', r.escaped.length ? r.escaped.map(e => `${hero(e)}: ${e.gold} gold${r.winners.includes(e.seat) ? ', winner' : ''}`) : ['Nobody'], 'ol');
+  const dead = r.others.filter(e => e.status === 'DEAD');
+  const inside = r.others.filter(e => e.status !== 'DEAD' && e.endResult === 'INSIDE_AT_SUNSET');
+  group('Dead', dead.map(e => `${hero(e)}: died in the keep`));
+  group('Inside at sunset', inside.map(e => `${hero(e)}: ${e.status === 'IN_TOWER_NOT_ESCAPED' ? 'in a tower, never chose Escape' : 'still in the keep'}, ${e.gold} gold not counted`));
+  group('Other', r.others.filter(e => !dead.includes(e) && !inside.includes(e)).map(e => `${hero(e)}: ${STATUS_WORD[e.status] || e.status}`));
+  const again = el('div', 'choices');
+  again.append(choice('New game', null, toTitle, 'primary'));
+  out.push(again);
+  out.push(logPanel(v));
+  $('results').replaceChildren(...out);
+}
+
+// ---- Wiring
+$('start').onclick = () => newGame('original');
+$('fixtures').onclick = () => newGame('fixture');
+$('mixed').onclick = () => newGame('mixed');
+$('undo').onclick = undo;
+// Back to the title at once with the save in the list; the upload finishes in the background.
+$('saveExit').onclick = async () => {
+  $('saveExit').disabled = true;
+  try {
+    await saveGame();
+    loadingSaves = false;
+    toTitle();
+    toast('Saved.');
+  } catch {
+    $('saveExit').disabled = false;
+    toast('Could not save on this device.');
+  }
+};
+for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
+const showDebug = NL.segmented($('debugSeg'), v => { prefs.debugLog = v === 'on'; savePrefs(); showDebug(v); if (S.game) render(); });
+$('settingsBtn').onclick = () => {
+  showTheme(NL.theme.get());
+  showDebug(prefs.debugLog ? 'on' : 'off');
+  const rules = S.game?.rules || DEFAULT_RULES;
+  $('rules').replaceChildren(...Object.keys(RULE_TAGS).map(k => {
+    const li = el('li');
+    const fixed = !(k in rules), val = rules[k];
+    const [ruling, text] = RULE_INFO[k] ? RULE_INFO[k](val) : ['Not in the register', ''];
+    li.append(el('code', '', `${k}: ${fixed ? 'always on' : val === true ? 'on' : val === false ? 'off' : val}`), el('span', '', `${ruling}, ${RULE_TAGS[k].join(' and ')}. ${text}`));
+    return li;
+  }));
+  $('settings').showModal();
+};
+$('settingsDone').onclick = () => $('settings').close();
+$('inspectDone').onclick = () => $('inspect').close();
+for (const id of ['appLabel', 'appLabelSettings']) $(id).textContent = APP_LABEL;
+if (matchMedia('(min-width: 820px)').matches) $('banner').open = true; // phones start with the list folded
+
+// Esc cancels an uncommitted choice (the target placement and face, before Enter the result); sheets close natively.
+document.addEventListener('keydown', e => {
+  keyboard = true;
+  if (e.key !== 'Escape' || document.querySelector('dialog[open]') || !S.game) return;
+  if (target.placement || target.face) { target = { placement: null, face: null }; render(); }
+});
+document.addEventListener('pointerdown', () => { keyboard = false; });
+
+load();
+const me = NL.identity(); // the cached name, if this browser knows this person already
+prefill(me);
+render();
+if (!S.game) refreshSaves();
+// A signed-in name can arrive later: only into an empty roster with no game in progress. Either way this render
+// drops the placeholder row.
+NL.ready.then(i => {
+  if (!me) prefill(i);
+  if (!S.game) render();
+});

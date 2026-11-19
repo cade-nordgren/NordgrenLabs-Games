@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dusk Keep · NordgrenLabs Games</title>
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Games">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f2f7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<link rel="manifest" href="/manifest.webmanifest">
+<script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
+<link rel="stylesheet" href="../style.css">
+<style>
+/* Dusk over the keep: the shared backdrop, warmed towards amber and violet. */
+body::before {
+  background:
+    radial-gradient(60vmax 50vmax at 0% 0%, rgba(110, 70, 190, .30), transparent 60%),
+    radial-gradient(50vmax 45vmax at 100% 14%, rgba(214, 92, 84, .20), transparent 60%),
+    radial-gradient(70vmax 55vmax at 60% 100%, rgba(240, 150, 60, .30), transparent 60%);
+}
+/* black-translucent puts the page under the status bar, so everything starts below env(safe-area-inset-top). */
+.app { padding-top: max(10px, env(safe-area-inset-top)); }
+.app.wide { max-width: 1060px; }
+main > h1 { margin-top: 2px; }
+.group { padding: 16px; margin-bottom: 14px; }
+.note { margin: 10px 0 0; font-size: 14px; color: var(--ink2); }
+h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* The fixtures banner: on every screen of a test game, never dismissable. It folds open to list exactly which
+   content is synthetic (spec v2 #12); folded on phones, open on wide screens. */
+.banner { position: sticky; top: max(10px, env(safe-area-inset-top)); z-index: 18; margin: 0 60px 10px 0; padding: 0 14px; border-radius: 14px;
+  background: color-mix(in srgb, var(--danger) 75%, #000); color: #fff; /* darkened so white text clears 4.5:1 */ font-weight: 700; font-size: 15px; letter-spacing: .02em; text-align: center; min-height: 48px; display: grid; place-items: center; }
+details.banner { display: block; }
+.banner summary { min-height: 48px; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 0 8px; cursor: pointer; }
+.banner summary small { font-weight: 600; font-size: 13px; }
+.banner ul, .banner li { color: inherit; }
+.banner ul { margin: 0 0 10px; padding-left: 18px; text-align: left; font-weight: 500; font-size: 14px; columns: 2 12em; }
+.applabel { margin: -4px 0 14px; font-size: 15px; color: var(--ink2); }
+
+/* Title */
+#names { list-style: none; margin: 8px 0 0; padding: 0; }
+#names li { border-top: 1px solid var(--hair); }
+#names input { width: 100%; border: 0; background: none; padding: 13px 0; outline: none; font-size: 17px; }
+#names input:focus-visible { box-shadow: inset 0 -2px 0 var(--accent); }
+.segmented { margin-top: 10px; }
+#saves { list-style: none; margin: 8px 0 0; padding: 0; }
+#saves li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; }
+/* Placeholders the height of a real row, so the lists do not jump when the data lands. */
+#saves li.loading { min-height: 59px; }
+#names li.loading { min-height: 49px; display: flex; align-items: center; }
+#savedGroup .note { margin: 0 0 8px; }
+.resume { flex: 1; min-width: 0; min-height: 58px; padding: 9px 0; text-align: left; }
+.resume strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume span { display: block; font-size: 14px; color: var(--ink2); }
+.circle { width: 44px; height: 44px; padding: 7px; background-clip: content-box; border-radius: 50%; flex: none; display: grid; place-items: center; }
+.circle.remove { background-color: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+#status { list-style: none; margin: 10px 0 0; padding: 0; font-size: 15px; }
+#status li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-top: 1px solid var(--hair); }
+#status li span:last-child { font-variant-numeric: tabular-nums; color: var(--ink2); white-space: nowrap; }
+details summary { font-weight: 600; cursor: pointer; min-height: 44px; display: flex; align-items: center; }
+details ul { margin: 6px 0 0; padding-left: 20px; color: var(--ink2); font-size: 15px; }
+details li + li { margin-top: 6px; }
+#fixtures { margin-top: 10px; }
+.reason { text-align: center; margin: 8px 0 14px; }
+
+/* Shared bits */
+.choices { display: grid; gap: 8px; margin-top: 12px; }
+.choice { min-height: 48px; padding: 10px 16px; border-radius: 16px; background: var(--fill); text-align: left; font-weight: 600; display: grid; gap: 2px; }
+.choice small { font-weight: 400; font-size: 14px; color: var(--ink2); }
+.choice.primary { background: var(--primary); color: #fff; }
+.choice.primary small { color: rgba(255, 255, 255, .85); }
+.choice[aria-pressed=true] { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.grid2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.panel { padding: 16px; margin-bottom: 14px; }
+.panel > h2 { font-size: 19px; }
+.panel > p { margin: 6px 0 0; color: var(--ink2); font-size: 15px; }
+.cardface { margin-top: 12px; padding: 14px; border-radius: 16px; background: var(--glass-strong); border: 1px solid var(--edge); }
+.cardface strong { display: block; font-size: 17px; }
+.cardface p { margin: 4px 0 0; font-size: 15px; color: var(--ink2); }
+.big { font: 700 30px/1.1 var(--num); }
+.cardface .big { font: 700 34px/1.1 var(--num); color: var(--ink); }
+.pending { color: var(--danger); font-style: italic; }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 14px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.variant { margin-top: 10px; padding: 8px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--ink); font-weight: 600; font-size: 14px; }
+
+/* Board colours: parchment and ink by day, ember and stone after dark. Every fill is 3:1 or better against the floor
+   in both themes, measured (plan section 13 #19): light floor #f4ead9, dark floor #6b5848. */
+.board-wrap { --floor: #f4ead9; --wall: #3a2d26; --fog-bg: #8c7f70; --fog-line: rgba(58, 45, 38, .35); --tower: #5b4a3f; --keep: #f4ead9; --door: #8a5222; --chamber: #9a7428;
+  --dot-black: #1d1d1f; --dot-red: #b3261e; --dot-yellow: #8a6500; --dot-blue: #1f5fbf; --target: #0062cc; --focus: #b0007a; --off-bg: #d9d3c9; --off-line: rgba(58, 45, 38, .18);
+}
+/* Seat colours: in light, white numbers on them are 4.5:1 or better; in dark they are light with black numbers. */
+:root { --seat0: #0062cc; --seat1: #9c2f9a; --seat2: #1b7a35; --seat3: #b04f00; --token-ink: #fff; }
+:root[data-theme="dark"] { --seat0: #8cc4ff; --seat1: #f2a5f0; --seat2: #7ddc8f; --seat3: #ffb070; --token-ink: #000; }
+:root[data-theme="dark"] .board-wrap { --floor: #6b5848; --wall: #f3e6cf; --fog-bg: #000; --fog-line: rgba(243, 230, 207, .18); --tower: #d8c6b0; --keep: #6b5848; --door: #eeb87c; --chamber: #e6c467;
+  --dot-black: #000; --dot-red: #ff9d94; --dot-yellow: #ffd54a; --dot-blue: #9cc3ff; --target: #8fd0ff; --focus: #ffb3f0; --off-bg: #2a2420; --off-line: rgba(243, 230, 207, .12); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { --seat0: #8cc4ff; --seat1: #f2a5f0; --seat2: #7ddc8f; --seat3: #ffb070; --token-ink: #000; }
+  :root:not([data-theme]) .board-wrap { --floor: #6b5848; --wall: #f3e6cf; --fog-bg: #000; --fog-line: rgba(243, 230, 207, .18); --tower: #d8c6b0; --keep: #6b5848; --door: #eeb87c; --chamber: #e6c467;
+  --dot-black: #000; --dot-red: #ff9d94; --dot-yellow: #ffd54a; --dot-blue: #9cc3ff; --target: #8fd0ff; --focus: #ffb3f0; --off-bg: #2a2420; --off-line: rgba(243, 230, 207, .12); } }
+/* The map viewport: the board keeps its rectangle; pan and zoom are a CSS transform on the SVG. */
+.map-tools { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px; align-items: center; }
+.map-tools .btn { min-width: 44px; padding: 0 12px; font-size: 15px; }
+.map-tools span { margin-left: auto; font-size: 14px; color: var(--ink2); }
+.viewport { position: relative; overflow: hidden; touch-action: none; border-radius: 14px; background: var(--off-bg); width: 100%; aspect-ratio: var(--board-ratio, 1); max-height: calc(100dvh - 200px);
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.board-svg { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; }
+.board-svg.glide { transition: transform .25s ease-out; }
+.cell { cursor: pointer; outline: none; }
+.focusring { fill: none; stroke: var(--focus); stroke-width: 10; opacity: 0; }
+.cell:focus-visible .focusring { opacity: 1; }
+.floor { fill: var(--floor); }
+.fog { fill: url(#fog); }
+.fog-bg { fill: var(--fog-bg); }
+.fog-line { stroke: var(--fog-line); stroke-width: 4; }
+.offboard { fill: url(#off); }
+.off-bg { fill: var(--off-bg); }
+.off-line { stroke: var(--off-line); stroke-width: 3; }
+.board-edge { fill: none; stroke: var(--wall); stroke-width: 6; }
+.overlay { pointer-events: none; }
+.tower { fill: var(--tower); }
+.keep { fill: var(--keep); }
+.keep-gate { fill: var(--tower); }
+.chamber { fill: var(--chamber); }
+.reserved { fill: var(--floor); stroke: var(--wall); stroke-width: 3; stroke-dasharray: 8 8; }
+.reserved-label { fill: var(--wall); font: 600 22px var(--text); }
+.wall { stroke: var(--wall); stroke-width: 9; stroke-linecap: round; }
+.wall.fixed { stroke-width: 15; stroke-linecap: square; }
+.blocked { stroke: var(--wall); stroke-width: 6; stroke-dasharray: 9 8; stroke-linecap: butt; }
+.entry { fill: var(--wall); }
+.door { fill: var(--door); stroke: var(--wall); stroke-width: 2.5; }
+.gate { stroke: var(--wall); stroke-width: 4; stroke-linecap: round; }
+.gate.fallen { stroke: var(--dot-red); stroke-width: 6; }
+.dot { stroke: var(--wall); stroke-width: 3; }
+.dot-black { fill: var(--dot-black); } .dot-red { fill: var(--dot-red); } .dot-yellow { fill: var(--dot-yellow); } .dot-blue { fill: var(--dot-blue); }
+.glyph { fill: none; stroke: var(--wall); stroke-width: 5; stroke-linecap: round; }
+.pit { fill: var(--wall); }
+.stone { fill: var(--floor); stroke: var(--wall); stroke-width: 4; }
+.chest { fill: var(--door); stroke: var(--wall); stroke-width: 3; }
+.chest-lock { fill: var(--wall); }
+.token-disc { stroke: var(--wall); stroke-width: 4; }
+.seat-0 .token-disc { fill: var(--seat0); } .seat-1 .token-disc { fill: var(--seat1); } .seat-2 .token-disc { fill: var(--seat2); } .seat-3 .token-disc { fill: var(--seat3); }
+.token.active .token-disc { stroke-width: 7; }
+.token.escaped .token-disc { stroke-dasharray: 6 5; }
+.token-num { fill: var(--token-ink); font: 700 22px var(--num); pointer-events: none; }
+.target { fill: color-mix(in srgb, var(--target) 24%, transparent); stroke: var(--target); stroke-width: 6; }
+.key { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; font-size: 14px; color: var(--ink2); }
+.key span { display: inline-flex; align-items: center; gap: 6px; }
+.key svg { width: 26px; height: 26px; flex: none; border-radius: 4px; background: var(--floor); }
+
+/* Table */
+.statusbar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; margin: 0 60px 14px 0; min-height: 64px; }
+.sun { width: 74px; height: 40px; flex: none; }
+.sun .tick { stroke: var(--ink2); stroke-width: 2.5; stroke-linecap: round; opacity: .35; }
+.sun .tick.left { stroke: #e08a1e; opacity: 1; }
+.sun .disc { fill: #f2a531; stroke: #9a5a00; stroke-width: 1.5; }
+.sun .horizon { stroke: var(--ink2); stroke-width: 1.5; }
+.statusbar .who { min-width: 0; flex: 1; }
+.statusbar strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.statusbar span { display: block; font-size: 14px; color: var(--ink2); }
+.tablegrid { display: grid; gap: 14px; }
+.tablegrid > * { min-width: 0; }
+.tablegrid .panel { scroll-margin-top: 76px; }
+.board-panel { padding: 12px; }
+#latest ol, #log { margin: 8px 0 0; padding-left: 20px; font-size: 15px; }
+#latest li + li, #log li + li { margin-top: 4px; }
+#log { max-height: 50dvh; overflow: auto; color: var(--ink2); }
+#log .when { font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+#log li.debug code { display: block; font-size: 12px; overflow-wrap: anywhere; }
+#heroes ul { list-style: none; margin: 8px 0 0; padding: 0; }
+#heroes li { padding: 10px 0; border-top: 1px solid var(--hair); display: grid; grid-template-columns: 34px minmax(0, 1fr); gap: 4px 10px; align-items: start; }
+#heroes li.active { background: color-mix(in srgb, var(--accent) 8%, transparent); border-radius: 12px; }
+#heroes .pawn { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; color: var(--token-ink); font: 700 15px var(--num); border: 3px solid var(--ink); }
+#heroes .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#heroes .meta { font-size: 14px; color: var(--ink2); }
+#heroes .btn { justify-self: start; margin-top: 4px; min-height: 44px; font-size: 15px; }
+.hp { height: 6px; border-radius: 3px; background: var(--fill); overflow: hidden; margin: 4px 0; }
+.hp i { display: block; height: 100%; background: var(--good); }
+.pips { display: inline-flex; gap: 4px; vertical-align: middle; }
+.pips i { width: 12px; height: 12px; border-radius: 50%; background: var(--danger); }
+.die { display: inline-grid; place-items: center; min-width: 40px; height: 40px; padding: 0 6px; border-radius: 10px; background: var(--die); color: var(--pip); box-shadow: inset 0 0 0 1px var(--die-edge); font: 700 20px var(--num); margin-right: 8px; vertical-align: middle; }
+.testline { display: flex; align-items: center; margin-top: 8px; font-size: 15px; }
+.vs { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 12px; font: 700 40px var(--num); }
+.vs small { display: block; font: 600 13px var(--text); color: var(--ink2); text-align: center; }
+
+/* Hot-seat cover: opaque on purpose, so nothing private shows through. */
+.cover { position: fixed; inset: 0; z-index: 19; background: var(--solid); display: grid; place-items: center; padding: max(24px, env(safe-area-inset-top)) max(24px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); overflow: auto; }
+.cover > div { max-width: 360px; width: 100%; text-align: center; display: grid; gap: 14px; justify-items: center; }
+.cover h2 { font: 700 30px/1.15 var(--num); overflow-wrap: anywhere; }
+.cover p { margin: 0; color: var(--ink2); }
+.cover .banner { position: static; margin: 0; width: 100%; }
+#toast { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); translate: -50% 0; z-index: 21; padding: 10px 16px; border-radius: 999px; background: var(--ink); color: var(--canvas); font-size: 15px; }
+
+/* Settings */
+.appearance { display: flex; align-items: center; gap: 12px; }
+.appearance .segmented { flex: 1; margin: 0; }
+#rules { list-style: none; margin: 0; padding: 0; font-size: 15px; }
+#rules li { padding: 8px 0; border-top: 1px solid var(--hair); }
+#rules code { font-size: 14px; }
+#rules span { display: block; color: var(--ink2); font-size: 14px; }
+.sides { margin: 0; padding-left: 20px; font-size: 15px; }
+dialog.sheet p.why { color: var(--ink); font-weight: 600; }
+
+@media (max-width: 480px) { .board-panel { padding: 8px; } }
+@media (min-width: 820px) {
+  .tablegrid { grid-template-columns: minmax(0, 1.25fr) minmax(320px, 1fr); align-items: start; }
+  .board-panel { position: sticky; top: 12px; }
+  #draftList.grid2 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (orientation: landscape) and (max-height: 540px) {
+  .app, .app.wide { max-width: 1060px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  #title { columns: 2; column-gap: 14px; }
+  #title > h1, #title > .lede { column-span: all; }
+  #title > * { break-inside: avoid; }
+  .tablegrid { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: start; }
+  .board-panel { position: sticky; top: 8px; }
+  .viewport { max-height: calc(100dvh - 90px); }
+  .map-tools { flex-wrap: nowrap; gap: 6px; }
+  .map-tools .btn { padding: 0 10px; font-size: 14px; }
+  .map-tools span { display: none; }
+  .banner { position: static; } /* still on every screen; not sticky, so the sticky map has the height */
+  .banner summary { min-height: 32px; }
+  .banner { min-height: 44px; padding: 6px 12px; margin-bottom: 8px; }
+  .statusbar { margin-bottom: 10px; min-height: 48px; padding: 4px 12px; }
+  .statusbar span { display: inline; margin-right: 8px; }
+  .sun { width: 56px; height: 30px; }
+  h1 { font-size: 32px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="menu" id="menu" aria-label="Dusk Keep">
+    <button class="menu-trigger glass" aria-controls="menuItems">
+      <svg class="bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <div class="menu-items" id="menuItems">
+      <a class="item glass" href="../index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+        <span class="glass">Games</span>
+      </a>
+      <button class="item glass" id="undo" data-keep-open>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 4 9l4 4"/><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H10"/></svg>
+        <span class="glass">Undo</span>
+      </button>
+      <button class="item glass" id="saveExit">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
+        <span class="glass">Save and exit</span>
+      </button>
+      <button class="item glass" id="settingsBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+        <span class="glass">Settings</span>
+      </button>
+    </div>
+  </nav>
+
+  <details class="banner" id="banner" hidden><summary><span id="bannerText"></span><small>What is synthetic</small></summary><ul id="synthetic" aria-label="Synthetic content"></ul></details>
+
+  <main id="title">
+    <h1>Dusk Keep</h1>
+    <p class="applabel" id="appLabel"></p>
+    <p class="lede">Explore the keep, take what gold you can carry, and reach a tower before the sun goes down.</p>
+
+    <section class="glass group" id="savedGroup" hidden>
+      <h2>Saved games</h2>
+      <p class="note" id="savedNote" role="status" hidden></p>
+      <ul id="saves"></ul>
+    </section>
+
+    <section class="glass group">
+      <h2 id="countTitle">Players</h2>
+      <div class="segmented" id="countSeg" role="group" aria-labelledby="countTitle">
+        <button value="1">1</button><button value="2">2</button><button value="3">3</button><button value="4">4</button>
+      </div>
+      <ul id="names"></ul>
+      <div id="soloBox" hidden>
+        <h3 id="soloTitle">Solo combat</h3>
+        <div class="segmented" id="soloSeg" role="group" aria-labelledby="soloTitle">
+          <button value="target">Target</button>
+          <button value="abc-digital-variant">A, B or C</button>
+        </div>
+        <p class="note" id="soloNote"></p>
+      </div>
+    </section>
+
+    <section class="glass group">
+      <h2>Content status</h2>
+      <p class="note" id="statusNote"></p>
+      <details>
+        <summary>Every slot</summary>
+        <ul id="status"></ul>
+      </details>
+    </section>
+
+    <button class="btn primary" id="start">Start game</button>
+    <p class="note reason" id="startReason"></p>
+    <section class="glass group">
+      <h2>Test with fixtures</h2>
+      <p class="note">Plays the whole game on made-up test data. Nothing in it is the real content, and every screen says so.</p>
+      <button class="btn" id="fixtures">Test with fixtures</button>
+    </section>
+    <section class="glass group">
+      <h2>Play-test your content</h2>
+      <p class="note">Play-test: your content plus NON-AUTHENTIC fill-in. Plays your draft and approved entries, with made-up test data filling every slot you have not finished. Every screen says so.</p>
+      <button class="btn" id="mixed">Play-test my content</button>
+      <p class="note reason" id="mixedReason"></p>
+    </section>
+
+    <details class="glass group">
+      <summary>How to play</summary>
+      <ul>
+        <li>Each round the sun moves one step. After sun 26 it sets, and anyone still inside is lost.</li>
+        <li>On your turn, go one square. New squares are drawn and turned so their mark faces you.</li>
+        <li>Rooms, doors, portcullises and monsters ask for cards, tests on a D12 against your stats, or a choice.</li>
+        <li>Two squares in the middle hold the treasure chamber. Each turn there gives two secret cards, then a dragon card.</li>
+        <li>Escape through any tower. Of those who escape, the most gold wins.</li>
+      </ul>
+    </details>
+  </main>
+
+  <main id="draft" hidden></main>
+  <main id="table" hidden></main>
+  <main id="results" hidden></main>
+</div>
+
+<div class="cover" id="cover" role="dialog" aria-modal="true" aria-labelledby="coverTitle" hidden>
+  <div>
+    <div class="banner" id="coverBanner" hidden></div>
+    <svg viewBox="0 0 100 100" width="96" height="96" aria-hidden="true"><path d="M28 72V38h8v-8h8v8h12v-8h8v8h8v34z" fill="var(--ink2)"/><path d="M44 72V58a6 6 0 0 1 12 0v14z" fill="var(--solid)"/></svg>
+    <h2 id="coverTitle"></h2>
+    <p id="coverNote"></p>
+    <button class="btn primary" id="coverGo"></button>
+  </div>
+</div>
+
+<p id="toast" role="status" hidden></p>
+
+<dialog class="sheet glass" id="inspect" aria-labelledby="inspectTitle">
+  <div>
+    <h2 id="inspectTitle"></h2>
+    <div id="inspectBody"></div>
+    <button class="btn" id="inspectDone">Close</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="settings" aria-labelledby="settingsTitle">
+  <div>
+    <h2 id="settingsTitle">Settings</h2>
+    <h3 id="themeTitle">Appearance</h3>
+    <div class="appearance">
+      <div class="segmented" id="themeSeg" role="group" aria-labelledby="themeTitle">
+        <button value="system">System</button>
+        <button value="light">Light</button>
+        <button value="dark">Dark</button>
+      </div>
+      <svg class="theme-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(45 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(90 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(135 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(180 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(225 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(270 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(315 12 12)"/>
+        <circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>
+        <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <h3 id="debugTitle">Debug log</h3>
+    <div class="segmented" id="debugSeg" role="group" aria-labelledby="debugTitle">
+      <button value="off">Off</button>
+      <button value="on">On</button>
+    </div>
+    <p>Shows deck ids, every hidden card and the dice generator in the event log, for checking the engine. It reveals secrets on a shared screen.</p>
+    <h3>Rules in play</h3>
+    <p>Read only. Each line names its ruling and its class: an original rule, an interpretation, a house rule or application only.</p>
+    <ul id="rules"></ul>
+    <h3>About</h3>
+    <p>Dusk Keep: <span id="appLabelSettings"></span>.</p>
+    <div class="account" id="account" hidden><h3>Account</h3></div>
+    <button class="btn" id="settingsDone">Done</button>
+  </div>
+</dialog>
+
+<script src="../config.js"></script>
+<script src="../platform.js"></script>
+<script type="module" src="ui/app.js"></script>
+</body>
+</html>
