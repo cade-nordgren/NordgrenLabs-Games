@@ -10,6 +10,8 @@ Source the report cites as highest authority: the publisher's official eight-pag
 
 ## Rule statements to check against the engine
 
+**Checked 2026-11-19** against the official PDF (read as text, rule statements only): all 19 are confirmed as worded, with these notes. 2: 2023 rules 2, 5.2 and 8. 7: section 11. 9: 9.5 prints "T12-TF" only; the floor at 0 is ruling D03. 12: the outcome of a failed jump is not printed (D08). 17: 10.1. 19: section 2, "any tower" before sunset. Component counts: contents list; the 24 + 12 combat split from 1.7 and 9.3. The engine audit (verdicts, rows, tests) is plan section 7.1.
+
 1. **Yellow corridor.** Not searchable. Entering one draws no room card and lets the hero continue at once to an adjacent square through a free passage in the same turn.
 2. **Room card on every entry.** A room card is drawn whenever a hero enters a black- or red-dot tile, including one already on the board.
 3. **Searching.** Only in black- or red-dot rooms, instead of moving; repeatable on later turns. Uses the room-search deck.
