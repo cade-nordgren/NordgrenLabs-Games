@@ -135,8 +135,9 @@ function fieldErrors(key, e, content) {
   if (key === 'heroes') {
     if (!e.stats || STATS.some(s => !Number.isInteger(e.stats[s]) || e.stats[s] < 1 || e.stats[s] > 12)) err.push('stats STR/AGI/ARM/LCK must be integers 1..12');
     if (!Number.isInteger(e.hp) || e.hp < 1) err.push('hp must be an integer >= 1');
-    if (!setOwnedBy(content, e.combatSetId, 'hero')) err.push(`combatSetId ${e.combatSetId} is not a hero combat set`);
-    if (e.specialWeaponId !== null && e.specialWeaponId !== undefined && !(content.specialWeapons || []).some(w => w.id === e.specialWeaponId)) err.push(`specialWeaponId ${e.specialWeaponId} does not exist`);
+    const wait = heroWaits(content, e);
+    if (!wait.set && !setOwnedBy(content, e.combatSetId, 'hero')) err.push(`combatSetId ${e.combatSetId} is not a hero combat set`);
+    if (!wait.weapon && e.specialWeaponId !== null && e.specialWeaponId !== undefined && !(content.specialWeapons || []).some(w => w.id === e.specialWeaponId)) err.push(`specialWeaponId ${e.specialWeaponId} does not exist`);
   }
   if (DECK_OF[key]) {
     const deck = DECK_OF[key];
@@ -187,6 +188,22 @@ function useErrors(e) {
   err.push(...effectErrors(u.effects || []).map(m => `use: ${m}`));
   return err;
 }
+
+// Heroes may be written before their combat cards and weapon cards: an owner hero naming a hero set (S01-S08) or a
+// weapon slot nobody has written yet, while that category is still incomplete, is waiting on it, not an error.
+// Once the category is complete, a missing set or weapon is an error again.
+const slotsOf = key => CATEGORIES.find(c => c.key === key).ids;
+const HERO_SETS = seq('S', 8, 2);
+function heroWaits(content, h) {
+  if (content.mode !== 'original') return {};
+  const open = key => entriesOf(content, key).reduce((s, x) => s + copiesOf(x), 0) < slotsOf(key).length;
+  const unwritten = (key, ids, id, field) => ids.includes(id) && open(key) && !entriesOf(content, key).some(x => x[field] === id);
+  return {
+    set: unwritten('combat', HERO_SETS, h.combatSetId, 'setId') ? h.combatSetId : null,
+    weapon: unwritten('specialWeapons', slotsOf('specialWeapons'), h.specialWeaponId, 'id') ? h.specialWeaponId : null,
+  };
+}
+const span = ids => (ids.length > 2 && ids.every((x, i) => !i || +x.slice(1) === +ids[i - 1].slice(1) + 1) ? `${ids[0]}-${ids.at(-1)}` : ids.join(', '));
 
 const setOwnedBy = (content, setId, owner) => {
   const cards = (content.combat || []).filter(c => c.setId === setId);
@@ -291,7 +308,8 @@ export function validateContent(content) {
       const errs = content.mode === 'original' && !cat.ids.includes(e.id) ? [`id ${e.id} is not one of ${cat.ids[0]}..${cat.ids.at(-1)}`, ...fieldErrors(cat.key, e, content)] : fieldErrors(cat.key, e, content);
       errs.forEach(m => errors.push({ category: cat.key, id: e.id, message: `${e.id || '(no id)'}: ${m}` }));
       defined += copiesOf(e);
-      if (!errs.length && e.status === 'OWNER_APPROVED') verified += copiesOf(e);
+      const waiting = cat.key === 'heroes' && Object.values(heroWaits(content, e)).some(Boolean);
+      if (!errs.length && !waiting && e.status === 'OWNER_APPROVED') verified += copiesOf(e);
       if (e.status === 'OWNER_APPROVED') approved += copiesOf(e);
       if (e.status === 'DRAFT') draft += copiesOf(e);
     }
@@ -319,10 +337,19 @@ export function validateContent(content) {
     if (awake !== 1) errors.push({ category: 'dragon', id: null, message: 'Dragon cards: need exactly 7 sleeping and 1 awake' });
   }
   const lines = categories.map(c => `${c.label} ${c.defined}/${c.required} (${c.approved} approved, ${c.draft} draft)`);
+  // Not errors: what the owner's heroes are waiting on (a line per category waited on).
+  const waits = entriesOf(content, 'heroes').map(h => heroWaits(content, h));
+  const count = key => { const c = categories.find(x => x.key === key); return `${c.label} ${c.defined}/${c.required}`; };
+  const pending = [['set', 'combat', 'combat set', 'combat sets'], ['weapon', 'specialWeapons', 'special weapon', 'special weapons']].flatMap(([f, key, one, many]) => {
+    const ids = [...new Set(waits.map(w => w[f]).filter(Boolean))].sort();
+    return ids.length ? [{ category: 'heroes', message: `Heroes: waiting on ${ids.length === 1 ? one : many} ${span(ids)} (${count(key)})` }] : [];
+  });
   const fullStartAllowed = content.mode === 'original' && !errors.length && categories.every(c => c.verified === c.required);
   // A fixture or play-test game needs every category represented and valid (M2 plays cards, combat and the dragon).
-  const fixturePlayable = ['fixture', 'mixed'].includes(content.mode) && categories.every(c => c.defined > 0) && !errors.length;
-  return { categories, errors, lines, fullStartAllowed, fixturePlayable };
+  // Special weapons may be empty when no hero has one (a play-test with the owner's heroes drops the fixture crossbow).
+  const armed = entriesOf(content, 'heroes').some(h => h.specialWeaponId);
+  const fixturePlayable = ['fixture', 'mixed'].includes(content.mode) && categories.every(c => c.defined > 0 || (c.key === 'specialWeapons' && !armed)) && !errors.length;
+  return { categories, errors, pending, lines, fullStartAllowed, fixturePlayable };
 }
 
 // The content kit (docs/content-kit/README.md). Owner files say status "draft" or "approved" and leave out
@@ -364,7 +391,9 @@ export const APP_LABEL = 'Mechanics engine under verification';
 // Spec v2 #12: exactly which categories of this content are synthetic (fixture data), for the developer banner.
 export const syntheticCategories = content => CATEGORIES.filter(cat => entriesOf(content, cat.key).some(e => e?.status === 'FIXTURE')).map(cat => `${cat.label}: synthetic`);
 // Play-test content: every owner entry, plus the whole fixture deck for each slot the owner has not filled.
-// Fixture heroes and monsters keep their fixture combat sets; a fixture crossbow needs its fixture hero.
+// Fixture heroes and monsters keep their fixture combat sets; a fixture crossbow needs its fixture hero. An owner hero
+// whose combat set is not written yet fights with the fixture hero set of the same number (S03 -> FX_S03), and an
+// owner hero whose weapon card is not written yet has no weapon.
 export function mixContent(own, fx) {
   const full = new Set(validateContent(own).categories.filter(c => c.defined >= c.required).map(c => c.key));
   const m = { mode: 'mixed', label: MIXED_BANNER };
@@ -373,10 +402,12 @@ export function mixContent(own, fx) {
   m.dragon = full.has('dragon') ? own.dragon : fx.dragon;
   const fxUsed = list => list.some(e => e.status === 'FIXTURE');
   if (full.has('combat') && (fxUsed(m.heroes) || fxUsed(m.monster))) m.combat = [...m.combat, ...fx.combat];
+  const heroSet = id => m.combat.some(c => c.setId === id && c.owner === 'hero');
+  m.heroes = m.heroes.map(h => (h.status !== 'FIXTURE' && !heroSet(h.combatSetId) && heroSet(`FX_${h.combatSetId}`) ? { ...h, combatSetId: `FX_${h.combatSetId}` } : h));
   const heroIds = new Set(m.heroes.map(h => h.id));
   m.specialWeapons = m.specialWeapons.filter(w => w.status !== 'FIXTURE' || w.heroIds.every(id => heroIds.has(id)));
   const weaponIds = new Set(m.specialWeapons.map(w => w.id));
-  m.heroes = m.heroes.map(h => (h.status === 'FIXTURE' && h.specialWeaponId && !weaponIds.has(h.specialWeaponId) ? { ...h, specialWeaponId: null } : h));
+  m.heroes = m.heroes.map(h => (h.specialWeaponId && !weaponIds.has(h.specialWeaponId) ? { ...h, specialWeaponId: null } : h));
   // Play-test fill-in (class 4): fixture encounters name no monster type. With monster cards in rows in the deck they
   // meet the first type every row card covers, so the owner can play-test monster rows before writing room cards.
   const rowCards = m.monster.filter(e => e.rows && typeof e.rows === 'object');
@@ -408,7 +439,7 @@ export function contentStatus(own, fx, mode = 'mixed') {
     note: `${done} of ${report.categories.length} content categories verified. The full game unlocks when every slot holds approved original content.`,
     lines: report.lines,
     start: report.fullStartAllowed ? 'Start is on: every slot holds approved original content.'
-      : `Start is off until the content is complete: ${n ? `${n} content ${n === 1 ? 'error' : 'errors'} to fix` : report.lines[gap]}.`,
+      : `Start is off until the content is complete: ${n ? `${n} content ${n === 1 ? 'error' : 'errors'} to fix` : [report.lines[gap], ...report.pending.filter(p => p.category === report.categories[gap].key).map(p => p.message)].join('; ')}.`,
     play: mixedAllowed ? `Play-test is on: your ${report.categories.reduce((s, c) => s + c.defined, 0)} written slots plus NON-AUTHENTIC fill-in.`
       : !written ? 'Play-test is off until you write some entries.'
       : n ? `Play-test is off until the ${n} content ${n === 1 ? 'error is' : 'errors are'} fixed.`

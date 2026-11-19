@@ -7,12 +7,12 @@ import { mkdtempSync, cpSync, readdirSync, readFileSync, rmSync, writeFileSync }
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { CATEGORIES, validateContent, ownerContent, mixContent, contentStatus, loadSlots, MIXED_BANNER } from '../../site/keep/content/schema.js';
+import { CATEGORIES, validateContent, ownerContent, mixContent, contentStatus, loadSlots, syntheticCategories, MIXED_BANNER } from '../../site/keep/content/schema.js';
 import ORIGINAL from '../../site/keep/content/original/index.js';
 import { createGame } from '../../site/keep/engine/reducer.js';
 import { cardText, monsterText } from '../../site/keep/ui/words.js';
 import { tileWords } from '../../site/keep/ui/board.js';
-import { FX } from './helpers.js';
+import { FX, setup, acts, act, place, putHero, EMPTY_ROOMS } from './helpers.js';
 
 const LIVE = 'site/keep/content/original';
 const SAMPLES = 'tests/keep/content-samples';
@@ -145,10 +145,15 @@ test('mixed: the shipped content as it is loads in play-test mode; complete owne
   if (!written) return assert.equal(s.mixedAllowed, false, 'nothing written: nothing to play-test');
   assert.equal(s.mixedAllowed, true, s.play);
   assert.equal(s.mixed.mode, 'mixed');
+  const fxHeroes = s.mixed.heroes.some(h => h.status === 'FIXTURE');
+  const bare = list => list.map(({ combatSetId, specialWeaponId, ...h }) => h);
   for (const c of s.report.categories) {
     const synthetic = s.synthetic.includes(`${c.label}: synthetic`);
-    if (c.defined < c.required) { assert.ok(synthetic, `${c.label} is incomplete: fill-in is layered in`); continue; }
+    // The fixture crossbow belongs to a fixture hero, so it is dropped when the owner's heroes play alone.
+    if (c.defined < c.required) { assert.ok(synthetic || (c.key === 'specialWeapons' && !fxHeroes), `${c.label} is incomplete: fill-in is layered in`); continue; }
     if (c.key === 'combat') { assert.deepEqual(s.mixed.combat.slice(0, ORIGINAL.combat.length), ORIGINAL.combat); continue; } // fixture heroes may bring their sets
+    // Owner heroes play alone; a combat set or weapon card not written yet is filled in or left empty.
+    if (c.key === 'heroes') { assert.deepEqual(bare(s.mixed.heroes), bare(ORIGINAL.heroes)); assert.ok(!synthetic, c.label); continue; }
     assert.deepEqual(s.mixed[c.key], ORIGINAL[c.key], `${c.label} is complete: the owner's entries play alone`);
     assert.ok(!synthetic, c.label);
   }
@@ -235,4 +240,67 @@ test('mixed: owner monster cards in rows play-test over fixture room cards, whic
   assert.equal(m.roomSearch.find(e => e.id === 'FX_RSEARCH_LURKER').followUpDeck, null);
   assert.deepEqual(validateContent(m).errors, []);
   assert.equal(contentStatus(own, FX).mixedAllowed, true);
+});
+
+// Heroes before combat cards (EXAMPLE ONLY, NOT REAL CONTENT): eight heroes, the second naming a weapon card not written yet.
+const blank = () => Object.fromEntries(CATEGORIES.map(c => [c.key, ['board', 'chamber'].includes(c.key) ? null : []]));
+const heroes8 = (status = 'draft') => Array.from({ length: 8 }, (_, i) => ({ id: `HERO_${i + 1}`, copies: 1, status, name: `Example hero ${i + 1}`, class: 'x', stats: { STR: 5, AGI: 5, ARM: 5, LCK: 5 }, hp: 12, equipment: [], combatSetId: `S0${i + 1}`, specialWeaponId: i === 1 ? 'XBOW_1' : null, art: null }));
+const fullCombat = () => CATEGORIES.find(c => c.key === 'combat').ids.map(id => { const [, setId, letter] = id.split('_'); return { id, status: 'draft', setId, letter, owner: Number(setId.slice(1)) <= 8 ? 'hero' : 'monster-group', doubleAgainst: [] }; });
+
+test('kit: heroes written before any combat or weapon card wait on them: no error, play-test on', () => {
+  const dir = folder();
+  writeFileSync(join(dir, 'heroes.js'), `export default ${JSON.stringify(heroes8())};\n`);
+  const r = tool('check', '--dir', dir);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.match(r.stdout, /^Heroes 8\/8 \(0 approved, 8 draft\)\n {2}Heroes: waiting on combat sets S01-S08 \(Combat cards 0\/36\)\n {2}Heroes: waiting on special weapon XBOW_1 \(Special weapon cards 0\/2\)$/m);
+  assert.match(r.stdout, /^No errors\.$/m);
+  assert.match(r.stdout, /^Play-test is on/m);
+  // Approved heroes still waiting are not verified, so the full Start stays off.
+  const approved = validateContent(ownerContent({ ...blank(), heroes: heroes8('approved') }));
+  assert.equal(approved.categories.find(c => c.key === 'heroes').verified, 0);
+  assert.equal(approved.fullStartAllowed, false);
+});
+
+test('mixed: the owner\'s eight heroes play with the fixture hero combat sets; a fight resolves with an owner hero', () => {
+  const own = ownerContent({ ...blank(), heroes: heroes8() });
+  assert.deepEqual(validateContent(own).errors, []);
+  const m = mixContent(own, FX);
+  assert.deepEqual(m.heroes.map(h => [h.id, h.combatSetId, h.hp]), heroes8().map((h, i) => [h.id, `FX_S0${i + 1}`, 12]), 'owner heroes only, each on the fixture set of its number');
+  for (const h of m.heroes) assert.deepEqual(m.combat.filter(c => c.setId === h.combatSetId).map(c => [c.letter, c.owner]).sort(), [['A', 'hero'], ['B', 'hero'], ['C', 'hero']]);
+  assert.deepEqual(m.specialWeapons, [], 'the fixture crossbow left with its fixture hero');
+  assert.equal(m.heroes[1].specialWeaponId, null, 'XBOW_1 is not written yet: no weapon');
+  const r = validateContent(m);
+  assert.deepEqual(r.errors, []);
+  assert.equal(r.fixturePlayable, true);
+  assert.ok(!syntheticCategories(m).includes('Heroes: synthetic') && syntheticCategories(m).includes('Combat cards: synthetic'));
+  assert.equal(contentStatus(own, FX).mixedAllowed, true);
+  assert.equal(createGame({ players: ['A', 'B'], seed: 5, content: m }).banner, MIXED_BANNER);
+  // Seeded game: the picker offers only the owner's heroes; HERO_1 (fixture set FX_S01: A hits B twice) kills a 4-HP brute.
+  let g = createGame({ players: ['A', 'B'], seed: 5, content: m, diceScript: [12, 11] });
+  g = act(g, 'ROLL_FIRST_PLAYER', {}, m);
+  while (acts(g, m)[0].type !== 'PICK_HERO') g = act(g, acts(g, m)[0].type, {}, m);
+  assert.deepEqual(acts(g, m).map(a => a.heroId).sort(), heroes8().map(h => h.id).sort());
+  g = setup({ players: 2, content: m, towers: [0, 1], heroes: ['HERO_1', 'HERO_2'], deckOrders: { ROOM: ['FX_ROOM_MONSTER', ...EMPTY_ROOMS], MONSTER: ['FX_MON_BRUTE'] } });
+  assert.equal(g.seats[0].heroId, 'HERO_1');
+  place(g, '1,0', 'FX_CROSS');
+  place(g, '1,1', 'FX_CROSS');
+  putHero(g, 0, '1,0');
+  g = act(g, 'MOVE', { dir: 'S' }, m);
+  assert.ok(!acts(g, m).some(a => a.choice === 'special'), 'no hero has a weapon');
+  g = act(act(g, 'RESPOND', { choice: 'attack' }, m), 'ANNOUNCE', {}, m);
+  for (let i = 0; i < 2; i++) g = act(act(g, 'COMBAT_PICK', { side: 'monster', letter: 'B' }, m), 'COMBAT_PICK', { side: 'hero', letter: 'A' }, m);
+  assert.ok(g.log.some(e => e.kind === 'monster-dead'));
+  assert.equal(g.heroes[0].hp, 12, "the owner's HP, untouched");
+});
+
+test('kit: a hero on a monster-group set, on a set missing once combat is complete, or on a non-slot weapon is still an error', () => {
+  const errs = parts => validateContent(ownerContent({ ...blank(), heroes: heroes8(), ...parts })).errors.map(e => e.message);
+  const group = fullCombat().filter(c => c.setId === 'S01').map(c => ({ ...c, owner: 'monster-group' }));
+  assert.ok(errs({ combat: group }).includes('HERO_1: combatSetId S01 is not a hero combat set'), 'S01 exists as a monster-group set');
+  const s09 = fullCombat().filter(c => c.setId === 'S09');
+  assert.ok(errs({ heroes: heroes8().map((h, i) => (i ? h : { ...h, combatSetId: 'S09' })), combat: s09 }).includes('HERO_1: combatSetId S09 is not a hero combat set'));
+  // 36 combat copies without S08: complete, so HERO_8 no longer waits.
+  const noS08 = fullCombat().filter(c => c.setId !== 'S08').map(c => (c.id === 'COMBAT_S01_A' ? { ...c, copies: 4 } : c));
+  assert.deepEqual(errs({ combat: noS08, heroes: heroes8().map(h => ({ ...h, specialWeaponId: null })) }), ['HERO_8: combatSetId S08 is not a hero combat set']);
+  assert.ok(errs({ heroes: heroes8().map((h, i) => (i ? h : { ...h, specialWeaponId: 'XBOW_9' })) }).includes('HERO_1: specialWeaponId XBOW_9 does not exist'));
 });

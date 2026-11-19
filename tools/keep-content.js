@@ -44,7 +44,7 @@ if (cmd === 'check' || cmd === 'report') {
   if (cmd === 'report') console.log(s.note);
   s.report.categories.forEach((c, i) => {
     console.log(s.lines[i]);
-    if (cmd === 'check') for (const e of s.report.errors.filter(x => x.category === c.key)) console.log(`  ${e.message}`);
+    if (cmd === 'check') for (const e of [...s.report.errors, ...s.report.pending].filter(x => x.category === c.key)) console.log(`  ${e.message}`);
   });
   const n = s.report.errors.length;
   if (cmd === 'check') console.log(n ? `${n} ${n === 1 ? 'error' : 'errors'}.` : 'No errors.');

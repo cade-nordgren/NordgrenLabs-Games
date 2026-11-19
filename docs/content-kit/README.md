@@ -257,8 +257,10 @@ export default [
 | `stats` | `{ STR, AGI, ARM, LCK }`, each a whole number 1 to 12 | Strength, agility, armour, luck. A stat test passes when a D12 (plus any modifier) is at or under the stat. |
 | `hp` | whole number, 1 or more | Starting hit points (also the healing cap, D04). |
 | `equipment` | list of text | What they carry, as words. |
-| `combatSetId` | `'S01'` to `'S08'` | The hero's own A/B/C combat set in `combat.js`. It must exist and be a hero set. |
-| `specialWeaponId` | `null`, `'XBOW_1'` or `'XBOW_2'` | The special weapon card this hero may use, if any. It must exist in `special-weapons.js`. |
+| `combatSetId` | `'S01'` to `'S08'` | The hero's own A/B/C combat set in `combat.js`. It must be a hero set (not a monster-group set); it may be one you have not written yet (below). |
+| `specialWeaponId` | `null`, `'XBOW_1'` or `'XBOW_2'` | The special weapon card this hero may use, if any. It must be in `special-weapons.js`, or one you have not written yet (below). |
+
+**Heroes can come before their combat cards.** You can write all eight heroes while `combat.js` and `special-weapons.js` are still empty. Until those files are complete, a hero naming a set (`'S01'` to `'S08'`) or a weapon (`'XBOW_1'`, `'XBOW_2'`) you have not written yet is waiting on it, not an error. The checker shows it under Heroes, for example `Heroes: waiting on combat sets S01-S08 (Combat cards 0/36)` or `Heroes: waiting on special weapon XBOW_1 (Special weapon cards 0/2)`, still says "No errors", and Play-test stays on. A waiting hero doesn't count as verified even when approved, so Start stays off. Once all 36 combat cards (or both weapon cards) are written, a set or weapon that still isn't there is an error. A set that exists but belongs to a monster group is always an error.
 
 A dead hero's identity, combat and ring cards never become loot (D28). Heroes are original characters: don't reuse the published set's characters or stat lines.
 
@@ -561,7 +563,7 @@ If the turn ends early, the hero dies or the hero flees, the card goes under its
 
 ## 8. The workflow
 
-1. **Write as draft.** Add entries with `status: 'draft'` (or run `node tools/keep-content.js new room`). Work deck by deck; there is no need to finish one before starting another.
+1. **Write as draft.** Add entries with `status: 'draft'` (or run `node tools/keep-content.js new room`). Work deck by deck; there is no need to finish one before starting another. Heroes can go in before their combat cards and weapon cards: the checker shows them as waiting until those are written ([Heroes](#heroes)).
 2. **Run the checker.** From the repo folder: `node tools/keep-content.js check`. It lists every slot with its count and every problem by id.
 3. **Fix** what it reports and check again until it says "No errors."
 4. **Play-test** your drafts (below). Try the cards in play, read your `text` on screen, adjust.
@@ -576,7 +578,7 @@ If the turn ends early, the hero dies or the hero flees, the card goes under its
 | **Play-test my content** | Play-test: your content plus NON-AUTHENTIC fill-in. Every one of your entries, draft and approved, plus the made-up fixture data for each slot you have not completed. | At least one entry, and no checker errors. |
 | **Test with fixtures** | Only the made-up fixture data. | Nothing. For checking the engine itself. |
 
-In a play-test, a slot you have completed (all its copies written) plays with your entries alone. A slot you have not completed gets your entries plus the whole fixture deck, so decks are larger than the real count and the odds are not the real game's. The dragon deck is the exception: until all 8 of yours are written, the play-test uses the fixture dragon deck alone, so there is always exactly one awake card. If you have no board or chamber yet, the fixture ones are used. Fixture heroes and monsters bring their own fixture combat sets. Once your monster cards have rows, the fixture room and search cards meet the first monster type every one of your row cards covers, so you can play-test monster cards before writing room cards. Every screen of a play-test carries the banner "Play-test: your content plus NON-AUTHENTIC fill-in", and so does its save title.
+In a play-test, a slot you have completed (all its copies written) plays with your entries alone. A slot you have not completed gets your entries plus the whole fixture deck, so decks are larger than the real count and the odds are not the real game's. The dragon deck is the exception: until all 8 of yours are written, the play-test uses the fixture dragon deck alone, so there is always exactly one awake card. If you have no board or chamber yet, the fixture ones are used. Fixture heroes and monsters bring their own fixture combat sets. Once all 8 of your heroes are written, only yours are offered; a hero whose combat set you have not written yet fights with the fixture hero set of the same number (your `S03` hero uses the fixture set `FX_S03`), and a hero whose weapon card you have not written yet has no special weapon. The fixture crossbow belongs to a fixture hero, so it leaves with the fixture heroes. Once your monster cards have rows, the fixture room and search cards meet the first monster type every one of your row cards covers, so you can play-test monster cards before writing room cards. Every screen of a play-test carries the banner "Play-test: your content plus NON-AUTHENTIC fill-in", and so does its save title.
 
 A play-test or a saved game opens only with the content it was made with. After you change your files, start a new play-test; older play-test saves will say they can't be opened.
 
@@ -605,6 +607,8 @@ Typical messages and what to do:
 | `Maze tiles: copies total 91, expected 88` | The copies add up to more than exist. |
 | `ROOM_999: id ROOM_999 is not one of ROOM_001..ROOM_060` | Use the slot's own ids. |
 | `S01: a combat set needs exactly one A, one B and one C` | Finish the set. |
+| `Heroes: waiting on combat sets S01-S08 (Combat cards 0/36)` | Not an error: your heroes name sets you have not written yet. Write the combat cards when you are ready. |
+| `HERO_1: combatSetId S09 is not a hero combat set` | The set is a monster group's, or (once all 36 combat cards are written) it doesn't exist. |
 | `ROOM_004: status aproved must be "draft" or "approved"` | A typo in the status. |
 | `Could not read the content: door.js: Unexpected token ...` followed by a line | A notation slip (a missing comma, quote or bracket) on the line shown. |
 
