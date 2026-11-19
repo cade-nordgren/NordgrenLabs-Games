@@ -54,4 +54,5 @@ Every request now invokes the Worker and counts toward the free plan's 100,000 r
 - Changed in review before deploy: the gate accepts ClerkJS's suffixed cookie name (`__session_<suffix>`) as well as `__session`, checking at most four candidates.
 - Owner check, 2026-11-18: a real sign-in through the gate reached the site ("Yes, I'm in"), so ClerkJS's session cookie is accepted by the Worker on the live origin.
 - Owner check, 2026-11-18: deleting a saved game works on an iPhone (the two-step confirm no longer depends on focus).
-- Not yet confirmed: the resume after the token expires, sign-out, and the installed home-screen app. These are the owner's checks in `docs/runbooks/deploy.md`.
+- Owner check, 2026-11-18: asked about the three checks still open (coming back signed in after the token expires, sign-out landing on the sign-in page, and the home-screen app showing the die icon and the name Games), the owner reported "everything works".
+- Not separately reported: a save made on one device appearing on a second, and the stored Workers Logs view. These are the owner's checks in `docs/runbooks/deploy.md`.
