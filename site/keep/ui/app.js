@@ -122,12 +122,19 @@ function act(a) {
   target = { placement: null, face: null };
   if (prev.status !== 'over' && next.status === 'over' && S.saveId) Object.assign(S, { dropSave: S.saveId, saveId: null, createdAt: null });
   S.game = next;
-  render();
+  // A roll or fight-end card about to open holds the table as it was until its Continue (release), so the board,
+  // status bar and prompt do not move on to the next player behind it. Saved now all the same. Never held over a
+  // private screen the next state would not show the same viewer: then the new state (a cover) renders first.
+  const out = encounterOutcome(prev, added);
+  held = (solo() || viewer === null || needViewer() === viewer) && (added.some(rollShown) || (!!out && !S.reveal));
+  if (held) { persist(); dropFinished(); } else render();
   if (!showRolls(added) && $('roll').open) $('roll').close();
-  outcome = encounterOutcome(prev, added);
+  outcome = out;
   showOutcome();
   showDusk();
 }
+let held = false;
+function release() { if (held) { held = false; render(); } }
 
 // ---- The end of a fight (owner, 2026-11-19): when an encounter ends with the monster dead or fled, or the hero
 // away or dead, a short card over the dimmed board says so. It is public: the table hears these, and it holds no
@@ -250,8 +257,9 @@ function tryAct(a) {
 
 // After an action: its tests and dice rolls tumble on the card, then pass or fail with the arithmetic and
 // Continue. Rolls are public entries, so this shows nothing the table may not see. False when there were none.
+const rollShown = e => e.kind === 'test' || (e.kind === 'roll' && e.reason === 'dark room exit');
 function showRolls(added) {
-  const shown = added.filter(e => e.kind === 'test' || (e.kind === 'roll' && e.reason === 'dark room exit'));
+  const shown = added.filter(rollShown);
   if (!shown.length) return false;
   const d = $('roll'), said = entries(added, ctx());
   const first = shown[0];
@@ -534,7 +542,7 @@ function showCover(need) {
 // ---- Rendering
 // A phone, portrait or landscape: board and prompt share one screen (index.html has the same media queries).
 const PHONE = matchMedia('(max-width: 819.98px) and (orientation: portrait), (orientation: landscape) and (max-height: 540px)');
-PHONE.addEventListener('change', () => { if (S.game) render(); }); // the map key moves between board and fold
+PHONE.addEventListener('change', () => { if (S.game && !held) render(); }); // the map key moves between board and fold
 // The one permanent live region: the latest result lines, only ever from the current viewer's view.
 const say = text => { if ($('said').textContent !== text) $('said').textContent = text; };
 
@@ -1565,10 +1573,16 @@ $('settingsDone').onclick = () => $('settings').close();
 const rollOpenToClose = () => ['ask', 'result'].includes($('roll').dataset.mode);
 $('roll').onclick = e => { if (e.target === $('roll') && rollOpenToClose()) $('roll').close(); };
 $('roll').addEventListener('cancel', e => { if (!rollOpenToClose()) e.preventDefault(); });
-$('roll').addEventListener('close', () => { $('roll').dataset.mode = ''; refocus(rollFromCell); showOutcome(); showDusk(); });
+$('roll').addEventListener('close', () => {
+  $('roll').dataset.mode = '';
+  showOutcome(); // a fight's end card keeps the table held
+  if (!$('outcome').open) release();
+  refocus(rollFromCell);
+  showDusk();
+});
 // The fight's end card: Continue, Enter or Space on it, Esc, or a tap anywhere.
 $('outcome').onclick = () => $('outcome').close();
-$('outcome').addEventListener('close', () => { refocus(false); showDusk(); });
+$('outcome').addEventListener('close', () => { release(); refocus(false); showDusk(); });
 $('dusk').onclick = () => { $('dusk').hidden = true; };
 $('inspectDone').onclick = () => $('inspect').close();
 $('itemsDone').onclick = () => $('items').close();
