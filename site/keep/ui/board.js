@@ -264,6 +264,11 @@ export function mountBoard(host, opts) {
   pat('fog', 'fog-bg', 'fog-line');
   pat('off', 'off-bg', 'off-line');
   svg('rect', { x: -M, y: -M, width: W, height: H, class: 'offboard' }, root);
+  // The dusk vignette (its strength follows the sun, index.html): under the squares, so only the margin and gaps darken.
+  const vg = svg('radialGradient', { id: 'vignette', r: '71%' }, defs);
+  svg('stop', { offset: '60%', class: 'dusk-in' }, vg);
+  svg('stop', { offset: '100%', class: 'dusk-out' }, vg);
+  svg('rect', { x: -M, y: -M, width: W, height: H, class: 'dusk' }, root);
 
   const ix = contentIndex(content);
   const heroes = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED));

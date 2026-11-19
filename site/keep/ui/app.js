@@ -14,6 +14,7 @@ import { validateContent, contentIndex, contentStatus, syntheticCategories, APP_
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
 import { lines, entries, cardText, monsterText, expr, undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, DECK, towerName } from './words.js';
 import { rollDice } from './dice.js';
+import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
 import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
 
 const $ = id => document.getElementById(id);
@@ -50,7 +51,7 @@ const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs
 
 // ---- State. The engine game plus what the screen needs; saved on every change. It belongs to whoever was signed in
 // (owner), so a game in progress never shows to the next person on this browser.
-const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, dropSave: null, seen: 0, reveal: null, peek: null, owner: NL.person() });
+const fresh = () => ({ v: 1, count: 2, names: ['', '', '', ''], soloCombat: 'target', mode: null, game: null, hist: [], saveId: null, createdAt: null, dropSave: null, seen: 0, reveal: null, peek: null, dusk: [], owner: NL.person() });
 let S = fresh();
 let viewer = null; // the seat looking now; never saved, so a refresh always covers a private screen
 let target = { placement: null, face: null }; // solo target entry, before it is sent
@@ -79,6 +80,8 @@ function load() {
       const r = s.reveal;
       if (r && Number.isInteger(r.seat) && r.seat >= 0 && r.seat < b.game.seats.length && ['A', 'B', 'C'].includes(r.hero) && ['A', 'B', 'C'].includes(r.monster) && Number.isInteger(r.heroDmg) && Number.isInteger(r.monsterDmg)) b.reveal = r;
       const n = b.game.seats.length;
+      // The dusk notices already shown; an autosave from before they existed counts every one reached as shown.
+      b.dusk = Array.isArray(s.dusk) ? DUSK.filter(t => s.dusk.includes(t)) : passedDusk(b.game);
       if (s.peek && Number.isInteger(s.peek.seat) && s.peek.seat >= 0 && s.peek.seat < n) b.peek = { seat: s.peek.seat, from: Number.isInteger(s.peek.from) ? s.peek.from : null };
     } catch { b.game = null; b.mode = null; }
   }
@@ -95,6 +98,7 @@ function persist() {
 }
 
 const content = () => CONTENT[S.mode];
+const passedDusk = g => DUSK.filter(t => daylight(g.sun, SUNSET).left <= t);
 const solo = () => S.game.seats.length === 1;
 const nameOf = seat => S.game.seats[seat].name;
 const heroDef = (h) => contentIndex(content()).heroes.get(h.heroId);
@@ -103,6 +107,7 @@ const ctx = () => ({ content: content(), name: nameOf });
 // ---- Actions: every one goes to the engine, which refuses anything not legal now.
 function act(a) {
   const prev = S.game, c = content();
+  duskLine = '';
   let next;
   try { next = reduce(prev, a, c); } catch { if ($('roll').dataset.mode === 'rolling') $('roll').close(); return render(); } // a stale double tap: nothing happens
   // D21: undo only steps back over actions that revealed nothing (the engine counts commit points).
@@ -121,6 +126,7 @@ function act(a) {
   if (!showRolls(added) && $('roll').open) $('roll').close();
   outcome = encounterOutcome(prev, added);
   showOutcome();
+  showDusk();
 }
 
 // ---- The end of a fight (owner, 2026-11-19): when an encounter ends with the monster dead or fled, or the hero
@@ -157,6 +163,37 @@ function showOutcome() {
   $('outcome').showModal();
   $('outcomeGo').focus();
   say(`${title} ${line}`.trim());
+}
+
+// ---- Dusk notices (owner, 2026-11-19): when 5, 3 and 1 rounds of light are left (turns, solo), a short notice over the
+// board, once per game each. 5 and 3 are a banner that goes by itself; the last is the end-of-fight card's family with
+// Continue. Public, said in #said, and queued behind the roll card, the fight's end card, the Reveal and any hand-over
+// cover. Which were shown is S.dusk, autosaved with the game like S.seen, so a re-render, reload or undo and redo never
+// repeats one; a resumed save counts those already reached as shown (passedDusk).
+let duskLine = '', duskTimer;
+function showDusk() {
+  const g = S.game;
+  if (!g || g.status !== 'playing' || $('table').hidden || !$('cover').hidden || S.reveal || outcome || $('roll').open || $('outcome').open) return;
+  const t = duskDue(daylight(g.sun, SUNSET).left, S.dusk);
+  if (!t) return;
+  S.dusk = duskShown(t, S.dusk);
+  persist();
+  const w = duskWords(t, solo());
+  duskLine = `${w.title} ${w.line}`;
+  say(`${$('said').textContent} ${duskLine}`.trim());
+  if (w.card) {
+    $('outcomeTitle').textContent = w.title;
+    $('outcomeLine').textContent = w.line;
+    $('outcomeLine').hidden = false;
+    $('outcome').showModal();
+    $('outcomeGo').focus();
+    return;
+  }
+  $('duskTitle').textContent = w.title;
+  $('duskLine').textContent = w.line;
+  $('dusk').hidden = false;
+  clearTimeout(duskTimer);
+  duskTimer = setTimeout(() => { $('dusk').hidden = true; }, 5000);
 }
 
 // ---- Dice over the board: a roll card for every test or die roll the player sets off.
@@ -287,7 +324,7 @@ function newGame(mode) {
     $('startReason').textContent = err.message;
     return;
   }
-  Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null });
+  Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null, dusk: [] });
   viewer = players.length === 1 ? 0 : null;
   outcome = null;
   resetView();
@@ -296,7 +333,8 @@ function newGame(mode) {
 }
 
 function toTitle() {
-  Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null });
+  Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null, dusk: [] });
+  $('dusk').hidden = true;
   viewer = null;
   outcome = null;
   shown = NL.saves.cached('keep') ?? shown; // this browser's copy of a save just made shows at once
@@ -354,7 +392,7 @@ async function resume(id) {
   try { c = CONTENT[r.state.mode]; game = restore(JSON.stringify(r.state.game), c); } catch { return toast('That save cannot be opened.'); }
   Object.assign(S, {
     mode: r.state.mode, game, hist: Array.isArray(r.state.hist) ? r.state.hist.filter(h => okSnap(h, c)).slice(-HIST_CAP) : [],
-    saveId: r.id, createdAt: r.createdAt, seen: game.log.length, reveal: null, peek: null,
+    saveId: r.id, createdAt: r.createdAt, seen: game.log.length, reveal: null, peek: null, dusk: passedDusk(game),
   });
   viewer = game.seats.length === 1 ? 0 : null;
   outcome = null;
@@ -484,6 +522,7 @@ function showCover(need) {
   $('coverGo').onclick = () => {
     viewer = need;
     render();
+    showDusk();
     // Straight to the prompt, not the map (on a phone in portrait the prompt is docked under the board already).
     if (!PHONE.matches) $('table').querySelector('.tablegrid section.panel')?.scrollIntoView({ block: 'start' });
   };
@@ -551,7 +590,7 @@ function render() {
   for (const id of ['title', 'draft', 'table', 'results']) $(id).hidden = id !== screen;
   for (const id of ['draft', 'table', 'results']) if (id !== screen) $(id).replaceChildren();
   const v = view(g, content(), viewer);
-  say(screen === 'table' ? lines(v.log.slice(S.seen), ctx()).join(' ') : '');
+  say(screen === 'table' ? [...lines(v.log.slice(S.seen), ctx()), duskLine].filter(Boolean).join(' ') : '');
   if (screen === 'draft') renderDraft(v);
   else if (screen === 'table') renderTable(v);
   else renderResults(v);
@@ -776,17 +815,36 @@ function keepMovingWhy(v) {
 }
 
 // ---- Main tabletop
-function sunClock(sun) {
-  const s = svg('svg', { viewBox: '0 0 120 64', class: 'sun', 'aria-hidden': 'true' });
-  svg('line', { x1: 4, y1: 60, x2: 116, y2: 60, class: 'horizon' }, s);
-  for (let k = 1; k < SUNSET; k++) {
-    const t = Math.PI * (1 - (k - 1) / (SUNSET - 2));
-    const [c, si] = [Math.cos(t), Math.sin(t)];
-    svg('line', { x1: 60 + 50 * c, y1: 58 - 50 * si, x2: 60 + 56 * c, y2: 58 - 56 * si, class: `tick${k >= sun ? ' left' : ''}` }, s);
-  }
-  const t = Math.PI * (1 - (Math.min(sun, SUNSET - 1) - 1) / (SUNSET - 2));
-  svg('circle', { cx: 60 + 40 * Math.cos(t), cy: 58 - 40 * Math.sin(t), r: 9, class: 'disc' }, s);
-  return s;
+// The sun track (owner, 2026-11-19): a notch per sun, the elapsed part filled, the sun on this step, the last five
+// notches in the danger colour and the horizon at the end; the number left beside it. One image for readers.
+function sunTrack(sun, one) {
+  const { step, steps, left } = daylight(sun, SUNSET), box = el('div', 'suntrack'), track = el('div', 'track');
+  track.setAttribute('role', 'img');
+  track.setAttribute('aria-label', trackLabel(sun, SUNSET, one));
+  track.style.setProperty('--at', steps > 1 ? (step - 1) / (steps - 1) : 1);
+  const notches = el('span', 'notches');
+  for (let k = 1; k <= steps; k++) notches.append(el('i', [k < step && 'past', k > steps - 5 && 'late'].filter(Boolean).join(' ')));
+  track.append(el('i', 'rail'), el('i', 'fill'), notches, el('i', 'sunmark'));
+  const horizon = svg('svg', { viewBox: '0 0 16 12', class: 'horizon', 'aria-hidden': 'true' });
+  svg('path', { d: 'M3 10a5 5 0 0 1 10 0', fill: 'none', stroke: 'currentColor', 'stroke-width': 2 }, horizon);
+  svg('path', { d: 'M0 11h16', stroke: 'currentColor', 'stroke-width': 2 }, horizon);
+  const n = el('span', 'left', String(left));
+  n.append(el('span', 'w', ` ${unit(left, one)}`), ' left');
+  n.setAttribute('aria-hidden', 'true');
+  box.append(track, horizon, n);
+  return box;
+}
+// A small icon and number, its words for readers (and on wide screens words in front of the number).
+function chip(cls, label, icon, words, num) {
+  const c = el('span', `chip ${cls}`);
+  c.setAttribute('role', 'img');
+  c.setAttribute('aria-label', label);
+  const s = svg('svg', { viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', 'stroke-width': 2, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
+  svg('path', { d: icon }, s);
+  c.append(s);
+  if (words) c.append(el('span', 'w', words));
+  c.append(num);
+  return c;
 }
 
 // A move as a title and a reason line, read from the engine's exits (BoardDefinition geometry) and the tile data.
@@ -1126,13 +1184,16 @@ function renderTable(v) {
   const g = S.game, c = content(), la = legalActions(g, c);
   const out = [];
   const bar = el('header', 'glass statusbar');
-  const who = el('div', 'who');
-  who.append(el('strong', '', `${nameOf(g.activeSeat)}'s turn`), el('span', 'long', `Sun ${g.sun} of ${SUNSET - 1}, ${SUNSET - g.sun} ${SUNSET - g.sun === 1 ? 'turn' : 'turns'} left`),
-    el('span', 'long', `Dragon wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`),
-    // The one-line phone form: CSS shows these instead of the two above (and of the map tools' tiles left).
-    el('span', 'short', `Sun ${g.sun}/${SUNSET - 1}`), el('span', 'short', `Dragon ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`), el('span', 'short', `${v.board.tileBag} tiles`));
-  bar.append(sunClock(g.sun), who);
+  const who = el('strong', 'who', nameOf(g.activeSeat));
+  who.append(el('span', 'turnword', "'s turn")); // on a phone only the name shows; readers still hear it
+  const odds = `${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`;
+  bar.append(who, sunTrack(v.sun, solo()),
+    chip('dragon', `Dragon wakes on ${odds}`, 'M12 3c.6 3.2 5 5.4 5 10a5 5 0 0 1-10 0c0-2.3 1.2-3.8 2.5-5 .2 2 1 3 2 3.4C11 9 11 6 12 3z', 'Dragon wakes on ', odds),
+    // Tiles left: on wide screens the map tools say it, so this chip is for phones (CSS).
+    chip('tilesleft', `${v.board.tileBag} tiles left`, 'M4 4h16v16H4zM4 12h16M12 4v16', '', String(v.board.tileBag)));
   out.push(bar);
+  // The board's light follows the sun (index.html mixes these into the board background and unexplored squares).
+  for (const [k, val] of Object.entries(skyAt(daylight(v.sun, SUNSET).f).vars)) $('table').style.setProperty(k, val);
 
   const grid = el('div', 'tablegrid');
   const targets = [];
@@ -1509,10 +1570,11 @@ $('settingsDone').onclick = () => $('settings').close();
 const rollOpenToClose = () => ['ask', 'result'].includes($('roll').dataset.mode);
 $('roll').onclick = e => { if (e.target === $('roll') && rollOpenToClose()) $('roll').close(); };
 $('roll').addEventListener('cancel', e => { if (!rollOpenToClose()) e.preventDefault(); });
-$('roll').addEventListener('close', () => { $('roll').dataset.mode = ''; refocus(rollFromCell); showOutcome(); });
+$('roll').addEventListener('close', () => { $('roll').dataset.mode = ''; refocus(rollFromCell); showOutcome(); showDusk(); });
 // The fight's end card: Continue, Enter or Space on it, Esc, or a tap anywhere.
 $('outcome').onclick = () => $('outcome').close();
-$('outcome').addEventListener('close', () => refocus(false));
+$('outcome').addEventListener('close', () => { refocus(false); showDusk(); });
+$('dusk').onclick = () => { $('dusk').hidden = true; };
 $('inspectDone').onclick = () => $('inspect').close();
 $('itemsDone').onclick = () => $('items').close();
 for (const b of document.querySelectorAll('.sheet-x')) b.onclick = () => b.closest('dialog').close();
@@ -1547,6 +1609,7 @@ load();
 const me = NL.identity(); // the cached name, if this browser knows this person already
 prefill(me);
 render();
+showDusk();
 if (!S.game) refreshSaves();
 // A signed-in name can arrive later: only into an empty roster with no game in progress. Either way this render
 // drops the placeholder row.

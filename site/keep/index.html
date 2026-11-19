@@ -124,8 +124,35 @@ details li + li { margin-top: 6px; }
 .map-tools .btn { min-width: 44px; padding: 0 12px; font-size: 15px; }
 .map-tools .tiles { margin-left: auto; font-size: 14px; color: var(--ink2); }
 .map-tools .ico { display: none; }
-.viewport { position: relative; overflow: hidden; touch-action: none; border-radius: 14px; background: var(--off-bg); width: 100%; aspect-ratio: var(--board-ratio, 1); max-height: calc(100dvh - 200px);
+.viewport { position: relative; overflow: hidden; touch-action: none; border-radius: 14px; width: 100%; aspect-ratio: var(--board-ratio, 1); max-height: calc(100dvh - 200px);
   user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+/* The board's light follows the sun (owner, 2026-11-19). renderTable sets these on #table from ui/daylight.js skyAt:
+   a sky colour (and a lighter one for the board background), how much of it to mix in, and a vignette alpha, per
+   theme. They tint only the board background and unexplored squares (light theme; dark keeps them black) and a
+   vignette in the margin under the squares; tiles, tokens, walls, highlights and text keep their colours. Worst-case
+   contrast is checked in tests/keep/daylight.test.js. Registered, so a new sun eases in (not under reduced motion). */
+@property --sky-l { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --sky-lo { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --sky-d { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --sky-do { syntax: '<color>'; inherits: true; initial-value: transparent; }
+@property --sky-lk { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
+@property --sky-dk { syntax: '<percentage>'; inherits: true; initial-value: 0%; }
+@property --vig-l { syntax: '<number>'; inherits: true; initial-value: 0; }
+@property --vig-d { syntax: '<number>'; inherits: true; initial-value: 0; }
+#table { transition: --sky-l 1.2s, --sky-lo 1.2s, --sky-lk 1.2s, --vig-l 1.2s, --sky-d 1.2s, --sky-do 1.2s, --sky-dk 1.2s, --vig-d 1.2s; }
+.viewport { --sky: var(--sky-l); --sky-o: var(--sky-lo); --sky-k: var(--sky-lk); --vig: var(--vig-l);
+  --off-lit: color-mix(in srgb, var(--sky-o) var(--sky-k), var(--off-bg)); --fog-lit: color-mix(in srgb, var(--sky) var(--sky-k), var(--fog-bg));
+  background: radial-gradient(closest-corner, transparent 55%, rgb(16 20 56 / var(--vig))), var(--off-lit); }
+:root[data-theme="dark"] .viewport { --sky: var(--sky-d); --sky-o: var(--sky-do); --sky-k: var(--sky-dk); --vig: var(--vig-d); --fog-lit: var(--fog-bg); }
+:root[data-theme="dark"] .viewport .fog-line { stroke: color-mix(in srgb, var(--sky) var(--sky-k), #f3e6cf); stroke-opacity: .18; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) .viewport { --sky: var(--sky-d); --sky-o: var(--sky-do); --sky-k: var(--sky-dk); --vig: var(--vig-d); --fog-lit: var(--fog-bg); }
+  :root:not([data-theme]) .viewport .fog-line { stroke: color-mix(in srgb, var(--sky) var(--sky-k), #f3e6cf); stroke-opacity: .18; } }
+.viewport .off-bg { fill: var(--off-lit); }
+.viewport .fog-bg { fill: var(--fog-lit); }
+.dusk { fill: url(#vignette); pointer-events: none; }
+.dusk-in, .dusk-out { stop-color: rgb(16 20 56); stop-opacity: 0; }
+.dusk-out { stop-opacity: var(--vig, 0); }
 .board-svg { position: absolute; left: 0; top: 0; display: block; transform-origin: 0 0; }
 .board-svg.glide { transition: transform .25s ease-out; }
 .cell { cursor: pointer; outline: none; }
@@ -170,17 +197,31 @@ details li + li { margin-top: 6px; }
 .key span { display: inline-flex; align-items: center; gap: 6px; }
 .key svg { width: 26px; height: 26px; flex: none; border-radius: 4px; background: var(--floor); }
 
-/* Table */
-.statusbar { display: flex; align-items: center; gap: 12px; padding: 10px 14px; margin: 0 60px 14px 0; min-height: 64px; }
-.sun { width: 74px; height: 40px; flex: none; }
-.sun .tick { stroke: var(--ink2); stroke-width: 2.5; stroke-linecap: round; opacity: .35; }
-.sun .tick.left { stroke: #e08a1e; opacity: 1; }
-.sun .disc { fill: #f2a531; stroke: #9a5a00; stroke-width: 1.5; }
-.sun .horizon { stroke: var(--ink2); stroke-width: 1.5; }
-.statusbar .who { min-width: 0; flex: 1; }
-.statusbar strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.statusbar span { display: block; font-size: 14px; color: var(--ink2); }
-.statusbar .short { display: none; }
+/* Table. The status bar: whose turn, the sun track and the dragon chip (and on phones a tiles chip); wide by default,
+   one compact line on phones (below). The track: --at is this sun's place from 0 to 1; the notches are spread edge to
+   edge, so notch k's middle is k/(n-1) of the way less half a notch each end. The elapsed fill is --sun-fill, 3:1 or
+   better on the glass in both themes (light #a35400 about 5:1, dark #f2a531 about 8:1); the last five notches are
+   the danger colour. */
+.statusbar { --sun-fill: #a35400; display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 10px 16px; margin: 0 60px 14px 0; min-height: 64px; }
+:root[data-theme="dark"] .statusbar { --sun-fill: #f2a531; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .statusbar { --sun-fill: #f2a531; } }
+.statusbar .who { flex: 0 1 auto; min-width: 3em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.suntrack { flex: 1 1 240px; min-width: 100px; max-width: 560px; display: flex; align-items: center; gap: 8px; }
+.track { --nw: 3px; position: relative; flex: 1; min-width: 0; height: 24px; }
+.track > i { position: absolute; top: 50%; display: block; }
+.track .rail { left: 0; right: 0; height: 2px; margin-top: -1px; background: var(--fill); }
+.track .fill { left: 0; width: calc(var(--at) * (100% - var(--nw)) + var(--nw) / 2); height: 4px; margin-top: -2px; border-radius: 2px; background: var(--sun-fill); }
+.track .notches { position: absolute; inset: 0; display: flex; justify-content: space-between; align-items: center; }
+.track .notches i { width: var(--nw); height: 10px; border-radius: 1px; background: var(--ink2); }
+.track .notches i.past { background: var(--sun-fill); }
+.track .notches i.late { height: 16px; background: var(--danger); }
+.track .sunmark { left: calc(var(--at) * (100% - var(--nw)) + var(--nw) / 2); width: 18px; height: 18px; translate: -50% -50%; border-radius: 50%;
+  background: #f2a531; border: 2px solid #8a4b00; box-shadow: 0 0 0 2px var(--solid); }
+.suntrack .horizon { flex: none; width: 18px; height: 14px; color: var(--danger); }
+.suntrack .left { flex: none; font-size: 14px; color: var(--ink2); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chip { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chip svg { width: 15px; height: 15px; flex: none; }
+.chip.tilesleft { display: none; }
 .tablegrid { display: grid; gap: 14px; }
 .tablegrid > * { min-width: 0; }
 .tablegrid .panel { scroll-margin-top: 76px; }
@@ -310,6 +351,13 @@ details li + li { margin-top: 6px; }
 .cover h2 { font: 700 30px/1.15 var(--num); overflow-wrap: anywhere; }
 .cover p { margin: 0; color: var(--ink2); }
 .cover .banner { margin: 0; width: 100%; }
+/* The dusk banner (5 and 3 rounds left): the outcome card's family, lighter, over the top of the board, gone by itself. */
+#dusk { position: fixed; z-index: 18; left: 50%; top: calc(max(10px, env(safe-area-inset-top)) + 116px); translate: -50% 0; width: min(100% - 32px, 360px);
+  padding: 12px 18px; border-radius: 20px; display: grid; gap: 2px; text-align: center; box-shadow: 0 8px 30px rgba(0, 0, 0, .3); cursor: pointer; animation: duskin .35s ease-out; }
+#dusk[hidden] { display: none; }
+#dusk strong { font: 700 20px/1.2 var(--num); }
+#dusk span { font-size: 15px; color: var(--ink); }
+@keyframes duskin { from { opacity: 0; translate: -50% -10px; } }
 #toast { position: fixed; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); translate: -50% 0; z-index: 21; padding: 10px 16px; border-radius: 999px; background: var(--ink); color: var(--canvas); font-size: 15px; }
 
 /* The round X at the top right of a sheet (the menu's close glyph), beside Close or Done and Esc. */
@@ -358,10 +406,20 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 /* Any phone, portrait or landscape (PHONE in app.js): the one-line status and the map buttons floating in its
    top right corner over a map that takes all the room it is given. */
 @media (max-width: 819.98px) and (orientation: portrait), (orientation: landscape) and (max-height: 540px) {
-  .statusbar .sun, .statusbar .long { display: none; }
-  .statusbar .who { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 8px; white-space: nowrap; } /* a long name wraps rather than being cut */
-  .statusbar strong { min-width: 0; font-size: 15px; }
-  .statusbar .short { display: inline; flex: none; font-size: 13px; }
+  .statusbar { gap: 2px 8px; }
+  .statusbar .who { font-size: 15px; }
+  .statusbar .turnword { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* the name alone, said in full */
+  .suntrack { flex-basis: 120px; min-width: 96px; gap: 5px; }
+  .track { --nw: 2px; height: 18px; }
+  .track .notches i { height: 7px; }
+  .track .notches i.late { height: 12px; }
+  .track .sunmark { width: 13px; height: 13px; border-width: 1.5px; }
+  .suntrack .horizon { width: 14px; height: 11px; }
+  .suntrack .left, .chip { font-size: 13px; }
+  .suntrack .left .w, .chip .w { display: none; }
+  .chip { gap: 3px; padding: 2px 7px; }
+  .chip svg { width: 13px; height: 13px; }
+  .chip.tilesleft { display: inline-flex; }
   #table .board-panel { flex: 1; min-height: 140px; display: flex; flex-direction: column; padding: 6px; }
   #table .board-host, #table .map { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #table .map { position: relative; }
@@ -516,6 +574,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   </div>
 </div>
 
+<div class="glass" id="dusk" aria-hidden="true" hidden><strong id="duskTitle"></strong><span id="duskLine"></span></div>
 <p id="toast" role="status" hidden></p>
 <p class="sr" id="said" role="status" aria-live="polite"></p>
 
