@@ -29,7 +29,7 @@ export default [
   { id: 'RSEARCH_002', copies: 1, status: 'draft', name: 'Centipede', text: '', deck: 'ROOM_SEARCH', kind: 'event', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D12' } }],
     notes: 'Owner catalogue 2026-11-19 (RS-002). Draft until the owner approves.' },
   { id: 'RSEARCH_003', copies: 5, status: 'draft', name: 'Secret door', text: '', deck: 'ROOM_SEARCH', kind: 'secret-door', effects: [{ op: 'OPEN_TEMPORARY_PASSAGE', side: 'any-orthogonal' }],
-    notes: 'Owner catalogue 2026-11-19 (RS-003, 5 copies). One use: the hero may move on at once through a wall to any neighbouring square; the wall is not opened for good (existing rule R56, D11). Draft until the owner approves.' },
+    notes: 'Owner catalogue 2026-11-19 (RS-003, 5 copies). One use: the hero may move on at once through a wall to any neighbouring square; the wall is not opened for good (existing rule R56, D11). The one-use move through a wall is supported by the printed rules (2023 rules 7), as the owner classified it in spec v11, 2026-11-20. Draft until the owner approves.' },
   { id: 'RSEARCH_004', copies: 1, status: 'draft', name: 'Costume jewelry', text: '', deck: 'ROOM_SEARCH', kind: 'treasure', gold: 200, cardDisposition: 'RETAIN_HELD',
     notes: 'Owner catalogue 2026-11-19 (RS-004). Treasure worth 200 gold, kept; no other ability. Draft until the owner approves.' },
   { id: 'RSEARCH_005', copies: 1, status: 'draft', name: 'Ring', text: '', deck: 'ROOM_SEARCH', kind: 'treasure', gold: 90, cardDisposition: 'RETAIN_HELD',

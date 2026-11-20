@@ -23,7 +23,7 @@ export const MAX_PLAYERS = 4;
 export const DEFAULT_RULES = {
   // D06: the dark effect on the initial reveal and on a flee back in, not on ordinary re-entry; or 'EVERY_ENTRY'.
   darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY',
-  forcedMoveTileEffects: true, // plan 13 #3 default: tile effects at the post-wake forced-move target apply as for flight (D16)
+  forcedMoveTileEffects: true, // plan 13 #3, owner spec v11 decision 6: tile entry effects at the post-wake forced-move target apply as for flight (D16), never a room card
   soloCombat: 'target', // D17: 'target' (original, manual result entry) or 'abc-digital-variant' (class 4, labelled)
   towerAtSunsetCountsAsEscape: false, // D32: a hero in a tower at sunset who never chose Escape is not escaped
   escapeWithoutExploring: false, // D33: a hero still in its start tower is never offered Escape

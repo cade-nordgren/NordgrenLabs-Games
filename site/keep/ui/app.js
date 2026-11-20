@@ -42,7 +42,7 @@ const KEY = 'nl-keep-v1';
 // come from the engine's RULE_TAGS. Entries in RULE_TAGS but not in the rules config are fixed rulings.
 const RULE_INFO = {
   darkRoomPolicy: v => ['D06', v === 'EVERY_ENTRY' ? 'Every entry into a dark room makes you roll your way out.' : 'A dark room acts when it is first revealed and when you flee back into it; walking back in is safe.'],
-  forcedMoveTileEffects: v => ['Open point 3 (with D16, D19)', v ? 'Room effects apply where the dragon drives a hero.' : 'No room effects there.'],
+  forcedMoveTileEffects: v => ['D19 (spec v11, with D16)', v ? 'Room effects apply where the dragon drives a hero, but no room card is drawn.' : 'No room effects there.'],
   soloCombat: v => ['D17', v === 'target' ? 'Solo fights use the target with results entered by hand.' : 'A, B or C against a computer pick: a digital variant, not an original rule.'],
   towerAtSunsetCountsAsEscape: v => ['D32', v ? 'A hero in a tower at sunset counts as escaped.' : 'A hero in a tower at sunset who never chose Escape is inside at sunset: not escaped, not dead.'],
   escapeWithoutExploring: v => ['D33', v ? 'A hero may escape straight from the start tower.' : 'A hero still in the start tower is never offered Escape.'],

@@ -149,33 +149,33 @@ Card entries (the status is in each card's `notes`):
 | Entry | Status |
 |---|---|
 | MONSTER_006, MONSTER_014, MONSTER_015 (the FP cells) | DIRECT 2023 RULE |
-| ROOM_004 Torch goes out | DIRECT 2023 CARD |
+| ROOM_004 Torch goes out | DIRECT 2023 CARD (the turn going on after relighting: supported by the card instructions, spec v11, 2026-11-20) |
 | ROOM_008 Ceiling collapses | 1985-SUPPORTED INTERPRETATION |
 | ROOM_014, SEARCH_001, RSEARCH_008, CHEST_009, DOOR_005 Shuffle again (door since spec v6, the other four since spec v7) | 1985-SUPPORTED INTERPRETATION |
-| ROOM_001 Poisonous snakes, ROOM_003 Poisonous mist, ROOM_005 Explosion (trap classification) | 1985-SUPPORTED INTERPRETATION |
-| TREASURY_013 to TREASURY_033 (coins) | PROVISIONAL/INFERRED |
+| ROOM_001 Poisonous snakes, ROOM_003 Poisonous mist, ROOM_005 Explosion (trap classification) | 1985-SUPPORTED INTERPRETATION (the mist and explosion skipped turns: owner-approved interpretation in the notes, spec v11, 2026-11-20, no second `Status:` label) |
+| TREASURY_013 to TREASURY_033 (coins) | PROVISIONAL/INFERRED (kept flagged by spec v11, 2026-11-20; not directly verified) |
 | ROOM_002, RSEARCH_001, SEARCH_007, CHEST_006 (small flask) | OWNER_APPROVED_INTERPRETATION (the no-cap rule, relabelled 2026-11-20, was PROVISIONAL/INFERRED; the free-use timing, spec v10) |
-| ROOM_007 Wizard's curse (trap or not) | PROVISIONAL/INFERRED (owner interpretation, spec v8: not a trap, so no Protection Ring; not an expressly stated rule) |
+| ROOM_007 Wizard's curse (trap or not) | PROVISIONAL/INFERRED (owner interpretation, spec v8: not a trap, so no Protection Ring; not an expressly stated rule); OWNER_APPROVED_INTERPRETATION since spec v9; the heroes staying on turned corridors too (spec v11, 2026-11-20) |
 
 Register rows:
 
 | Row | Topic | Status |
 |---|---|---|
 | D51 | FP cells | DIRECT 2023 RULE |
-| D52 | Monster combat letters B/C | PROVISIONAL/INFERRED |
+| D52 | Monster combat letters B/C | PROVISIONAL/INFERRED (kept flagged by spec v11, 2026-11-20; not directly verified) |
 | D53 | Small flask | OWNER_APPROVED_INTERPRETATION (the no-cap rule, relabelled 2026-11-20, was PROVISIONAL/INFERRED; the free-use timing, spec v10) |
-| D54 | Skipped turns (mist, explosion) | PROVISIONAL/INFERRED |
-| D55 | Trapdoor and rope (the turn after climbing out) | OWNER DECISION REQUIRED |
-| D56 | Torch goes out | DIRECT 2023 CARD |
-| D57 | Wizard's curse (heroes stay on turned corridors) | OWNER DECISION REQUIRED |
-| D58 | Giant spider (a later-turn kill ends the turn) | OWNER DECISION REQUIRED |
+| D54 | Skipped turns (mist, explosion) | OWNER_APPROVED_INTERPRETATION (spec v11, 2026-11-20; was PROVISIONAL/INFERRED) |
+| D55 | Trapdoor and rope (the turn after climbing out) | OWNER_APPROVED_INTERPRETATION (spec v11, 2026-11-20; was OWNER DECISION REQUIRED) |
+| D56 | Torch goes out | DIRECT 2023 CARD (the turn going on after relighting too, spec v11, 2026-11-20) |
+| D57 | Wizard's curse (heroes stay on turned corridors) | OWNER_APPROVED_INTERPRETATION (spec v11, 2026-11-20; was OWNER DECISION REQUIRED) |
+| D58 | Giant spider (a later-turn kill ends the turn) | OWNER_APPROVED_INTERPRETATION (spec v11, 2026-11-20; was OWNER DECISION REQUIRED) |
 | D59 | Ceiling collapses | 1985-SUPPORTED INTERPRETATION |
 | D60 | Bones | DIRECT 2023 CARD |
 | D61 | Optional draws | DIRECT 2023 RULE |
 | D62 | "Shuffle again" in all five decks (spec v7) | 1985-SUPPORTED INTERPRETATION |
 | D63 | Trap list | 1985-SUPPORTED INTERPRETATION |
-| D64 | Chamber coins | PROVISIONAL/INFERRED |
-| D65 | Play-test on owner drafts (app-only) | PROVISIONAL/INFERRED |
+| D64 | Chamber coins | PROVISIONAL/INFERRED (kept flagged by spec v11, 2026-11-20; not directly verified) |
+| D65 | Play-test on owner drafts (app-only) | approved UI copy (spec v11, 2026-11-20; was PROVISIONAL/INFERRED) |
 | D66 | Hero names | OWNER DECISION REQUIRED |
 
 ### 8.3 Still OWNER DECISION REQUIRED
@@ -183,8 +183,8 @@ Register rows:
 1. ~~Rotating room and the Protection Ring (plan 13 #41a).~~ Resolved by spec v9 (section 8.8): the proposal approved, the ring offered on every entry before the room turns (OWNER_APPROVED_INTERPRETATION, D67).
 2. ~~Wizard's curse (ROOM_007).~~ Spec v8: not a trap, by owner interpretation (section 8.7). The torch is not named either and stays unmarked.
 3. ~~"Shuffle again" in the room, room search, search and chest decks (plan 13 #51).~~ Resolved by spec v7 (section 8.6).
-4. The forced move after a wake (plan 13 #52): the engine allows only already-revealed maze tiles next to the chamber and keeps a hero with none inside with the dragon awake (D19, D40); spec v6 says "any adjacent maze tile". Not changed.
-5. D55, D57, D58 (turn after climbing out, heroes on a turned corridor, a later-turn spider kill) and D66 (hero names): not addressed by spec v6.
+4. ~~The forced move after a wake (plan 13 #52).~~ Resolved by spec v11 (section 8.11): an adjacent, already-placed maze tile, the previous handling when none exists (an owner ruling for the edge case).
+5. ~~D55, D57, D58~~ approved by spec v11 (section 8.11). D66 (hero names): the owner keeps the roster and edits names (still open as a content task).
 
 ### 8.4 Soak exposure (random legal play, owner content, seeds 5000-5599, 1/2/4 players)
 
@@ -276,6 +276,30 @@ Card entries: the four small flask copies (ROOM_002, SEARCH_007, RSEARCH_001, CH
 | D50 Protection Ring timing | ignore one trap; the rotating room is a trap (5.7) | offered once before any consequence; use cancels and consumes; decline keeps the ring; never retroactive | interpretation to confirm | OWNER_APPROVED_INTERPRETATION |
 
 Card entries: RING_1, RING_3 and RING_4 notes now say what is printed and what is an owner-approved interpretation (no `Status:` label on rings, as before); the four small flask notes add the free-use timing. Checker groups unchanged: 3 DIRECT 2023 RULE, 1 DIRECT 2023 CARD, 9 1985-SUPPORTED INTERPRETATION, 5 OWNER_APPROVED_INTERPRETATION, 21 PROVISIONAL/INFERRED. Still open: `unresolved-gameplay-2026-11-20.md`.
+
+### 8.11 Owner specification v11, 2026-11-20 (no rule change)
+
+`spec-v11-owner-2026-11-20.md` rules on the nine decisions and the settled behaviours of `unresolved-gameplay-2026-11-20.md`. No rule, card value or behaviour changes and MECHANICS_VERSION is unchanged (v10). Decisions 6 and 7 were checked against the engine in `tests/keep/spec-v11.test.js` (all matched).
+
+| Register row | Before | Now |
+|---|---|---|
+| D55 Trapdoor and rope | OWNER DECISION REQUIRED | OWNER_APPROVED_INTERPRETATION (a successful climb lets the turn go on; the rope climbs without the test and is not consumed) |
+| D58 Giant spider | OWNER DECISION REQUIRED | OWNER_APPROVED_INTERPRETATION (special procedure, flight on 3-6, a later kill ends the turn) |
+| D57 Wizard's curse, heroes on turned corridors | OWNER DECISION REQUIRED | OWNER_APPROVED_INTERPRETATION (the positioning rule) |
+| D54 Mist and explosion skipped turns | PROVISIONAL/INFERRED | OWNER_APPROVED_INTERPRETATION |
+| D19 Forced move after a wake (plan 13 #2, #52) | interpretation, stay-put provisional | OWNER_APPROVED_INTERPRETATION (an owner ruling for the edge case: adjacent already-placed tile; previous handling when none) |
+| Plan 13 #3 entry effects at the forced-move target (decision 6) | default on, verify | OWNER_APPROVED_INTERPRETATION (entry effects apply, never a room card, 2023 rules 10.1) |
+| Plan 13 #11 flight back into the lair (decision 7) | rare, verify | OWNER_APPROVED_INTERPRETATION (an entry: asleep, collect; awake, nothing; no extra movement) |
+| D44 and the other rule switches (decision 9) | no control | owner ruling: no control during the play-test, defaults preserved |
+| D07 Blocked dark-room exit | provisional | OWNER_APPROVED_INTERPRETATION (owner interpretation) |
+| D11 Secret passage through a wall | provisional | DIRECT 2023 RULE (supported by the printed rules) |
+| D01 Co-winners (plan 13 #35 closed) | house rule, tiebreak asked | OWNER_APPROVED_INTERPRETATION (tie interpretation) |
+| D56 Torch relit, the turn goes on | DIRECT 2023 CARD (the return) | DIRECT 2023 CARD (the turn going on too, supported by the card) |
+| D65 Draft banner wording | PROVISIONAL/INFERRED | approved UI copy |
+| D52 Monster combat letters B/C, D64 chamber coins | PROVISIONAL/INFERRED | unchanged: kept flagged, not directly verified |
+| Plan 13 #14 closed door during a forced move (decision 8) | engineer's default | unchanged and OPEN: `proposal-closed-door-forced-move-2026-11-20.md` |
+
+Card entries: ROOM_003, ROOM_004, ROOM_005, ROOM_007, ROOM_015, ROOM_025, SEARCH_005 (rope) and RSEARCH_003 (secret door) notes now name the spec v11 approval in words; no `Status:` label was added or changed, so the checker groups are unchanged: 3 DIRECT 2023 RULE, 1 DIRECT 2023 CARD, 9 1985-SUPPORTED INTERPRETATION, 5 OWNER_APPROVED_INTERPRETATION, 21 PROVISIONAL/INFERRED. Every entry stays draft.
 
 ### 8.5 What to look at in a browser (not done here; no in-browser test exists)
 

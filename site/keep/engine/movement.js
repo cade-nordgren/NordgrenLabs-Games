@@ -257,7 +257,7 @@ export function rollDarkExit(g, content) {
   logEvent(g, { kind: 'dark-exit', roll: d6, dir, exits: exitSides.length });
   const ex = exits(g, content, hero.seat).find(e => e.dir === dir);
   if (!ex || !ex.legal) {
-    // D07 (house rule, provisional): a blocked rolled exit keeps the hero here to roll again next turn.
+    // D07 (house rule; OWNER_APPROVED_INTERPRETATION, spec v11): a blocked rolled exit keeps the hero here to roll again next turn.
     logEvent(g, { kind: 'dark-blocked', dir, reason: ex ? ex.reason : 'off-board' });
     g.turn.endAfter = true;
     return;

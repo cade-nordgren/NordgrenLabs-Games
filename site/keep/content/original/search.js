@@ -33,7 +33,7 @@ export default [
   { id: 'SEARCH_004', copies: 5, status: 'draft', name: 'Nothing', text: '', deck: 'SEARCH', kind: 'empty',
     notes: 'Owner catalogue 2026-11-19 (SR-004, 5 copies). No effect. Draft until the owner approves.' },
   { id: 'SEARCH_005', copies: 3, status: 'draft', name: 'Rope', text: '', deck: 'SEARCH', kind: 'item', cardDisposition: 'RETAIN_HELD', frees: ['trapdoor'],
-    notes: 'Owner catalogue 2026-11-19 (SR-005, 3 copies). Kept, never used up (none is printed). After a fall through a trapdoor the hero climbs out at the start of the next turn without the Agility test and plays on (plan D55). Draft until the owner approves.' },
+    notes: 'Owner catalogue 2026-11-19 (SR-005, 3 copies). Kept, never used up (none is printed). After a fall through a trapdoor the hero climbs out at the start of the next turn without the Agility test and plays on (plan D55). Climbing without the test and never consumed: an owner-approved interpretation (owner spec v11, 2026-11-20). Draft until the owner approves.' },
   { id: 'SEARCH_006', copies: 2, status: 'draft', name: 'Coins', text: '', deck: 'SEARCH', kind: 'treasure', gold: 60, cardDisposition: 'RETAIN_HELD',
     notes: 'Owner catalogue 2026-11-19 (SR-006, 2 copies). Treasure worth 60 gold, kept; no other ability. Draft until the owner approves.' },
   { id: 'SEARCH_007', copies: 1, status: 'draft', name: 'Small flask', text: '', deck: 'SEARCH', kind: 'item', cardDisposition: 'RETAIN_HELD', use: { timing: 'free', uses: 1, afterUse: 'bottom', effects: [{ op: 'ROLL_D12', store: 'gain' }, { op: 'ROLL_D6', store: 'loss' }, { op: 'ADJUST_HP', amount: { reg: 'gain', minusReg: 'loss' }, uncapped: true }] },

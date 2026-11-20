@@ -167,3 +167,19 @@ test('spec v11 decision 7: the dragon card drawn on the flight is the awake one:
   assert.equal(since(g, n, 'may-continue').length, 0);
   assert.deepEqual([g.sun, g.phase], [sun + 1, 'CHOOSE_ACTION']);
 });
+
+// ---- Labels (spec v11): the approvals are named in the card notes in words; no Status label changed; physical details stay
+// flagged; the rule switches keep their documented defaults and have no control; every entry stays draft.
+test('spec v11 labels: notes name the approvals, the coins stay PROVISIONAL/INFERRED, the switches keep their defaults, nothing approved', async () => {
+  const { DEFAULT_RULES } = await import('../../site/keep/engine/reducer.js');
+  assert.deepEqual(DEFAULT_RULES, { darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', forcedMoveTileEffects: true, soloCombat: 'target', towerAtSunsetCountsAsEscape: false, escapeWithoutExploring: false, soloMonsterHp: 'visible', rotatingRoomRing: 'every-entry' }, 'decision 9: documented defaults preserved');
+  const all = Object.values(ORIGINAL).filter(Array.isArray).flat();
+  const notes = id => all.find(e => e.id === id).notes;
+  for (const id of ['ROOM_003', 'ROOM_005', 'ROOM_007', 'ROOM_015', 'ROOM_025', 'SEARCH_005']) assert.match(notes(id), /owner-approved interpretation,? \(?owner spec v11, 2026-11-20/, id);
+  assert.match(notes('ROOM_004'), /Status: DIRECT 2023 CARD .*supported by the card instructions, owner spec v11/);
+  assert.match(notes('RSEARCH_003'), /supported by the printed rules .*spec v11/);
+  for (const id of ['ROOM_003', 'ROOM_005']) assert.match(notes(id), /Status: 1985-SUPPORTED INTERPRETATION/, `${id}: trap classification label unchanged`);
+  for (let v = 13; v <= 33; v++) assert.match(notes(`TREASURY_0${v}`), /Status: PROVISIONAL\/INFERRED/, 'coins not directly verified');
+  assert.ok(!all.some(e => typeof e.notes === 'string' && e.notes.includes('OWNER DECISION REQUIRED')));
+  assert.deepEqual([all.filter(e => e.status === 'DRAFT').length, all.filter(e => e.status !== 'DRAFT').every(e => e.id.startsWith('TILE_'))], [162, true], 'the 162 draft entries stay draft; only the tiles (and the single board and chamber) are approved');
+});

@@ -177,7 +177,7 @@ const OPS = {
   },
   MONSTER_ENCOUNTER: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush, type: e.monster ?? null }),
   REQUEST_COMBAT: (g, c, e) => startEncounter(g, c, { ambush: !!e.ambush, type: e.monster ?? null }),
-  // D11 (provisional): a secret passage may cross a printed wall; it lasts for this turn's move only.
+  // D11 (DIRECT 2023 RULE by the owner's spec v11 classification): a secret passage may cross a printed wall; it lasts for this turn's move only.
   OPEN_TEMPORARY_PASSAGE(g, c, e, f) { g.turn.secret = e.side; logEvent(g, { kind: 'secret-passage', side: e.side }); allowContinue(g, 'secret-passage', { card: owner(g, f).card }); },
   ROTATE_TILE: (g, c, e) => rotateTile(g, active(g).coord),
   CONTINUE_MOVEMENT: (g, c, e, f) => allowContinue(g, 'card', { card: owner(g, f).card ?? null }),
