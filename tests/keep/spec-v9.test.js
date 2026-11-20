@@ -16,6 +16,7 @@ import { view, screenOwner, canUndoTo } from '../../site/keep/engine/view.js';
 import { enterTile } from '../../site/keep/engine/movement.js';
 import { edgeKey } from '../../site/keep/engine/board.js';
 import { sideOnBoard, rotationFor, SIDES, OPPOSITE } from '../../site/keep/engine/tiles.js';
+import { rotationRingWords } from '../../site/keep/ui/words.js';
 import { FX, setup, act, acts, place, putHero, draws, xy, slotsOf } from './helpers.js';
 
 const C = ORIGINAL;
@@ -398,4 +399,17 @@ test('spec v9 trapped: in all four entry directions, where the turned opening wo
     assert.deepEqual(L(used).filter(a => a.type === 'MOVE'), [{ type: 'MOVE', seat: 0, dir: came(dir) }], `${what}: used, the way back`);
     assert.deepEqual(go(used, 'MOVE', { dir: came(dir) }).heroes[0].coord, xy(from), `${what}: out again`);
   }
+});
+
+test('spec v9 prompt words (ui/words.js): the rotating room, what the turned opening would face, and the two answers', () => {
+  const line = g => rotationRingWords(g, own, g.pending.seat, 'P1').line;
+  const edge = reveal('N', '0,4', { room: '0,3' });
+  const w = rotationRingWords(edge, own, 0, 'P1');
+  assert.deepEqual([w.title, w.use, w.keep], ['A rotating room', 'The room does not turn. The ring is gone.', 'The room turns.']);
+  assert.equal(w.line, 'P1, the room is about to turn a quarter turn clockwise. Your way out would then face west: the board edge, so no way out.');
+  assert.match(line(reveal('N', '2,4', { room: '2,3', extra: g => place(g, '1,3', 'TILE_001', 90) })), /face west: a wall, so no way out\.$/);
+  assert.match(line(reveal('N', '2,4', { room: '2,3', extra: g => place(g, '1,3', 'TILE_006') })), /face west: an open room\.$/);
+  assert.match(line(reveal('N', '2,4', { room: '2,3' })), /face west: an unexplored square, but no tiles are left\.$/, 'the only tile in this bag was the room');
+  assert.match(line(go(placed(), 'MOVE', { dir: 'N' })), /face west: an unexplored square\.$/);
+  assert.equal(edge.board.tiles['0,3'].rotation, 0, 'the words do not turn the room');
 });

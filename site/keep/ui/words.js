@@ -5,6 +5,8 @@ import { legalActions } from '../engine/phases.js';
 import { contentIndex, chamberName, theChamber, chamberCards, monsterTypeName } from '../content/schema.js';
 import { mechanicsText, shownEffectText } from '../engine/describe.js';
 import { tileWords, place, DIR, towerAt, MARK_WORD } from './board.js';
+import { exits, squareKind, key } from '../engine/board.js';
+import { SIDES, sideOnBoard } from '../engine/tiles.js';
 
 export { DIR };
 export const STAT = { STR: 'Strength', AGI: 'Agility', ARM: 'Armour', LCK: 'Luck' };
@@ -185,6 +187,7 @@ export function describe(e, ctx, next) {
       return `${who(e.seat)} may keep moving: ${MAY_CONTINUE[e.reason] || 'the rules allow it'}${def && def.deck !== 'TREASURY' ? ` (${def.name})` : ''}.`;
     }
     case 'rotate': return 'The room turns a quarter clockwise.';
+    case 'rotation-ignored': return `${who(e.seat)} uses the Protection Ring. The room does not turn.`; // spec v9
     case 'gate-falls': return `A portcullis drops behind, on ${edgeWords(e.edge)}.`;
     case 'condition': return `${who(e.seat)} ${CONDITION[e.id] || (e.label ? `is affected: ${e.label.toLowerCase()}` : 'is under a lasting effect')}.`;
     case 'condition-cleared': return `${who(e.seat)} ${CONDITION_OFF[e.id] || 'is free of a lasting effect'}.`;
@@ -314,4 +317,25 @@ export const lines = (events, ctx) => entries(events, ctx).map(x => x.text);
 // dragon sequence test reads the same words the screen shows).
 export const dragonStatus = v => (v.dragon.awake ? 'The dragon is awake' : `Dragon wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`);
 export const collectWords = (v, content) => `Two ${chamberCards(content)}, then a dragon card. It wakes on ${v.dragon.odds.awake} in ${v.dragon.odds.remaining}.`;
+// Spec v9: the Protection Ring prompt at a rotating room, before it turns. Heading, one line, and the two answers. The line
+// says where the room's opening would face after the quarter turn, when it has one opening; else only that it will turn.
+export function rotationRingWords(g, content, seat, name) {
+  const hero = g.heroes[seat], k = key(hero.coord), inst = g.board.tiles[k];
+  const def = contentIndex(content).tiles.get(inst.defId);
+  const rotation = (inst.rotation + 90) % 360;
+  const open = SIDES.filter(s => sideOnBoard(def, rotation, s) !== 'wall');
+  let line = `${name}, the room is about to turn a quarter turn clockwise.`;
+  if (open.length === 1) {
+    const turned = { ...g, board: { ...g.board, tiles: { ...g.board.tiles, [k]: { ...inst, rotation } } } };
+    const ex = exits(turned, content, seat).find(e => e.dir === open[0]);
+    const kind = ex && squareKind(content.board, ex.to);
+    const what = !ex ? 'the board edge, so no way out' : ex.edge === 'wall' ? 'a wall, so no way out'
+      : ex.edge === 'unexplored' ? (ex.reason === 'no-tiles-left' ? 'an unexplored square, but no tiles are left' : 'an unexplored square')
+      : ex.edge === 'door' ? 'a door' : ex.edge === 'gate' ? 'a portcullis'
+      : kind === 'tower' ? 'a tower' : kind === 'center' ? theChamber(content) : `an open room${ex.reason === 'occupied' ? ', with a hero in it for now' : ''}`;
+    line += ` Your way out would then face ${DIR[open[0]]}: ${what}.`;
+  }
+  return { title: 'A rotating room', line, use: 'The room does not turn. The ring is gone.', keep: 'The room turns.' };
+}
+
 export const forcedMoveWords = (name, content) => ['The dragon drives you out', `${name} must move to an explored room next to ${theChamber(content)}. No room card is drawn.`];

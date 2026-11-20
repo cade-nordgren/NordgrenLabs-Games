@@ -13,7 +13,7 @@ import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, bannerLines, APP_LABEL, chamberName, theChamber, chamberCards } from '../content/schema.js';
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
 import { lines, entries, dragonStatus, collectWords, forcedMoveWords, cardText, monsterText, fightRowModel, soloStripModel, expr,
- undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords } from './words.js';
+ undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, rotationRingWords, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords } from './words.js';
 import { rollDice } from './dice.js';
 import { shownEffectText, describeEffects } from '../engine/describe.js';
 import { unitWord } from '../engine/inventory.js';
@@ -46,6 +46,7 @@ const RULE_INFO = {
   soloCombat: v => ['D17', v === 'target' ? 'Solo fights use the target with results entered by hand.' : 'A, B or C against a computer pick: a digital variant, not an original rule.'],
   towerAtSunsetCountsAsEscape: v => ['D32', v ? 'A hero in a tower at sunset counts as escaped.' : 'A hero in a tower at sunset who never chose Escape is inside at sunset: not escaped, not dead.'],
   escapeWithoutExploring: v => ['D33', v ? 'A hero may escape straight from the start tower.' : 'A hero still in the start tower is never offered Escape.'],
+  rotatingRoomRing: v => ['D67 (spec v9)', v === 'every-entry' ? "Entering a rotating room with the Protection Ring unused, you may use it so the room does not turn: on every entry, fleeing back in and the dragon's drive included. The owner's approved reading, not a printed rule." : v === 'first-reveal' ? 'The Protection Ring may stop a rotating room turning only when it is first revealed.' : 'The Protection Ring is never offered at a rotating room.'],
   soloMonsterHp: v => ['D37 (spec v4)', v === 'visible' ? "Solo: the monster's HP shows once it is revealed, as the printed rule says." : "Solo: the monster's HP stays hidden. A house rule, not the printed rule."],
 
   towerEscapeOnLaterTurns: () => ['D34', 'After Stay, Escape is offered on every later turn, the last one included.'],
@@ -1268,6 +1269,15 @@ function renderPrompt(v, la, targets) {
         p.append(combatCards(heroTurn ? heroSet : g.encounter.monster.groupId, letter => act(picks.find(a => a.letter === letter))));
         p.append(el('p', 'help', SAME), tools(history(enc)));
       }
+      break;
+    }
+    case 'RESOLVE_TILE_ENTRY': {
+      // Spec v9: entering a rotating room with the Protection Ring unused; the board still shows it unturned. On a forced
+      // move the driven hero decides, outside turn order, so the words name that seat.
+      const seat = g.pending.seat, w = rotationRingWords(g, c, seat, nameOf(seat));
+      p = panel(w.title, w.line);
+      for (const a of by('USE_RING')) ch.append(choice(`Use ${ringOfSeat(seat).name}`, w.use, () => act(a), 'primary'));
+      for (const a of by('DECLINE_RING')) ch.append(choice('Keep the ring', w.keep, () => act(a)));
       break;
     }
     case 'FORCED_MOVE': {
