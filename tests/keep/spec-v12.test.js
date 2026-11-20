@@ -10,7 +10,7 @@ import { view } from '../../site/keep/engine/view.js';
 import { cardDef } from '../../site/keep/engine/decks.js';
 import { actionCards, resultCards, cardQueue, cardSpeech, latestTurn, OUTCOME_TAG } from '../../site/keep/ui/results.js';
 import { rollKind, rollWords, ROLL_KINDS, namedSteps, choiceSteps, formulaWords } from '../../site/keep/ui/words.js';
-import { SCENARIOS, build, CONTENT } from '../../tools/keep-scenario.js';
+import { SCENARIOS, build, CONTENT, lair, tile, hero, dragonTop } from '../../tools/keep-scenario.js';
 
 const C = CONTENT;
 const src = f => readFileSync(new URL(`../../site/keep/${f}`, import.meta.url), 'utf8');
@@ -349,4 +349,110 @@ test('spec v12 fix 5: the UI never gates state on frames or animation events; Co
   assert.match(app, /document\.addEventListener\('visibilitychange'[\s\S]*?else if \(S\.game && !held\) render\(\);/, 'back in view: drawn again');
   assert.match(src('ui/dice.js'), /return new Promise\(done => setTimeout\(/, 'the dice settle on a timer');
   assert.match(src('ui/dice.js'), /still\(\) \|\| document\.hidden/, 'no tumble while hidden');
+});
+
+// ---- Owner ruling, spec v12 (trapped heroes): the dragon's forced move may cross a wall (D19); a hero it traps follows
+// the tile's own rules, is offered only genuinely legal actions, gets no rescue, teleport or extra exit, the others play
+// on, and at sunset the trapped hero is inside (not escaped, gold not counted) or dead. No rule changed here.
+// Two players: player 1 alone in the lair is driven onto 4,4 (the only revealed square next to it); player 2 plays at 7,7.
+function trapped(tiles, dice) {
+  const g0 = lair(1, { players: 2, inside: [0], tiles });
+  tile(g0, '7,7', 'TILE_006');
+  hero(g0, 1, '7,7');
+  dragonTop(g0, 'DRAGON_8');
+  return scripted(g0, dice, [{ type: 'COLLECT' }, { type: 'FORCED_MOVE', to: '4,4' }]);
+}
+// Actions with the given dice (the dragon fire, a test), then the seeded dice again.
+function scripted(g, dice, wants) {
+  g = structuredClone(g);
+  g.rng.script = [...dice];
+  for (const want of wants) { const a = pick(g, want); assert.ok(a, `legal: ${JSON.stringify(want)} in ${g.phase}`); g = reduce(g, a, C); }
+  assert.deepEqual(g.rng.script, [], 'every scripted die was used');
+  g.rng.script = null;
+  return g;
+}
+const at44 = h => h.coord.x === 4 && h.coord.y === 4;
+// Every action offered is genuinely legal: it resolves without the engine refusing it.
+const allResolve = g => { for (const a of legalActions(g, C)) { const x = structuredClone(g); x.rng.script = Array(12).fill(1); x.rng.script.push(...Array(12).fill(6)); assert.doesNotThrow(() => reduce(x, a, C), JSON.stringify(a)); } };
+// Player 2 takes a quiet turn (stop, search, or the first offered); a fight or a card may follow, played the same way.
+function othersTurn(g) {
+  for (let k = 0; k < 30 && g.status === 'playing' && g.activeSeat === 1; k++) {
+    const la = legalActions(g, C);
+    g = reduce(g, la.find(a => a.type === 'STOP') || la.find(a => a.type === 'SEARCH') || la[0], C);
+  }
+  return g;
+}
+// Play on to sunset from round 26: the trapped hero takes `mine` each turn, player 2 quiet turns.
+function toSunset(g, mine) {
+  g = structuredClone(g);
+  g.round = g.sun = 26;
+  for (let k = 0; k < 80 && g.status === 'playing'; k++) g = g.activeSeat === 1 ? othersTurn(g) : mine(g);
+  assert.equal(g.status, 'over');
+  return g;
+}
+function sunsetResult(g) {
+  const h = g.heroes[0];
+  assert.notEqual(h.status, 'ESCAPED');
+  assert.ok(!g.result.escaped.some(e => e.seat === 0), 'not escaped: gold not counted');
+  if (h.status !== 'DEAD') {
+    assert.equal(h.endResult, 'INSIDE_AT_SUNSET');
+    assert.ok(g.log.some(e => e.kind === 'lost-at-sunset' && e.seat === 0));
+  }
+}
+
+test('spec v12 owner ruling: driven onto the well through its wall side, the hero takes the entry test, then can only jump (each jump a death risk); no climb back, no other way off', () => {
+  let g = trapped([['4,4', 'TILE_017', 90]], [3, 1]); // fire 3; the well entry Agility test: 1 passes
+  const h = () => g.heroes[0];
+  assert.ok(at44(h()) && h().status === 'EXPLORING');
+  assert.ok(g.log.some(e => e.kind === 'test' && e.reason === 'well entry' && e.seat === 0), 'the entry test (a tile rule) was taken');
+  assert.deepEqual(h().roomState, { special: 'well', entryEdge: 'S', phase: 'AT_NEAR_EDGE' }, 'the entry edge is the wall side it was driven through');
+  assert.equal(g.activeSeat, 1, 'play goes on for player 2');
+  assert.ok(legalActions(g, C).some(a => a.type === 'MOVE'), 'player 2 has ordinary moves');
+  g = othersTurn(g);
+  assert.equal(g.activeSeat, 0);
+  assert.deepEqual(legalActions(g, C).map(a => a.type), ['WELL_JUMP'], 'near edge: no Climb back (that side is a wall) and no cards to drop (lost to the dragon)');
+  allResolve(g);
+  const dead = scripted(g, [12], [{ type: 'WELL_JUMP' }]);
+  assert.equal(dead.heroes[0].status, 'DEAD', 'a failed jump is death');
+  g = scripted(g, [1], [{ type: 'WELL_JUMP' }]);
+  assert.equal(h().roomState.phase, 'CROSSED');
+  assert.ok(at44(h()), 'no teleport: still on the well');
+  g = othersTurn(g);
+  assert.deepEqual(legalActions(g, C).map(a => a.type), ['WELL_JUMP'], 'far edge: also a wall, so only the jump back');
+  g = scripted(g, [1], [{ type: 'WELL_JUMP' }]);
+  assert.equal(h().roomState.phase, 'AT_NEAR_EDGE', 'back and forth');
+  sunsetResult(toSunset(g, x => scripted(x, [1], [{ type: 'WELL_JUMP' }])));
+});
+
+test('spec v12 owner ruling: straight rubble through its wall side: only forcing it (no going back through the wall); a pass opens its own ways', () => {
+  let g = othersTurn(trapped([['4,4', 'TILE_016', 90]], [3]));
+  assert.ok(g.heroes[0].conditions.some(c => c.id === 'rubble'), 'stuck in the rubble (a tile rule)');
+  assert.deepEqual(legalActions(g, C).map(a => a.type), ['RUBBLE_FORCE']);
+  allResolve(g);
+  const failed = scripted(g, [12], [{ type: 'RUBBLE_FORCE' }]);
+  assert.ok(at44(failed.heroes[0]) && failed.activeSeat === 1, 'a fail ends the turn there');
+  const forced = scripted(g, [1], [{ type: 'RUBBLE_FORCE' }]);
+  const dirs = legalActions(forced, C).filter(a => a.type === 'MOVE').map(a => a.dir).sort();
+  assert.deepEqual(dirs, ['E', 'W'], 'a pass: only the rubble\'s own open sides, never back through the wall');
+  sunsetResult(toSunset(g, x => scripted(x, [12], [{ type: 'RUBBLE_FORCE' }])));
+});
+
+test('spec v12 owner ruling: a dead end whose opening faces a wall: no move is offered, only what the room allows (a search), and play goes on', () => {
+  let g = othersTurn(trapped([['4,4', 'TILE_003', 180], ['4,3', 'TILE_007', 90]], [3]));
+  assert.deepEqual(legalActions(g, C).map(a => a.type), ['SEARCH'], 'a black room: searching is genuinely legal; no exit, no rescue');
+  allResolve(g);
+  sunsetResult(toSunset(g, x => reduce(x, legalActions(x, C).find(a => a.type === 'SEARCH') || legalActions(x, C)[0], C)));
+});
+
+test('spec v12 owner ruling: the rotating room turned to face a wall on the forced entry: only the forced skip, every turn, until sunset', () => {
+  let g = trapped([['4,4', 'TILE_014', 0], ['3,4', 'TILE_007', 0]], [3]);
+  assert.ok(g.log.some(e => e.kind === 'rotate' && e.at === '4,4'), 'the room turned on entry (a tile rule)');
+  g = othersTurn(g);
+  assert.deepEqual(legalActions(g, C).map(a => a.type), ['FORCED_SKIP'], 'its opening faces the wall of 3,4: no way out');
+  allResolve(g);
+  g = reduce(g, pick(g, { type: 'FORCED_SKIP' }), C);
+  assert.ok(at44(g.heroes[0]) && g.activeSeat === 1, 'no rescue: the turn passes to player 2');
+  const end = toSunset(g, x => reduce(x, legalActions(x, C)[0], C));
+  sunsetResult(end);
+  assert.equal(end.heroes[0].endResult, 'INSIDE_AT_SUNSET', 'alive and inside at sunset: the castle keeps them');
 });
