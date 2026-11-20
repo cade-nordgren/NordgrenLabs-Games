@@ -82,7 +82,7 @@ test('spec v12 fix 1 and 2: the trapdoor: the Luck test fails, then the fall: it
 test('spec v12 fix 1: a chest that draws "Shuffle again": one card says the cards were shuffled, then the replacement has its own card', () => {
   const [first, open] = run('chest-shuffle');
   assert.equal(first.cards.length, 1);
-  assert.match(first.cards[0].what[1], /^Choose: Open the chest or Leave it\.$/);
+  assert.match(first.cards[0].what[1], /^Open the chest or leave it\.$/);
   assert.equal(first.cards[0].results.at(-1).tag, 'action');
   assert.equal(open.cards.length, 2, text(open.cards));
   assert.equal(open.cards[0].title, 'Shuffle again');
@@ -455,4 +455,33 @@ test('spec v12 owner ruling: the rotating room turned to face a wall on the forc
   const end = toSunset(g, x => reduce(x, legalActions(x, C)[0], C));
   sunsetResult(end);
   assert.equal(end.heroes[0].endResult, 'INSIDE_AT_SUNSET', 'alive and inside at sunset: the castle keeps them');
+});
+
+// Browser re-test (2026-11-20): a drawn card's line is its name and one short plain sentence everywhere it is worded
+// (the log, "What just happened", the result card, the live region); the full steps are on the prompt.
+test('spec v12 follow-up: every owner card, ring and weapon is worded short and plain (log line, result card, items)', async () => {
+  const { shownEffectText, describeEffects } = await import('../../site/keep/engine/describe.js');
+  const { entries } = await import('../../site/keep/ui/words.js');
+  const { chamberName } = await import('../../site/keep/content/schema.js');
+  const CITE = /\b(RB|SP) \d|\bD(0\d|1[01]|[2-9]\d)\b|\bR\d{2,3}\b|NON-AUTHENTIC|NEEDS OWNER/;
+  const named = list => JSON.stringify(list || []).includes('"NAME_NUMBERS"');
+  const plain = (t, where, def) => {
+    assert.ok(t.length <= 140, `${where}: ${t.length} characters: ${t}`);
+    assert.doesNotMatch(t, CITE, `${where}: no rule citations`);
+    if (def.kind !== 'reshuffle') assert.doesNotMatch(t, /bottom of|shuffled|removed from|#\d/i, `${where}: no deck bookkeeping`); // a reshuffle card's line says so plainly (spec v7)
+    if (named(def.effects)) assert.doesNotMatch(t, /nothing happens/i, `${where}: a named-number success is never "nothing happens"`);
+  };
+  let n = 0;
+  for (const k of ['room', 'search', 'roomSearch', 'chest', 'door', 'treasury']) for (const def of C[k]) {
+    const e = { seq: 1, kind: 'draw', deck: def.deck, seat: 0, value: `${def.id}#1`, cardName: def.name, effectText: shownEffectText(def, chamberName(C)) };
+    const [line] = entries([e], { content: C, name: () => 'Ann' });
+    plain(line.text, `${def.id} log line`, def);
+    for (const c of resultCards([e], { content: C, name: () => 'Ann', nextPending: null })) plain(cardSpeech(c).replace(/^.*?\. /, ''), `${def.id} result card`, def);
+    n += 1;
+  }
+  for (const def of [...C.rings, ...C.specialWeapons]) plain(shownEffectText(def, chamberName(C)), def.id, def);
+  assert.ok(n >= 60, `${n} owner cards checked`);
+  const spider = C.room.find(d => d.name === 'Giant spider');
+  assert.equal(entries([{ seq: 1, kind: 'draw', deck: 'ROOM', seat: 0, value: `${spider.id}#1`, cardName: spider.name, effectText: shownEffectText(spider, chamberName(C)) }], { content: C, name: () => 'Ann' })[0].text, 'Room card: Giant spider. Fight or flee.');
+  assert.doesNotMatch(describeEffects(spider.effects), /nothing happens/, 'the full wording calls the spider\'s defeat a success too');
 });

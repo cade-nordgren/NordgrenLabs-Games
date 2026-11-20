@@ -28,8 +28,6 @@ function cardSummary(def, content) {
   if (def.text) return def.text;
   if (def.kind === 'reshuffle' && def.deck !== 'DOOR') return `Shuffle the ${deckWord(def.deck, content)} back and draw another.`;
   const first = def.effects?.[0];
-  if (first?.op === 'REQUEST_CHOICE') return `Choose: ${first.options.map(o => o.label).join(' or ')}.`;
-  if (first?.op === 'NAME_NUMBERS') return `Name ${first.count === 1 ? 'a number' : `${first.count} numbers`}, then roll a D6.`;
   const said = effectText(def, chamberName(content));
   if (said.length <= 140) return said;
   // A long chain of effects: what kind of thing it is; the dice and result lines below say what came of it.

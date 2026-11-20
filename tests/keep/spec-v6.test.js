@@ -70,7 +70,7 @@ test('spec v6 ceiling: a match on the first D6 kills with no second roll; a miss
   const said = entries(hurt.log, { content: T, name: s => `P${s + 1}` });
   assert.ok(said.some(x => /named 4 and rolled 2: no match/.test(x.text)));
   assert.ok(said.some(x => /takes 5 damage from the card/.test(x.text) && /D6 5/.test(x.detail)));
-  assert.match(shownEffectText(byId('room', 'ROOM_008')), /if it shows that number, you die; if not, roll a D6, you take damage equal to the roll/);
+  assert.match(shownEffectText(byId('room', 'ROOM_008')), /if it shows that number, you die; if not, you take a D6 damage/);
 });
 
 // ---- 3. Door "shuffle again": back in, shuffled, the replacement drawn at once.
