@@ -300,7 +300,7 @@ function drawCard(card, i, n) {
   if (card.dice.length) body.push(dice);
   body.push(out);
   $('rollBody').replaceChildren(...body);
-  const ok = el('button', 'btn primary', i + 1 < n ? 'Next' : 'Continue');
+  const ok = el('button', 'btn primary', 'Continue'); // "1 of 3" above says more follow
   ok.onclick = () => queue.next(); // spec v12 fix 5: the next card, or the table, at once in this handler
   $('rollBtns').replaceChildren(ok);
   d.dataset.mode = 'result';
@@ -1733,7 +1733,8 @@ $('roll').addEventListener('close', () => {
 });
 // The fight's end card: Continue, Enter or Space on it, Esc, or a tap anywhere.
 $('outcome').onclick = outcomeDone;
-$('outcome').addEventListener('close', outcomeDone);
+// The close event arrives as a later task: by then outcomeDone may have opened the dusk notice in the same dialog.
+$('outcome').addEventListener('close', () => { if (!$('outcome').open) outcomeDone(); });
 $('dusk').onclick = () => { $('dusk').hidden = true; };
 $('inspectDone').onclick = () => $('inspect').close();
 $('itemsDone').onclick = () => $('items').close();
