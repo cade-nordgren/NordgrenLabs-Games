@@ -155,7 +155,7 @@ Card entries (the status is in each card's `notes`):
 | ROOM_001 Poisonous snakes, ROOM_003 Poisonous mist, ROOM_005 Explosion (trap classification) | 1985-SUPPORTED INTERPRETATION |
 | TREASURY_013 to TREASURY_033 (coins) | PROVISIONAL/INFERRED |
 | ROOM_002, RSEARCH_001, SEARCH_007, CHEST_006 (small flask) | PROVISIONAL/INFERRED |
-| ROOM_007 Wizard's curse (trap or not) | OWNER DECISION REQUIRED |
+| ROOM_007 Wizard's curse (trap or not) | PROVISIONAL/INFERRED (owner interpretation, spec v8: not a trap, so no Protection Ring; not an expressly stated rule) |
 
 Register rows:
 
@@ -180,8 +180,8 @@ Register rows:
 
 ### 8.3 Still OWNER DECISION REQUIRED
 
-1. Rotating room and the Protection Ring (plan 13 #41a): the earlier ruling (no) and spec v6 (do not decide yet) disagree. The ring is not offered there now.
-2. Wizard's curse (ROOM_007): not named either way by spec v6; left unmarked (plan 13 #47). The torch is not named either and stays unmarked.
+1. Rotating room and the Protection Ring (plan 13 #41a): reopened by spec v8 (2023 rules 5.7 calls the room a trap); investigated, not changed, in `proposal-rotating-room-ring-2026-11-19.md` (section 8.7). The ring is not offered there now.
+2. ~~Wizard's curse (ROOM_007).~~ Spec v8: not a trap, by owner interpretation (section 8.7). The torch is not named either and stays unmarked.
 3. ~~"Shuffle again" in the room, room search, search and chest decks (plan 13 #51).~~ Resolved by spec v7 (section 8.6).
 4. The forced move after a wake (plan 13 #52): the engine allows only already-revealed maze tiles next to the chamber and keeps a hero with none inside with the dragon awake (D19, D40); spec v6 says "any adjacent maze tile". Not changed.
 5. D55, D57, D58 (turn after climbing out, heroes on a turned corridor, a later-turn spider kill) and D66 (hero names): not addressed by spec v6.
@@ -216,6 +216,18 @@ The owner's decision (`spec-v7-owner-2026-11-19.md`) settles 8.3 item 3: the pro
 | Door DOOR_005 | as spec v6 | unchanged (same events and state, byte for byte, over 200 seeded door draws) |
 
 In every deck another shuffle card repeats the procedure; no extra turn, no cancelled action, no extra card. One shared engine path (`redraw` in `effects.js`). `tests/keep/spec-v7.test.js` covers each deck: the replacement in the same action, two shuffle draws in a row, card counts and ids conserved, held cards left out of the shuffle, the turn unchanged, and the checker refusing a deck of shuffle cards alone.
+
+### 8.7 Owner specification v8
+
+`spec-v8-owner-2026-11-19.md`. No rule change and no MECHANICS_VERSION bump.
+
+| Item | Before | Now |
+|---|---|---|
+| Rotating room and the Protection Ring (plan 13 #41a) | OWNER DECISION REQUIRED (earlier ruling and spec v6 disagree); ring not offered | Still OWNER DECISION REQUIRED, reopened: 2023 rules 5.7 calls the room a trap and says nothing about rings. `proposal-rotating-room-ring-2026-11-19.md` sets out the timing, positioning on the owner tile, design and 19 test cases. Ring still not offered |
+| Wizard's curse ROOM_007 (plan 13 #47) | OWNER DECISION REQUIRED; ring not offered | PROVISIONAL/INFERRED: an owner-directed interpretation (the card does not call its rotation a trap), not an expressly stated rule. None of the five labels names an owner interpretation; this is the nearest. Ring still not offered. D57 (heroes stay on turned corridors) unchanged, still OWNER DECISION REQUIRED |
+| "Shuffle again" in multiplayer | solo tests only (spec v7) | `tests/keep/spec-v8.test.js`: 2 players (seat 1 first) and 4 players (seat 2 first), all five decks, one and two shuffle cards in a row, against the same scenario with the replacement drawn directly: identical state, views per seat and screen owner; prompts to the acting seat; a monster replacement committed before the card exists, controlled by the right-hand seat, its card, HP and reaction hidden from everyone else; ring prompt before any die; private log entries private; the turn passes to the next seat. No defect found |
+
+With the curse settled, no catalogue entry carries OWNER DECISION REQUIRED, so the play-test banner no longer says one waits on a ruling; the open owner decisions (13 #41a, D55, D57, D58, D66) are plan rows, not card statuses.
 
 ### 8.5 What to look at in a browser (not done here; no in-browser test exists)
 
