@@ -17,7 +17,7 @@ Stage 1 (this section) is the audit before code: what the engine already support
 | Encounter flow | commit before reveal, reaction keyed by (card, type, choice), strike then fight/escape, hidden HP in multiplayer, solo HP visible | `monsters.js` row-form cards (R64-R78, D37, D44) | correct; content was missing |
 | Ambush | D12 - Luck, then Attack or Flee (no Wait), weapon allowed | `startEncounter` (R78, D41) | correct |
 | Damage floor | negative results never heal | `damageHero` (D03) | correct |
-| Reshuffle card | "shuffle again" reshuffles its own pile; used cards go back under their own deck | `finishFrame` + `RESHUFFLE_DECK` (R59, R62; 2023 rules box after 8.1) | correct |
+| Reshuffle card | "shuffle again" reshuffles its own pile; used cards go back under their own deck | `finishFrame` + `RESHUFFLE_DECK` (R59, R62; 2023 rules box after 8.1); since spec v7 every shuffle card is also replaced by another draw from its deck at once (`redraw`, D62) | correct |
 | Secret door | one-use crossing of a wall to any neighbouring square, this turn | `OPEN_TEMPORARY_PASSAGE any-orthogonal` (R56, D11) | correct |
 | Treasure scoring | kept room/search/chest treasure and chamber cards count at escape; chamber cards are lost on a wake | `heroGold`, `returnTreasury` (R82, R88, D25) | correct |
 | Door outcomes | opens / stays shut (try another way this turn) / trap (turn ends) | `doorOutcome` (R46-R50) | correct; content was missing |
@@ -93,13 +93,13 @@ Every interpretation is a register row (plan section 9, D51-D66). Items marked *
 
 | Category | Source counted | Implemented | Tested in Node | Owner approved |
 |---|---|---|---|---|
-| Room deck | 60 (27 variants), photo-counted | 60/60, all 27 variants; D53-D59, D61, D63 | frequencies, every mechanic with forced dice, soak | no (draft) |
+| Room deck | 60 (27 variants), photo-counted | 60/60, all 27 variants; D53-D59, D61, D63; shuffle D62 (spec v7) | frequencies, every mechanic with forced dice, soak | no (draft) |
 | Treasure chamber | 33 (21 coin cards inferred) | 33/33; D64 PROVISIONAL/INFERRED (spec v6) | frequencies, values, scoring at escape, loss on a wake | no (draft) |
-| Room search | 14, photo-counted | 14/14; secret door R56 | frequencies, secret door, flask, soak | no (draft) |
-| Search | 15, photo-counted | 15/15; rope D55 | frequencies, rope, fallen warrior draw, soak | no (draft) |
-| Door | 15, photo-counted | 15/15; D62 1985-SUPPORTED INTERPRETATION (spec v6: replacement drawn at once) | every outcome incl. both traps and shuffle | no (draft) |
+| Room search | 14, photo-counted | 14/14; secret door R56; shuffle D62 (spec v7) | frequencies, secret door, flask, soak | no (draft) |
+| Search | 15, photo-counted | 15/15; rope D55; shuffle D62 (spec v7) | frequencies, rope, fallen warrior draw, soak | no (draft) |
+| Door | 15, photo-counted | 15/15; D62 1985-SUPPORTED INTERPRETATION (spec v6: replacement drawn at once; unchanged by spec v7) | every outcome incl. both traps and shuffle | no (draft) |
 | Monster reaction | 15 cards, 180 cells | 15/15, 180 cells; D51 DIRECT 2023 RULE (4 FP cells, `printedStat: 'FP'`) | all 180 cells, content and engine; ambush; hidden information | no (draft) |
-| Chest | 14, photo-counted | 14/14; bones D60, trap D12-3-Armour | frequencies, bones, trap, flask copies, soak | no (draft) |
+| Chest | 14, photo-counted | 14/14; bones D60, trap D12-3-Armour; shuffle D62 (spec v7) | frequencies, bones, trap, flask copies, soak | no (draft) |
 | Dragon | 8 (7 asleep, 1 awake) | 8/8 data only; rules unchanged | odds 1 in 8 / 1 in 7, reset on an empty lair, wake takes chamber cards only | no (draft) |
 | Hero combat | 24 | 24/24 (unchanged, D45) | spec-v5 tests (kept) | no (draft) |
 | Monster combat | 12 (B/C inferred) | 12/12; D52 | letters, no doubles, A/B/C arithmetic | no (draft) |
@@ -151,7 +151,7 @@ Card entries (the status is in each card's `notes`):
 | MONSTER_006, MONSTER_014, MONSTER_015 (the FP cells) | DIRECT 2023 RULE |
 | ROOM_004 Torch goes out | DIRECT 2023 CARD |
 | ROOM_008 Ceiling collapses | 1985-SUPPORTED INTERPRETATION |
-| DOOR_005 Shuffle again (door) | 1985-SUPPORTED INTERPRETATION |
+| ROOM_014, SEARCH_001, RSEARCH_008, CHEST_009, DOOR_005 Shuffle again (door since spec v6, the other four since spec v7) | 1985-SUPPORTED INTERPRETATION |
 | ROOM_001 Poisonous snakes, ROOM_003 Poisonous mist, ROOM_005 Explosion (trap classification) | 1985-SUPPORTED INTERPRETATION |
 | TREASURY_013 to TREASURY_033 (coins) | PROVISIONAL/INFERRED |
 | ROOM_002, RSEARCH_001, SEARCH_007, CHEST_006 (small flask) | PROVISIONAL/INFERRED |
@@ -172,7 +172,7 @@ Register rows:
 | D59 | Ceiling collapses | 1985-SUPPORTED INTERPRETATION |
 | D60 | Bones | DIRECT 2023 CARD |
 | D61 | Optional draws | DIRECT 2023 RULE |
-| D62 | Door "shuffle again" | 1985-SUPPORTED INTERPRETATION |
+| D62 | "Shuffle again" in all five decks (spec v7) | 1985-SUPPORTED INTERPRETATION |
 | D63 | Trap list | 1985-SUPPORTED INTERPRETATION |
 | D64 | Chamber coins | PROVISIONAL/INFERRED |
 | D65 | Play-test on owner drafts (app-only) | PROVISIONAL/INFERRED |
@@ -182,7 +182,7 @@ Register rows:
 
 1. Rotating room and the Protection Ring (plan 13 #41a): the earlier ruling (no) and spec v6 (do not decide yet) disagree. The ring is not offered there now.
 2. Wizard's curse (ROOM_007): not named either way by spec v6; left unmarked (plan 13 #47). The torch is not named either and stays unmarked.
-3. "Shuffle again" in the room, room search, search and chest decks (plan 13 #51): R62 says reshuffle only, so they do not redraw. Room: the room deck is reshuffled and the entry ends like an empty room. Room search: reshuffled, nothing found. Search (fallen warrior): reshuffled, nothing found. Chest: reshuffled, the chest holds nothing.
+3. ~~"Shuffle again" in the room, room search, search and chest decks (plan 13 #51).~~ Resolved by spec v7 (section 8.6).
 4. The forced move after a wake (plan 13 #52): the engine allows only already-revealed maze tiles next to the chamber and keeps a hero with none inside with the dragon awake (D19, D40); spec v6 says "any adjacent maze tile". Not changed.
 5. D55, D57, D58 (turn after climbing out, heroes on a turned corridor, a later-turn spider kill) and D66 (hero names): not addressed by spec v6.
 
@@ -201,6 +201,22 @@ Register rows:
 
 The wake itself is covered by the scripted test (8.1) and the earlier T26/T26b tests, not by the soak.
 
+After spec v7 (v9), same seeds: 8 treasure chamber entries, 6 heroes who collected, 13 dragon cards drawn (12 sleeping), 1 wake, 9 resets (v8 rerun today: 4, 3, 4, 4, 0, 4). Random play diverges once a shuffle card draws a replacement, so these are different games, not a measured effect of the rule.
+
+### 8.6 Owner specification v7: "shuffle again" in every deck
+
+The owner's decision (`spec-v7-owner-2026-11-19.md`) settles 8.3 item 3: the procedure of the 1985 rules section 24, consistent with Alga 2023, for all five decks. Status 1985-SUPPORTED INTERPRETATION (an original-rule-supported interpretation, not a house rule).
+
+| Card | Before | Now |
+|---|---|---|
+| Room ROOM_014 | room deck reshuffled; the entry ended like an empty room | card back, room deck shuffled without held cards, another room card drawn at once and resolved as the card for that room (encounter, trap with the ring offered first, chest or search prompt, kept item) |
+| Search SEARCH_001 (fallen warrior) | search deck reshuffled; nothing found | card back, deck shuffled, another search card drawn at once as the result of "Search the body" |
+| Room search RSEARCH_008 | room search deck reshuffled; nothing found | card back, deck shuffled, another room search card drawn at once as the search's result |
+| Chest CHEST_009 | chest deck reshuffled; the chest held nothing | card back, deck shuffled, another chest card drawn at once as the result of "Open the chest" |
+| Door DOOR_005 | as spec v6 | unchanged (same events and state, byte for byte, over 200 seeded door draws) |
+
+In every deck another shuffle card repeats the procedure; no extra turn, no cancelled action, no extra card. One shared engine path (`redraw` in `effects.js`). `tests/keep/spec-v7.test.js` covers each deck: the replacement in the same action, two shuffle draws in a row, card counts and ids conserved, held cards left out of the shuffle, the turn unchanged, and the checker refusing a deck of shuffle cards alone.
+
 ### 8.5 What to look at in a browser (not done here; no in-browser test exists)
 
-Play-test my content: a ceiling collapse (one number picked, then a second die on a miss, both on the roll card); a door "shuffle again" (the next door card follows at once in the same move); the torch relit (it leaves the Items sheet); a flask drunk at high HP (HP above the starting value); the Protection Ring on snakes, mist, explosion and the ceiling (the choice comes before any die); the dragon in the lair with two heroes (status chip odds 1 in 8, 1 in 7, 1 in 6; the wake; both forced moves; "Dragon wakes on 1 in 8" again); the draft banner's Details (1 entry waiting on a ruling, 34 more interpretations or provisional).
+Play-test my content: a ceiling collapse (one number picked, then a second die on a miss, both on the roll card); a door "shuffle again" (the next door card follows at once in the same move); the torch relit (it leaves the Items sheet); a flask drunk at high HP (HP above the starting value); the Protection Ring on snakes, mist, explosion and the ceiling (the choice comes before any die); the dragon in the lair with two heroes (status chip odds 1 in 8, 1 in 7, 1 in 6; the wake; both forced moves; "Dragon wakes on 1 in 8" again); the draft banner's Details (1 entry waiting on a ruling, 38 more interpretations or provisional, since spec v7). Since spec v7, also: a room, search, room search or chest "shuffle again" (the log says the cards are shuffled and another is drawn, and the replacement follows in the same action).

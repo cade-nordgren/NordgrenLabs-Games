@@ -422,7 +422,7 @@ These four decks share the card fields of room cards above, with their own `deck
 The checker holds values to their kind: a `'treasure'` card needs `gold` of 1 or more and is kept (`'RETAIN_HELD'`, or `'RETAIN_TREASURY'` in `treasury.js`); every treasury card is a treasure; a `'reshuffle'` card needs `cardDisposition: 'RESHUFFLE_DECK'`; a card with `use` or `frees` needs `cardDisposition: 'RETAIN_HELD'`.
 
 - **Secret doors** (room search): `kind: 'secret-door'` with `OPEN_TEMPORARY_PASSAGE`. They may cross printed walls; use and timing follow your card (D11, provisional; plan 13 #4 and #15).
-- **Reshuffle cards:** `kind: 'reshuffle'` with `cardDisposition: 'RESHUFFLE_DECK'`: the card goes back and its deck is shuffled. Nothing else is drawn in these decks (R62); only the door deck draws a replacement (D62). Whether these decks should also draw a replacement is an open owner decision (plan 13 #51).
+- **Reshuffle cards:** `kind: 'reshuffle'` with `cardDisposition: 'RESHUFFLE_DECK'`: the card goes back, its deck is shuffled (without the cards heroes hold), and another card is drawn from the same deck at once and resolves in its place, again if it is another shuffle card (R62, D62; owner spec v7, the same as the door deck). A deck with a shuffle card needs at least one other card; the checker says so.
 - **Treasury cards** are private: `privacy: 'private-to-holder'` and `cardDisposition: 'RETAIN_TREASURY'`. Their gold counts at the end only if the hero escapes. When the dragon wakes they go to the bottom of the treasury deck (RB 9.2). Effects printed on treasury cards are not run at collection yet (section 10).
 
 **Example only, not real content, not authentic:**
