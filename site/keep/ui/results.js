@@ -131,7 +131,9 @@ export function resultCards(events, ctx) {
       case 'condition': {
         if (e.id === 'skip-turns') {
           skipHost[e.seat] = significant();
-          return res('skipped', `${who(e.seat)} misses the next ${e.turns === 1 ? 'turn' : `${e.turns} turns`}${e.label ? ` (${e.label.toLowerCase()})` : ''}.`);
+          const said = `${who(e.seat)} misses ${e.turns === 1 ? 'a turn' : `${n2(e.turns)} turns`}${e.label ? ` (${e.label.toLowerCase()})` : ''}`;
+          cur.results.push({ tag: 'skipped', text: `${said}.`, said, miss: e.seat, turns: e.turns, count: 0 });
+          return;
         }
         if (!cur || e.id === 'well-edge' || e.id === 'dark' || cur.dice.some(d => /^You named/.test(d.text))) return; // a tile's own prompt says these
         return res('status', `${who(e.seat)} ${CONDITION[e.id] || `is affected: ${(e.label || 'a lasting effect').toLowerCase()}`}.`);
@@ -147,6 +149,13 @@ export function resultCards(events, ctx) {
           skipHost[e.seat] = cur;
         }
         cur = skipHost[e.seat];
+        // Missed in the same action as the card that caused it (solo): said once, on that card's line (spec v12 follow-up).
+        const line = cur.results.find(r => r.miss === e.seat);
+        if (line) {
+          line.count += 1;
+          line.text = `${line.said}: ${e.left ? `${line.count === 1 ? 'one is' : `${n2(line.count)} are`} missed now, ${e.left} more to come` : line.turns === 1 ? 'it is missed now' : line.turns === 2 ? 'both are missed now' : 'all are missed now'}.`;
+          return;
+        }
         const last = cur.results.at(-1);
         const say = c => `${c === 1 ? 'This turn is missed' : `${capital(n2(c))} turns are missed now`}${e.left ? `, ${e.left} more to miss` : ''}.`;
         if (last?.skips === e.seat) { last.count += 1; last.text = say(last.count); return; }
@@ -219,7 +228,11 @@ export function resultCards(events, ctx) {
   }
   const last = cards.at(-1), np = ctx.nextPending;
   if (last && np) {
-    const say = np.kind === 'choice' ? 'Your choice comes next.' : np.kind === 'name-numbers' ? 'Name your numbers next.' : np.kind === 'trap-ring' ? 'A trap: you may use the Protection Ring first.'
+    // The turn ended first: the prompt is the next turn's. After a failed relight or spider roll its own line already
+    // says the turn ends and it is tried again next turn (namedSteps), so nothing is added (spec v12 follow-up).
+    const again = ctx.pending?.kind === 'name-numbers' && ctx.pending.seat === np.seat;
+    const named = !events.some(e => e.kind === 'turn') ? 'Name your numbers next.' : again ? null : `Your turn ends. Next turn: ${(np.label || 'name your numbers').replace(/^./, ch => ch.toLowerCase())}.`;
+    const say = np.kind === 'choice' ? 'Your choice comes next.' : np.kind === 'name-numbers' ? named : np.kind === 'trap-ring' ? 'A trap: you may use the Protection Ring first.'
       : np.kind === 'forced-move' ? `${who(np.seat)} is driven out next: pick a room next to ${theChamber(content)}. No room card is drawn.` : np.kind === 'move-choice' ? 'Pick a neighbouring square next.' : null;
     if (say && !last.results.some(r => r.tag === 'action' && r.text === say)) last.results.push({ tag: 'action', text: say });
   }

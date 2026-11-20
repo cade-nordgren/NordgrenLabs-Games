@@ -52,9 +52,9 @@ test('spec v12 fix 1: poisonous mist shows its card, the D6 arithmetic, the dama
   assert.match(c.dice[0].text, /^Rolled \d, minus 3: \d damage\.$/);
   const dmg = c.results.find(r => r.tag === 'damage');
   assert.match(dmg.text, /^Player 1 takes \d damage\. HP 17 to \d+\.$/);
-  assert.match(c.results.find(r => r.tag === 'skipped').text, /^Player 1 misses the next (turn|\d turns) \(unconscious\)\.$/);
-  // Solo: the turns pass inside the same action, so they are said on the same card, not as another to acknowledge.
-  assert.match(c.results.at(-1).text, /turns? (is|are) missed/);
+  // Solo: the turns pass inside the same action, so they are said once, on the same card's line (spec v12 follow-up).
+  assert.equal(c.results.filter(r => r.tag === 'skipped').length, 1, text(cards));
+  assert.match(c.results.at(-1).text, /^Player 1 misses (a turn|two turns|\d turns) \(unconscious\): (it is|both are|all are) missed now\.$/);
   assert.equal(next.heroes[0].hp, +dmg.text.match(/to (\d+)/)[1]);
 });
 
@@ -62,7 +62,7 @@ test('spec v12 fix 1: the explosion: 4 damage and the next turn missed, no dice'
   const [c] = last(run('explosion')).cards;
   assert.equal(c.title, 'Explosion');
   assert.deepEqual(c.dice, []);
-  assert.deepEqual(c.results.map(r => r.tag), ['damage', 'skipped', 'skipped']);
+  assert.deepEqual(c.results.map(r => [r.tag, r.text]), [['damage', 'Player 1 takes 4 damage. HP 17 to 13.'], ['skipped', 'Player 1 misses a turn: it is missed now.']]);
   assert.match(c.results[0].text, /takes 4 damage\. HP 17 to 13\./);
 });
 
@@ -140,7 +140,11 @@ test('spec v12 fix 1 and 2: the torch: a miss keeps it out, a match relights it'
   const s = last(run('torch-out'));
   assert.equal(s.cards[0].title, 'Torch goes out');
   assert.ok(!s.cards[0].results.some(r => r.tag === 'item'), 'the kept marker card is not an item gained');
-  assert.equal(named(s.next, false).cards[0].dice[0].tag, 'failure');
+  const miss = named(s.next, false).cards[0];
+  assert.equal(miss.dice[0].tag, 'failure');
+  assert.match(miss.dice[0].text, /Your turn ends and the torch stays out: try again next turn\.$/);
+  assert.ok(!miss.results.some(r => /Name your numbers next/.test(r.text)), 'the turn has ended: no "Name your numbers next"');
+  assert.match(s.cards[0].results.at(-1).text, /^Your turn ends\. Next turn: relight the torch\.$/);
   assert.match(named(s.next, true).cards[0].dice[0].text, /The torch is lit again\.$/);
 });
 
