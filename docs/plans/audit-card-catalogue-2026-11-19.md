@@ -180,7 +180,7 @@ Register rows:
 
 ### 8.3 Still OWNER DECISION REQUIRED
 
-1. Rotating room and the Protection Ring (plan 13 #41a): reopened by spec v8 (2023 rules 5.7 calls the room a trap); investigated, not changed, in `proposal-rotating-room-ring-2026-11-19.md` (section 8.7). The ring is not offered there now.
+1. ~~Rotating room and the Protection Ring (plan 13 #41a).~~ Resolved by spec v9 (section 8.8): the proposal approved, the ring offered on every entry before the room turns (OWNER_APPROVED_INTERPRETATION, D67).
 2. ~~Wizard's curse (ROOM_007).~~ Spec v8: not a trap, by owner interpretation (section 8.7). The torch is not named either and stays unmarked.
 3. ~~"Shuffle again" in the room, room search, search and chest decks (plan 13 #51).~~ Resolved by spec v7 (section 8.6).
 4. The forced move after a wake (plan 13 #52): the engine allows only already-revealed maze tiles next to the chamber and keeps a hero with none inside with the dragon awake (D19, D40); spec v6 says "any adjacent maze tile". Not changed.
@@ -202,6 +202,8 @@ Register rows:
 The wake itself is covered by the scripted test (8.1) and the earlier T26/T26b tests, not by the soak.
 
 After spec v7 (v9), same seeds: 8 treasure chamber entries, 6 heroes who collected, 13 dragon cards drawn (12 sleeping), 1 wake, 9 resets (v8 rerun today: 4, 3, 4, 4, 0, 4). Random play diverges once a shuffle card draws a replacement, so these are different games, not a measured effect of the rule.
+
+After spec v9 (v10), same seeds: 8 treasure chamber entries, 5 heroes who collected, 12 dragon cards drawn (11 sleeping), 1 wake, 9 resets. The rotating-room prompt came up 14 times in the 600 games (11 first reveals, 3 re-entries, no flight or forced move; the random picker used the ring 7 times and kept it 7 times), so these too are different games from that point. The 600-game catalogue soak (`KEEP_CATALOGUE_GAMES=600`) passed: every view clean, nothing hidden leaked, every log line in plain words.
 
 ### 8.6 Owner specification v7: "shuffle again" in every deck
 
@@ -227,8 +229,23 @@ In every deck another shuffle card repeats the procedure; no extra turn, no canc
 | Wizard's curse ROOM_007 (plan 13 #47) | OWNER DECISION REQUIRED; ring not offered | PROVISIONAL/INFERRED: an owner-directed interpretation (the card does not call its rotation a trap), not an expressly stated rule. None of the five labels names an owner interpretation; this is the nearest. Ring still not offered. D57 (heroes stay on turned corridors) unchanged, still OWNER DECISION REQUIRED |
 | "Shuffle again" in multiplayer | solo tests only (spec v7) | `tests/keep/spec-v8.test.js`: 2 players (seat 1 first) and 4 players (seat 2 first), all five decks, one and two shuffle cards in a row, against the same scenario with the replacement drawn directly: identical state, views per seat and screen owner; prompts to the acting seat; a monster replacement committed before the card exists, controlled by the right-hand seat, its card, HP and reaction hidden from everyone else; ring prompt before any die; private log entries private; the turn passes to the next seat. No defect found |
 
+Since spec v9 the curse's notes carry OWNER_APPROVED_INTERPRETATION instead (section 8.8).
+
+### 8.8 Owner specification v9: the rotating room and the Protection Ring
+
+`spec-v9-owner-2026-11-20.md` approves `proposal-rotating-room-ring-2026-11-19.md`. MECHANICS_VERSION v10.
+
+| Item | Before | Now |
+|---|---|---|
+| Rotating room and the Protection Ring (plan 13 #41a, D67) | OWNER DECISION REQUIRED; ring not offered | On every entry (first reveal, re-entry, flight back in, the forced move after a wake), with the ring unused: Use (consumed; no turn for that entry; orientation kept) or Keep (the quarter turn at once), after entering and before the turn; no offer for a hero who stays. The room as a trap turning on every entry: DIRECT 2023 RULE (5.7). The ring's ability, timing and forced-move offer: OWNER_APPROVED_INTERPRETATION, not printed rules |
+| Status labels | five (spec v6) | six: OWNER_APPROVED_INTERPRETATION added, for interpretations the owner directed or approved. The checker groups by it; the banner counts it with the interpretations, never as waiting on a ruling. Not an approval of any card |
+| Wizard's curse ROOM_007 (plan 13 #47) | PROVISIONAL/INFERRED (nearest label) | OWNER_APPROVED_INTERPRETATION; still no ring offer |
+| Protection Ring RING_4 notes | trap cards only | also the rotating room, described as an owner-approved interpretation; no `Status:` label added (the ring's other timing stays "an interpretation to confirm", D47-D50) |
+
+`tests/keep/spec-v9.test.js`: the proposal's 19 cases on the owner tile, numbered as in the proposal, the trapped case (the turned opening against each board edge and against a wall: kept, a forced skip next turn; used, the way back), and the prompt words. Not changed: the tile catalogue, the room's geometry and its turning without a ring, the dragon's forced-move rule (13 #52), the well, rubble, dark room and portcullis.
+
 With the curse settled, no catalogue entry carries OWNER DECISION REQUIRED, so the play-test banner no longer says one waits on a ruling; the open owner decisions (13 #41a, D55, D57, D58, D66) are plan rows, not card statuses.
 
 ### 8.5 What to look at in a browser (not done here; no in-browser test exists)
 
-Play-test my content: a ceiling collapse (one number picked, then a second die on a miss, both on the roll card); a door "shuffle again" (the next door card follows at once in the same move); the torch relit (it leaves the Items sheet); a flask drunk at high HP (HP above the starting value); the Protection Ring on snakes, mist, explosion and the ceiling (the choice comes before any die); the dragon in the lair with two heroes (status chip odds 1 in 8, 1 in 7, 1 in 6; the wake; both forced moves; "Dragon wakes on 1 in 8" again); the draft banner's Details (1 entry waiting on a ruling, 38 more interpretations or provisional, since spec v7). Since spec v7, also: a room, search, room search or chest "shuffle again" (the log says the cards are shuffled and another is drawn, and the replacement follows in the same action).
+Play-test my content: a ceiling collapse (one number picked, then a second die on a miss, both on the roll card); a door "shuffle again" (the next door card follows at once in the same move); the torch relit (it leaves the Items sheet); a flask drunk at high HP (HP above the starting value); the Protection Ring on snakes, mist, explosion and the ceiling (the choice comes before any die); the dragon in the lair with two heroes (status chip odds 1 in 8, 1 in 7, 1 in 6; the wake; both forced moves; "Dragon wakes on 1 in 8" again); the draft banner's Details (1 entry waiting on a ruling, 38 more interpretations or provisional, since spec v7). Since spec v7, also: a room, search, room search or chest "shuffle again" (the log says the cards are shuffled and another is drawn, and the replacement follows in the same action). Since spec v9: a hero with the Protection Ring revealing the rotating room (the room shows placed and unturned behind the prompt; Use keeps it, Keep turns it), above all where the turned opening would face the board edge or a wall (kept: only "No way on" next turn; used: the way back), and the dragon driving a ring holder into it (the prompt names that hero; the next hero is then driven).

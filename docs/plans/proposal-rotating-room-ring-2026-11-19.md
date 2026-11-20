@@ -1,5 +1,7 @@
 # Proposal: the Protection Ring and the rotating room (for owner approval, 2026-11-19)
 
+> **Approved by the owner on 2026-11-20** (`spec-v9-owner-2026-11-20.md`): the recommended behaviour, variant (a), with flight and the forced move offered and declining allowed; the ring's part is an OWNER_APPROVED_INTERPRETATION, not a printed rule. Implemented as plan D67 (MECHANICS_VERSION v10, `tests/keep/spec-v9.test.js`). The text below is the proposal as it was put to the owner; "nothing has changed" was true then.
+
 Asked for by owner specification v8 (`spec-v8-owner-2026-11-19.md`): "investigate allowing the Protection Ring to negate the room's rotation on entry. Do not change it until you've documented the exact timing, positioning consequences and proposed test cases." Plan section 13 #41a, status **OWNER DECISION REQUIRED**.
 
 **Nothing has changed in the game.** The engine and the content behave exactly as before: the ring is offered only on a drawn card whose data says `kind: 'trap'`, never on entering the rotating room, and the room turns on every entry. `tests/keep/spec-v8.test.js` pins that on the owner's own tile. Everything below is a design for the owner to approve or reject, decision by decision (section 7).
