@@ -97,13 +97,7 @@ test('spec v6 door shuffle: the card goes back, the pile is shuffled, the next d
   assert.doesNotMatch(shownEffectText(byId('door', 'DOOR_005')), /shuffl|bottom of|stays shut/);
 });
 
-test('spec v6: the other four "shuffle again" cards are unchanged (R62 says reshuffle only): nothing is redrawn', () => {
-  const g = enter('ROOM_014');
-  assert.deepEqual(draws(g, 'ROOM'), ['ROOM_014#1']);
-  assert.equal(g.decks.ROOM.shuffles, 2);
-  assert.equal(g.phase, 'CHOOSE_ACTION', 'the room entry ended the move; the next turn has begun');
-  for (const [k, id] of [['roomSearch', 'RSEARCH_008'], ['search', 'SEARCH_001'], ['chest', 'CHEST_009']]) assert.deepEqual([byId(k, id).kind, byId(k, id).followUpDeck ?? null], ['reshuffle', null]);
-});
+// The other four "shuffle again" cards were reshuffle-only under spec v6; spec v7 makes them redraw too (spec-v7.test.js).
 
 // ---- 4. Torch: back under the room deck once relit.
 test('spec v6 torch: kept while out; once relit it leaves the hero for the bottom of the room deck, and the turn goes on', () => {
@@ -279,7 +273,7 @@ test('spec v6 statuses: no entry keeps NEEDS OWNER CONFIRMATION; flagged entries
   assert.ok(Object.keys(groups).every(s => STATUSES.includes(s)));
   assert.deepEqual(groups['DIRECT 2023 RULE'], ['MONSTER_006', 'MONSTER_014', 'MONSTER_015']);
   assert.deepEqual(groups['DIRECT 2023 CARD'], ['ROOM_004']);
-  assert.deepEqual(groups['1985-SUPPORTED INTERPRETATION'], ['ROOM_001', 'ROOM_003', 'ROOM_005', 'ROOM_008', 'DOOR_005']);
+  assert.deepEqual(groups['1985-SUPPORTED INTERPRETATION'], ['ROOM_001', 'ROOM_003', 'ROOM_005', 'ROOM_008', 'ROOM_014', 'SEARCH_001', 'RSEARCH_008', 'CHEST_009', 'DOOR_005'], 'spec v7 adds the other four shuffle cards');
   assert.equal(groups['PROVISIONAL/INFERRED'].length, 25);
   assert.deepEqual(groups['OWNER DECISION REQUIRED'], ['ROOM_007']);
   const every = Object.values(C).flat().filter(e => e && typeof e === 'object');

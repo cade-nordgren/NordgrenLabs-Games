@@ -25,7 +25,7 @@
 
 export default [
   { id: 'SEARCH_001', copies: 1, status: 'draft', name: 'Shuffle again', text: '', deck: 'SEARCH', kind: 'reshuffle', cardDisposition: 'RESHUFFLE_DECK',
-    notes: 'Owner catalogue 2026-11-19 (SR-001). Reshuffles its own deck, existing rule R62 (2023 rules box after 8.1). Draft until the owner approves.' },
+    notes: 'Owner catalogue 2026-11-19 (SR-001). Goes back into the search deck, which is shuffled without the cards heroes hold (R62); the hero then at once draws another search card, which resolves normally as the result of the search, again if it is this card; no extra turn, no cancelled action, no extra card. Status: 1985-SUPPORTED INTERPRETATION (original-rule-supported interpretation consistent with Alga 2023: 1985 rules section 24; owner decision spec v7, plan D62). Draft until the owner approves.' },
   { id: 'SEARCH_002', copies: 2, status: 'draft', name: 'Scorpion', text: '', deck: 'SEARCH', kind: 'event', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D6', plus: -2 } }],
     notes: 'Owner catalogue 2026-11-19 (SR-002, 2 copies). Draft until the owner approves.' },
   { id: 'SEARCH_003', copies: 1, status: 'draft', name: 'Necklace', text: '', deck: 'SEARCH', kind: 'treasure', gold: 150, cardDisposition: 'RETAIN_HELD',

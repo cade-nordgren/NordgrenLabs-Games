@@ -39,5 +39,5 @@ export default [
   { id: 'RSEARCH_007', copies: 3, status: 'draft', name: 'Nothing found', text: '', deck: 'ROOM_SEARCH', kind: 'empty',
     notes: 'Owner catalogue 2026-11-19 (RS-007, 3 copies). No effect. Draft until the owner approves.' },
   { id: 'RSEARCH_008', copies: 1, status: 'draft', name: 'Shuffle again', text: '', deck: 'ROOM_SEARCH', kind: 'reshuffle', cardDisposition: 'RESHUFFLE_DECK',
-    notes: 'Owner catalogue 2026-11-19 (RS-008). Reshuffles its own deck, existing rule R62 (2023 rules box after 8.1). Draft until the owner approves.' },
+    notes: 'Owner catalogue 2026-11-19 (RS-008). Goes back into the room search deck, which is shuffled without the cards heroes hold (R62); the hero then at once draws another room search card, which resolves normally as the result of the search, again if it is this card; no extra turn, no cancelled action, no extra card. Status: 1985-SUPPORTED INTERPRETATION (original-rule-supported interpretation consistent with Alga 2023: 1985 rules section 24; owner decision spec v7, plan D62). Draft until the owner approves.' },
 ];

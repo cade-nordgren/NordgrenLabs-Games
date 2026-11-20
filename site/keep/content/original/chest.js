@@ -41,5 +41,5 @@ export default [
   { id: 'CHEST_008', copies: 2, status: 'draft', name: 'Trap', text: '', deck: 'CHEST', kind: 'trap', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D12', plus: -3, minusStat: 'ARM' } }],
     notes: 'Owner catalogue 2026-11-19 (CH-008, 2 copies). Called a trap by the catalogue and spec v6 (Protection Ring, plan D63): exactly D12 minus 3 minus Armour. Draft until the owner approves.' },
   { id: 'CHEST_009', copies: 1, status: 'draft', name: 'Shuffle again', text: '', deck: 'CHEST', kind: 'reshuffle', cardDisposition: 'RESHUFFLE_DECK',
-    notes: 'Owner catalogue 2026-11-19 (CH-009). Reshuffles its own deck, existing rule R62 (2023 rules box after 8.1). Draft until the owner approves.' },
+    notes: 'Owner catalogue 2026-11-19 (CH-009). Goes back into the chest deck, which is shuffled without the cards heroes hold (R62); the hero then at once draws another chest card, which resolves normally as what the chest holds, again if it is this card; no extra turn, no cancelled action, no extra card. Status: 1985-SUPPORTED INTERPRETATION (original-rule-supported interpretation consistent with Alga 2023: 1985 rules section 24; owner decision spec v7, plan D62). Draft until the owner approves.' },
 ];

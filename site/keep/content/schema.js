@@ -412,6 +412,11 @@ export function validateContent(content) {
     const awake = dragon.filter(e => e.kind === 'awake').reduce((s, e) => s + copiesOf(e), 0);
     if (awake !== 1) errors.push({ category: 'dragon', id: null, message: 'Dragon cards: need exactly 7 sleeping and 1 awake' });
   }
+  // Spec v7: a "shuffle again" card is replaced by another draw from its own deck, so that deck needs some other card too.
+  for (const [k, deck] of Object.entries(DECK_OF)) {
+    const es = entriesOf(content, k);
+    if (es.some(e => e.kind === 'reshuffle') && es.every(e => e.kind === 'reshuffle')) errors.push({ category: k, id: null, message: `${deck} deck: a "shuffle again" card needs at least one other card in its deck to draw instead` });
+  }
   // Spec v5: combat cards show the hero / monster split (24 hero cards in S01-S08, 12 monster cards in S09-S12).
   const combatOf = owner => entriesOf(content, 'combat').filter(c => c.owner === owner).reduce((s, c) => s + copiesOf(c), 0);
   const split = c => (c.key === 'combat' ? `: hero sets ${combatOf('hero')}/24, monster sets ${combatOf('monster-group')}/12` : '');

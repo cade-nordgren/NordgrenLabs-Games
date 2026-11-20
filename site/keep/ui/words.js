@@ -194,6 +194,8 @@ export function describe(e, ctx, next) {
       if (e.deck === 'TILE') return null;
       if (e.deck === 'DRAGON') return `Dragon card: ${e.card === 'awake' ? 'awake' : 'asleep'}.`;
       const def = card(e.value);
+      // Spec v7: the log line says plainly what happened (the card text itself carries no deck bookkeeping).
+      if (def?.kind === 'reshuffle' && e.deck !== 'DOOR') return [`${capital(deckWord(e.deck, content))}: ${e.cardName || def.name}. The ${pileWord(e.deck, content)} cards are shuffled and another is drawn.`, '', mechanicsText(def)];
       return def ? [`${capital(deckWord(e.deck, content))}: ${e.cardName || def.name}. ${e.deck === 'MONSTER' ? '' : cardText(def, e.effectText, content)}`.trim(), '', e.deck === 'MONSTER' ? '' : mechanicsText(def)] : `${capital(deckWord(e.deck, content))} drawn, kept secret.`;
     }
     case 'retain': return null; // the 'item' obtain entry beside it says it

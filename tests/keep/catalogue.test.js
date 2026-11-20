@@ -480,7 +480,7 @@ test('catalogue: the dragon odds and reset behave as ruled with the owner dragon
   assert.deepEqual(view(g, T, 0).dragon.odds, { awake: 1, remaining: 8 });
 });
 
-test('catalogue: play-test runs on owner data only; the banner says draft, not NON-AUTHENTIC; saves from v7 are refused', () => {
+test('catalogue: play-test runs on owner data only; the banner says draft, not NON-AUTHENTIC; saves from v8 are refused', () => {
   assert.equal(M.label, DRAFT_BANNER);
   const g = createGame({ players: ['A', 'B'], seed: 3, content: M });
   assert.equal(g.banner, DRAFT_BANNER);
@@ -488,12 +488,12 @@ test('catalogue: play-test runs on owner data only; the banner says draft, not N
   const lines = bannerLines(M);
   assert.match(lines[0], /^Draft, not approved: /);
   assert.match(lines[1], /^1 entry waits on your ruling \(OWNER DECISION REQUIRED/);
-  assert.match(lines[2], /^34 more entries are an interpretation or provisional, not approved/);
+  assert.match(lines[2], /^38 more entries are an interpretation or provisional, not approved/);
   assert.match(contentStatus(ORIGINAL, FX).play, /all \d+ slots are your own entries, still draft/);
   assert.deepEqual(toConfirm(C), ['ROOM_007'], 'spec v6: only the curse waits on a ruling');
-  assert.equal(MECHANICS_VERSION, 'rb-0.2/sp-1.0/v8');
+  assert.equal(MECHANICS_VERSION, 'rb-0.2/sp-1.0/v9');
   const old = JSON.parse(serialize(g));
-  old.mechanicsVersion = 'rb-0.2/sp-1.0/v7';
+  old.mechanicsVersion = 'rb-0.2/sp-1.0/v8';
   assert.throws(() => restore(JSON.stringify(old), M), /Unsupported save version/);
   // A category falling back to fixtures keeps the placeholder banner.
   const part = mixContent({ ...ORIGINAL, room: ORIGINAL.room.slice(1) }, FX);
@@ -536,8 +536,9 @@ test('catalogue soak: several hundred random games on the owner content, every v
     // Every line of every seat's log and the table's, once the game is over.
     for (const viewer of [null, ...g.seats.keys()]) for (const x of entries(view(g, M, viewer).log, { content: M, name })) { clean(x.text, `log ${x.e.kind}`); if (x.detail) clean(x.detail, `detail ${x.e.kind}`); seen.add(x.e.kind); }
     for (const e of g.log) if (e.kind === 'resolve-card') seen.add(e.value.split('#')[0]);
+    for (const e of g.log) if (e.kind === 'draw' && /^redraw after /.test(e.reason)) seen.add('redraw'); // spec v7
   }
-  for (const k of ['named-roll', 'turn-skipped', 'tiles-rotated', 'encounter', 'exchange', 'throw', 'escape', 'death']) assert.ok(seen.has(k), `the soak reached ${k}`);
+  for (const k of ['named-roll', 'turn-skipped', 'tiles-rotated', 'encounter', 'exchange', 'throw', 'escape', 'death', 'redraw']) assert.ok(seen.has(k), `the soak reached ${k}`);
   const cards = [...seen].filter(x => /^(ROOM|RSEARCH|SEARCH|DOOR|CHEST)_/.test(x));
   assert.ok(cards.length >= 50, `the soak resolved ${cards.length} different owner cards`);
 });

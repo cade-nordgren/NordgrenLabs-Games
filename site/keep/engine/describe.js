@@ -91,6 +91,7 @@ function effectClauses(def, ch) {
   if (def.kind === 'awake') return ['the dragon wakes'];
   const out = [];
   if (def.deck === 'DOOR') out.push({ opens: 'the door opens', closed: 'the door stays shut', trap: 'the door is trapped', reshuffle: 'try the door again: draw another door card at once' }[def.kind]);
+  else if (def.kind === 'reshuffle') out.push(`draw another ${DECK[def.deck]} card at once`); // spec v7, worded as the door's
   out.push(describeEffects(def.effects, ch));
   if (def.followUpDeck) out.push(def.followUpDeck === 'MONSTER' ? 'a monster appears' : `draw a ${DECK[def.followUpDeck]} card next`);
   if (def.cardDisposition === 'RETAIN_HELD' || def.cardDisposition === 'RETAIN_TREASURY') out.push('you keep it');

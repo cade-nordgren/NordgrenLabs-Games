@@ -16,7 +16,7 @@ import { spendUse, itemLog, consumeRing } from './inventory.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v8'; // v8: owner spec v6 (ceiling second roll, door shuffle redraws, torch card returned, flask uncapped, wider trap scope); older saves are refused
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v9'; // v9: owner spec v7 (every "shuffle again" card redraws at once, not only the door's). v8: owner spec v6 (ceiling second roll, door shuffle redraws, torch card returned, flask uncapped, wider trap scope); older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).

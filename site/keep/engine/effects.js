@@ -224,6 +224,7 @@ function finishFrame(g, content, f, aborted) {
   if (aborted) return;
   if (f.card && f.turnDisposition === 'continue') allowContinue(g, 'card', { card: f.card });
   if (f.door) return doorOutcome(g, content, f);
+  if (f.kind === 'reshuffle') return redraw(g, content, f);
   // RB 7.3, SP 6: a branch draws from the named sub-deck; a monster branch is an encounter.
   if (f.followUp === 'MONSTER') startEncounter(g, content, { ambush: false });
   else if (f.followUp) drawAndResolve(g, content, f.followUp, `branch from ${f.card}`);
@@ -238,14 +239,24 @@ function doorOutcome(g, content, f) {
     g.turn.openedDoor = edge; // RB 6.6: same-turn flight back may still pass before it relocks
     enterTile(g, content, g.activeSeat, neighbour(active(g).coord, dir), { dir, via: 'door' });
   } else if (f.kind === 'reshuffle') {
-    // D62 (spec v6, 1985-supported): the card went back and the pile was shuffled above; the hero at once draws the door
-    // card they were trying to get and it resolves normally (again, if it is another "shuffle again"). No extra turn.
-    if (!drawAndResolve(g, content, 'DOOR', 'door', { door: f.door })) g.turn.endAfter = true; // empty pile: as in movement.js
+    // D62 (spec v6): the hero at once draws the door card they were trying to get (redraw below). No extra turn.
+    if (!redraw(g, content, f)) g.turn.endAfter = true; // empty pile: as in movement.js
   } else if (f.kind === 'closed') {
     g.turn.triedDoors.push(edge);
     if (noDetour) g.turn.endAfter = true; // dark-room exit or a return move: D07, stay and retry
     else allowContinue(g, 'door-stayed-closed', { edge });
   } else g.turn.endAfter = true;
+}
+
+// R62, D62 (spec v6 door, spec v7 room, search, room search and chest; 1985 rules section 24, consistent with Alga 2023):
+// the "shuffle again" card went back into its own deck and that deck was shuffled (finishFrame; cards heroes hold are not
+// in it). The replacement is drawn from the same deck at once and resolves as the original draw, with all its normal
+// consequences, again if it is another shuffle card. No extra turn, no cancelled action, no extra card.
+function redraw(g, content, f) {
+  const d = g.decks[f.deck];
+  // Malformed content only (the checker refuses a deck of nothing but shuffle cards): never loop on shuffle cards alone.
+  if (d.order.length && d.order.every(i => cardDef(content, i).kind === 'reshuffle')) { logEvent(g, { kind: 'deck-empty', deck: f.deck, reason: 'only shuffle cards left' }); return null; }
+  return f.door ? drawAndResolve(g, content, 'DOOR', 'door', { door: f.door }) : drawAndResolve(g, content, f.deck, `redraw after ${f.card}`);
 }
 
 // Run frames until the stack is empty or a player decision is pending.
