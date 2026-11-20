@@ -62,6 +62,7 @@ export function forcedMoveTargets(g, content) {
 // RB 9.2, SP 8, per hero in the queue: treasure-chamber cards to the bottom of their deck, a straight
 // D12 of damage (no Luck), then a forced move outside turn order. D19, D40: no legal tile -> stays put, the dragon awake.
 export function continueWake(g, content) {
+  if (g.pending) return; // spec v9: a driven hero's ring choice at a rotating room comes first; the wake goes on after it
   const w = g.wake;
   while (w.queue.length) {
     if (g.pending) return;

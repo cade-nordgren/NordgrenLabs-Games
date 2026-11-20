@@ -28,6 +28,6 @@ export default [
     notes: 'Owner rules, 2026-11-19 (spec v5): single use, consumed by its use: the monster flees in a normal encounter; not offered in an ambush; no protection against attacks. Timing is an interpretation to confirm (plan register D47-D50). Draft until the owner approves.',
     trigger: 'once-per-game', effects: [], use: { timing: 'encounter-choice', effects: [{ op: 'MONSTER_FLEES' }] } },
   { id: 'RING_4', copies: 1, status: 'draft', name: 'Protection Ring', text: '', power: '',
-    notes: 'Owner rules, 2026-11-19 (spec v5): single use, consumed by its use: ignore one trap: a drawn card whose data says kind trap; no lasting immunity. Timing is an interpretation to confirm (plan register D47-D50). Draft until the owner approves.',
+    notes: 'Owner rules, 2026-11-19 (spec v5): single use, consumed by its use: ignore one trap: a drawn card whose data says kind trap; no lasting immunity. Owner spec v9 (owner-approved interpretation, not a printed rule; plan D67): also on entering a rotating room, before it turns, on every entry (reveal, re-entry, flight, the forced move after the dragon wakes): used, the room does not turn that entry; kept, it turns as usual. Timing is an interpretation to confirm (plan register D47-D50). Draft until the owner approves.',
     trigger: 'once-per-game', effects: [], use: { timing: 'trap-drawn', effects: [{ op: 'IGNORE_TRAP' }] } },
 ];

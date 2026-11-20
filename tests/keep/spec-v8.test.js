@@ -147,15 +147,16 @@ test('spec v8 multiplayer: a monster replacement into an A/B/C fight keeps both 
   assert.ok(a.log.some(e => e.kind === 'exchange'), 'both picks locked in, the exchange resolves');
 });
 
-// ---- Rotating room, current behaviour (no change; plan 13 #41a reopened by spec v8).
-test('spec v8 rotating room today, owner tile TILE_014: on every entry direction it turns a quarter clockwise, the opening leaves the way in, and no ring is offered', () => {
+// ---- Rotating room without a ring offer (plan 13 #41a). Spec v9 (D67) now offers the Protection Ring first on every entry
+// (tests/keep/spec-v9.test.js); here the rules flag is 'never', the behaviour before v9, which must stay byte for byte.
+test('spec v8 rotating room under rotatingRoomRing never, owner tile TILE_014: on every entry direction it turns a quarter clockwise, the opening leaves the way in, and no ring is offered', () => {
   const own = { ...T, tiles: C.tiles };
   const opening = (g, at) => SIDES.filter(s => sideOnBoard(C.tiles.find(t => t.id === 'TILE_014'), g.board.tiles[at].rotation, s) === 'open');
   // The hero moves into (2,3) from each neighbour. Opening after entry: 90 clockwise from the way in.
   const want = { N: 'E', E: 'S', S: 'W', W: 'N' }; // keyed by the side the hero came in by
   for (const [dir, from] of [['S', '2,2'], ['W', '3,3'], ['N', '2,4'], ['E', '1,3']]) {
     const came = { S: 'N', W: 'E', N: 'S', E: 'W' }[dir];
-    let g = setup({ players: 1, content: own, script: Array(10).fill(3), tileOrder: slotsOf('TILE_014', own), deckOrders: { ROOM: EMPTY } });
+    let g = setup({ players: 1, content: own, script: Array(10).fill(3), tileOrder: slotsOf('TILE_014', own), deckOrders: { ROOM: EMPTY }, rules: { rotatingRoomRing: 'never' } });
     ringTo(0)(g);
     place(g, from, 'TILE_006');
     putHero(g, 0, from);
@@ -182,7 +183,7 @@ test('spec v8 rotating room today, owner tile TILE_014: on every entry direction
 test('spec v8 wizard\'s curse: no Protection Ring offer, by owner interpretation (not an expressly stated rule)', () => {
   const room = C.room.find(e => e.id === 'ROOM_007');
   assert.notEqual(room.kind, 'trap');
-  assert.match(room.notes, /Status: PROVISIONAL\/INFERRED/);
+  assert.match(room.notes, /Status: OWNER_APPROVED_INTERPRETATION/); // spec v9 relabel (was PROVISIONAL/INFERRED)
   assert.match(room.notes, /interpretation/);
   let g = setup({ players: 1, content: T, script: [1, 3, 3, 3], deckOrders: { ROOM: ['ROOM_007', ...EMPTY] } });
   ringTo(0)(g);

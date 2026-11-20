@@ -111,7 +111,7 @@ test('T30 full-fidelity start blocked without verified content; fixtures flagged
 });
 
 test('rules config: defaults, settable values, unknown rules and values rejected, every entry tagged (plan section 9, spec v2)', () => {
-  assert.deepEqual(DEFAULT_RULES, { darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', forcedMoveTileEffects: true, soloCombat: 'target', towerAtSunsetCountsAsEscape: false, escapeWithoutExploring: false, soloMonsterHp: 'visible' });
+  assert.deepEqual(DEFAULT_RULES, { darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', forcedMoveTileEffects: true, soloCombat: 'target', towerAtSunsetCountsAsEscape: false, escapeWithoutExploring: false, soloMonsterHp: 'visible', rotatingRoomRing: 'every-entry' });
   assert.equal(createGame({ players: names(1), seed: 1, content: FX }).rules.darkRoomPolicy, 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY');
   assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomPolicy: 'EVERY_ENTRY' } }).rules.darkRoomPolicy, 'EVERY_ENTRY');
   assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomOnReentry: true } }), /Unknown rule/, 'the old flag is gone');
@@ -125,5 +125,9 @@ test('rules config: defaults, settable values, unknown rules and values rejected
   assert.deepEqual(RULE_TAGS.soloMonsterHp, ['explicit2023', 'houseRule']);
   assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { soloMonsterHp: 'hidden-house-rule' } }).rules.soloMonsterHp, 'hidden-house-rule');
   assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { soloMonsterHp: 'hidden' } }), /cannot be/);
+  // Spec v9 (D67): the Protection Ring at the rotating room on every entry by default; 'first-reveal' and 'never' stay settable.
+  assert.deepEqual(RULE_TAGS.rotatingRoomRing, ['interpretation']);
+  for (const v of ['first-reveal', 'never']) assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { rotatingRoomRing: v } }).rules.rotatingRoomRing, v);
+  assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { rotatingRoomRing: 'always' } }), /cannot be/);
 
 });

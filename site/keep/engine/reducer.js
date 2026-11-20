@@ -6,7 +6,7 @@ import { tileSlots } from './tiles.js';
 import { startTurn, endTurn } from './clock.js';
 import { initDecks, toBottom, cardDef } from './decks.js';
 import { run, drawAndResolve } from './effects.js';
-import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers, allowContinue } from './movement.js';
+import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers, allowContinue, answerRotationRing } from './movement.js';
 import { killHero, clearCondition, setCondition, statOf, READY, ESCAPED } from './heroes.js';
 import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
@@ -16,7 +16,7 @@ import { spendUse, itemLog, consumeRing } from './inventory.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v9'; // v9: owner spec v7 (every "shuffle again" card redraws at once, not only the door's). v8: owner spec v6 (ceiling second roll, door shuffle redraws, torch card returned, flask uncapped, wider trap scope); older saves are refused
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v10'; // v10: owner spec v9 (the Protection Ring may stop the rotating room turning, on every entry). v9: owner spec v7 (every "shuffle again" card redraws at once, not only the door's). v8: owner spec v6 (ceiling second roll, door shuffle redraws, torch card returned, flask uncapped, wider trap scope); older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
@@ -30,6 +30,9 @@ export const DEFAULT_RULES = {
   // D37 as amended by spec v4: solo shows the revealed monster's HP (2023 rules 11); 'hidden-house-rule' restores the
   // old solo behaviour (no user-facing switch yet: the owner may offer it later as a labelled house rule).
   soloMonsterHp: 'visible',
+  // D67 (owner spec v9, owner-approved interpretation): the Protection Ring is offered on entering a rotating room, before it
+  // turns: 'every-entry' (reveal, re-entry, flight, the dragon's forced move), 'first-reveal' only, or 'never' (before v9).
+  rotatingRoomRing: 'every-entry',
 };
 const RULE_VALUES = {
   darkRoomPolicy: ['ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', 'EVERY_ENTRY'],
@@ -38,6 +41,7 @@ const RULE_VALUES = {
   towerAtSunsetCountsAsEscape: [true, false],
   escapeWithoutExploring: [true, false],
   soloMonsterHp: ['visible', 'hidden-house-rule'],
+  rotatingRoomRing: ['every-entry', 'first-reveal', 'never'],
 };
 // Spec v2 authority levels: A explicit2023, B componentData, C legacySupported, D interpretation,
 // E houseRule, F developer assumption (forbidden), plus app-only for class 4 behaviour.
@@ -49,6 +53,7 @@ export const RULE_TAGS = {
   towerAtSunsetCountsAsEscape: ['interpretation'],
   escapeWithoutExploring: ['interpretation'],
   soloMonsterHp: ['explicit2023', 'houseRule'], // visible explicit (2023 rules 11); hidden a house rule
+  rotatingRoomRing: ['interpretation'], // the room is a trap and turns on every entry: explicit (5.7); the ring's part is the owner's interpretation
   // Fixed rulings without a switch (not in DEFAULT_RULES), tagged all the same:
   towerEscapeOnLaterTurns: ['interpretation'], // plan 13 #25: after Stay, Escape stays offered on later turns
 };
@@ -218,13 +223,18 @@ const apply = {
   // Spec v5: the seat's ring, at the one moment its card data allows (phases.js offers it only then). It is consumed;
   // its effects run with the door or portcullis it was used at (Opening Ring).
   USE_RING(g, { seat, dir, from }, content) {
+    if (g.pending?.kind === 'rotation-ring') { answerRotationRing(g, content, true); return run(g, content); } // spec v9
     g.pending = null;
     const effects = consumeRing(g, content, seat);
     g.stack.push({ effects, i: 0, ...(dir ? { passage: { dir, from: from ?? null } } : {}) });
     run(g, content);
   },
   // The trap happens: the card resolves as drawn and the ring stays unused.
-  DECLINE_RING(g, { seat }, content) { g.pending = null; logEvent(g, { kind: 'ring-kept', seat }); run(g, content); },
+  // Spec v9: at a rotating room, the room turns now.
+  DECLINE_RING(g, { seat }, content) {
+    if (g.pending?.kind === 'rotation-ring') { answerRotationRing(g, content, false); return run(g, content); }
+    g.pending = null; logEvent(g, { kind: 'ring-kept', seat }); run(g, content);
+  },
   // RB 6.3, SP 5: AGI test on D12 + held treasure-chamber cards. D08 (interpretation): a failed jump is death.
   // D42 (spec v4): success leaves the hero on the well tile at the opposite edge (CROSSED) and ends the turn; a jump
   // from CROSSED goes back to the near edge (interpretation), which is the clinging state again.

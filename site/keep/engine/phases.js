@@ -99,6 +99,8 @@ export function legalActions(game, content) {
     case 'MONSTER_REACT': return [{ type: 'ANNOUNCE', seat: p.seat }];
     case 'COMBAT_SELECT': return combatActions(game);
     case 'FORCED_MOVE': return p.targets.map(to => ({ type: 'FORCED_MOVE', seat: p.seat, to }));
+    // Spec v9: entering a rotating room with the Protection Ring unused, before it turns; the entering (or driven) hero's seat.
+    case 'RESOLVE_TILE_ENTRY': return p?.kind === 'rotation-ring' ? [{ type: 'USE_RING', seat: p.seat }, { type: 'DECLINE_RING', seat: p.seat }] : [];
     default: return [];
   }
 }

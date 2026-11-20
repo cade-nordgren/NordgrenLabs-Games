@@ -8,6 +8,7 @@ import { killHero, setCondition, clearCondition, statOf, TILE_CONDITIONS, hasCon
 import { drawAndResolve, run } from './effects.js';
 import { cardDef } from './decks.js';
 import { collect } from './treasury.js';
+import { ringFor, consumeRing } from './inventory.js';
 
 const tileDefAt = (g, content, c) => contentIndex(content).tiles.get(g.board.tiles[key(c)].defId);
 
@@ -168,10 +169,40 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
   g.phase = 'RESOLVE_TILE_ENTRY';
   const def = tileDefAt(g, content, to);
   const effects = via === 'forced' ? applyTile && g.rules.forcedMoveTileEffects : applyTile;
+  const ctx = { first, via, dir, drawRoom, effects };
+  // Order for tiles that combine a special and a mark (D29, data decides): rotation, gate behind,
+  // well test, turn-ending conditions, then the room card.
+  if (effects && def.special === 'rotating') {
+    // Spec v9 (owner-approved interpretation, D67): with the Protection Ring unused, the hero first chooses whether the
+    // room turns on this entry; the room stays placed and unturned until then (answerRotationRing).
+    if (rotationRingOffered(g, content, seat, first)) { g.pending = { kind: 'rotation-ring', seat, at: key(to), ...ctx }; return; }
+    rotateTile(g, to); // D10: first reveal orients by the dot, then rotates
+  }
+  finishEntry(g, content, seat, ctx);
+}
+
+// Spec v9: rotatingRoomRing 'every-entry' (default: reveal, re-entry, flight, forced move), 'first-reveal' or 'never'.
+const rotationRingOffered = (g, content, seat, first) =>
+  (g.rules.rotatingRoomRing === 'every-entry' || (g.rules.rotatingRoomRing === 'first-reveal' && first)) && !!ringFor(g, content, seat, 'trap-drawn');
+
+// Spec v9: Use the ring: consumed as on a trap card, the room does not turn this entry. Keep it: the normal quarter
+// turn now. Either way the entry then resolves exactly as it would have (no extra turn or move); the caller runs on.
+export function answerRotationRing(g, content, use) {
+  const p = g.pending;
+  g.pending = null;
+  if (use) { consumeRing(g, content, p.seat); logEvent(g, { kind: 'rotation-ignored', seat: p.seat, at: p.at }); }
+  else { logEvent(g, { kind: 'ring-kept', seat: p.seat }); rotateTile(g, g.heroes[p.seat].coord); }
+  finishEntry(g, content, p.seat, p);
+}
+
+// The rest of a tile entry, after the rotation.
+function finishEntry(g, content, seat, { first, via, dir, drawRoom, effects }) {
+  const hero = g.heroes[seat];
+  const to = hero.coord;
+  const own = seat === g.activeSeat && via !== 'forced';
+  const retreat = via === 'flight' || via === 'forced';
+  const def = tileDefAt(g, content, to);
   if (effects) {
-    // Order for tiles that combine a special and a mark (D29, data decides): rotation, gate behind,
-    // well test, turn-ending conditions, then the room card.
-    if (def.special === 'rotating') rotateTile(g, to); // D10: first reveal orients by the dot, then rotates
     if (def.mark === 'red') {
       // RB 6.1, RB 6.7: a portcullis falls behind the entrant.
       g.board.edges[edgeKey(to, hero.enteredFrom)] = 'gate';

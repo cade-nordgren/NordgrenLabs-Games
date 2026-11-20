@@ -70,7 +70,7 @@ const RING_REASON = {
   'turn-action': 'Only at the start of your turn, in place of your turn',
   'door-or-portcullis': 'Only when you are about to go through a door or under a portcullis',
   'encounter-choice': 'Only when a monster appears, before it shows itself; never in an ambush',
-  'trap-drawn': 'Only when a card you have just drawn is a trap',
+  'trap-drawn': 'Only when a card you have just drawn is a trap, or as you enter a rotating room, before it turns', // spec v9 (D67)
 };
 // A weapon's unit word: 'shot' for the crossbow (its data says so), else 'use'.
 export const unitWord = (w, n) => `${w.unit || 'use'}${n === 1 ? '' : 's'}`;

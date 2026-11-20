@@ -475,7 +475,9 @@ export const DRAFT_BANNER = 'Play-test: your own draft content, not approved yet
 // Entries whose notes carry this flag are entered with the most literal reading and wait on an owner ruling.
 export const CONFIRM_FLAG = 'NEEDS OWNER CONFIRMATION';
 // Spec v6 section 10: each flagged entry names its evidence status in its notes as "Status: <one of these>". None means approved.
-export const STATUSES = ['DIRECT 2023 RULE', 'DIRECT 2023 CARD', '1985-SUPPORTED INTERPRETATION', 'PROVISIONAL/INFERRED', 'OWNER DECISION REQUIRED'];
+// Spec v9: OWNER_APPROVED_INTERPRETATION, an interpretation the owner has directed or approved (not a printed rule, and not
+// waiting on a ruling); the card itself stays draft until the owner approves it.
+export const STATUSES = ['DIRECT 2023 RULE', 'DIRECT 2023 CARD', '1985-SUPPORTED INTERPRETATION', 'OWNER_APPROVED_INTERPRETATION', 'PROVISIONAL/INFERRED', 'OWNER DECISION REQUIRED'];
 const statusOf = e => (typeof e?.notes !== 'string' ? null : STATUSES.find(s => e.notes.includes(`Status: ${s}`)) || (e.notes.includes(CONFIRM_FLAG) ? CONFIRM_FLAG : null));
 // [[status, ids], ...] in STATUSES order (an unclassified NEEDS OWNER CONFIRMATION entry last), empty groups left out.
 export function flaggedByStatus(content) {

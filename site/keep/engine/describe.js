@@ -9,7 +9,7 @@ const DECK = { ROOM: 'room', SEARCH: 'search', ROOM_SEARCH: 'room search', CHEST
 const DIR = { N: 'north', E: 'east', S: 'south', W: 'west' };
 const REACTION = { 'monster-flees': 'it flees', combat: 'a fight', 'strike-then-flight': 'it strikes, then you get away', 'strike-then-combat': 'it strikes, then a fight', 'flight-succeeds': 'you get away', other: 'something else happens' };
 const TIMING = { 'turn-action': "as your turn's action", 'encounter-special': 'as a special weapon before a monster is revealed', free: 'on your turn, before or between moves, without using your turn' };
-const RING_TIMING = { 'turn-action': 'at the start of your turn, in place of your turn', 'door-or-portcullis': 'at a door or portcullis, in place of the door card or the Strength test', 'encounter-choice': 'when a monster appears, before it shows itself, never in an ambush', 'trap-drawn': 'when a card you draw is a trap' };
+const RING_TIMING = { 'turn-action': 'at the start of your turn, in place of your turn', 'door-or-portcullis': 'at a door or portcullis, in place of the door card or the Strength test', 'encounter-choice': 'when a monster appears, before it shows itself, never in an ambush', 'trap-drawn': 'when a card you draw is a trap, or as you enter a rotating room, before it turns' }; // spec v9: the room (D67)
 const AFTER = { bottom: 'goes to the bottom of its deck', remove: 'is removed from the game' };
 const capital = s => s.charAt(0).toUpperCase() + s.slice(1);
 

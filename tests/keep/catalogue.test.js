@@ -480,7 +480,7 @@ test('catalogue: the dragon odds and reset behave as ruled with the owner dragon
   assert.deepEqual(view(g, T, 0).dragon.odds, { awake: 1, remaining: 8 });
 });
 
-test('catalogue: play-test runs on owner data only; the banner says draft, not NON-AUTHENTIC; saves from v8 are refused', () => {
+test('catalogue: play-test runs on owner data only; the banner says draft, not NON-AUTHENTIC; saves from v9 are refused (spec v9 bumps to v10)', () => {
   assert.equal(M.label, DRAFT_BANNER);
   const g = createGame({ players: ['A', 'B'], seed: 3, content: M });
   assert.equal(g.banner, DRAFT_BANNER);
@@ -491,10 +491,13 @@ test('catalogue: play-test runs on owner data only; the banner says draft, not N
   assert.equal(lines.length, 2);
   assert.match(contentStatus(ORIGINAL, FX).play, /all \d+ slots are your own entries, still draft/);
   assert.deepEqual(toConfirm(C), [], 'spec v8: the curse is an owner interpretation now; the rotating room ruling (plan 13 #41a) is not card data');
-  assert.equal(MECHANICS_VERSION, 'rb-0.2/sp-1.0/v9');
+  assert.equal(MECHANICS_VERSION, 'rb-0.2/sp-1.0/v10');
   const old = JSON.parse(serialize(g));
-  old.mechanicsVersion = 'rb-0.2/sp-1.0/v8';
-  assert.throws(() => restore(JSON.stringify(old), M), /Unsupported save version/);
+  for (const v of ['rb-0.2/sp-1.0/v8', 'rb-0.2/sp-1.0/v9']) {
+    old.mechanicsVersion = v;
+    assert.throws(() => restore(JSON.stringify(old), M), /Unsupported save version/, `${v} refused`);
+  }
+  assert.equal(restore(serialize(g), M).mechanicsVersion, 'rb-0.2/sp-1.0/v10', 'a v10 save loads');
   // A category falling back to fixtures keeps the placeholder banner.
   const part = mixContent({ ...ORIGINAL, room: ORIGINAL.room.slice(1) }, FX);
   assert.match(createGame({ players: ['A'], seed: 1, content: part }).banner, /NON-AUTHENTIC/);
