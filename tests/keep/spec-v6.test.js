@@ -168,7 +168,7 @@ test('spec v6: not traps for the ring: bats, giant spider, centipede, scorpion, 
   for (const [k, id] of [['room', 'ROOM_023'], ['room', 'ROOM_024'], ['room', 'ROOM_025'], ['roomSearch', 'RSEARCH_002'], ['search', 'SEARCH_002'], ['room', 'ROOM_004'], ['room', 'ROOM_007'], ['room', 'ROOM_017'], ['room', 'ROOM_018']]) assert.notEqual(byId(k, id).kind, 'trap', id);
   assert.notEqual(enter('ROOM_023', { prep: RING, script: [6] }).pending?.kind, 'trap-ring');
   assert.notEqual(enter('ROOM_025', { prep: RING }).pending?.kind, 'trap-ring');
-  assert.match(byId('room', 'ROOM_007').notes, /Status: OWNER DECISION REQUIRED/);
+  assert.match(byId('room', 'ROOM_007').notes, /Status: PROVISIONAL\/INFERRED \(owner interpretation, spec v8/);
   // A rotating room (fixture tile): it turns, and no ring is offered (plan 13 #41a, OWNER DECISION REQUIRED; behaviour unchanged).
   const spun = [0, 90, 180, 270].map(rot => { try { return enter('ROOM_013', { prep: RING, toTile: 'FX_ROTATE', rot }); } catch { return null; } }).find(x => x && key(x.heroes[0].coord) === '1,1');
   assert.ok(spun, 'the hero got into the rotating room');
@@ -269,13 +269,13 @@ test('spec v6 dragon sequence (Node, reducer + DOM-free UI words; not an in-brow
 // ---- 9. Status labels.
 test('spec v6 statuses: no entry keeps NEEDS OWNER CONFIRMATION; flagged entries are grouped by the five statuses; none approved', () => {
   const groups = Object.fromEntries(flaggedByStatus(C));
-  assert.deepEqual(Object.keys(groups), ['DIRECT 2023 RULE', 'DIRECT 2023 CARD', '1985-SUPPORTED INTERPRETATION', 'PROVISIONAL/INFERRED', 'OWNER DECISION REQUIRED']);
+  assert.deepEqual(Object.keys(groups), ['DIRECT 2023 RULE', 'DIRECT 2023 CARD', '1985-SUPPORTED INTERPRETATION', 'PROVISIONAL/INFERRED'], 'spec v8: no card waits on a ruling');
   assert.ok(Object.keys(groups).every(s => STATUSES.includes(s)));
   assert.deepEqual(groups['DIRECT 2023 RULE'], ['MONSTER_006', 'MONSTER_014', 'MONSTER_015']);
   assert.deepEqual(groups['DIRECT 2023 CARD'], ['ROOM_004']);
   assert.deepEqual(groups['1985-SUPPORTED INTERPRETATION'], ['ROOM_001', 'ROOM_003', 'ROOM_005', 'ROOM_008', 'ROOM_014', 'SEARCH_001', 'RSEARCH_008', 'CHEST_009', 'DOOR_005'], 'spec v7 adds the other four shuffle cards');
-  assert.equal(groups['PROVISIONAL/INFERRED'].length, 25);
-  assert.deepEqual(groups['OWNER DECISION REQUIRED'], ['ROOM_007']);
+  assert.equal(groups['PROVISIONAL/INFERRED'].length, 26);
+  assert.ok(groups['PROVISIONAL/INFERRED'].includes('ROOM_007'), 'spec v8: the curse, by owner interpretation');
   const every = Object.values(C).flat().filter(e => e && typeof e === 'object');
   assert.ok(every.every(e => !String(e.notes || '').includes('NEEDS OWNER CONFIRMATION')));
   assert.ok(every.every(e => e.status !== 'APPROVED'));

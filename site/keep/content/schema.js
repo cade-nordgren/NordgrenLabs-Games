@@ -497,7 +497,7 @@ export function bannerLines(content) {
   const n = toConfirm(content).length;
   const m = flaggedByStatus(content).reduce((t, [, ids]) => t + ids.length, 0) - n;
   return [...(draft.length ? [`Draft, not approved: ${draft.join(', ')}`] : []), ...(n ? [`${n} ${n === 1 ? 'entry waits' : 'entries wait'} on your ruling (OWNER DECISION REQUIRED in its notes)`] : []),
-    ...(m ? [`${m} more ${m === 1 ? 'entry is' : 'entries are'} an interpretation or provisional, not approved (its status is in its notes)`] : [])];
+    ...(m ? [`${m} ${n ? 'more ' : ''}${m === 1 ? 'entry is' : 'entries are'} an interpretation or provisional, not approved (its status is in its notes)`] : [])];
 }
 export const syntheticCategories = content => CATEGORIES.flatMap(cat => {
   const all = entriesOf(content, cat.key), fx = all.filter(e => e?.status === 'FIXTURE');

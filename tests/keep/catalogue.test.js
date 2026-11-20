@@ -487,10 +487,10 @@ test('catalogue: play-test runs on owner data only; the banner says draft, not N
   assert.doesNotMatch(g.banner, /NON-AUTHENTIC/);
   const lines = bannerLines(M);
   assert.match(lines[0], /^Draft, not approved: /);
-  assert.match(lines[1], /^1 entry waits on your ruling \(OWNER DECISION REQUIRED/);
-  assert.match(lines[2], /^38 more entries are an interpretation or provisional, not approved/);
+  assert.match(lines[1], /^39 entries are an interpretation or provisional, not approved/, 'spec v8: nothing waits on a ruling in the card data');
+  assert.equal(lines.length, 2);
   assert.match(contentStatus(ORIGINAL, FX).play, /all \d+ slots are your own entries, still draft/);
-  assert.deepEqual(toConfirm(C), ['ROOM_007'], 'spec v6: only the curse waits on a ruling');
+  assert.deepEqual(toConfirm(C), [], 'spec v8: the curse is an owner interpretation now; the rotating room ruling (plan 13 #41a) is not card data');
   assert.equal(MECHANICS_VERSION, 'rb-0.2/sp-1.0/v9');
   const old = JSON.parse(serialize(g));
   old.mechanicsVersion = 'rb-0.2/sp-1.0/v8';

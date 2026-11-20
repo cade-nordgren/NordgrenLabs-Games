@@ -640,7 +640,7 @@ Typical messages and what to do:
 | `ROOM_004: status aproved must be "draft" or "approved"` | A typo in the status. |
 | `Could not read the content: door.js: Unexpected token ...` followed by a line | A notation slip (a missing comma, quote or bracket) on the line shown. |
 
-After the errors, `check` lists flagged entries by evidence status, one line each, for example `1 entry with status OWNER DECISION REQUIRED: ROOM_007`. These are not errors and do not stop anything; an entry still marked `NEEDS OWNER CONFIRMATION` (the older flag) is listed as such.
+After the errors, `check` lists flagged entries by evidence status, one line each, for example `1 entry with status DIRECT 2023 CARD: ROOM_004`. These are not errors and do not stop anything; an entry still marked `NEEDS OWNER CONFIRMATION` (the older flag) is listed as such.
 
 Approved entries with errors don't count as verified. The checker uses the same validation as the game, so if it says "No errors", the game agrees.
 
