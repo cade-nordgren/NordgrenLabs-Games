@@ -632,14 +632,21 @@ function render() {
   refocus(onCell);
   showOutcome(); // after the Reveal's Continue, say
 }
-// Focus that a re-render (or a closed roll card) took away goes back to the map grid if it was there, else for
-// keyboard players to the first choice.
+// Focus that a re-render, a closed card or a closed sheet took away (spec v12 follow-up: never left on <body>) goes to
+// the cover's button, back to the map grid if it was there, else to the prompt's first control, or its heading when the
+// next input is a tap on the map. Never while a card, sheet or cover holds the screen, and never scrolling a phone.
 function refocus(onCell) {
   const a = document.activeElement;
-  if (a && a !== document.body && a.isConnected && !a.closest('[hidden]')) return;
+  if (a && a !== document.body && a.isConnected && !a.closest('[hidden], [inert]')) return;
+  if (document.querySelector('dialog[open]')) return;
   if (!$('cover').hidden) return $('coverGo').focus();
-  if (onCell && boardApi) boardApi.focus();
-  else if (keyboard) document.querySelector('main:not([hidden]) :is(.choices button, button.choice):not(:disabled)')?.focus();
+  if (onCell && boardApi) return boardApi.focus();
+  const prompt = document.querySelector('#table:not([hidden]) .dock > section');
+  if (!prompt) { if (keyboard) document.querySelector('main:not([hidden]) :is(.choices button, button.choice):not(:disabled)')?.focus(); return; }
+  const go = (prompt.dataset.map === undefined && prompt.querySelector(':is(.numpick button, .choices button, button.choice):not(:disabled)')) || prompt.querySelector('h2');
+  if (!go) return;
+  if (go.tagName === 'H2') go.tabIndex = -1;
+  go.focus({ preventScroll: PHONE.matches });
 }
 
 // ---- Title and setup
@@ -1290,6 +1297,7 @@ function renderPrompt(v, la, targets) {
   const small = p.querySelector('.tools');
   if (viewer === null || viewer === g.activeSeat) (small || ch).append(itemsButton(v, g.activeSeat, small ? 'btn' : 'choice'));
   if (targets.length) {
+    p.dataset.map = ''; // the next input is a tap on the map: refocus goes to this prompt's heading
     p.append(el('p', 'movehint', 'Tap a highlighted square to move. Press and hold any square to see what is there.'));
     // The reason line of the focused lit square (the cell's own label already says it, so hidden from readers).
     const why = el('small', 'movewhy', 'Arrow keys and Enter move from the keyboard.');
@@ -1702,7 +1710,11 @@ $('keepPlaying').onclick = () => $('exitSheet').close();
 $('logBtn').onclick = openLog;
 $('logDone').onclick = () => $('logSheet').close();
 $('logEnd').onclick = () => { const last = $('log').lastElementChild; if (last) { last.tabIndex = -1; last.scrollIntoView({ block: 'end' }); last.focus({ preventScroll: true }); } };
-for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
+for (const d of document.querySelectorAll('dialog')) {
+  d.onclick = e => { if (e.target === d) d.close(); };
+  // A sheet's opener may have been re-rendered away while it was open: then focus goes to the prompt, not <body>.
+  d.addEventListener('close', () => refocus(false));
+}
 const showDebug = NL.segmented($('debugSeg'), v => { prefs.debugLog = v === 'on'; savePrefs(); showDebug(v); }); // only the Event log reads it, so no re-render
 $('settingsBtn').onclick = () => {
   showTheme(NL.theme.get());

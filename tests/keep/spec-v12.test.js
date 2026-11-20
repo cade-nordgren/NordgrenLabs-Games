@@ -498,3 +498,16 @@ test('spec v12 follow-up: a result card with dice cannot be acknowledged until t
   assert.match(app, /mode === 'result' && cardReady\) queue\.next\(\)/, 'Esc before then does nothing');
   assert.doesNotMatch(app.slice(app.indexOf('function drawCard'), app.indexOf('function cardsDone')), /requestAnimationFrame|transitionend|animationend/, 'settled by the timer in dice.js, not frames');
 });
+
+test('spec v12 follow-up: focus is never left on <body> after a card, sheet, Back or cover closes (static)', () => {
+  const app = src('ui/app.js');
+  const body = app.slice(app.indexOf('function refocus'), app.indexOf('// ---- Title and setup'));
+  assert.match(body, /if \(document\.querySelector\('dialog\[open\]'\)\) return;/, 'never steals focus from a card or sheet that opened next');
+  assert.match(body, /\$\('coverGo'\)\.focus\(\)/, 'a pass-the-phone cover: its "I am X, show me" button');
+  assert.match(body, /\.dock > section/, 'else the prompt in the dock');
+  assert.match(body, /preventScroll: PHONE\.matches/, 'without scrolling a phone');
+  assert.match(body, /prompt\.dataset\.map === undefined/, 'the heading when the next input is a tap on the map');
+  assert.match(app, /d\.addEventListener\('close', \(\) => refocus\(false\)\);/, 'every sheet (Items, Event log, Settings) refocuses when it closes');
+  assert.match(app, /function cardsDone\(\) \{[\s\S]*?refocus\(rollFromCell\);/, 'the last result card');
+  assert.match(app, /function outcomeDone\(\) \{[\s\S]*?refocus\(false\);/, "the fight's end card");
+});
