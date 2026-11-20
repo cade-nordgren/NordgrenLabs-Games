@@ -419,7 +419,9 @@ export function mountBoard(host, opts) {
     wantZoom = wantClear = false;
   };
   ro?.disconnect();
-  ro = new ResizeObserver(() => { if (!view.clientWidth) return; if (!vp || vp.fit) fit(); else clamp(); autoZoom(); });
+  // Spec v12 fix 5: settle also runs at once once the map is in the page (app.js), so framing never waits for a frame.
+  const settle = () => { if (!view.isConnected || !view.clientWidth) return; if (!vp || vp.fit) fit(); else clamp(); autoZoom(); };
+  ro = new ResizeObserver(settle);
   ro.observe(view);
 
   // ---- Tools: buttons, so they work by touch, mouse and keyboard alike.
@@ -558,5 +560,5 @@ export function mountBoard(host, opts) {
     }
   });
 
-  return { focus: () => cellAt(focusKey && cellAt(focusKey) ? focusKey : start)?.focus({ preventScroll: true }) };
+  return { focus: () => cellAt(focusKey && cellAt(focusKey) ? focusKey : start)?.focus({ preventScroll: true }), settle };
 }

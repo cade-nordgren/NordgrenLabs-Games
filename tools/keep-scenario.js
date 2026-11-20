@@ -77,6 +77,9 @@ function lair(seed, { players = 1, inside = [0], tiles = [], ringOf = {}, heroes
   return g;
 }
 
+// For tests/keep/spec-v12.test.js (trapped heroes): the same position helpers.
+export { lair, tile, hero, dragonTop };
+
 // ---- The scenarios. build(seed) -> game; then: the hinted actions (fields to match a legal action of the acting seat);
 // expect(after, before) -> true once the screen the scenario is for is showing.
 export const SCENARIOS = {
@@ -116,6 +119,41 @@ export const SCENARIOS = {
     build: s => { const g = room(s, { card: 'ROOM_009' }); top(g, 'CHEST', 'CHEST_007'); return g; },
     then: [E, { type: 'CHOOSE', option: 0 }],
     expect: (g, b) => log(g, 'draw', b.log.length).some(e => e.value?.startsWith('CHEST_007#')),
+  },
+  'bones-odd': {
+    hint: 'Spec v12. Move east into the room: a chest (ROOM_009); Open the chest: Bones (CHEST_007), the D12 is odd on this seed: "A skeleton rises", then the encounter.',
+    build: s => { const g = room(s, { card: 'ROOM_009' }); top(g, 'CHEST', 'CHEST_007'); return g; },
+    then: [E, { type: 'CHOOSE', option: 0 }],
+    expect: (g, b) => log(g, 'table-row', b.log.length)[0]?.value % 2 === 1 && log(g, 'encounter', b.log.length).length === 1,
+  },
+  'bones-even': {
+    hint: 'Spec v12. Move east into the room: a chest (ROOM_009); Open the chest: Bones (CHEST_007), the D12 is even on this seed: no monster appears.',
+    build: s => { const g = room(s, { card: 'ROOM_009' }); top(g, 'CHEST', 'CHEST_007'); return g; },
+    then: [E, { type: 'CHOOSE', option: 0 }],
+    expect: (g, b) => log(g, 'table-row', b.log.length)[0]?.value % 2 === 0 && !log(g, 'encounter', b.log.length).length,
+  },
+  'spider-defeated': {
+    hint: 'Spec v12. Move east into the room: the giant spider (ROOM_025); choose Fight and name 1, 2 and 3: on this seed the D6 shows one of them, "The spider is defeated".',
+    build: s => room(s, { card: 'ROOM_025' }),
+    then: [E, { type: 'CHOOSE', option: 0 }, { type: 'NAME_NUMBERS', numbers: '1,2,3' }],
+    expect: (g, b) => log(g, 'named-roll', b.log.length)[0]?.match === true,
+  },
+  'treasure-kept': {
+    hint: 'Spec v12. Move east into the room: an arm ring (ROOM_010), treasure kept, 40 gold.',
+    build: s => room(s, { card: 'ROOM_010' }), then: [E],
+    expect: (g, b) => log(g, 'retain', b.log.length).length === 1 && g.heroes[0].held.some(c => c.startsWith('ROOM_010#')),
+  },
+  'door-closed': {
+    hint: 'Spec v12. Move north through the door: the door stays shut (DOOR_002); another way out is offered this turn (east or west), or stop.',
+    build: s => { const g = room(s, { here: 'TILE_005' }); if (!g) return null; tile(g, '2,2', 'TILE_006'); top(g, 'DOOR', 'DOOR_002'); return g; },
+    then: [{ type: 'MOVE', dir: 'N' }],
+    expect: (g, b) => log(g, 'door', b.log.length)[0]?.result === 'closed' && g.phase === 'CHOOSE_EXIT' && legalActions(g, CONTENT).some(a => a.type === 'MOVE'),
+  },
+  'dragon-well-through-wall': {
+    hint: 'Spec v12, owner ruling (trapped heroes). Solo in the lair; the only revealed tile next to it is the well (TILE_017 at 4,4, turned so its walls face north and south, the lair side a wall); the awake card is on top. Stay and collect: the dragon wakes and drives the hero onto the well through that wall. The entry Agility test passes on this seed: the hero clings to the near edge (a wall), where the jump is the only way on (no Climb back); across, the far edge is a wall too.',
+    build: s => { const g = lair(s, { tiles: [['4,4', 'TILE_017', 90]] }); dragonTop(g, 'DRAGON_8'); return g; },
+    then: [{ type: 'COLLECT' }, { type: 'FORCED_MOVE', to: '4,4' }],
+    expect: g => g.heroes[0].status === 'EXPLORING' && g.heroes[0].roomState?.special === 'well' && g.heroes[0].coord.x === 4 && g.heroes[0].coord.y === 4,
   },
   trapdoor: {
     hint: 'Move east into the room: the trapdoor (ROOM_015), the Luck test fails (this seed) and the hero falls; the next turn opens with Climb out. No rope.',

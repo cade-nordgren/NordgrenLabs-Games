@@ -322,6 +322,21 @@ details li + li { margin-top: 6px; }
 #roll p.verdict.pass { background: color-mix(in srgb, var(--good) 24%, transparent); }
 #roll p.verdict.fail { background: color-mix(in srgb, var(--danger) 22%, transparent); }
 #roll p.sum { color: var(--ink); font-variant-numeric: tabular-nums; }
+/* Result cards (spec v12): what the card is, each die's consequence and the result lines, each with an outcome tag in
+   words (the tag's colour only repeats it). Left-aligned for reading; the dice stay centred. */
+#roll p.count { margin: 0; font-size: 13px; color: var(--ink2); }
+#roll p.what { margin: 0; color: var(--ink); font-size: 15px; }
+#roll p.what + p.what { color: var(--ink2); }
+#roll .outcome:has(.tagged) { justify-items: stretch; text-align: left; }
+#roll ul.results { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+#roll .tagged { margin: 0; color: var(--ink); font-size: 15px; line-height: 1.4; }
+#roll .tag { display: inline-block; margin-right: 2px; padding: 0 8px; border-radius: 999px; font: 600 13px/1.6 var(--text); color: var(--ink); background: var(--fill); }
+#roll :is(.tag-success, .tag-healed, .tag-item) { background: color-mix(in srgb, var(--good) 24%, transparent); }
+#roll :is(.tag-failure, .tag-damage, .tag-death) { background: color-mix(in srgb, var(--danger) 22%, transparent); }
+#roll .tag-death { font-weight: 800; }
+#roll .tag-action { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+/* Continue stays in reach when a long card scrolls inside the sheet. */
+#roll .rollbtns { position: sticky; bottom: 0; padding-top: 8px; background: linear-gradient(transparent, var(--solid) 12px); }
 .rollbtns { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; margin-top: 4px; }
 .rollbtns .btn { min-height: 54px; }
 #heroes ul { list-style: none; margin: 8px 0 0; padding: 0; }

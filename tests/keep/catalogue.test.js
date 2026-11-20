@@ -15,6 +15,8 @@ import { exits, neighbour, squareKind, key } from '../../site/keep/engine/board.
 import { heroGold } from '../../site/keep/engine/heroes.js';
 import { entries, cardText, fightRowModel, conditionWords } from '../../site/keep/ui/words.js';
 import { shownEffectText } from '../../site/keep/engine/describe.js';
+import { actionCards, OUTCOME_TAG } from '../../site/keep/ui/results.js';
+import { cardDef } from '../../site/keep/engine/decks.js';
 import { FX, setup, act, acts, place, putHero, give, draws, assertCensus } from './helpers.js';
 
 // Queue dice on a copy, so one position can be branched with different rolls.
@@ -510,6 +512,29 @@ const CITATION = /\b(RB|SP) \d|\bD(0\d|1[01]|[2-9]\d)\b|\bR\d{2,3}\b|NON-AUTHENT
 const clean = (t, where) => assert.ok(typeof t === 'string' && !BAD.test(t) && !CITATION.test(t), `${where}: ${JSON.stringify(t)}`);
 const picker = seed => () => { seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
 
+// Spec v12: the result cards of every action, as the table sees them (the public view in multiplayer): clean words,
+// every die explained with a known tag, and no chamber card or monster card drawn in secret named on a public card.
+function checkCards(prev, g, players, name, seen) {
+  const cards = actionCards(prev, g, M, name, players === 1 ? 0 : null);
+  const added = g.log.slice(prev.log.length);
+  const shown = new Set(added.filter(e => e.kind === 'draw' && e.private === undefined && typeof e.value === 'string' && /#/.test(e.value)).map(e => cardDef(M, e.value).name));
+  const secret = players === 1 ? [] : added.filter(e => e.kind === 'draw' && e.private !== undefined && /#/.test(e.value)).map(e => cardDef(M, e.value).name).filter(n => !shown.has(n));
+  for (const c of cards) {
+    seen.add(`card:${c.title}`);
+    for (const t of [c.title, ...c.what]) clean(t, 'result card');
+    for (const d of c.dice) {
+      clean(d.text, `die ${d.die}`);
+      assert.ok(OUTCOME_TAG[d.tag], `die tag ${d.tag}`);
+      assert.notEqual(d.text, `${d.die}: ${d.value}.`, `the ${d.die} is explained: ${c.title}`);
+      seen.add(`tag:${d.tag}`);
+    }
+    for (const r of c.results) { clean(r.text, 'result line'); assert.ok(OUTCOME_TAG[r.tag], `result tag ${r.tag}`); seen.add(`tag:${r.tag}`); }
+    const all = JSON.stringify(c);
+    for (const n of secret) assert.ok(!all.includes(n), `a secret card (${n}) is not named on a public result card: ${all}`);
+    assert.doesNotMatch(all, /monster[^"]*\bHP\b|\bwounds?\b/i, 'no monster HP or wound tally on a result card');
+  }
+}
+
 test('catalogue soak: several hundred random games on the owner content, every view clean and nothing hidden leaks', () => {
   for (const k of ['room', 'roomSearch', 'search', 'door', 'chest', 'treasury']) for (const def of M[k]) clean(cardText(def, null, M), def.id);
   const seen = new Set();
@@ -522,8 +547,10 @@ test('catalogue soak: several hundred random games on the owner content, every v
       assert.ok(step < 6000, 'the game ends');
       const la = legalActions(g, M);
       assert.ok(la.length, `${g.phase}: a legal action exists`);
+      const prev = g;
       g = reduce(g, la[Math.floor(pick() * la.length)], M);
       for (const h of g.heroes) for (const cnd of h?.conditions || []) { const w = conditionWords(cnd); if (w) clean(w, 'condition words'); }
+      checkCards(prev, g, players, name, seen);
       if (!g.encounter || g.status !== 'playing') continue;
       for (const viewer of [null, ...g.seats.keys()]) {
         const enc = view(g, M, viewer).encounter;
@@ -542,6 +569,7 @@ test('catalogue soak: several hundred random games on the owner content, every v
     for (const e of g.log) if (e.kind === 'draw' && /^redraw after /.test(e.reason)) seen.add('redraw'); // spec v7
   }
   for (const k of ['named-roll', 'turn-skipped', 'tiles-rotated', 'encounter', 'exchange', 'throw', 'escape', 'death', 'redraw']) assert.ok(seen.has(k), `the soak reached ${k}`);
+  for (const k of ['tag:death', 'tag:skipped', 'tag:item', 'tag:healed', 'tag:action', 'tag:success', 'tag:failure', 'tag:none', 'tag:status', 'tag:damage']) assert.ok(seen.has(k), `the soak's result cards reached ${k}`); // a wake is rare in random play: spec-v12.test.js scripts it
   const cards = [...seen].filter(x => /^(ROOM|RSEARCH|SEARCH|DOOR|CHEST)_/.test(x));
   assert.ok(cards.length >= 50, `the soak resolved ${cards.length} different owner cards`);
 });

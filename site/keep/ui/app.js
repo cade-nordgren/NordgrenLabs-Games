@@ -15,6 +15,7 @@ import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, s
 import { lines, entries, dragonStatus, collectWords, forcedMoveWords, cardText, monsterText, fightRowModel, soloStripModel, expr,
  undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, rotationRingWords, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords } from './words.js';
 import { rollDice } from './dice.js';
+import { actionCards, cardQueue, cardSpeech, latestTurn, OUTCOME_TAG } from './results.js';
 import { shownEffectText, describeEffects } from '../engine/describe.js';
 import { unitWord } from '../engine/inventory.js';
 import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
@@ -113,6 +114,8 @@ const ctx = () => ({ content: content(), name: nameOf });
 
 // ---- Actions: every one goes to the engine, which refuses anything not legal now.
 function act(a) {
+  // Spec v12 fix 5: nothing is dispatched from a table still held behind a result card (a stale control); it is redrawn.
+  if (held) { release(); return; }
   const prev = S.game, c = content();
   duskLine = '';
   let next;
@@ -125,23 +128,27 @@ function act(a) {
   const ex = added.find(e => e.kind === 'exchange');
   S.reveal = multi && ex ? { seat: prev.encounter.seat, hero: ex.hero, monster: ex.monster, heroDmg: ex.heroDmg, monsterDmg: ex.monsterDmg } : null;
   const priv = added.find(e => (e.kind === 'draw' || e.kind === 'retain') && e.private !== undefined && e.deck !== 'MONSTER');
-  S.peek = multi && Number.isInteger(priv?.private) ? { seat: priv.private, from: prev.log.length } : null;
+  // Spec v12 fix 4: after a wake the cards just drawn are gone, so no private card screen; the wake card says why.
+  const woke = added.some(e => e.kind === 'dragon-wakes');
+  S.peek = multi && !woke && Number.isInteger(priv?.private) ? { seat: priv.private, from: prev.log.length } : null;
   target = { placement: null, face: null };
   if (prev.status !== 'over' && next.status === 'over' && S.saveId) Object.assign(S, { dropSave: S.saveId, saveId: null, createdAt: null });
   S.game = next;
-  // A roll or fight-end card about to open holds the table as it was until its Continue (release), so the board,
-  // status bar and prompt do not move on to the next player behind it. Saved now all the same. Never held over a
-  // private screen the next state would not show the same viewer: then the new state (a cover) renders first.
+  // Spec v12 fix 1: a result card for every card drawn and every automatic event, from the public view in multiplayer
+  // (the solo player's own view in solo), acknowledged one by one; a skipped turn is one of them (D54), not a toast.
+  // A result card or fight-end card about to open holds the table as it was until the last Continue (release), so the
+  // board, status bar and prompt do not move on to the next player behind it. Saved now all the same. Never held over a
+  // private screen the next state would not show the same viewer: then the new state (a cover) renders first and the
+  // public cards show over it.
+  const cards = actionCards(prev, next, c, nameOf, multi ? null : 0);
   const out = encounterOutcome(prev, added);
-  held = (solo() || viewer === null || needViewer() === viewer) && (added.some(rollShown) || (!!out && !S.reveal));
+  held = (solo() || viewer === null || needViewer() === viewer) && (cards.length > 0 || (!!out && !S.reveal));
   if (held) { persist(); dropFinished(); } else render();
-  if (!showRolls(added) && $('roll').open) $('roll').close();
   outcome = out;
+  if (!cards.length && $('roll').open) { $('roll').dataset.mode = ''; $('roll').close(); }
+  if (cards.length) queue.start(cards);
   showOutcome();
   showDusk();
-  // D54: a skipped hero never gets a prompt, so the table is told.
-  const skipped = added.filter(e => e.kind === 'turn-skipped');
-  if (skipped.length) toast(skipped.map(e => `${nameOf(e.seat)} misses this turn${e.left ? ` (${e.left} more)` : ''}.`).join(' '));
 }
 let held = false;
 function release() { if (held) { held = false; render(); } }
@@ -174,12 +181,27 @@ function showOutcome() {
   if (!outcome || S.reveal || $('roll').open || $('outcome').open) return;
   const { title, line } = outcome;
   outcome = null;
+  openOutcome(title, line);
+  say(`${title} ${line}`.trim());
+}
+// The fight's end card and the last dusk notice share one dialog. Its Continue runs outcomeDone at once (spec v12
+// fix 5); the dialog's close event (Esc) only repeats it when that has not happened yet.
+let outcomeOpen = false;
+function openOutcome(title, line) {
   $('outcomeTitle').textContent = title;
   $('outcomeLine').textContent = line;
   $('outcomeLine').hidden = !line;
+  outcomeOpen = true;
   $('outcome').showModal();
   $('outcomeGo').focus();
-  say(`${title} ${line}`.trim());
+}
+function outcomeDone() {
+  if (!outcomeOpen) return;
+  outcomeOpen = false;
+  if ($('outcome').open) $('outcome').close();
+  release();
+  refocus(false);
+  showDusk();
 }
 
 // ---- Dusk notices (owner, 2026-11-19): when 5, 3 and 1 rounds of light are left (turns, solo), a short notice over the
@@ -198,14 +220,7 @@ function showDusk() {
   const w = duskWords(t, solo());
   duskLine = `${w.title} ${w.line}`;
   say(`${$('said').textContent} ${duskLine}`.trim());
-  if (w.card) {
-    $('outcomeTitle').textContent = w.title;
-    $('outcomeLine').textContent = w.line;
-    $('outcomeLine').hidden = false;
-    $('outcome').showModal();
-    $('outcomeGo').focus();
-    return;
-  }
+  if (w.card) return openOutcome(w.title, w.line);
   $('duskTitle').textContent = w.title;
   $('duskLine').textContent = w.line;
   $('dusk').hidden = false;
@@ -265,85 +280,49 @@ function tryAct(a) {
   go.focus();
 }
 
-// After an action: its tests and dice rolls tumble on the card, then pass or fail with the arithmetic and
-// Continue. Rolls are public entries, so this shows nothing the table may not see. False when there were none.
-// Spec v5: a weapon table's rolls (the crossbow's D6, and the second D6 on a 4 or 5) show here too.
-const tableRoll = e => e.kind === 'roll' && /^table roll/.test(e.reason);
-const namedRoll = e => e.kind === 'roll' && /^named roll/.test(e.reason);
-const cardRoll = e => e.kind === 'roll' && /^card roll /.test(e.reason);
-const rollShown = e => e.kind === 'test' || (e.kind === 'roll' && e.reason === 'dark room exit') || tableRoll(e) || namedRoll(e) || cardRoll(e);
-// A weapon table is the crossbow's (the hero used their weapon in this action); any other table is a card's.
-const weaponTable = added => added.some(e => e.kind === 'item' && e.action === 'use' && e.group === 'equipment');
-// What followed a card's own roll, in the log's words: the lines between it and the next roll shown.
-const KEEP_AFTER = new Set(['tiles-rotated', 'encounter', 'flight', 'flight-blocked', 'damage', 'heal', 'death', 'condition', 'condition-cleared', 'named-roll']);
-function afterRoll(e, added, said) {
-  const from = added.indexOf(e) + 1, to = added.findIndex((x, i) => i >= from && rollShown(x));
-  return added.slice(from, to < 0 ? undefined : to).filter(x => KEEP_AFTER.has(x.kind)).map(x => said.find(s => s.e === x)?.text).filter(Boolean);
-}
-// What a weapon table did, in plain words. Never the monster's HP: only the hit, or the kill everyone hears of.
-function tableResult(added) {
-  if (added.some(e => e.kind === 'monster-dead' || (e.kind === 'encounter-end' && e.outcome === 'monster-killed'))) return 'The monster is dead.';
-  const hit = added.find(e => e.kind === 'monster-wound');
-  return hit ? `Hit for ${hit.amount}.` : 'Miss.';
-}
-function showRolls(added) {
-  const shown = added.filter(rollShown);
-  if (!shown.length) return false;
-  const d = $('roll'), said = entries(added, ctx());
-  const first = shown[0];
-  const weapon = weaponTable(added);
-  const verb = tableRoll(first) && weapon && (content().specialWeapons || []).find(w => w.id === heroDef(S.game.heroes[S.game.activeSeat]).specialWeaponId)?.verb;
-  const label = namedRoll(first) ? /\((.*)\)$/.exec(first.reason)?.[1] : null;
-  $('rollTitle').textContent = d.dataset.mode === 'rolling' && d.dataset.title ? d.dataset.title : ROLL_TITLE[first.reason] || label || (tableRoll(first) ? verb || 'Roll' : cardRoll(first) ? 'Roll' : `${STAT[first.stat]} test`);
-  const dice = el('div'), out = el('div', 'outcome'), summary = [];
-  for (const e of shown) {
-    const box = el('div');
-    if (e.kind === 'test') {
-      const it = said.find(x => x.e === e), [rolled, needed] = testWords(e);
-      box.append(el('p', `verdict ${e.pass ? 'pass' : 'fail'}`, e.pass ? 'Pass' : 'Fail'), el('p', 'sum', rolled), el('p', 'sum', needed));
-      const line = it?.text;
-      if (line) box.append(el('p', '', line));
-      summary.push(`${e.pass ? 'Pass' : 'Fail'}. ${rolled} ${needed} ${line || ''}`);
-    } else if (namedRoll(e) || cardRoll(e) || (tableRoll(e) && !weapon)) {
-      // A card's roll: the named-number roll, the flask's two dice (said once, after the second), a card's table.
-      box.append(el('p', 'verdict', `${e.die}: ${e.value}`));
-      const nextShown = shown[shown.indexOf(e) + 1];
-      const lines = cardRoll(e) && nextShown && cardRoll(nextShown) ? [] : afterRoll(e, added, said);
-      for (const t of lines) box.append(el('p', '', t));
-      summary.push(`${e.die} ${e.value}. ${lines.join(' ')}`.trim());
-    } else if (tableRoll(e)) {
-      box.append(el('p', 'verdict', `${e.die}: ${e.value}`));
-      const last = e === shown.findLast(tableRoll);
-      if (last) box.append(el('p', '', tableResult(added)));
-      summary.push(`${e.die} ${e.value}.${last ? ` ${tableResult(added)}` : ''}`);
-    } else {
-      const next = added.slice(added.indexOf(e) + 1).find(x => x.kind === 'dark-exit' || x.kind === 'dark-blocked');
-      const line = next ? said.find(x => x.e === next)?.text : '';
-      box.append(el('p', 'verdict', `D6: ${e.value}`));
-      if (line) box.append(el('p', '', line));
-      const blocked = added.find(x => x.kind === 'dark-blocked');
-      if (blocked) box.append(el('p', '', said.find(x => x.e === blocked)?.text || ''));
-      summary.push(`D6 ${e.value}. ${line || ''}`);
-    }
-    out.append(box);
+// ---- Result cards (spec v12 fix 1), in the roll card: title, what the card is, every die rolled for it with its
+// consequence, then the tagged result lines and Continue. One card after another in the engine's order; the table
+// stays held until the last Continue. Public in multiplayer (built from the public view), so nothing hidden shows.
+const tagChip = tag => el('span', `tag tag-${tag}`, OUTCOME_TAG[tag]);
+function drawCard(card, i, n) {
+  const d = $('roll');
+  $('rollTitle').textContent = card.title;
+  const body = [];
+  if (n > 1) body.push(el('p', 'count', `${i + 1} of ${n}`));
+  for (const w of card.what) body.push(el('p', 'what', w));
+  const dice = el('div'), out = el('div', 'outcome');
+  for (const x of card.dice) { const p = el('p', 'tagged'); p.append(tagChip(x.tag), ' ', x.text); out.append(p); }
+  if (card.results.length) {
+    const ul = el('ul', 'results');
+    for (const r of card.results) { const li = el('li', 'tagged'); li.append(tagChip(r.tag), ' ', r.text); ul.append(li); }
+    out.append(ul);
   }
-  out.style.visibility = 'hidden';
-  $('rollBody').replaceChildren(dice, out);
-  const ok = el('button', 'btn primary', 'Continue');
-  ok.onclick = () => d.close();
-  ok.style.visibility = 'hidden';
+  if (card.dice.length) body.push(dice);
+  body.push(out);
+  $('rollBody').replaceChildren(...body);
+  const ok = el('button', 'btn primary', i + 1 < n ? 'Next' : 'Continue');
+  ok.onclick = () => queue.next(); // spec v12 fix 5: the next card, or the table, at once in this handler
   $('rollBtns').replaceChildren(ok);
   d.dataset.mode = 'result';
   if (!d.open) { rollFromCell = !!document.activeElement?.closest?.('[data-cell]'); d.showModal(); }
+  const shown = () => { out.style.visibility = ok.style.visibility = ''; ok.focus(); say(cardSpeech(card)); };
+  if (!card.dice.length) return shown();
+  out.style.visibility = ok.style.visibility = 'hidden';
   $('rollTitle').focus(); // until Continue shows
-  rollDice(dice, shown.map(e => (e.kind === 'test' ? { value: e.roll } : { value: e.value, sides: e.die === 'D12' ? 12 : 6 }))).then(() => {
-    if (!d.open || !out.isConnected) return;
-    out.style.visibility = ok.style.visibility = '';
-    ok.focus();
-    say(summary.join(' '));
-  });
-  return true;
+  // The tumble only decorates: it settles on a timer (dice.js), and is skipped while the page is hidden.
+  rollDice(dice, card.dice.map(x => ({ value: x.value, sides: x.die === 'D12' ? 12 : 6 })), { animate: !document.hidden }).then(() => { if (d.open && out.isConnected) shown(); });
 }
+// After the last card: close, then the fight's end card, the table, focus and dusk, all inside the click handler.
+function cardsDone() {
+  const d = $('roll');
+  d.dataset.mode = '';
+  if (d.open) d.close();
+  showOutcome(); // a fight's end card keeps the table held
+  if (!$('outcome').open) release();
+  refocus(rollFromCell);
+  showDusk();
+}
+const queue = cardQueue(drawCard, cardsDone);
 const canUndo = () => canUndoHist(S.hist, S.game);
 // The thumb-reach undo under a prompt, named for what it takes back; or, with note, why there is nothing to undo.
 function undoHere(v, note) {
@@ -641,7 +620,7 @@ function render() {
   for (const id of ['title', 'draft', 'table', 'results']) $(id).hidden = id !== screen;
   for (const id of ['draft', 'table', 'results']) if (id !== screen) $(id).replaceChildren();
   const v = view(g, content(), viewer);
-  say(screen === 'table' ? [...lines(v.log.slice(S.seen), ctx()), duskLine].filter(Boolean).join(' ') : '');
+  if (!$('roll').open) say(screen === 'table' ? [...lines(v.log.filter(e => e.seq > S.seen), ctx()), duskLine].filter(Boolean).join(' ') : ''); // a view drops shuffles: by seq, not index
   if (screen === 'draft') renderDraft(v);
   else if (screen === 'table') renderTable(v);
   else renderResults(v);
@@ -1079,7 +1058,7 @@ function renderPrompt(v, la, targets) {
     const seat = S.peek.seat, mine = v.heroes[seat];
     p = panel(`${nameOf(seat)}, your ${chamberCards(c)}`, 'Only you may see these.');
     if (S.peek.from !== null) {
-      const drawn = v.log.slice(S.peek.from).filter(e => (e.kind === 'draw' && e.deck === 'TREASURY') && e.private === seat);
+      const drawn = v.log.filter(e => e.seq > S.peek.from && e.kind === 'draw' && e.deck === 'TREASURY' && e.private === seat);
       for (const e of drawn) { const d = cardDef(c, e.value); const f = el('div', 'cardface'); f.append(el('strong', '', `Drawn: ${e.cardName || d.name}`), el('p', '', cardText(d, e.effectText, c))); p.append(f); }
     }
     const f = el('div', 'cardface');
@@ -1339,7 +1318,7 @@ function renderTable(v) {
   // Centre on hero follows whoever is looking: the viewer's own hero on a private screen, the active one at the table.
   const vh = viewer !== null && g.heroes[viewer];
   const homeSeat = vh?.coord && isActive(vh) ? viewer : g.activeSeat;
-  boardApi = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[homeSeat].coord, homeSeat, onInspect: inspect, onNear: near, tilesLeft: v.board.tileBag,
+  const board = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[homeSeat].coord, homeSeat, onInspect: inspect, onNear: near, tilesLeft: v.board.tileBag,
     onFocusTarget: t => { if (t && $('moveWhy')) $('moveWhy').textContent = t.label; } });
 
   // The dock holds the prompt and what just happened; on a phone in portrait it sits under the board, latest
@@ -1348,7 +1327,7 @@ function renderTable(v) {
   if (!S.peek && !S.reveal) (prompt.querySelector('.tools') || prompt).append(...undoHere(v, true)); // not on a private card panel or the shared reveal
   dock.append(prompt);
   dock.classList.toggle('fight', prompt.classList.contains('fight')); // the prompt above what just happened
-  const latest = v.log.slice(S.seen);
+  const latest = latestTurn(v.log, S.seen);
   if (latest.length) {
     const lp = panel(latest[0].seat !== undefined ? `What just happened on ${nameOf(latest[0].seat)}'s turn` : 'What just happened');
     lp.id = 'latest';
@@ -1364,6 +1343,8 @@ function renderTable(v) {
   grid.append(bp, side);
   out.push(grid);
   $('table').replaceChildren(...out);
+  boardApi = board;
+  board.settle(); // spec v12 fix 5: frame the map now it is laid out, not only when a ResizeObserver callback (a frame) comes
 }
 
 // Solo only (owner, 2026-11-19): the hero's HP, stats and gold in one line under the status bar, so a phone need not
@@ -1723,21 +1704,27 @@ $('settingsBtn').onclick = () => {
   $('settings').showModal();
 };
 $('settingsDone').onclick = () => $('settings').close();
-// The roll card: a tap outside or Esc backs out before a voluntary roll and dismisses a result, never mid-roll
-// or before a roll there is no backing out of.
-const rollOpenToClose = () => ['ask', 'result'].includes($('roll').dataset.mode);
-$('roll').onclick = e => { if (e.target === $('roll') && rollOpenToClose()) $('roll').close(); };
-$('roll').addEventListener('cancel', e => { if (!rollOpenToClose()) e.preventDefault(); });
+// The roll card: a tap outside or Esc backs out before a voluntary roll. A result card is acknowledged with Continue
+// (Enter or Space on it) or Esc, which shows the next card and never skips one; a tap outside does nothing, nor mid-roll.
+$('roll').onclick = e => { if (e.target === $('roll') && $('roll').dataset.mode === 'ask') $('roll').close(); };
+$('roll').addEventListener('cancel', e => {
+  const mode = $('roll').dataset.mode;
+  if (mode === 'ask') return;
+  e.preventDefault();
+  if (mode === 'result' && $('rollBtns').querySelector('button')?.style.visibility !== 'hidden') queue.next();
+});
+// Backing out of a voluntary roll (the dialog's own close). Results never end here: cardsDone clears the mode first.
 $('roll').addEventListener('close', () => {
+  if ($('roll').open || !$('roll').dataset.mode) return;
   $('roll').dataset.mode = '';
-  showOutcome(); // a fight's end card keeps the table held
+  showOutcome();
   if (!$('outcome').open) release();
   refocus(rollFromCell);
   showDusk();
 });
 // The fight's end card: Continue, Enter or Space on it, Esc, or a tap anywhere.
-$('outcome').onclick = () => $('outcome').close();
-$('outcome').addEventListener('close', () => { release(); refocus(false); showDusk(); });
+$('outcome').onclick = outcomeDone;
+$('outcome').addEventListener('close', outcomeDone);
 $('dusk').onclick = () => { $('dusk').hidden = true; };
 $('inspectDone').onclick = () => $('inspect').close();
 $('itemsDone').onclick = () => $('items').close();
@@ -1753,9 +1740,16 @@ $('bannerToggle').onclick = () => {
 // Back from a locked phone or another app: ask for the wake lock again. Going away during a private screen in a
 // multiplayer game puts the "I am X, show me" cover back for whoever unlocks the phone.
 document.addEventListener('visibilitychange', () => {
-  if (!document.hidden) return keepAwake(!!S.game && S.game.status !== 'over');
+  if (!document.hidden) {
+    keepAwake(!!S.game && S.game.status !== 'over');
+    // Spec v12 fix 5: back in view, draw the current state (a held table whose card is gone is released).
+    if (held && !$('roll').open && !$('outcome').open) release();
+    else if (S.game && !held) render();
+    return;
+  }
   if (S.game && !solo() && viewer !== null) {
-    for (const d of document.querySelectorAll('dialog[open]')) d.close();
+    // Result cards and the fight's end card are public: they stay, the private screen behind them is covered.
+    for (const d of document.querySelectorAll('dialog[open]')) if (d.id !== 'outcome' && !(d.id === 'roll' && d.dataset.mode === 'result')) d.close();
     viewer = null;
     render();
   }
