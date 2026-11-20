@@ -13,10 +13,10 @@ import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, bannerLines, APP_LABEL, chamberName, theChamber, chamberCards } from '../content/schema.js';
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
 import { lines, entries, dragonStatus, collectWords, forcedMoveWords, cardText, monsterText, fightRowModel, soloStripModel, expr,
- undoLabel, testWords, exchangeWords, lastWords, revealWords, itemText, rotationRingWords, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords } from './words.js';
+ undoLabel, exchangeWords, lastWords, revealWords, itemText, rotationRingWords, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords, namedSteps, choiceSteps } from './words.js';
 import { rollDice } from './dice.js';
 import { actionCards, cardQueue, cardSpeech, latestTurn, OUTCOME_TAG } from './results.js';
-import { shownEffectText, describeEffects } from '../engine/describe.js';
+import { shownEffectText } from '../engine/describe.js';
 import { unitWord } from '../engine/inventory.js';
 import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
 import { HIST_CAP, pushUndo, canUndo as canUndoHist, undoBlocked, fitHist } from './undo.js';
@@ -1003,13 +1003,17 @@ const SAME = 'Same letter: both take 1.';
 // The prompt panel: one per phase the engine can raise, built from its legal actions.
 // Owner catalogue (torch, giant spider, ceiling): pick count different numbers from 1 to 6, then roll the D6. Six
 // toggle buttons (aria-pressed) and a Roll button that waits for the full set; the picks live here until the roll.
+// Spec v12 fix 3: the controls come first, then the rule as three short steps (namedSteps reads them from the card, so
+// the spider's match says it is defeated), and the dock puts this prompt above what just happened.
 let named = { key: null, picks: [] };
+// Short steps under a prompt's buttons.
+const stepList = steps => { const ol = el('ol', 'steps'); for (const t of steps) ol.append(el('li', '', t)); return ol; };
 function numberPicker(v, pend, legal) {
-  const c = content(), at = String(v.log.length);
+  const at = String(v.log.length);
   if (named.key !== at) named = { key: at, picks: [] };
   const one = pend.count === 1;
-  const said = list => describeEffects(list, chamberName(c)) || 'nothing happens';
-  const p = panel(pend.label || 'Name numbers', `${one ? 'Name one number' : `Name ${pend.count} different numbers`}, then roll the D6. If it shows ${one ? 'that number' : 'one of them'}: ${said(pend.onMatch)}. If not: ${said(pend.onMiss)}.`);
+  const p = panel(pend.label || 'Name numbers');
+  p.classList.add('first');
   const row = el('div', 'numpick');
   row.setAttribute('role', 'group');
   row.setAttribute('aria-label', 'Numbers to name');
@@ -1042,7 +1046,7 @@ function numberPicker(v, pend, legal) {
   sync();
   const ch = el('div', 'choices');
   ch.append(go);
-  p.append(row, count, ch);
+  p.append(row, count, ch, stepList(namedSteps(pend).steps));
   return p;
 }
 
@@ -1157,14 +1161,18 @@ function renderPrompt(v, la, targets) {
         const leave = pend.options.includes('Leave it');
         const why = (hero.conditions || []).map(conditionWords).filter(Boolean).join('. ');
         const title = leave ? `${pend.options[0]}?` : frame ? cardDef(c, frame.card).name : why || 'Choose';
-        p = panel(title, frame ? `${leave ? `${cardDef(c, frame.card).name}. ` : ''}${cardText(cardDef(c, frame.card), null, c)}` : why ? `${name}: ${why}.` : null);
+        // Spec v12 fix 3: a card's own choice (the giant spider, the trapdoor's climb) as buttons, then short steps.
+        const steps = !leave && pend.effects?.some(l => l.length) ? choiceSteps(pend) : null;
+        p = panel(title, steps ? (frame ? null : why ? `${name}: ${why}.` : null) : frame ? `${leave ? `${cardDef(c, frame.card).name}. ` : ''}${cardText(cardDef(c, frame.card), null, c)}` : why ? `${name}: ${why}.` : null);
         by('CHOOSE').forEach(a => ch.append(choice(pend.options[a.option], null, () => act(a), leave && a.option === 0 ? 'primary' : '')));
+        if (steps) { p.classList.add('first'); p.append(ch, stepList(steps)); }
       } else if (pend.kind === 'trap-ring') {
         // Spec v5: a trap card was just drawn and the Protection Ring is unused.
-        const def = cardDef(c, pend.card), r = ringOfSeat(pend.seat);
-        p = panel('A trap', `${def.name}. ${cardText(def, null, c)}`);
+        const def = cardDef(c, pend.card), r = ringOfSeat(pend.seat), nn = !def.text && def.effects?.[0]?.op === 'NAME_NUMBERS' && def.effects[0];
+        p = panel('A trap', nn ? `${def.name}.` : `${def.name}. ${cardText(def, null, c)}`);
         for (const a of by('USE_RING')) ch.append(choice(`Use ${r.name}`, 'The trap does not affect you. The ring is then gone.', () => act(a), 'primary'));
         for (const a of by('DECLINE_RING')) ch.append(choice('Keep the ring', 'The trap happens', () => act(a)));
+        if (nn) { p.classList.add('first'); p.append(ch, stepList(namedSteps(nn).steps)); } // spec v12 fix 3: the ceiling, in steps
       } else {
         p = panel('Move', 'Pick a neighbouring square.');
         for (const a of by('CHOOSE')) targets.push({ ...actionSquare(g, a), label: `Go ${DIR[pend.options[a.option]]}`, pick: () => tryAct(a) });
@@ -1327,6 +1335,7 @@ function renderTable(v) {
   if (!S.peek && !S.reveal) (prompt.querySelector('.tools') || prompt).append(...undoHere(v, true)); // not on a private card panel or the shared reveal
   dock.append(prompt);
   dock.classList.toggle('fight', prompt.classList.contains('fight')); // the prompt above what just happened
+  dock.classList.toggle('first', prompt.classList.contains('first')); // spec v12: a number picker or stepped choice too
   const latest = latestTurn(v.log, S.seen);
   if (latest.length) {
     const lp = panel(latest[0].seat !== undefined ? `What just happened on ${nameOf(latest[0].seat)}'s turn` : 'What just happened');

@@ -384,7 +384,10 @@ details li + li { margin-top: 6px; }
 .tools details[open] summary { display: inline-flex; }
 .tools details ol { margin: 6px 0 0; padding-left: 22px; font-size: 14px; color: var(--ink2); }
 .tools details p { margin: 6px 0 0; font-size: 14px; color: var(--ink2); }
-.dock.fight > #latest { order: 0; } /* a fight prompt first: its buttons before what just happened */
+.dock.fight > #latest, .dock.first > #latest { order: 0; } /* a fight prompt, or a number picker, first: its buttons before what just happened */
+/* Spec v12: a prompt's rule as short steps under its buttons. */
+ol.steps { margin: 6px 0 0; padding-left: 22px; display: grid; gap: 2px; font-size: 15px; color: var(--ink); }
+ol.steps li::marker { color: var(--ink2); }
 .inv .itemtext { font-size: 14px; color: var(--ink); }
 /* The event log sheet: the full screen height, its list scrolling between the title and Close. */
 #logSheet { width: min(100% - 24px, 640px); height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))); overflow: hidden; }

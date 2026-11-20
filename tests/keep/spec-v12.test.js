@@ -287,6 +287,36 @@ test('spec v12 fix 2: each roll kind reads as a consequence with a tag, never th
   assert.equal(formulaWords('floor((second 4) / 2) = 2', { second: 'D6' }), 'Half of D6 4, rounded down: 2');
 });
 
+// ---- Fix 3: the giant spider (and the torch and the ceiling) in short steps, controls first.
+test('spec v12 fix 3: the spider, torch and ceiling prompts read as short steps from the card data; a spider match is its defeat', () => {
+  const spider = C.room.find(c => c.id === 'ROOM_025').effects[0];
+  const steps = choiceSteps({ options: spider.options.map(o => o.label), effects: spider.options.map(o => o.effects) });
+  assert.deepEqual(steps, [
+    'Fight: name 3 different numbers from 1 to 6, then roll the D6.',
+    'If it shows one of them: the spider is defeated.',
+    'If not: you take 1 damage and the fight goes on next turn.',
+    'Flee: roll a D6. 1 to 2: no escape, you must fight the giant spider. 3 to 6: you get away, back the way you came.',
+  ]);
+  const later = spider.options[0].effects[0].onMiss[1].onTurnStart[0];
+  assert.deepEqual(namedSteps(later).steps.slice(1), ['If it shows one of them: the spider is defeated. Your turn ends.', 'If not: you take 1 damage, your turn ends and the fight goes on next turn.']);
+  const torch = C.room.find(c => c.id === 'ROOM_004').effects[0].onTurnStart[0];
+  assert.deepEqual(namedSteps(torch).steps.slice(1), ['If it shows one of them: the torch is lit again.', 'If not: your turn ends and the torch stays out: try again next turn.']);
+  const ceiling = C.room.find(c => c.id === 'ROOM_008').effects[0];
+  assert.deepEqual(namedSteps(ceiling).steps, ['Name one number from 1 to 6, then roll the D6.', 'If it shows that number: you die.', 'If not: a second D6 is rolled for the damage.']);
+  const climb = C.room.find(c => c.id === 'ROOM_015').effects[0].onFail[1].onTurnStart[0].options[0];
+  assert.deepEqual(choiceSteps({ options: [climb.label], effects: [climb.effects] }), ['Climb out: an Agility test on the D12.', 'Pass: you are out of the trapdoor pit, and your turn goes on.', 'Fail: your turn ends.']);
+  for (const s of [...steps, ...namedSteps(later).steps]) assert.ok(s.length <= 120, `short: ${s}`);
+});
+
+test('spec v12 fix 3: the number picker puts its six numbers and Roll before the steps, and the dock puts that prompt first', () => {
+  const app = src('ui/app.js'), html = src('index.html');
+  assert.match(app, /p\.append\(row, count, ch, stepList\(namedSteps\(pend\)\.steps\)\);/, 'controls, then steps');
+  assert.match(app, /const p = panel\(pend\.label \|\| 'Name numbers'\);\s+p\.classList\.add\('first'\);/, 'no paragraph above the picker');
+  assert.match(app, /dock\.classList\.toggle\('first', prompt\.classList\.contains\('first'\)\);/);
+  assert.match(html, /\.dock\.fight > #latest, \.dock\.first > #latest \{ order: 0; \}/, 'the picker comes before what just happened, portrait included');
+  assert.doesNotMatch(app, /If it shows \$\{one \? 'that number' : 'one of them'\}: \$\{said/, 'the generated paragraph is gone');
+});
+
 // ---- Fix 5: rendering after an acknowledgement never waits for a frame.
 test('spec v12 fix 5: the card queue draws each card and finishes inside the same call (no frame, animation or timer)', () => {
   assert.equal(typeof globalThis.requestAnimationFrame, 'undefined', 'Node has no frames at all');
