@@ -518,6 +518,27 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   #roll .d12 { --a: 17px; }
   #roll .facts div { padding: 3px 0; }
   #roll p.verdict { font-size: 24px; }
+  /* Spec v12 follow-up (browser re-test at 667x375 and 568x320): a prompt's controls without scrolling the column. The
+     solo hero strip goes under the board, the status bar takes the full column under the banner (which clears the
+     menu circle), and the prompts are compact: a number picker's Roll sits beside its count, under the six numbers. */
+  .app.table { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+  .app.table .board-panel { grid-row: 1 / 5; }
+  .app.table .herostrip { grid-column: 1; grid-row: 5; width: 100%; margin: 8px 0 0; }
+  .app.table .side { grid-row: 3 / -1; }
+  .app.table > #banner:not([hidden]) ~ #table .statusbar { margin-right: 0; }
+  .app.table .side .panel { padding: 10px 12px; }
+  .app.table .side .panel > h2 { font-size: 17px; }
+  .app.table .side .panel > p { margin-top: 4px; font-size: 14px; }
+  .app.table .side .choices { margin-top: 8px; gap: 6px; }
+  .app.table .side .choice { min-height: 44px; padding: 6px 12px; }
+  .app.table .side .choice small { font-size: 13px; }
+  .app.table .side .fightrow { margin-top: 4px; }
+  .app.table .side .numpick { margin: 6px 0 0; }
+  .app.table .side .panel:has(> .numpick) { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; align-items: center; }
+  .app.table .side .panel:has(> .numpick) > * { grid-column: 1 / -1; }
+  .app.table .side .panel:has(> .numpick) > .numpick + p { grid-column: 1; margin-top: 6px; }
+  .app.table .side .panel:has(> .numpick) > .numpick + p + .choices { grid-column: 2; margin-top: 6px; }
+  .app.table .side .panel:has(> .numpick) > .numpick + p + .choices > .btn.primary { width: auto; min-height: 44px; padding: 0 18px; font-size: 16px; }
 }
 </style>
 </head>

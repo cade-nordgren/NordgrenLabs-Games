@@ -511,3 +511,16 @@ test('spec v12 follow-up: focus is never left on <body> after a card, sheet, Bac
   assert.match(app, /function cardsDone\(\) \{[\s\S]*?refocus\(rollFromCell\);/, 'the last result card');
   assert.match(app, /function outcomeDone\(\) \{[\s\S]*?refocus\(false\);/, "the fight's end card");
 });
+
+// Phone landscape (667x375, 568x320): no browser here, so the CSS budget is pinned statically; see the commit message for
+// the box arithmetic. The number picker's Roll ends 131px into the column, which has at least 172px under the banner.
+test('spec v12 follow-up: phone landscape keeps a prompt\'s controls in the column without scrolling (static)', () => {
+  const html = src('index.html');
+  const land = html.slice(html.lastIndexOf('@media (orientation: landscape) and (max-height: 540px) {'), html.indexOf('</style>'));
+  assert.match(land, /\.app\.table \.herostrip \{ grid-column: 1; grid-row: 5;/, 'the solo hero strip under the board');
+  assert.match(land, /\.app\.table \.side \{ grid-row: 3 \/ -1; \}/);
+  assert.match(land, /#banner:not\(\[hidden\]\) ~ #table \.statusbar \{ margin-right: 0; \}/, 'the status bar on one line under the banner');
+  assert.match(land, /\.panel:has\(> \.numpick\) > \.numpick \+ p \+ \.choices \{ grid-column: 2;/, 'Roll beside the count');
+  assert.match(land, /\.numpick \+ p \+ \.choices > \.btn\.primary \{ width: auto; min-height: 44px;/, 'a 44px Roll');
+  assert.doesNotMatch(src('ui/app.js'), /innerHeight|visualViewport|getBoundingClientRect\(\)\.(top|bottom)/, 'no JS layout');
+});
