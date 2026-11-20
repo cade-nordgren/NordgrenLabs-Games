@@ -154,7 +154,7 @@ Card entries (the status is in each card's `notes`):
 | ROOM_014, SEARCH_001, RSEARCH_008, CHEST_009, DOOR_005 Shuffle again (door since spec v6, the other four since spec v7) | 1985-SUPPORTED INTERPRETATION |
 | ROOM_001 Poisonous snakes, ROOM_003 Poisonous mist, ROOM_005 Explosion (trap classification) | 1985-SUPPORTED INTERPRETATION |
 | TREASURY_013 to TREASURY_033 (coins) | PROVISIONAL/INFERRED |
-| ROOM_002, RSEARCH_001, SEARCH_007, CHEST_006 (small flask) | OWNER_APPROVED_INTERPRETATION (the no-cap rule, relabelled 2026-11-20; was PROVISIONAL/INFERRED) |
+| ROOM_002, RSEARCH_001, SEARCH_007, CHEST_006 (small flask) | OWNER_APPROVED_INTERPRETATION (the no-cap rule, relabelled 2026-11-20, was PROVISIONAL/INFERRED; the free-use timing, spec v10) |
 | ROOM_007 Wizard's curse (trap or not) | PROVISIONAL/INFERRED (owner interpretation, spec v8: not a trap, so no Protection Ring; not an expressly stated rule) |
 
 Register rows:
@@ -163,7 +163,7 @@ Register rows:
 |---|---|---|
 | D51 | FP cells | DIRECT 2023 RULE |
 | D52 | Monster combat letters B/C | PROVISIONAL/INFERRED |
-| D53 | Small flask | OWNER_APPROVED_INTERPRETATION (the no-cap rule, relabelled 2026-11-20; was PROVISIONAL/INFERRED) |
+| D53 | Small flask | OWNER_APPROVED_INTERPRETATION (the no-cap rule, relabelled 2026-11-20, was PROVISIONAL/INFERRED; the free-use timing, spec v10) |
 | D54 | Skipped turns (mist, explosion) | PROVISIONAL/INFERRED |
 | D55 | Trapdoor and rope (the turn after climbing out) | OWNER DECISION REQUIRED |
 | D56 | Torch goes out | DIRECT 2023 CARD |
@@ -240,7 +240,7 @@ Since spec v9 the curse's notes carry OWNER_APPROVED_INTERPRETATION instead (sec
 | Rotating room and the Protection Ring (plan 13 #41a, D67) | OWNER DECISION REQUIRED; ring not offered | On every entry (first reveal, re-entry, flight back in, the forced move after a wake), with the ring unused: Use (consumed; no turn for that entry; orientation kept) or Keep (the quarter turn at once), after entering and before the turn; no offer for a hero who stays. The room as a trap turning on every entry: DIRECT 2023 RULE (5.7). The ring's ability, timing and forced-move offer: OWNER_APPROVED_INTERPRETATION, not printed rules |
 | Status labels | five (spec v6) | six: OWNER_APPROVED_INTERPRETATION added, for interpretations the owner directed or approved. The checker groups by it; the banner counts it with the interpretations, never as waiting on a ruling. Not an approval of any card |
 | Wizard's curse ROOM_007 (plan 13 #47) | PROVISIONAL/INFERRED (nearest label) | OWNER_APPROVED_INTERPRETATION; still no ring offer |
-| Protection Ring RING_4 notes | trap cards only | also the rotating room, described as an owner-approved interpretation; no `Status:` label added (the ring's other timing stays "an interpretation to confirm", D47-D50) |
+| Protection Ring RING_4 notes | trap cards only | also the rotating room, described as an owner-approved interpretation; no `Status:` label added (the ring's other timing stayed "an interpretation to confirm", D47-D50, until spec v10, section 8.10) |
 
 `tests/keep/spec-v9.test.js`: the proposal's 19 cases on the owner tile, numbered as in the proposal, the trapped case (the turned opening against each board edge and against a wall: kept, a forced skip next turn; used, the way back), and the prompt words. Not changed: the tile catalogue, the room's geometry and its turning without a ring, the dragon's forced-move rule (13 #52), the well, rubble, dark room and portcullis.
 
@@ -261,6 +261,21 @@ The owner was asked whether earlier rulings that still carried provisional or in
 | D41, D46 | Special weapons and the crossbow in an ambush | interpretation | OWNER_APPROVED_INTERPRETATION |
 
 Card entries: the four small flask copies (ROOM_002, SEARCH_007, RSEARCH_001, CHEST_006) now carry `Status: OWNER_APPROVED_INTERPRETATION`. The checker's groups are now 5 OWNER_APPROVED_INTERPRETATION (the four flasks and ROOM_007) and 21 PROVISIONAL/INFERRED (the chamber coins TREASURY_013 to TREASURY_033, still provisional because not every coin face was photographed); the banner still counts 39 entries as an interpretation or provisional. RING_1 to RING_3 notes now call their timing an owner-approved interpretation (2026-11-20); no `Status:` label was added to the rings (RING_4 carries none either, and a label applies to the whole entry). Not relabelled: D64 coins, D65 play-test banner, the shuffle cards, the FP cells.
+
+### 8.10 Owner specification v10, 2026-11-20 (no rule change)
+
+`spec-v10-owner-2026-11-20.md` approves the six behaviours left "to confirm" by 8.9. Each was checked against every bullet of the owner's clarifications, in the code and in `tests/keep/spec-v10.test.js`; all six already matched, so no rule, card value or behaviour changes and MECHANICS_VERSION is unchanged (v10). Printed mechanics stay apart from the approved interpretations.
+
+| Register row | Printed (card or 2023 rules) | Owner-approved interpretation (spec v10) | Before | Now |
+|---|---|---|---|---|
+| D47 Strength Ring | skip a turn, gain 5 HP | usable at full starting HP (with the earlier approval: no cap, only as the turn's first action, Strength unchanged) | at full HP: interpretation to confirm | OWNER_APPROVED_INTERPRETATION |
+| D49 Thunder Ring | the monster flees in a normal encounter; no protection against attacks or surprise encounters | no monster card drawn (deck untouched), no A/B/C; never in an ambush | no monster card: interpretation to confirm | OWNER_APPROVED_INTERPRETATION |
+| D53 Small flask | roll a D12 and a D6, gain one, lose the other | a free action in the normal action window (CHOOSE_ACTION, CHOOSE_EXIT, nothing pending), never during an encounter, trap, ring prompt, exchange, pending roll or choice, carry-over, tower choice, forced move or skipped turn | free-use timing: interpretation to confirm | OWNER_APPROVED_INTERPRETATION |
+| D40 Lair while awake | 10.1: the dragon sleeps again once everyone has left | another hero may enter; nothing drawn; no reset; forced exit and reset unchanged | interpretation to confirm | OWNER_APPROVED_INTERPRETATION |
+| D42 Reverse well jump | 5.6: Agility test, +1 per chamber card, discard first | jump back from the far edge: same test and modifiers, success to the original side and the turn ends, failure is death (D08), nothing new | interpretation to confirm | OWNER_APPROVED_INTERPRETATION (a well tile that is not straight: not covered, unchanged) |
+| D50 Protection Ring timing | ignore one trap; the rotating room is a trap (5.7) | offered once before any consequence; use cancels and consumes; decline keeps the ring; never retroactive | interpretation to confirm | OWNER_APPROVED_INTERPRETATION |
+
+Card entries: RING_1, RING_3 and RING_4 notes now say what is printed and what is an owner-approved interpretation (no `Status:` label on rings, as before); the four small flask notes add the free-use timing. Checker groups unchanged: 3 DIRECT 2023 RULE, 1 DIRECT 2023 CARD, 9 1985-SUPPORTED INTERPRETATION, 5 OWNER_APPROVED_INTERPRETATION, 21 PROVISIONAL/INFERRED. Still open: `unresolved-gameplay-2026-11-20.md`.
 
 ### 8.5 What to look at in a browser (not done here; no in-browser test exists)
 

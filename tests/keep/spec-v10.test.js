@@ -327,3 +327,18 @@ test('spec v10 #6 Protection Ring: at a rotating room, offered before it turns; 
   assert.equal(kept.heroes[0].ringUsed, false);
   assert.deepEqual(ringActs(kept, OWN), [], 'no second offer after the turn');
 });
+
+// ---- Labels (spec v10 Documentation): the approved parts carry OWNER_APPROVED_INTERPRETATION, apart from what is printed.
+test('spec v10 labels: the ring and flask notes name the printed mechanic and the spec v10 approval; nothing waits on confirmation; all still draft', () => {
+  const notes = id => Object.values(C).flat().find(e => e && e.id === id).notes;
+  for (const id of ['RING_1', 'RING_3', 'RING_4']) {
+    assert.match(notes(id), /Printed on the card: .*Owner-approved interpretation.*spec v10, 2026-11-20/, id);
+    assert.doesNotMatch(notes(id), /to confirm/, id);
+  }
+  for (const id of ['ROOM_002', 'SEARCH_007', 'RSEARCH_001', 'CHEST_006']) {
+    assert.match(notes(id), /Status: OWNER_APPROVED_INTERPRETATION/, id);
+    assert.match(notes(id), /printed on the card: roll a D12 and a D6.*free-use timing.*spec v10, 2026-11-20/, id);
+    assert.doesNotMatch(notes(id), /not covered/, id);
+  }
+  for (const id of ['RING_1', 'RING_3', 'RING_4', 'ROOM_002', 'SEARCH_007', 'RSEARCH_001', 'CHEST_006']) assert.equal(Object.values(C).flat().find(e => e && e.id === id).status, 'DRAFT', `${id} stays draft`);
+});
