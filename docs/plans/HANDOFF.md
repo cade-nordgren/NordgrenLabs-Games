@@ -12,7 +12,7 @@ Written 2026-11-20. If you are picking this project up in a new session, read th
 |---|---|
 | All Dusk Keep work | git worktree `C:\Projects\NordgrenLabs-Games-keep`, branch `keep-engine` |
 | Main checkout | `C:\Projects\NordgrenLabs-Games`, branch `main` (has an older Dusk Keep, merged 2026-11-19) |
-| GitHub | `keep-engine` and `main` were last pushed on 2026-11-19. **Everything since then (67 commits at the time of writing) exists only on the owner's PC.** |
+| GitHub | `keep-engine` was pushed as a backup on 2026-11-20 with the owner's go-ahead (including this page). `main` was last pushed on 2026-11-19 and does not have this work. Each later push still needs the owner's go-ahead. |
 | Live site | `games.nordgrenlabs.com`. Dusk Keep has never been deployed. |
 
 Run `git status` and `git log --oneline -5` in the worktree before doing anything, and `git rev-list --count origin/keep-engine..keep-engine` to see how much is unpushed.
@@ -114,4 +114,4 @@ Launch-page findings already agreed in conversation: separate the player's page 
 
 The owner's stated plan: a final end-to-end play-test on a real phone using the checklist in `unresolved-gameplay-2026-11-20.md`, then gameplay approval, rather than another build phase. In parallel, choose a visual direction and apply it to the real screens.
 
-Before any of that leaves this PC, ask the owner whether to push `keep-engine` to GitHub as a backup. Pushing the branch does not change `main` or the live site.
+`keep-engine` is backed up on GitHub as of 2026-11-20. After further work, ask the owner before pushing again. Pushing the branch does not change `main` or the live site.
