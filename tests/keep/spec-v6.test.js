@@ -193,7 +193,7 @@ test('spec v6 flask: every copy gains D12 and loses D6 as one change with no cap
     const dead = go(dice(low, 1, 5), 'USE_ITEM', { item: inst });
     assert.equal(dead.heroes[0].status, 'DEAD', `${id}: final HP 0 is death`);
     assert.equal(dead.decks[deck].order.includes(inst), true, `${id}: the card is not lost on death`);
-    assert.match(byId({ ROOM: 'room', ROOM_SEARCH: 'roomSearch', SEARCH: 'search', CHEST: 'chest' }[deck], id).notes, /Status: PROVISIONAL\/INFERRED/);
+    assert.match(byId({ ROOM: 'room', ROOM_SEARCH: 'roomSearch', SEARCH: 'search', CHEST: 'chest' }[deck], id).notes, /Status: OWNER_APPROVED_INTERPRETATION/);
   }
   assert.doesNotMatch(shownEffectText(byId('room', 'ROOM_002')), /stops at your starting HP/);
 });
@@ -274,11 +274,23 @@ test('spec v6 statuses: no entry keeps NEEDS OWNER CONFIRMATION; flagged entries
   assert.deepEqual(groups['DIRECT 2023 RULE'], ['MONSTER_006', 'MONSTER_014', 'MONSTER_015']);
   assert.deepEqual(groups['DIRECT 2023 CARD'], ['ROOM_004']);
   assert.deepEqual(groups['1985-SUPPORTED INTERPRETATION'], ['ROOM_001', 'ROOM_003', 'ROOM_005', 'ROOM_008', 'ROOM_014', 'SEARCH_001', 'RSEARCH_008', 'CHEST_009', 'DOOR_005'], 'spec v7 adds the other four shuffle cards');
-  assert.equal(groups['PROVISIONAL/INFERRED'].length, 25);
-  assert.deepEqual(groups.OWNER_APPROVED_INTERPRETATION, ['ROOM_007'], 'spec v8 curse interpretation, relabelled by spec v9');
+  assert.equal(groups['PROVISIONAL/INFERRED'].length, 21, 'the 21 chamber coins; the flasks were relabelled 2026-11-20');
+  assert.deepEqual(groups.OWNER_APPROVED_INTERPRETATION, ['ROOM_002', 'ROOM_007', 'SEARCH_007', 'RSEARCH_001', 'CHEST_006'], 'the curse (spec v8, relabelled by spec v9) and the four flask copies (relabelled 2026-11-20)');
   assert.deepEqual(toConfirm(C), [], 'an owner-approved interpretation does not wait on a ruling');
   const every = Object.values(C).flat().filter(e => e && typeof e === 'object');
   assert.ok(every.every(e => !String(e.notes || '').includes('NEEDS OWNER CONFIRMATION')));
   assert.ok(every.every(e => e.status !== 'APPROVED'));
   assert.ok(every.every(e => !/owner approved/i.test(String(e.notes || ''))));
+});
+
+test('2026-11-20 relabel: the four flask copies are owner-approved interpretations; the 21 chamber coins stay provisional', () => {
+  const byId = id => Object.values(C).flat().find(e => e && e.id === id);
+  for (const id of ['ROOM_002', 'SEARCH_007', 'RSEARCH_001', 'CHEST_006']) {
+    const n = byId(id).notes;
+    assert.match(n, /Status: OWNER_APPROVED_INTERPRETATION/, id);
+    assert.ok(!n.includes('PROVISIONAL/INFERRED'), id);
+  }
+  const coins = Object.values(C).flat().filter(e => e && /^TREASURY_0(1[3-9]|2\d|3[0-3])$/.test(e.id));
+  assert.equal(coins.length, 21);
+  assert.ok(coins.every(e => e.notes.includes('Status: PROVISIONAL/INFERRED')));
 });

@@ -154,7 +154,7 @@ Card entries (the status is in each card's `notes`):
 | ROOM_014, SEARCH_001, RSEARCH_008, CHEST_009, DOOR_005 Shuffle again (door since spec v6, the other four since spec v7) | 1985-SUPPORTED INTERPRETATION |
 | ROOM_001 Poisonous snakes, ROOM_003 Poisonous mist, ROOM_005 Explosion (trap classification) | 1985-SUPPORTED INTERPRETATION |
 | TREASURY_013 to TREASURY_033 (coins) | PROVISIONAL/INFERRED |
-| ROOM_002, RSEARCH_001, SEARCH_007, CHEST_006 (small flask) | PROVISIONAL/INFERRED |
+| ROOM_002, RSEARCH_001, SEARCH_007, CHEST_006 (small flask) | OWNER_APPROVED_INTERPRETATION (the no-cap rule, relabelled 2026-11-20; was PROVISIONAL/INFERRED) |
 | ROOM_007 Wizard's curse (trap or not) | PROVISIONAL/INFERRED (owner interpretation, spec v8: not a trap, so no Protection Ring; not an expressly stated rule) |
 
 Register rows:
@@ -163,7 +163,7 @@ Register rows:
 |---|---|---|
 | D51 | FP cells | DIRECT 2023 RULE |
 | D52 | Monster combat letters B/C | PROVISIONAL/INFERRED |
-| D53 | Small flask | PROVISIONAL/INFERRED |
+| D53 | Small flask | OWNER_APPROVED_INTERPRETATION (the no-cap rule, relabelled 2026-11-20; was PROVISIONAL/INFERRED) |
 | D54 | Skipped turns (mist, explosion) | PROVISIONAL/INFERRED |
 | D55 | Trapdoor and rope (the turn after climbing out) | OWNER DECISION REQUIRED |
 | D56 | Torch goes out | DIRECT 2023 CARD |
@@ -245,6 +245,22 @@ Since spec v9 the curse's notes carry OWNER_APPROVED_INTERPRETATION instead (sec
 `tests/keep/spec-v9.test.js`: the proposal's 19 cases on the owner tile, numbered as in the proposal, the trapped case (the turned opening against each board edge and against a wall: kept, a forced skip next turn; used, the way back), and the prompt words. Not changed: the tile catalogue, the room's geometry and its turning without a ring, the dragon's forced-move rule (13 #52), the well, rubble, dark room and portcullis.
 
 With the curse settled, no catalogue entry carries OWNER DECISION REQUIRED, so the play-test banner no longer says one waits on a ruling; the open owner decisions (13 #41a, D55, D57, D58, D66) are plan rows, not card statuses.
+
+### 8.9 Relabel, 2026-11-20 (no rule change)
+
+The owner was asked whether earlier rulings that still carried provisional or interpretation labels, only because OWNER_APPROVED_INTERPRETATION did not exist when they were recorded, should be relabelled, and answered "Yes, relabel them". Labelling only: no rule, card value or behaviour changes and MECHANICS_VERSION is unchanged.
+
+| Register row | Ruling | Before | Now |
+|---|---|---|---|
+| D47 | Strength Ring timing and no HP cap | interpretation (to confirm) | OWNER_APPROVED_INTERPRETATION (offered at full HP stays to confirm) |
+| D48 | Opening Ring timing | interpretation (to confirm) | OWNER_APPROVED_INTERPRETATION |
+| D49 | Thunder Ring timing | interpretation (to confirm) | OWNER_APPROVED_INTERPRETATION (no monster card drawn stays to confirm) |
+| D53 | Small flask no-cap rule | PROVISIONAL/INFERRED | OWNER_APPROVED_INTERPRETATION (free-use timing stays to confirm) |
+| D40 | Dragon awake until the lair is empty | interpretation | OWNER_APPROVED_INTERPRETATION (entering while awake stays to confirm) |
+| D42 | The far side after a successful jump | interpretation | OWNER_APPROVED_INTERPRETATION (jump back and other shapes stay to confirm) |
+| D41, D46 | Special weapons and the crossbow in an ambush | interpretation | OWNER_APPROVED_INTERPRETATION |
+
+Card entries: the four small flask copies (ROOM_002, SEARCH_007, RSEARCH_001, CHEST_006) now carry `Status: OWNER_APPROVED_INTERPRETATION`. The checker's groups are now 5 OWNER_APPROVED_INTERPRETATION (the four flasks and ROOM_007) and 21 PROVISIONAL/INFERRED (the chamber coins TREASURY_013 to TREASURY_033, still provisional because not every coin face was photographed); the banner still counts 39 entries as an interpretation or provisional. RING_1 to RING_3 notes now call their timing an owner-approved interpretation (2026-11-20); no `Status:` label was added to the rings (RING_4 carries none either, and a label applies to the whole entry). Not relabelled: D64 coins, D65 play-test banner, the shuffle cards, the FP cells.
 
 ### 8.5 What to look at in a browser (not done here; no in-browser test exists)
 
