@@ -8,7 +8,7 @@ import { reduce } from '../../site/keep/engine/reducer.js';
 import { legalActions } from '../../site/keep/engine/phases.js';
 import { view } from '../../site/keep/engine/view.js';
 import { cardDef } from '../../site/keep/engine/decks.js';
-import { actionCards, resultCards, cardQueue, cardSpeech, latestTurn, OUTCOME_TAG } from '../../site/keep/ui/results.js';
+import { actionCards, resultCards, cardQueue, cardSpeech, latestTurn, canContinue, OUTCOME_TAG } from '../../site/keep/ui/results.js';
 import { rollKind, rollWords, ROLL_KINDS, namedSteps, choiceSteps, formulaWords } from '../../site/keep/ui/words.js';
 import { SCENARIOS, build, CONTENT, lair, tile, hero, dragonTop } from '../../tools/keep-scenario.js';
 
@@ -341,7 +341,7 @@ test('spec v12 fix 5: the UI never gates state on frames or animation events; Co
     assert.doesNotMatch(src(f), /requestAnimationFrame|animationend|transitionend|onanimationend|ontransitionend/, f);
   }
   const app = src('ui/app.js');
-  assert.match(app, /ok\.onclick = \(\) => queue\.next\(\);/, 'Continue goes straight to the next card or cardsDone');
+  assert.match(app, /ok\.onclick = \(\) => \{ if \(cardReady\) queue\.next\(\); \};/, 'Continue (once available) goes straight to the next card or cardsDone');
   assert.match(app, /function cardsDone\(\) \{[\s\S]*?if \(d\.open\) d\.close\(\);[\s\S]*?if \(!\$\('outcome'\)\.open\) release\(\);/, 'cardsDone closes and releases synchronously');
   assert.match(app, /\$\('outcome'\)\.onclick = outcomeDone;/);
   assert.match(app, /if \(held\) \{ release\(\); return; \}/, 'a stale control dispatches nothing');
@@ -484,4 +484,17 @@ test('spec v12 follow-up: every owner card, ring and weapon is worded short and 
   const spider = C.room.find(d => d.name === 'Giant spider');
   assert.equal(entries([{ seq: 1, kind: 'draw', deck: 'ROOM', seat: 0, value: `${spider.id}#1`, cardName: spider.name, effectText: shownEffectText(spider, chamberName(C)) }], { content: C, name: () => 'Ann' })[0].text, 'Room card: Giant spider. Fight or flee.');
   assert.doesNotMatch(describeEffects(spider.effects), /nothing happens/, 'the full wording calls the spider\'s defeat a success too');
+});
+
+test('spec v12 follow-up: a result card with dice cannot be acknowledged until they land and its lines show; without dice at once', () => {
+  const dice = { dice: [{ die: 'D6', value: 3 }] }, none = { dice: [] };
+  assert.equal(canContinue(dice, false, false), false, 'tumbling: no Continue');
+  assert.equal(canContinue(dice, false, true), false, 'lines without landed dice: still no');
+  assert.equal(canContinue(dice, true, true), true, 'landed (timer settle, or at once under reduced motion or a hidden page)');
+  assert.equal(canContinue(none, false, true), true, 'no dice: with the result');
+  const app = src('ui/app.js');
+  assert.match(app, /ok\.disabled = true;/, 'Continue starts disabled');
+  assert.match(app, /ok\.onclick = \(\) => \{ if \(cardReady\) queue\.next\(\); \}/, 'a click before then does nothing');
+  assert.match(app, /mode === 'result' && cardReady\) queue\.next\(\)/, 'Esc before then does nothing');
+  assert.doesNotMatch(app.slice(app.indexOf('function drawCard'), app.indexOf('function cardsDone')), /requestAnimationFrame|transitionend|animationend/, 'settled by the timer in dice.js, not frames');
 });

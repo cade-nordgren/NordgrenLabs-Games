@@ -15,7 +15,7 @@ import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, s
 import { lines, entries, dragonStatus, collectWords, forcedMoveWords, cardText, monsterText, fightRowModel, soloStripModel, expr,
  undoLabel, exchangeWords, lastWords, revealWords, itemText, rotationRingWords, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords, namedSteps, choiceSteps } from './words.js';
 import { rollDice } from './dice.js';
-import { actionCards, cardQueue, cardSpeech, latestTurn, OUTCOME_TAG } from './results.js';
+import { actionCards, cardQueue, cardSpeech, latestTurn, canContinue, OUTCOME_TAG } from './results.js';
 import { shownEffectText } from '../engine/describe.js';
 import { unitWord } from '../engine/inventory.js';
 import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
@@ -301,16 +301,20 @@ function drawCard(card, i, n) {
   body.push(out);
   $('rollBody').replaceChildren(...body);
   const ok = el('button', 'btn primary', 'Continue'); // "1 of 3" above says more follow
-  ok.onclick = () => queue.next(); // spec v12 fix 5: the next card, or the table, at once in this handler
+  ok.onclick = () => { if (cardReady) queue.next(); }; // spec v12 fix 5: the next card, or the table, at once in this handler
   $('rollBtns').replaceChildren(ok);
   d.dataset.mode = 'result';
   if (!d.open) { rollFromCell = !!document.activeElement?.closest?.('[data-cell]'); d.showModal(); }
-  const shown = () => { out.style.visibility = ok.style.visibility = ''; ok.focus(); say(cardSpeech(card)); };
-  if (!card.dice.length) return shown();
-  out.style.visibility = ok.style.visibility = 'hidden';
-  $('rollTitle').focus(); // until Continue shows
-  // The tumble only decorates: it settles on a timer (dice.js), and is skipped while the page is hidden.
-  rollDice(dice, card.dice.map(x => ({ value: x.value, sides: x.die === 'D12' ? 12 : 6 })), { animate: !document.hidden }).then(() => { if (d.open && out.isConnected) shown(); });
+  // Spec v12 follow-up: Continue (and Enter, Space, Esc) waits until the dice have landed and the result lines show.
+  const shown = landed => { out.style.visibility = ''; cardReady = canContinue(card, landed, true); ok.disabled = !cardReady; ok.focus(); say(cardSpeech(card)); };
+  cardReady = canContinue(card, false, false);
+  ok.disabled = true;
+  if (!card.dice.length) return shown(false);
+  out.style.visibility = 'hidden';
+  $('rollTitle').focus(); // until Continue is available
+  // The tumble only decorates: it settles on a timer (dice.js), and is skipped while the page is hidden or under
+  // reduced motion (then the promise is already settled and the result shows with Continue at once).
+  rollDice(dice, card.dice.map(x => ({ value: x.value, sides: x.die === 'D12' ? 12 : 6 })), { animate: !document.hidden }).then(() => { if (d.open && out.isConnected) shown(true); });
 }
 // After the last card: close, then the fight's end card, the table, focus and dusk, all inside the click handler.
 function cardsDone() {
@@ -322,6 +326,7 @@ function cardsDone() {
   refocus(rollFromCell);
   showDusk();
 }
+let cardReady = false; // the shown result card's Continue may act (canContinue)
 const queue = cardQueue(drawCard, cardsDone);
 const canUndo = () => canUndoHist(S.hist, S.game);
 // The thumb-reach undo under a prompt, named for what it takes back; or, with note, why there is nothing to undo.
@@ -1720,7 +1725,7 @@ $('roll').addEventListener('cancel', e => {
   const mode = $('roll').dataset.mode;
   if (mode === 'ask') return;
   e.preventDefault();
-  if (mode === 'result' && $('rollBtns').querySelector('button')?.style.visibility !== 'hidden') queue.next();
+  if (mode === 'result' && cardReady) queue.next(); // not before the dice land (spec v12 follow-up)
 });
 // Backing out of a voluntary roll (the dialog's own close). Results never end here: cardsDone clears the mode first.
 $('roll').addEventListener('close', () => {

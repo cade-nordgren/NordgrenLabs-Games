@@ -249,6 +249,10 @@ export function latestTurn(log, seen) {
   return log.filter(e => e.seq >= from);
 }
 
+// Whether a result card may be acknowledged (spec v12 follow-up, owner: "do not advance past an important result before
+// the player can read it"): once its result lines are on screen, and a card with dice only once they have landed.
+export const canContinue = (card, landed, shown) => shown && (landed || !card.dice.length);
+
 // The cards as one sentence each, for the live region and tests.
 export const cardSpeech = c => [c.title, ...c.what, ...c.dice.map(d => `${OUTCOME_TAG[d.tag]}. ${d.text}`), ...c.results.map(r => `${OUTCOME_TAG[r.tag]}: ${r.text}`)].join(' ');
 
