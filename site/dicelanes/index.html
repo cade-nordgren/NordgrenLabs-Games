@@ -191,7 +191,7 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 .points { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; text-align: center; font: 600 12px/1 var(--num); font-variant-numeric: tabular-nums; }
 .points span { padding: 5px 0; border-radius: 6px; background: var(--fill); }
 .points span:nth-child(-n+12) { color: var(--ink2); font-size: 11px; background: none; }
-.pen { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.pen { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .pen h3 { margin: 0; font-size: 15px; font-weight: 600; flex: 1; }
 .pen .boxes { display: flex; gap: 6px; }
 .pbox { position: relative; width: 44px; height: 44px; border-radius: 10px; border: 2px solid var(--hair); background: var(--cell); }
