@@ -532,12 +532,13 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <li>Everyone chooses at once, in any order. Tap a name to switch sheets.</li>
       <li>Anyone may cross off the sum of the two white dice in any lane.</li>
       <li>The active player may also cross off one white die plus one coloured die, in that colour's lane. The white sum counts first.</li>
-      <li>Picks can change until that player taps End turn. A greyed number with a dashed ring is ruled out by a pick; tap it to swap it in. When everyone has ended their turn, the crosses go on.</li>
+      <li>Picks can change until that player taps End turn. A greyed number with a dashed ring is ruled out by a pick; tap it to swap it in. While a pick is waiting it shows which dice made it: a white-die cell for the white sum, an X in the lane's colour for a white plus that coloured die. Once that player ends their turn it becomes a plain X, and when everyone has ended their turn, the crosses go on.</li>
       <li>The active player may tick a penalty box at any time during the turn, and must end the turn with at least one cross or a penalty. Other players never take penalties.</li>
     </ol>
     <p>Several players can lock the same colour on one roll. A colour locked on a roll closes once everyone is done, and its die leaves the game.</p>
     <h3>With your own dice</h3>
     <p>Play the same turns at the table and tap what you cross. Tapping a lane's last cell (the 12 or 2 with the lock) before it has five crosses closes that colour as locked by another player away from this device; tap it again to reopen.</p>
+    <p>The app can't see your dice, so it can't tell a white-sum cross from a white-plus-colour cross. Every tap puts down the plain X straight away, with no dice colours.</p>
     <h3>Scoring</h3>
     <ul>
       <li>Each lane scores by its crosses: 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78.</li>
