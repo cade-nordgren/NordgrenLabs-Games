@@ -15,7 +15,7 @@ import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, s
 import { lines, entries, dragonStatus, collectWords, forcedMoveWords, cardText, monsterText, fightRowModel, soloStripModel, STAT_SHORT, expr,
  undoLabel, exchangeWords, lastWords, revealWords, itemText, rotationRingWords, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords, namedSteps, choiceSteps } from './words.js';
 import { rollDice } from './dice.js';
-import { actionCards, cardQueue, cardSpeech, latestTurn, canContinue, OUTCOME_TAG } from './results.js';
+import { actionCards, cardQueue, cardSpeech, canContinue, OUTCOME_TAG } from './results.js';
 import { shownEffectText } from '../engine/describe.js';
 import { unitWord } from '../engine/inventory.js';
 import { daylight, trackLabel, unit, skyAt, DUSK, duskDue, duskShown, duskWords } from './daylight.js';
@@ -1684,15 +1684,7 @@ function renderTable(v) {
   dock.append(prompt);
   dock.classList.toggle('fight', prompt.classList.contains('fight')); // the prompt above what just happened
   dock.classList.toggle('first', prompt.classList.contains('first')); // spec v12: a number picker or stepped choice too
-  const latest = latestTurn(v.log, S.seen);
-  if (latest.length) {
-    const lp = panel(latest[0].seat !== undefined ? `What just happened on ${nameOf(latest[0].seat)}'s turn` : 'What just happened');
-    lp.id = 'latest';
-    const ol = el('ul', 'loglines');
-    ol.append(...entries(latest, ctx()).map(logLine));
-    lp.append(ol);
-    dock.append(lp);
-  }
+  // Every event log lives behind the menu's Event log button (owner, 2026-11-22): no "What just happened" panel.
   if (PHONE.matches) { const kp = el('div', 'glass panel board-wrap'); kp.append(mapKey()); fold.append(kp); } // board-wrap: the key's colours
   else bp.append(mapKey());
   fold.append(heroesPanel(v));

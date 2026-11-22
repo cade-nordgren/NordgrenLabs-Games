@@ -149,3 +149,11 @@ real saves in it, signed-in saves on the deployed site.
 - The original solo fight, the target throw (2026-11-22): a shorter monster banner, the six landing places and three
   faces as compact buttons three across that turn gold when picked, so they fit the phone's dock; the Items and
   History buttons under a fight are dark like the others. The crossbow shot already uses the Roll button.
+- Wide desktop (2026-11-22, canvas "Game board, desktop"): at 1100px wide and up, three columns: the Heroes panel on the
+  left (it stands in for the hero bar there), the board in the middle, sized so the whole board fits the window's
+  height, and the prompt with what just happened on the right. The page may now be up to 1480px wide in a game.
+  Narrower screens keep the two-column layout; phones are unchanged.
+- Event log only in the menu (owner, 2026-11-22: "all event logs in an event log button in the hamburger menu"): the
+  "What just happened" panel is gone at every size (it was already hidden on an upright phone); the menu's Event log
+  button opens the whole log. The results screen keeps its "See the event log" shortcut to the same sheet. Spec v12's
+  dock-order CSS for #latest stays and simply matches nothing.
