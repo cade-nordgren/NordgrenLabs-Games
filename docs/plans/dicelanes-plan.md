@@ -19,7 +19,7 @@ tests/dicelanes/engine.test.js       node --test "tests/dicelanes/*.test.js"
 
 ## Sheet
 
-Red and yellow run 2 to 12, green and blue 12 to 2, each followed by a lock. Points by crosses: 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78. Four penalties, minus 5 each. The bottom line reads red + yellow + green + blue minus penalties = total, live.
+Red and yellow run 2 to 12, green and blue 12 to 2, each ending in a lock. On screen each lane has eleven cells: ten numbers, then one wider cell holding the last number and its lock (engine index `LAST`), which counts as two crosses when crossed. Points by crosses: 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78. Four penalties, minus 5 each. The bottom line reads red + yellow + green + blue minus penalties = total, live.
 
 ## Engine
 
@@ -47,7 +47,7 @@ Marks are cell indices 0 to 10, strictly increasing, so "left to right only" and
 - A penalty goes only to the active player, only when they picked nothing.
 - Digital: the end (a fourth penalty, or two closed colours) is checked when the roll resolves. Physical: at once.
 - A closed colour rolls no die from then on; the tray shows its slot as an empty outline.
-- Physical: tapping a lane's lock when its last number is not yet allowed closes (or reopens) that colour as locked by someone away from this device, for solo scorekeeping beside a paper game. It cannot reopen a colour a player here holds the lock for. With five marks, tapping the lock marks the last number.
+- Physical: tapping a lane's last cell (number and lock) when it is not yet allowed closes (or reopens) that colour as locked by someone away from this device, for solo scorekeeping beside a paper game. It cannot reopen a colour a player here holds the lock for. With five marks, the tap crosses it (two crosses).
 - Solo digital: the single player is always active, picks both and taps Done.
 - Reloading mid-game goes straight back to the game (the autosave is the current game); the start screen lists paused saves.
 
