@@ -48,6 +48,10 @@ body::before {
 .menu .undo:disabled { opacity: 1; }
 .menu .undo:disabled svg { opacity: .35; }
 .menu.open:has(.undo:not([hidden])) .item { transform: translateY(calc((var(--i) + 1) * 58px)); }
+/* The open menu sits over busy coloured lanes: dim the page behind it, and in light mode give the items solid fills and a firm edge. */
+.menu::before { content: ""; position: fixed; inset: 0; z-index: -1; background: rgba(0, 0, 0, .22); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.menu.open::before { opacity: 1; }
+:root[data-theme="light"] .menu.open .item, :root[data-theme="light"] .menu.open .item span, :root[data-theme="light"] .menu.open .menu-trigger, :root[data-theme="light"] .menu.open .undo { background: var(--solid); box-shadow: 0 0 0 1px rgba(0, 0, 0, .1), 0 4px 14px rgba(0, 0, 0, .14); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
 /* ---- Logo */
