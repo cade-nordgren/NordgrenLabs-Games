@@ -1,7 +1,7 @@
 // The whole game as a serialisable reducer: reduce(state, action) returns a new state, or the same state object when
 // the action is not legal now. State is plain JSON, so it can be autosaved, undone by snapshot, or sent over a wire.
 import { LANES, LAST, MAX_PENALTIES, LOCKS_TO_END, MAX_PLAYERS, MARKS_BEFORE_LAST, emptySheet } from './lanes.js';
-import { canMark, applyPicks, noPicks, hasPicks } from './moves.js';
+import { canMark, applyPicks, noPicks, hasPicks, cellChoice } from './moves.js';
 
 // Seeded PRNG (mulberry32) kept in state, so undo then roll again gives the same dice: no fishing for a better roll.
 export function rand(g) {
@@ -89,6 +89,13 @@ function step(g, a) {
       } else return false;
       if (JSON.stringify(next) === JSON.stringify(cur) || !applyPicks(g.players[a.player], g.closed, t.dice, next)) return false;
       t.picks[a.player] = next;
+      return true;
+    }
+    case 'choose': { // a tap on a cell while choosing: add, move, swap or take back a pick (see cellChoice)
+      if (g.mode !== 'digital' || t.phase !== 'choose' || !g.players[a.player]) return false;
+      const c = cellChoice(g, a.player, a.lane, a.index);
+      if (c.state === 'none') return false;
+      t.picks[a.player] = c.pick;
       return true;
     }
     case 'done': { // a player is finished choosing (value false reopens); once everyone is, the roll resolves

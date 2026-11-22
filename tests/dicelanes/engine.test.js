@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LANES, POINTS, LAST, triangular, score, standings, emptySheet } from '../../site/dicelanes/engine/lanes.js';
-import { canMark, isSkipped, pickOptions, indexOf } from '../../site/dicelanes/engine/moves.js';
+import { canMark, isSkipped, pickOptions, cellChoice, indexOf } from '../../site/dicelanes/engine/moves.js';
 import { newGame, reduce, validState, endReason } from '../../site/dicelanes/engine/reducer.js';
 import { record, undo, cleanHist } from '../../site/dicelanes/engine/history.js';
 
@@ -167,6 +167,48 @@ test('penalty only for the active player when they mark nothing', () => {
   g = act(g, W(1, Y)); // Ben (active) marks the white sum only: no penalty; Ana passes: no penalty
   g = act(act(g, done(1)), done(0));
   assert.deepEqual(g.players.map(p => p.penalties), [1, 0]);
+});
+
+const tap = (g, player, lane, value) => ({ type: 'choose', player, lane, index: indexOf(lane, value) });
+const state = (g, p, lane, value) => cellChoice(g, p, lane, indexOf(lane, value)).state;
+
+test("owner's example: a pick greys out what it rules out, and tapping the grey cell swaps", () => {
+  let g = rolled(dig(), [1, 2], [1, 1, 1, 1]); // white sum 3; red 1+1=2, 2+1=3
+  assert.equal(state(g, 0, R, 2), 'legal');
+  assert.equal(state(g, 0, R, 3), 'legal');
+  g = act(g, tap(g, 0, R, 2)); // red 2: only a colour pick
+  assert.deepEqual(g.turn.picks[0], { white: null, colour: { lane: R, die: 0 } });
+  assert.equal(state(g, 0, R, 2), 'pick');
+  assert.equal(state(g, 0, R, 3), 'swap', 'the white 3 would have to come first, and a second colour pick is not allowed');
+  assert.equal(state(g, 0, Y, 3), 'legal', 'a white 3 on yellow goes beside it');
+  assert.equal(state(g, 0, R, 5), 'none');
+  g = act(g, tap(g, 0, R, 3)); // tap the grey red 3
+  assert.deepEqual(g.turn.picks[0], { white: R, colour: null }, 'red 3 is the pick, red 2 is dropped');
+  assert.equal(state(g, 0, R, 2), 'swap', 'red 2 is grey now');
+  g = act(g, tap(g, 0, R, 3));
+  assert.deepEqual(g.turn.picks[0], { white: null, colour: null }, 'tapping a pick takes it back');
+});
+
+test('a swap keeps as many picks as it can', () => {
+  let g = rolled(dig(), [1, 2], [1, 4, 1, 1]); // white 3; yellow 1+4=5, 2+4=6
+  g = act(g, tap(g, 0, Y, 3)); // white on yellow 3
+  g = act(g, tap(g, 0, Y, 5)); // colour yellow 5, after it: legal
+  assert.deepEqual(g.turn.picks[0], { white: Y, colour: { lane: Y, die: 0 } });
+  assert.equal(state(g, 0, Y, 6), 'swap', 'second colour pick');
+  g = act(g, tap(g, 0, Y, 6));
+  assert.deepEqual(g.turn.picks[0], { white: Y, colour: { lane: Y, die: 1 } }, 'colour replaced, white kept');
+  assert.equal(state(g, 0, R, 3), 'swap', 'a second white pick');
+  g = act(g, tap(g, 0, R, 3));
+  assert.deepEqual(g.turn.picks[0], { white: R, colour: { lane: Y, die: 1 } }, 'white moved, colour kept');
+});
+
+test("a non-active player's single pick moves with a tap", () => {
+  let g = rolled(dig(), [1, 2], [1, 1, 1, 1]);
+  g = act(g, tap(g, 1, R, 3));
+  assert.equal(state(g, 1, G, 3), 'legal');
+  g = act(g, tap(g, 1, G, 3));
+  assert.deepEqual(g.turn.picks[1], { white: G, colour: null });
+  assert.equal(reduce(g, tap(g, 1, R, 2)), g, 'no colour picks for a non-active player');
 });
 
 // Ana and Ben both have five red marks, ready to lock red with a 12.

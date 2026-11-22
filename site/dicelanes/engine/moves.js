@@ -60,3 +60,41 @@ export function pickOptions(g, p) {
   });
   return out;
 }
+
+// Where a pick sits on the sheet: [{ kind, lane, index }].
+export function pickedCells(dice, pick) {
+  const out = [];
+  if (pick.white != null) out.push({ kind: 'white', lane: pick.white, index: indexOf(pick.white, whiteSum(dice)) });
+  if (pick.colour) out.push({ kind: 'colour', lane: pick.colour.lane, index: indexOf(pick.colour.lane, dice.w[pick.colour.die] + dice.c[pick.colour.lane]) });
+  return out;
+}
+
+const countPicks = pick => (pick.white != null ? 1 : 0) + (pick.colour ? 1 : 0);
+
+// What a tap on one cell means for player p while choosing, and the whole pick it leaves:
+//   pick  the cell is one of their picks; a tap takes it back
+//   legal it can be added beside their picks (a non-active player, with one pick only, may also move it here)
+//   swap  legal on its own but not together with their picks; a tap puts it in and drops what conflicts,
+//         keeping as many picks as possible (white first on a tie)
+//   none  not legal even alone
+export function cellChoice(g, p, lane, index) {
+  const t = g.turn, none = { state: 'none', pick: null };
+  if (t?.phase !== 'choose' || t.done[p] || !g.players[p]) return none;
+  const cur = t.picks[p], sheet = g.players[p], ok = k => !!applyPicks(sheet, g.closed, t.dice, k);
+  const mine = pickedCells(t.dice, cur).find(c => c.lane === lane && c.index === index);
+  if (mine) return { state: 'pick', kind: mine.kind, pick: { ...cur, [mine.kind]: null } };
+  const cands = [];
+  if (indexOf(lane, whiteSum(t.dice)) === index) cands.push(['white', lane]);
+  if (p === t.active && t.dice.c[lane] != null) {
+    t.dice.w.forEach((w, die) => { if (indexOf(lane, w + t.dice.c[lane]) === index) cands.push(['colour', { lane, die }]); });
+  }
+  let add = null, swap = null;
+  for (const [kind, value] of cands) {
+    const full = { ...cur, [kind]: value }, alone = { ...noPicks(), [kind]: value };
+    const free = cur[kind] == null || p !== t.active; // a non-active player's single pick simply moves
+    if (free && ok(full)) { add ??= full; continue; }
+    const best = ok(full) ? full : ok(alone) ? alone : null;
+    if (best && (!swap || countPicks(best) > countPicks(swap))) swap = best;
+  }
+  return add ? { state: 'legal', pick: add } : swap ? { state: 'swap', pick: swap } : none;
+}
