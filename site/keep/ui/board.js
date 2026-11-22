@@ -452,7 +452,11 @@ export function mountBoard(host, opts) {
     for (const f of figs) {
       const ht = f.shared ? 44 : f.active ? 92 : 58, pose = opts.poses?.[f.seat];
       const fg = svg('g', { transform: `translate(${f.x} ${f.y})` }, layer);
-      const sz = svg('g', { class: `fig-size${f.active && !f.shared ? ' big' : ''}` }, fg);
+      // Walking in (the move before its card): from the square left to this one, then still.
+      const mv = opts.moveFrom?.seat === f.seat && opts.moveFrom.from ? opts.moveFrom.from.split(',').map(Number) : null;
+      const walk = mv ? svg('g', {}, fg) : fg;
+      if (mv) svg('animateTransform', { attributeName: 'transform', type: 'translate', from: `${(mv[0] * C + C / 2) - f.x} ${(mv[1] * C + C / 2) - f.y}`, to: '0 0', dur: '0.6s', fill: 'freeze', calcMode: 'spline', keySplines: '.3 0 .3 1', keyTimes: '0;1' }, walk);
+      const sz = svg('g', { class: `fig-size${f.active && !f.shared ? ' big' : ''}` }, walk);
       svg('image', { href: opts.art[f.seat], x: -ht * 0.34, y: -ht - 4, width: ht * 0.68, height: ht, preserveAspectRatio: 'xMidYMax meet', class: `token-art${f.active ? ' active' : ''}${pose ? ` pose-${pose}` : ''}` }, sz);
     }
   }

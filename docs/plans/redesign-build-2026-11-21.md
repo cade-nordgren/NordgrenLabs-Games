@@ -168,3 +168,16 @@ real saves in it, signed-in saves on the deployed site.
   treasure, the chamber's cards), the ring's own picture (its gem as on the ring picker), uses left as a green corner
   tag (outlined when none are left), a coin on the gold plate, a gold Close; a special weapon with rules text (the
   hunters' crossbow) shows as a card among the equipment pills.
+- Owner play-test fixes (2026-11-22), display only, no rule changes:
+  - Hero picker: every name on one line, the class and HP below, then the four stats short (Str, Agi, Arm, Lck);
+    picking a hero no longer changes the row heights.
+  - Starting tower map: each tower is exactly one grid square in its corner.
+  - Board: a lighter ground and thinner black walls (the keep's outer wall a little thicker).
+  - Tap feedback: a tapped gold or red button (the torch numbers, Continue) darkens slightly instead of flashing black.
+  - Fights on an upright phone: a shorter monster banner and smaller A, B and C letters so the cards fit without
+    scrolling; the two-player reveal is more compact again.
+  - Pacing: a move that draws a card shows the hero walking into the room first (0.6 s; skipped with reduced motion),
+    then the card. When the turn passes in a multi-player game, a two-second banner says whose turn ended and whose
+    begins; Continue still goes on at once (spec v12 fix 5).
+  - Heroes fighting each other was asked about: the rules have no hero-against-hero combat (R100 "No PvP", and R27
+    keeps one hero per ordinary room), so nothing was added.

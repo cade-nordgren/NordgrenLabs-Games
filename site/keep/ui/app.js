@@ -114,6 +114,7 @@ const ctx = () => ({ content: content(), name: nameOf });
 
 // ---- Actions: every one goes to the engine, which refuses anything not legal now.
 function act(a) {
+  if (walking) return; // the hero is still walking into the room; its card follows
   // Spec v12 fix 5: nothing is dispatched from a table still held behind a result card (a stale control); it is redrawn.
   if (held) { release(); return; }
   const prev = S.game, c = content();
@@ -146,9 +147,45 @@ function act(a) {
   if (held) { persist(); dropFinished(); } else render();
   outcome = out;
   if (!cards.length && $('roll').open) { $('roll').dataset.mode = ''; $('roll').close(); }
+  // Owner play-test (2026-11-22): a move that draws a card shows the hero walking into the room first, then the card.
+  const moved = held && cards.length && !$('roll').open && !REDUCED.matches && !document.hidden && added.find(e => e.kind === 'move' && Number.isInteger(e.seat));
+  if (moved && showWalk(next, moved)) {
+    walking = setTimeout(() => { walking = null; queue.start(cards); showOutcome(); showDusk(); }, 700);
+    return;
+  }
   if (cards.length) queue.start(cards);
   showOutcome();
   showDusk();
+}
+// The walk before a card: the map alone is redrawn from the new state (the prompt below stays as it was and the table
+// stays held), the hero walking in from the square they left. Returns false when there is no map to redraw.
+const REDUCED = matchMedia('(prefers-reduced-motion: reduce)');
+let walking = null;
+function showWalk(next, mv) {
+  const host = document.querySelector('#table .board-host');
+  if (!host) return false;
+  const c = content(), v = view(next, c, solo() ? 0 : viewer);
+  const art = Object.fromEntries(next.seats.map((s, i) => [i, heroArt(s.heroId)]).filter(([, u]) => u));
+  boardApi = mountBoard(host, { v, content: c, names: next.seats.map(s => s.name), targets: [], home: next.heroes[mv.seat].coord, homeSeat: mv.seat, onInspect: () => {},
+    art, poses: { [mv.seat]: 'walk' }, moveFrom: { seat: mv.seat, from: mv.from }, lairArt: S.mode === 'fixture' ? null : `art/dragon-${v.dragon.awake ? 'awake' : 'asleep'}.webp` });
+  return true;
+}
+// The hand-over (owner play-test): when the turn passes to another player, a short banner says whose turn ended and
+// whose begins, over the table that has already moved on (Continue still goes on at once, spec v12 fix 5).
+let turnSeen = null;
+function turnBanner(g) {
+  const k = g.status === 'playing' && g.seats.length > 1 ? g.activeSeat : null;
+  const was = turnSeen;
+  turnSeen = k;
+  if (k === null || was === null || was === k || held) return;
+  let b = document.getElementById('turnBanner');
+  if (!b) { b = el('div', 'turnbanner'); b.id = 'turnBanner'; b.setAttribute('aria-hidden', 'true'); document.body.append(b); }
+  const seal = el('span', 'seal', String(k + 1));
+  b.replaceChildren(seal, el('span', 'tb-words'));
+  b.lastChild.append(el('small', '', `${nameOf(was)}'s turn is over`), el('strong', '', `${nameOf(k)}'s turn`));
+  b.classList.remove('show');
+  void b.offsetWidth; // restart the animation
+  b.classList.add('show');
 }
 let held = false;
 function release() { if (held) { held = false; render(); } }
@@ -1068,6 +1105,7 @@ function renderDraft(v) {
       badge.append(heroArt(def.id) ? heroImg(def, 'dh-face') : heroEmblem(def, 20));
       const sub = takenBy ? `Taken by ${takenBy.name}` : [def.class && capital(def.class), Number.isInteger(def.hp) && `${def.hp} HP`].filter(Boolean).join(' · ');
       t.append(el('strong', '', def.name || def.id), el('small', '', sub));
+      if (def.stats) t.append(el('small', 'dh-statline', ['STR', 'AGI', 'ARM', 'LCK'].map(k => `${STAT_SHORT[k] === 'Luck' ? 'Lck' : STAT_SHORT[k]} ${def.stats[k]}`).join('  '))); // the four stats, short
       b.append(badge, t);
       b.setAttribute('aria-pressed', def.id === heroSel.id);
       b.setAttribute('aria-label', [def.name || def.id, def.class, takenBy ? `taken by ${takenBy.name}` : Number.isInteger(def.hp) && `${def.hp} hit points`].filter(Boolean).join(', '));
@@ -1418,6 +1456,7 @@ function renderPrompt(v, la, targets) {
     const last = S.reveal;
     // The two letters large, one sentence, Continue; the fight row above and History below.
     p = fightPanel('Reveal');
+    p.classList.add('reveal'); // compact: the cards and Continue fit without scrolling
     p.append(fightRow(v, last.seat, enc));
     const vs = el('div', 'vs');
     const side = (who, letter) => { const d = el('div'); d.append(el('span', '', letter), el('small', '', who)); return d; };
@@ -1691,6 +1730,7 @@ function renderTable(v) {
   side.append(dock, fold);
   grid.append(bp, side);
   out.push(grid);
+  turnBanner(g);
   $('table').replaceChildren(...out);
   boardApi = board;
   board.settle(); // spec v12 fix 5: frame the map now it is laid out, not only when a ResizeObserver callback (a frame) comes
