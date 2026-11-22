@@ -141,3 +141,8 @@ real saves in it, signed-in saves on the deployed site.
   shows each turn as a headed group (player and hero, round on the right); a square's sides are chips in two columns;
   How to play has gold bullets and Builder tools an outlined button. Swipe-away fix: a drag inside a list that has
   scrolled (the event log) scrolls it; only from the top does a swipe close the drawer.
+- Rare moments (2026-11-22): the wake and dragon fire cards glow red and show the damage in large type; the fight-end
+  card is a bottom drawer like the others; the pass-the-phone cover is the design's hand-off screen (a card back with
+  gold borders, the name large, a gold button); the number picker (torch, spider, ceiling) has stone buttons that turn
+  gold when picked, with plain numerals; an empty card's tag reads "Empty". The tower choice, sunset and results
+  already matched and were left.

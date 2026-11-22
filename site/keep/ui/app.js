@@ -284,7 +284,7 @@ function tryAct(a) {
 // consequence, then the tagged result lines and Continue. One card after another in the engine's order; the table
 // stays held until the last Continue. Public in multiplayer (built from the public view), so nothing hidden shows.
 const tagChip = tag => el('span', `tag tag-${tag}`, OUTCOME_TAG[tag]);
-const KIND_WORD = { trap: 'Trap', treasure: 'Treasure', item: 'Item', monster: 'Monster', empty: 'Room' };
+const KIND_WORD = { trap: 'Trap', treasure: 'Treasure', item: 'Item', monster: 'Monster', empty: 'Empty' };
 const KIND_ICON = {
   trap: 'M6 19c-2 0-3-1.5-2-3s3-2 6-2 7-1 7-4-3-4-6-4-5 1.5-4.5 3 M10.5 5c.8-1.6 3-2 4.2-.8 M14.7 4.2l1.6-.8 M14.7 4.2l1.3 1.1 M6 19h11c2 0 3-1 3-2.5',
   treasure: 'M4 4c0 7 3.5 11 8 11s8-4 8-11 M6 9.5l1 .5 M18 9.5l-1 .5 M9 13l.8.7 M15 13l-.8.7 M12 15v2 M10 17h4l-2 4z',
@@ -312,7 +312,9 @@ let rollPressed = false;
 // The design's sum line, read from the card's own dice line ("Rolled 9, minus Agility 4: 5 damage.").
 function sumLine(text) {
   const m = /^Rolled (\d+), minus (?:([A-Za-z]+) )?(\d+): (\d+) damage/.exec(text || '');
-  return m ? `${m[1]} − ${m[3]}${m[2] ? ` (${m[2]})` : ''} = ${m[4]} damage` : null;
+  if (m) return `${m[1]} − ${m[3]}${m[2] ? ` (${m[2]})` : ''} = ${m[4]} damage`;
+  const plain = /^Rolled \d+: (\d+) damage/.exec(text || ''); // a whole die of damage, as dragon fire
+  return plain ? `${plain[1]} damage` : null;
 }
 function drawCard(card, i, n) {
   const d = $('roll');
@@ -327,7 +329,7 @@ function drawCard(card, i, n) {
   // picture of the kind, the gold on a plate, and the card's edge in the kind's colour.
   const deck = /^[A-Z][a-z ]*cards?$/.test(card.what[0] || '') ? card.what[0] : null;
   const kind = cardKind(card);
-  d.dataset.kind = deck ? kind || '' : '';
+  d.dataset.kind = scene === 'dragon-awake' ? 'fire' : deck ? kind || '' : ''; // fire: the wake and dragon fire cards glow red
   if (deck) {
     const head = el('div', 'cardhead');
     head.append(el('span', 'deck', deck));
