@@ -94,6 +94,7 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
   display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 600; font-size: 15px; }
 .chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chip b { font: 700 13px var(--num); color: var(--ink2); }
+.chip b:empty { display: none; }
 .chip[aria-pressed="true"] { background: var(--ink); color: var(--canvas); }
 .chip[aria-pressed="true"] b { color: inherit; opacity: .7; }
 /* The roller gets a dot; a player who tapped Done gets a check. */
@@ -201,6 +202,10 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 .pen h3 { margin: 0; font-size: 15px; font-weight: 600; flex: 1; }
 .pen .boxes { display: flex; gap: 6px; }
 .pbox { position: relative; width: 44px; height: 44px; border-radius: 10px; border: 2px solid var(--hair); background: var(--cell); }
+/* Digital: the roller's penalty for this turn, tentative until the roll resolves; and the box offered as the way out. */
+.pbox.tent { border-color: var(--accent); }
+.pbox.tent::after { background: var(--accent) !important; }
+.pbox.offer { border: 2px dashed var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--cell)); }
 .pbox.on::after { content: ""; position: absolute; inset: 7px; background: var(--danger);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 5l14 14M19 5L5 19' stroke='%23000' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 5l14 14M19 5L5 19' stroke='%23000' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
@@ -225,6 +230,18 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 #resultsHead { text-align: center; margin: 0 0 16px; }
 #resultsHead h2 { font: 800 30px/1.15 var(--num); }
 #resultsHead p { margin: 6px 0 0; color: var(--ink2); }
+/* End of game reveal: one score line per player, counted up; the winner glows, the rest step back. */
+.reveal { display: grid; gap: 10px; cursor: pointer; }
+.rcard { padding: 10px 12px 12px; border-radius: 20px; transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease; }
+.rcard .rname { margin: 0 0 6px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rcard .eq { margin-top: 0; }
+.rcard .t { font-variant-numeric: tabular-nums; }
+.rcard .total b { font: inherit; }
+.rcard.dim { opacity: .5; filter: grayscale(.7); }
+.rcard.win { box-shadow: 0 0 0 3px var(--accent), 0 8px 28px color-mix(in srgb, var(--accent) 45%, transparent); animation: glow 1.8s ease-in-out infinite; }
+@keyframes glow { 50% { box-shadow: 0 0 0 3px var(--accent), 0 10px 46px color-mix(in srgb, var(--accent) 80%, transparent); } }
+#skip { display: block; margin: 14px auto 0; }
+.rank-cap { margin: 18px 0 8px; }
 .stack { display: grid; gap: 10px; margin-top: 16px; }
 
 /* ---- Rules, scores and settings sheets */
@@ -389,10 +406,15 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 
       <div id="results" hidden>
         <div id="resultsHead"><h2 id="resultsTitle"></h2><p id="resultsWhy"></p></div>
-        <ol class="standings" id="finalList"></ol>
-        <div class="stack">
-          <button class="btn primary" id="again">Play again</button>
-          <button class="btn" id="players">Change players</button>
+        <div class="reveal" id="reveal"></div>
+        <button class="btn" id="skip" hidden>Skip</button>
+        <div id="after">
+          <p class="caption rank-cap">Ranking</p>
+          <ol class="standings" id="finalList"></ol>
+          <div class="stack">
+            <button class="btn primary" id="again">Play again</button>
+            <button class="btn" id="players">Change players</button>
+          </div>
         </div>
       </div>
 
@@ -463,8 +485,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <li>Everyone chooses at once, in any order. Tap a name to switch sheets.</li>
       <li>Anyone may cross off the sum of the two white dice in any lane.</li>
       <li>The active player may also cross off one white die plus one coloured die, in that colour's lane. The white sum counts first.</li>
-      <li>Picks can change until that player taps Done. A greyed number with a dashed ring is ruled out by a pick; tap it to swap it in. When everyone is done, the crosses go on.</li>
-      <li>If the active player crossed nothing, they take a penalty.</li>
+      <li>Picks can change until that player taps End turn. A greyed number with a dashed ring is ruled out by a pick; tap it to swap it in. When everyone has ended their turn, the crosses go on.</li>
+      <li>The active player may tick a penalty box at any time during the turn, and must end the turn with at least one cross or a penalty. Other players never take penalties.</li>
     </ol>
     <p>Several players can lock the same colour on one roll. A colour locked on a roll closes once everyone is done, and its die leaves the game.</p>
     <h3>With your own dice</h3>
@@ -507,6 +529,12 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <button value="on">On</button>
       <button value="off">Off</button>
     </div>
+    <h3 id="scoresPrefTitle">Scores</h3>
+    <div class="segmented" id="scoresSeg" role="group" aria-labelledby="scoresPrefTitle">
+      <button value="live">While playing</button>
+      <button value="end">At the end</button>
+    </div>
+    <p>At the end hides every running score until the game is over, then counts them up.</p>
     <h3 id="pickerTitle">Big lane picker</h3>
     <div class="segmented" id="pickerSeg" role="group" aria-labelledby="pickerTitle">
       <button value="off">Off</button>

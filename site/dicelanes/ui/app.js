@@ -1,6 +1,6 @@
 // DiceLanes screens. All rules live in ../engine; this file dispatches actions and draws state.
 import { LANES, LAST, POINTS, MARKS_BEFORE_LAST, MAX_PENALTIES, MAX_PLAYERS, score, standings } from '../engine/lanes.js';
-import { canMark, isSkipped, cellChoice, pickedCells, hasPicks, whiteSum } from '../engine/moves.js';
+import { canMark, isSkipped, cellChoice, pickedCells, canEnd, whiteSum } from '../engine/moves.js';
 import { newGame, reduce, validState, endReason } from '../engine/reducer.js';
 import { record, undo as undoHist, cleanHist, SAVE_CAP } from '../engine/history.js';
 import { mountDie, showDie } from './dice.js';
@@ -21,11 +21,12 @@ const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0] | 0;
 
 // ---- Per-browser preferences (not game state).
 const PREFS = 'nl-dicelanes-prefs';
-let prefs = { haptics: 'on', picker: 'off' };
+let prefs = { haptics: 'on', picker: 'off', scores: 'live' }; // scores: live (while playing) or end (hidden until the end)
 try {
   const p = JSON.parse(localStorage.getItem(PREFS));
   if (p?.haptics === 'off') prefs.haptics = 'off';
   if (p?.picker === 'on') prefs.picker = 'on';
+  if (p?.scores === 'end') prefs.scores = 'end';
 } catch {}
 const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch {} };
 // Only after a real tap: Chrome logs an error for vibrate() before any user activation.
@@ -64,6 +65,11 @@ NL.ready.then(i => {
 NL.account($('account'));
 
 let rolling = false, popMarks = false; // popMarks: animate new crosses only right after a move
+// The end-of-game count plays once, right after the move that ended the game; a reload shows the final state.
+let revealPending = false, revealing = false, revealToken = 0;
+const stopReveal = () => { revealToken++; revealing = revealPending = false; };
+// Setting "At the end": no running score shows anywhere until the game is over.
+const hideScores = () => prefs.scores === 'end' && S.g?.status === 'playing';
 
 // Digital: the roller. Everyone chooses at once after a roll, so this only marks who rolled and who risks a penalty.
 const mover = g => g.turn ? g.turn.active : null;
@@ -86,6 +92,7 @@ function follow(action) {
 function change(action) {
   const next = reduce(S.g, action);
   if (next === S.g) return false;
+  if (S.g.status === 'playing' && next.status === 'over') revealPending = true;
   S.hist = record(S.hist, S.g);
   S.g = next;
   follow(action);
@@ -97,6 +104,7 @@ function change(action) {
 function undo() {
   const u = undoHist(S.hist);
   if (!u) return;
+  stopReveal();
   // Show the sheet the undone change was on (a mark, a pick or a Done).
   // Undoing a resolve changes every sheet: prefer the one that is choosing again (not done).
   const key = (g, i) => JSON.stringify([g.players[i], g.turn?.picks[i], g.turn?.done[i] ?? false]);
@@ -120,11 +128,13 @@ function start() {
   render();
 }
 function restart() {
+  stopReveal();
   const names = S.g.players.map(p => p.name);
   Object.assign(S, { g: newGame({ mode: S.g.mode, names, seed: newSeed() }), hist: [], saveId: null, createdAt: null, sel: 0 });
   render();
 }
 function toSetup() {
+  stopReveal();
   Object.assign(S, { g: null, hist: [], saveId: null, createdAt: null, sel: 0 });
   rolling = false;
   render();
@@ -276,8 +286,10 @@ $('points').append(...POINTS.slice(1).map((_, k) => el('span', '', `${k + 1}x`))
 const penEls = Array.from({ length: MAX_PENALTIES }, (_, k) => {
   const b = el('button', 'pbox');
   b.onclick = () => {
-    const p = S.g.players[S.sel];
-    if (change({ type: 'penalty', player: S.sel, add: k >= p.penalties })) buzz(20);
+    const g = S.g, p = g.players[S.sel];
+    // Digital: the roller ticks or unticks this turn's penalty (applied when the roll resolves). Physical: add or remove one.
+    const add = g.turn ? !g.turn.picks[S.sel]?.penalty : k >= p.penalties;
+    if (change({ type: 'penalty', player: S.sel, add })) buzz(20);
   };
   $('penBoxes').append(b);
   return b;
@@ -412,11 +424,11 @@ function renderChips() {
   [...box.children].forEach((c, i) => {
     const p = g.players[i], t = score(p).total;
     c.firstChild.textContent = p.name;
-    c.lastChild.textContent = t;
+    c.lastChild.textContent = hideScores() ? '' : t;
     c.setAttribute('aria-pressed', S.sel === i);
     c.classList.toggle('mover', digital && m === i);
     c.classList.toggle('done', choosing && g.turn.done[i]);
-    c.setAttribute('aria-label', `${p.name}, ${t} points${digital && m === i ? ', rolling player' : ''}${choosing && g.turn.done[i] ? ', done' : ''}`);
+    c.setAttribute('aria-label', `${p.name}${hideScores() ? '' : `, ${t} points`}${digital && m === i ? ', rolling player' : ''}${choosing && g.turn.done[i] ? ', turn ended' : ''}`);
   });
   box.hidden = g.players.length < 2 || g.status === 'over'; // results show everyone at once
 }
@@ -447,11 +459,19 @@ function renderGame() {
   });
   if ($('picker').open) paintPicker();
 
+  // Digital: only the roller, while choosing, may tick the next box; a ticked one is tentative (accent) until the roll
+  // resolves. When the roller has nothing to end the turn with, that box is offered (dashed ring): it is the way out.
+  const t = g.turn, tent = digital && t.phase === 'choose' && !!t.picks[S.sel]?.penalty;
+  const canTick = digital && choosingNow() && S.sel === t.active;
   penEls.forEach((b, k) => {
-    b.classList.toggle('on', k < sheet.penalties);
-    b.disabled = digital || (k > sheet.penalties); // physical: tap the next box to add, the last taken one to remove
-    b.setAttribute('aria-label', `Penalty ${k + 1}${k < sheet.penalties ? ', taken' : ''}`);
+    const next = k === sheet.penalties;
+    b.classList.toggle('on', k < sheet.penalties || (next && tent));
+    b.classList.toggle('tent', next && tent);
+    b.classList.toggle('offer', next && canTick && !canEnd(g, S.sel));
+    b.disabled = digital ? !(next && canTick) : k > sheet.penalties; // physical: tap the next box to add, the last taken one to remove
+    b.setAttribute('aria-label', `Penalty ${k + 1}${k < sheet.penalties ? ', taken' : next && tent ? ', ticked this turn' : ''}`);
   });
+  $('eq').hidden = hideScores();
   const sc = score(sheet);
   sc.lanes.forEach((v, l) => { eqEls.parts[l].textContent = v; });
   eqEls.pen.textContent = sc.penalty;
@@ -476,14 +496,12 @@ function renderTray() {
   $('sumLabel').textContent = fresh ? 'White sum' : g.players.length === 1 ? 'Ready to roll' : `${g.players[t.active].name} rolls`;
   $('roll').hidden = t.phase !== 'roll';
   $('roll').disabled = rolling;
+  // End turn: the roller needs a pick or a ticked penalty first; anyone else may end with nothing.
   const done = $('doneBtn'), p = S.sel, mine = fresh && t.done[p];
   done.hidden = !fresh;
-  done.disabled = rolling;
+  done.disabled = rolling || (fresh && !mine && !canEnd(g, p));
   done.classList.toggle('reopen', !!mine);
-  const solo = g.players.length === 1, name = g.players[p].name;
-  done.textContent = mine ? `Change ${solo ? 'picks' : name + "'s picks"}`
-    : p === t.active && fresh && !hasPicks(t.picks[p]) ? 'Done, take a penalty'
-    : solo ? 'Done' : `Done for ${name}`;
+  done.textContent = mine ? 'Change picks' : 'End turn';
 }
 
 async function roll() {
@@ -551,19 +569,97 @@ function standingsList(list, g) {
     return li;
   }));
 }
+function winnersLine(g) {
+  const rows = standings(g.players), top = rows.filter(r => r.rank === 1).map(r => g.players[r.i].name);
+  return g.players.length === 1 ? `${rows[0].total} points` : top.length > 1 ? `Tie between ${listOf(top)}` : `${top[0]} wins`;
+}
 function renderResults() {
-  const g = S.g, rows = standings(g.players), top = rows.filter(r => r.rank === 1).map(r => g.players[r.i].name);
-  $('resultsTitle').textContent = g.players.length === 1 ? `${rows[0].total} points` : top.length > 1 ? `${listOf(top)} tie` : `${top[0]} wins`;
+  const g = S.g;
   const fourth = g.players.filter(p => p.penalties >= MAX_PENALTIES).map(p => p.name);
   $('resultsWhy').textContent = endReason(g) === 'penalties'
     ? `${g.players.length === 1 ? 'A' : `${listOf(fourth)} took a`} fourth penalty.`
     : `Two colours are locked: ${listOf(LANES.filter((_, l) => g.closed[l]).map(l => l.name.toLowerCase()))}.`;
+  if (revealing) return; // the count is running; leave its cards alone
+  const cards = revealCards(g);
+  if (revealPending && !still()) { revealPending = false; runReveal(g, cards); return; }
+  revealPending = false;
+  finishReveal(g, cards);
+}
+
+// ---- End of game reveal: one card per player shaped like the score line, counted up colour by colour for everyone
+// at once (red, yellow, green, blue, penalties, then totals), then the winner glows. Tap anywhere or Skip to jump.
+function revealCards(g) {
+  return g.players.map((p, i) => {
+    const card = el('div', 'rcard glass'), eq = el('div', 'eq');
+    const box = (c, label) => { const b = el('span', 't', '0'); if (c) b.style.setProperty('--c', c); b.setAttribute('aria-label', label); return b; };
+    const parts = LANES.map(l => box(`var(--${l.id})`, l.name)), pen = box(null, 'Penalties'), total = el('span', 't total');
+    total.append(el('small', '', 'Total'), el('b', '', '0'));
+    eq.append(parts[0], '+', parts[1], '+', parts[2], '+', parts[3], '−', pen, '=', total);
+    card.append(el('p', 'rname', p.name), eq);
+    return { card, boxes: [...parts, pen, total.lastChild], target: (({ lanes, penalty, total }) => [...lanes, penalty, total])(score(p)), i };
+  });
+}
+const showBox = (c, ph, v) => { c.boxes[ph].textContent = ph === 4 ? (v ? `−${v}` : '0') : v; };
+function finishReveal(g, cards) {
+  $('reveal').replaceChildren(...cards.map(c => c.card));
+  const best = Math.max(...cards.map(c => c.target[5]));
+  cards.forEach(c => {
+    c.target.forEach((v, ph) => showBox(c, ph, v));
+    const win = c.target[5] === best;
+    c.card.classList.toggle('win', win);
+    c.card.classList.toggle('dim', !win && g.players.length > 1);
+  });
+  $('resultsTitle').textContent = winnersLine(g);
+  $('skip').hidden = true;
+  $('after').hidden = false;
   standingsList($('finalList'), g);
 }
+async function runReveal(g, cards) {
+  const my = ++revealToken;
+  revealing = true;
+  $('reveal').replaceChildren(...cards.map(c => c.card));
+  $('resultsTitle').textContent = 'Final count';
+  $('skip').hidden = false;
+  $('after').hidden = true;
+  const live = () => my === revealToken;
+  const wait = ms => new Promise(r => setTimeout(r, ms));
+  await wait(350);
+  for (let ph = 0; ph < 6 && live(); ph++) {
+    buzz(6);
+    // Every box ticks up one point at a time at a shared pace, so each phase lands in about 1.4 seconds.
+    const max = Math.max(1, ...cards.map(c => Math.abs(c.target[ph])));
+    await new Promise(done => {
+      const t0 = performance.now();
+      const tick = now => {
+        if (!live()) return done();
+        const p = Math.min(1, (now - t0) / 1400), v = Math.floor(p * max);
+        cards.forEach(c => showBox(c, ph, Math.sign(c.target[ph]) * Math.min(Math.abs(c.target[ph]), v)));
+        p < 1 ? next() : done();
+      };
+      // Timers rather than animation frames, so the count still finishes in a background tab.
+      const next = () => setTimeout(() => tick(performance.now()), 16);
+      next();
+    });
+    await wait(ph === 4 ? 450 : 250); // a longer beat before the totals
+  }
+  if (!live()) return;
+  revealing = false;
+  finishReveal(g, cards);
+  buzz([10, 60, 10]);
+}
+function skipReveal() {
+  if (!revealing) return;
+  stopReveal();
+  renderResults();
+}
+$('skip').onclick = e => { e.stopPropagation(); skipReveal(); };
+$('results').onclick = skipReveal; // tap anywhere on the reveal
+
 function renderScores() {
   const g = S.g;
-  $('scoreList').hidden = !g;
+  $('scoreList').hidden = !g || hideScores();
   $('scoresLede').textContent = !g ? 'Start a game to see the scores here.'
+    : hideScores() ? 'Scores are hidden until the end. Change this in Settings.'
     : g.status === 'over' ? 'Final scores.'
     : g.turn ? `Turn ${g.turn.n}. Lanes, penalties and totals for everyone.` : 'Lanes, penalties and totals for everyone, live.';
   if (g) standingsList($('scoreList'), g);
@@ -572,6 +668,7 @@ function renderScores() {
 const showTheme = NL.segmented($('themeSeg'), v => { NL.theme.set(v); showTheme(v); });
 const showHaptics = NL.segmented($('hapticsSeg'), v => { prefs.haptics = v; savePrefs(); showHaptics(v); buzz(10); });
 const showPicker = NL.segmented($('pickerSeg'), v => { prefs.picker = v; savePrefs(); showPicker(v); render(); });
+const showScoresPref = NL.segmented($('scoresSeg'), v => { prefs.scores = v; savePrefs(); showScoresPref(v); render(); });
 NL.menu($('menu'));
 const closeMenu = () => { if ($('menu').classList.contains('open')) $('menu').querySelector('.menu-trigger').click(); };
 const inProgress = () => !!S.g && S.g.status === 'playing' && S.hist.length > 0;
@@ -635,7 +732,7 @@ for (const d of document.querySelectorAll('dialog.sheet')) {
 }
 $('scoresBtn').onclick = () => { renderScores(); $('scoresSheet').showModal(); };
 $('rulesBtn').onclick = () => $('rulesSheet').showModal();
-$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); showHaptics(prefs.haptics); showPicker(prefs.picker); $('settingsSheet').showModal(); };
+$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); showHaptics(prefs.haptics); showPicker(prefs.picker); showScoresPref(prefs.scores); $('settingsSheet').showModal(); };
 for (const id of ['scores', 'rules', 'settings']) $(`${id}Done`).onclick = () => $(`${id}Sheet`).close();
 
 // ---- Wiring
