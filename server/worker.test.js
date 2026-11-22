@@ -167,7 +167,7 @@ const isSignInPage = r => {
 };
 
 test('signed out, every page and file outside the allowlist answers 401 with the sign-in page in place', async () => {
-  for (const p of ['/', '/index.html', '/bank/', '/bank', '/bank/index.html', '/tidevault/', '/dungeon/index.html',
+  for (const p of ['/', '/index.html', '/bank/', '/bank', '/bank/index.html', '/keep/', '/keep/art/hero_1.webp',
     '/style.css', '/platform.js', '/config.js/', '/icons/', '/icons/favicon.svg/', '/ICONS/icon-192.png',
     '/%69cons/icon-192.png', '/signin', '/signin.html', '/a-future-game/deep/asset.png', '/nope.html']) {
     isSignInPage(await get(p));
