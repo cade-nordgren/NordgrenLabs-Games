@@ -1,7 +1,7 @@
 // The whole game as a serialisable reducer: reduce(state, action) returns a new state, or the same state object when
 // the action is not legal now. State is plain JSON, so it can be autosaved, undone by snapshot, or sent over a wire.
 import { LANES, LAST, MAX_PENALTIES, LOCKS_TO_END, MAX_PLAYERS, MARKS_BEFORE_LAST, emptySheet } from './lanes.js';
-import { canMark, applyPicks, noPicks, hasPicks, cellChoice } from './moves.js';
+import { canMark, applyPicks, noPicks, canEnd, cellChoice } from './moves.js';
 
 // Seeded PRNG (mulberry32) kept in state, so undo then roll again gives the same dice: no fishing for a better roll.
 export function rand(g) {
@@ -53,9 +53,14 @@ function step(g, a) {
       mark(g, a.player, a.lane, a.index);
       break;
     }
-    case 'penalty': { // physical: add one or take one back
+    case 'penalty': { // physical: add one or take one back; digital: the active player ticks or unticks this roll's penalty
       const p = g.players[a.player];
-      if (g.mode !== 'physical' || !p) return false;
+      if (g.mode === 'digital') {
+        if (!p || t.phase !== 'choose' || a.player !== t.active || t.done[a.player] || !!t.picks[a.player].penalty === !!a.add) return false;
+        t.picks[a.player] = { ...t.picks[a.player], penalty: !!a.add };
+        return true;
+      }
+      if (!p) return false;
       if (a.add ? p.penalties >= MAX_PENALTIES : p.penalties <= 0) return false;
       p.penalties += a.add ? 1 : -1;
       break;
@@ -101,6 +106,7 @@ function step(g, a) {
     case 'done': { // a player is finished choosing (value false reopens); once everyone is, the roll resolves
       const value = a.value !== false;
       if (g.mode !== 'digital' || t.phase !== 'choose' || !g.players[a.player] || t.done[a.player] === value) return false;
+      if (value && !canEnd(g, a.player)) return false; // the active player ends with a pick or a penalty
       t.done[a.player] = value;
       if (t.done.every(Boolean)) resolve(g);
       return true;
@@ -112,7 +118,7 @@ function step(g, a) {
 }
 
 // Everyone is done: picks become marks, every colour locked this roll closes (several players may lock the same one),
-// the active player takes a penalty if they picked nothing, then the end check, then the next player's roll.
+// the active player's ticked penalty counts, then the end check, then the next player's roll.
 export function resolve(g) {
   const t = g.turn, locked = new Set();
   g.players.forEach((p, i) => {
@@ -123,7 +129,7 @@ export function resolve(g) {
     r.locked.forEach(l => locked.add(l));
   });
   for (const l of locked) g.closed[l] = true;
-  if (!hasPicks(t.picks[t.active])) g.players[t.active].penalties = Math.min(MAX_PENALTIES, g.players[t.active].penalties + 1);
+  if (t.picks[t.active].penalty) g.players[t.active].penalties = Math.min(MAX_PENALTIES, g.players[t.active].penalties + 1);
   Object.assign(t, { phase: 'roll', picks: [], done: [] });
   checkEnd(g);
   if (g.status === 'over') return;
@@ -170,7 +176,10 @@ export function validState(g) {
     if (!isBools(t.done, n) || t.done.every(Boolean) || !Array.isArray(t.picks) || t.picks.length !== n) return false;
     for (let p = 0; p < n; p++) {
       const k = t.picks[p];
-      if (!k || Object.keys(k).length !== 2 || !(k.white === null || isLane(k.white))) return false;
+      // penalty may be missing in saves from before it existed; it reads as false
+      if (!k || !(k.white === null || isLane(k.white)) || !(k.penalty === undefined || typeof k.penalty === 'boolean')) return false;
+      if (Object.keys(k).some(x => !['white', 'colour', 'penalty'].includes(x)) || (k.penalty && p !== t.active)) return false;
+      if (t.done[p] && !canEnd(g, p)) return false;
       if (k.colour !== null && (p !== t.active || !k.colour || !isLane(k.colour.lane) || ![0, 1].includes(k.colour.die))) return false;
       if (!applyPicks(g.players[p], g.closed, t.dice, k)) return false;
     }

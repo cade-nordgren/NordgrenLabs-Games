@@ -95,7 +95,8 @@ test('dice are always 1..6 over many seeded rolls; closed colours roll no die', 
     const d = g.turn.dice;
     assert.ok([...d.w, d.c[R], d.c[G], d.c[B]].every(x => Number.isInteger(x) && x >= 1 && x <= 6));
     assert.equal(d.c[Y], null);
-    g = reduce(g, { type: 'done', player: 0 });
+    g = reduce(reduce(g, { type: 'penalty', player: 0, add: true }), { type: 'done', player: 0 });
+    assert.equal(g.turn.phase, 'roll');
     g.players[0].penalties = 0; // keep rolling
   }
   const a = reduce(dig(), { type: 'roll' }), b = reduce(dig(), { type: 'roll' });
@@ -112,7 +113,7 @@ test('everyone picks at once, in any order, and changes picks until Done', () =>
   g = act(g, W(2, G)); // Cy first: green 7
   g = act(g, W(0, R)); // Ana: red 7
   g = act(g, W(0, Y)); // Ana changes her mind: yellow 7
-  assert.deepEqual(g.turn.picks[0], { white: Y, colour: null });
+  assert.deepEqual(g.turn.picks[0], { white: Y, colour: null, penalty: false });
   assert.equal(reduce(g, C(1, G, 0)), g, 'only the active player picks a colour');
   assert.equal(reduce(g, W(0, Y)), g, 'the same pick twice changes nothing');
   g = act(g, { type: 'unpick', player: 2, kind: 'white' });
@@ -158,17 +159,6 @@ test('picks out of order: colour first, then a white pick that keeps the pair le
   assert.deepEqual(g.players[0].marks[R], [indexOf(R, 7), indexOf(R, 9)]);
 });
 
-test('penalty only for the active player when they mark nothing', () => {
-  let g = rolled(dig(), [1, 1], [1, 1, 1, 1]);
-  g = act(g, W(1, R)); // Ben marks, Ana (active) picks nothing
-  g = act(act(g, done(0)), done(1));
-  assert.deepEqual(g.players.map(p => p.penalties), [1, 0]);
-  g = rolled(g, [2, 2], [1, 1, 1, 1]);
-  g = act(g, W(1, Y)); // Ben (active) marks the white sum only: no penalty; Ana passes: no penalty
-  g = act(act(g, done(1)), done(0));
-  assert.deepEqual(g.players.map(p => p.penalties), [1, 0]);
-});
-
 const tap = (g, player, lane, value) => ({ type: 'choose', player, lane, index: indexOf(lane, value) });
 const state = (g, p, lane, value) => cellChoice(g, p, lane, indexOf(lane, value)).state;
 
@@ -177,29 +167,29 @@ test("owner's example: a pick greys out what it rules out, and tapping the grey 
   assert.equal(state(g, 0, R, 2), 'legal');
   assert.equal(state(g, 0, R, 3), 'legal');
   g = act(g, tap(g, 0, R, 2)); // red 2: only a colour pick
-  assert.deepEqual(g.turn.picks[0], { white: null, colour: { lane: R, die: 0 } });
+  assert.deepEqual(g.turn.picks[0], { white: null, colour: { lane: R, die: 0 }, penalty: false });
   assert.equal(state(g, 0, R, 2), 'pick');
   assert.equal(state(g, 0, R, 3), 'swap', 'the white 3 would have to come first, and a second colour pick is not allowed');
   assert.equal(state(g, 0, Y, 3), 'legal', 'a white 3 on yellow goes beside it');
   assert.equal(state(g, 0, R, 5), 'none');
   g = act(g, tap(g, 0, R, 3)); // tap the grey red 3
-  assert.deepEqual(g.turn.picks[0], { white: R, colour: null }, 'red 3 is the pick, red 2 is dropped');
+  assert.deepEqual(g.turn.picks[0], { white: R, colour: null, penalty: false }, 'red 3 is the pick, red 2 is dropped');
   assert.equal(state(g, 0, R, 2), 'swap', 'red 2 is grey now');
   g = act(g, tap(g, 0, R, 3));
-  assert.deepEqual(g.turn.picks[0], { white: null, colour: null }, 'tapping a pick takes it back');
+  assert.deepEqual(g.turn.picks[0], { white: null, colour: null, penalty: false }, 'tapping a pick takes it back');
 });
 
 test('a swap keeps as many picks as it can', () => {
   let g = rolled(dig(), [1, 2], [1, 4, 1, 1]); // white 3; yellow 1+4=5, 2+4=6
   g = act(g, tap(g, 0, Y, 3)); // white on yellow 3
   g = act(g, tap(g, 0, Y, 5)); // colour yellow 5, after it: legal
-  assert.deepEqual(g.turn.picks[0], { white: Y, colour: { lane: Y, die: 0 } });
+  assert.deepEqual(g.turn.picks[0], { white: Y, colour: { lane: Y, die: 0 }, penalty: false });
   assert.equal(state(g, 0, Y, 6), 'swap', 'second colour pick');
   g = act(g, tap(g, 0, Y, 6));
-  assert.deepEqual(g.turn.picks[0], { white: Y, colour: { lane: Y, die: 1 } }, 'colour replaced, white kept');
+  assert.deepEqual(g.turn.picks[0], { white: Y, colour: { lane: Y, die: 1 }, penalty: false }, 'colour replaced, white kept');
   assert.equal(state(g, 0, R, 3), 'swap', 'a second white pick');
   g = act(g, tap(g, 0, R, 3));
-  assert.deepEqual(g.turn.picks[0], { white: R, colour: { lane: Y, die: 1 } }, 'white moved, colour kept');
+  assert.deepEqual(g.turn.picks[0], { white: R, colour: { lane: Y, die: 1 }, penalty: false }, 'white moved, colour kept');
 });
 
 test("a non-active player's single pick moves with a tap", () => {
@@ -207,8 +197,45 @@ test("a non-active player's single pick moves with a tap", () => {
   g = act(g, tap(g, 1, R, 3));
   assert.equal(state(g, 1, G, 3), 'legal');
   g = act(g, tap(g, 1, G, 3));
-  assert.deepEqual(g.turn.picks[1], { white: G, colour: null });
+  assert.deepEqual(g.turn.picks[1], { white: G, colour: null, penalty: false });
   assert.equal(reduce(g, tap(g, 1, R, 2)), g, 'no colour picks for a non-active player');
+});
+
+const pen = (player, add = true) => ({ type: 'penalty', player, add });
+
+test('the roller cannot end the turn with nothing, but can with only a penalty', () => {
+  let g = rolled(dig(), [1, 1], [1, 1, 1, 1]);
+  assert.equal(reduce(g, done(0)), g, 'no pick and no penalty: End turn is off');
+  g = act(g, pen(0));
+  assert.deepEqual(g.turn.picks[0], { white: null, colour: null, penalty: true });
+  assert.equal(reduce(g, pen(0)), g, 'already ticked');
+  g = act(g, pen(0, false));
+  assert.equal(reduce(g, done(0)), g, 'untick takes the way out away again');
+  g = act(act(g, pen(0)), done(0));
+  assert.equal(g.players[0].penalties, 0, 'tentative until the roll resolves');
+  g = act(g, done(1)); // Ben ends with nothing: allowed
+  assert.deepEqual(g.players.map(p => p.penalties), [1, 0], 'resolve applies the penalty');
+});
+
+test('a penalty may go with picks, and only the roller may take one', () => {
+  let g = rolled(dig(), [1, 2], [1, 1, 1, 1]);
+  assert.equal(reduce(g, pen(1)), g, 'Ben is not rolling');
+  g = act(g, tap(g, 0, R, 3));
+  g = act(g, pen(0)); // voluntary, alongside a legal pick
+  g = act(g, tap(g, 0, R, 3));
+  g = act(g, tap(g, 0, Y, 3));
+  assert.deepEqual(g.turn.picks[0], { white: Y, colour: null, penalty: true }, 'picks and swaps keep the penalty');
+  g = act(act(g, done(0)), done(1));
+  assert.deepEqual(g.players[0].marks[Y], [indexOf(Y, 3)]);
+  assert.equal(g.players[0].penalties, 1);
+  assert.equal(reduce(g, pen(0)), g, 'not between rolls');
+});
+
+test('no automatic penalty any more: picks without a ticked box cost nothing', () => {
+  let g = rolled(dig(), [2, 2], [1, 1, 1, 1]);
+  g = act(g, W(0, Y));
+  g = act(act(g, done(1)), done(0));
+  assert.deepEqual(g.players.map(p => p.penalties), [0, 0]);
 });
 
 // Ana and Ben both have five red marks, ready to lock red with a 12.
@@ -248,7 +275,7 @@ test('digital: two locked colours end the game once the roll resolves', () => {
 test('digital: a fourth penalty ends the game', () => {
   let g = newGame({ mode: 'digital', names: ['Solo'], seed: 3 });
   g.players[0].penalties = 3;
-  g = act(rolled(g, [1, 1], [1, 1, 1, 1]), done(0));
+  g = act(act(rolled(g, [1, 1], [1, 1, 1, 1]), { type: 'penalty', player: 0, add: true }), done(0));
   assert.equal(g.status, 'over');
   assert.equal(endReason(g), 'penalties');
 });
@@ -256,7 +283,7 @@ test('digital: a fourth penalty ends the game', () => {
 test('undo restores picks, Done, locks, closed colours and dice', () => {
   let g = bothReady(), hist = [];
   const before = g;
-  for (const a of [W(0, R), W(1, R), done(0), done(1)]) {
+  for (const a of [W(0, R), W(1, R), done(0), done(1)]) { // Ana rolls and picks, Ben picks
     hist = record(hist, g);
     g = act(g, a);
   }
@@ -280,7 +307,9 @@ test('serialise, validate and restore round trip', () => {
   g = act(act(g, W(1, B)), done(1));
   const back = JSON.parse(JSON.stringify(g));
   assert.ok(validState(back));
-  assert.deepEqual(reduce(back, done(0)), reduce(g, done(0)));
+  const end = s => reduce(reduce(s, { type: 'penalty', player: 0, add: true }), done(0));
+  assert.notEqual(end(g), g);
+  assert.deepEqual(end(back), end(g));
   assert.ok(validState(marks(phys(), 0, R, [0, 2])));
   assert.equal(cleanHist([JSON.stringify(g), '{"v":2}', 'nope', 5]).length, 1);
   const bad = [
@@ -293,6 +322,9 @@ test('serialise, validate and restore round trip', () => {
     { ...back, turn: { ...back.turn, picks: [{ white: null, colour: null }, { white: null, colour: { lane: R, die: 0 } }] } },
     { ...back, turn: { ...back.turn, picks: [{ white: 7, colour: null }, { white: R, colour: null }] } },
     { ...back, turn: { ...back.turn, done: [true, true] } },
+    { ...back, turn: { ...back.turn, picks: [back.turn.picks[0], { ...back.turn.picks[1], penalty: true }] } },
+    { ...back, turn: { ...back.turn, picks: [{ ...back.turn.picks[0], penalty: 'yes' }, back.turn.picks[1]] } },
+    { ...back, turn: { ...back.turn, done: [true, true].map((d, i) => i === 0) } },
   ];
   for (const b of bad) assert.equal(validState(b), false, JSON.stringify(b)?.slice(0, 80));
 });

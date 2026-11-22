@@ -18,8 +18,10 @@ export const whiteSum = dice => dice.w[0] + dice.w[1];
 // A player's tentative picks for this roll: { white: lane or null, colour: { lane, die } or null }. Only the active
 // player may pick a colour. Picks apply white first, then colour, each against the sheet as it stands after the one
 // before; closures from this roll wait for the resolve, so every pick checks the colours closed before the roll.
-export const noPicks = () => ({ white: null, colour: null });
+// penalty: the active player's tentative penalty this roll (they may take one any time, and must end with a pick or one).
+export const noPicks = () => ({ white: null, colour: null, penalty: false });
 export const hasPicks = pick => pick.white != null || pick.colour != null;
+export const canEnd = (g, p) => p !== g.turn.active || hasPicks(g.turn.picks[p]) || !!g.turn.picks[p].penalty;
 
 export function applyPicks(sheet, closed, dice, pick) {
   const s = { marks: sheet.marks.map(m => [...m]), locks: [...sheet.locks] }, locked = [];
@@ -90,7 +92,7 @@ export function cellChoice(g, p, lane, index) {
   }
   let add = null, swap = null;
   for (const [kind, value] of cands) {
-    const full = { ...cur, [kind]: value }, alone = { ...noPicks(), [kind]: value };
+    const full = { ...cur, [kind]: value }, alone = { ...cur, white: null, colour: null, [kind]: value }; // a swap keeps a ticked penalty
     const free = cur[kind] == null || p !== t.active; // a non-active player's single pick simply moves
     if (free && ok(full)) { add ??= full; continue; }
     const best = ok(full) ? full : ok(alone) ? alone : null;
