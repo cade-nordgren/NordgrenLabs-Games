@@ -247,7 +247,7 @@ test('spec v5 rings: four, single-use, chosen by the existing draft (last hero p
   assert.ok(g.seats.every(s => C.rings.some(r => r.id === s.ringId)));
 });
 
-test('spec v5 content integrity: 8 heroes, 24 hero combat cards, 2 crossbows, 4 rings; no fixture entries in play-test; every category written (owner catalogue), approved except the monster cards (spec v13)', () => {
+test('spec v5 content integrity: 8 heroes, 24 hero combat cards, 2 crossbows, 4 rings; no fixture entries in play-test; every category written (owner catalogue), all approved (spec v13 and v14)', () => {
   const s = contentStatus(ORIGINAL, FX);
   assert.deepEqual(s.report.errors, []);
   const n = key => s.report.categories.find(c => c.key === key);
@@ -259,7 +259,7 @@ test('spec v5 content integrity: 8 heroes, 24 hero combat cards, 2 crossbows, 4 
   assert.ok(!syntheticCategories(M).some(x => /^Combat cards:/.test(x)));
   assert.ok(!syntheticCategories(M).some(x => /^(Heroes|Special weapon cards|Ring cards):/.test(x)));
   assert.deepEqual(s.report.pending, [], 'the heroes no longer wait on S01-S08');
-  assert.equal(s.report.fullStartAllowed, false, 'drafts keep Start off');
+  assert.equal(s.report.fullStartAllowed, true, 'spec v14: everything approved, Start is on');
   for (const c of s.report.categories) assert.equal(c.defined, c.required, `${c.key} written`);
   assert.deepEqual(syntheticCategories(M), [], 'play-test runs on owner data only');
   const r = spawnSync(process.execPath, ['tools/keep-content.js', 'check'], { encoding: 'utf8' });

@@ -74,7 +74,7 @@ test('catalogue: exact deck sizes and variant frequencies in every category', ()
   const v = validateContent(C);
   assert.deepEqual(v.errors, []);
   assert.ok(v.categories.every(c => c.defined === c.required), 'every category N/N');
-  assert.equal(v.fullStartAllowed, false, 'drafts keep the full Start off');
+  assert.equal(v.fullStartAllowed, true, 'spec v14: every slot approved, so the full Start is on');
 });
 
 test('catalogue: traps are exactly the cards spec v6 lists for the Protection Ring (D50, D63)', () => {
@@ -488,10 +488,9 @@ test('catalogue: play-test runs on owner data only; the banner says draft, not N
   assert.equal(g.banner, DRAFT_BANNER);
   assert.doesNotMatch(g.banner, /NON-AUTHENTIC/);
   const lines = bannerLines(M);
-  assert.match(lines[0], /^Draft, not approved: /);
-  assert.match(lines[1], /^39 entries are an interpretation or provisional, not approved/, 'spec v8: nothing waits on a ruling in the card data');
-  assert.equal(lines.length, 2);
-  assert.match(contentStatus(ORIGINAL, FX).play, /all \d+ slots are your own entries, still draft/);
+  assert.match(lines[0], /^39 entries are an interpretation or provisional, not approved/, 'spec v8: nothing waits on a ruling in the card data');
+  assert.equal(lines.length, 1, 'spec v14: no category is draft');
+  assert.match(contentStatus(ORIGINAL, FX).play, /all \d+ slots are your own entries, all approved/);
   assert.deepEqual(toConfirm(C), [], 'spec v8: the curse is an owner interpretation now; the rotating room ruling (plan 13 #41a) is not card data');
   assert.equal(MECHANICS_VERSION, 'rb-0.2/sp-1.0/v10');
   const old = JSON.parse(serialize(g));
