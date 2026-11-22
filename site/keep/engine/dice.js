@@ -1,0 +1,95 @@
+// Dice and randomness (system 4). The PRNG state lives in game.rng, so a saved
+// game, a replay and an undo snapshot all carry the exact future of the dice.
+// Every roll, test, draw and shuffle is appended to game.log.
+
+export const DIE_SIDES = { D6: 6, D12: 12 };
+
+// script: null for seeded dice, or an array of predetermined dice values (tests).
+// A scripted game never falls back to the PRNG for dice: an empty script throws.
+// orders: optional scripted deck orders, { DECK: [order, order, ...] }, one consumed per shuffle
+// of that deck (tests and replays). An order may list only the top cards; the rest follow.
+export function newRng(seed, script = null, orders = null) {
+  const s = seed >>> 0;
+  return { seed: s, state: s, script: script ? [...script] : null, orders: orders ? structuredClone(orders) : null };
+}
+
+// mulberry32, as Tidevault. Returns a float in [0, 1) and advances rng.state.
+function next(rng) {
+  const a = (rng.state + 0x6d2b79f5) | 0;
+  rng.state = a >>> 0;
+  let t = Math.imul(a ^ (a >>> 15), 1 | a);
+  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+}
+
+// Spec v2 #11: semantic entries. Every entry carries the round and, during a turn, the active seat
+// (an entry about another hero names its own seat).
+export function logEvent(game, event) {
+  game.log.push({ seq: game.log.length + 1, round: game.round, ...(game.activeSeat === null || game.activeSeat === undefined ? {} : { seat: game.activeSeat }), ...event });
+}
+
+export function roll(game, die, reason) {
+  const sides = DIE_SIDES[die];
+  if (!sides) throw new Error(`Unknown die ${die}`);
+  let value;
+  if (game.rng.script) {
+    if (!game.rng.script.length) throw new Error(`Dice script exhausted (${die}, ${reason})`);
+    value = game.rng.script.shift();
+    if (!Number.isInteger(value) || value < 1 || value > sides) throw new Error(`Scripted ${die} value ${value} out of range`);
+  } else {
+    value = 1 + Math.floor(next(game.rng) * sides);
+  }
+  logEvent(game, { kind: 'roll', die, value, reason });
+  return value;
+}
+
+// RB 3, RB 5.1: roll D12, success when roll (+ modifier) <= stat.
+export const statPasses = (d12, stat, modifier = 0) => d12 + modifier <= stat;
+
+// Spec v3: one shape for every attribute test, shown before the roll (view.pendingTests) and logged after it
+// (the 'test' entry). modifiers: a number, or [{ source, value }] naming where each one comes from.
+const modList = m => (Array.isArray(m) ? m.filter(x => x.value) : m ? [{ source: 'modifier', value: m }] : []);
+const terms = mods => mods.map(x => ` ${x.value < 0 ? '-' : '+'} ${Math.abs(x.value)}${x.source === 'modifier' ? '' : ` (${x.source})`}`).join('');
+export function testPreview(statName, stat, reason, modifiers = 0) {
+  const mods = modList(modifiers);
+  const modifier = mods.reduce((s, x) => s + x.value, 0);
+  // passingRolls: how many D12 faces pass (the "number needed" is a roll of passingRolls or less).
+  return { die: 'D12', stat: statName, target: stat, modifiers: mods, modifier, reason, success: `D12${terms(mods)} <= ${statName} ${stat}`, passingRolls: Math.max(0, Math.min(12, stat - modifier)) };
+}
+
+// seat: the tested hero, when not the active one (a forced move into a well after the wake, spec v4 item 4).
+export function testStat(game, statName, stat, reason, modifiers = 0, seat = game.activeSeat) {
+  const t = testPreview(statName, stat, reason, modifiers);
+  const d12 = roll(game, 'D12', reason);
+  const pass = statPasses(d12, stat, t.modifier);
+  logEvent(game, { kind: 'test', seat, ...t, roll: d12, pass,
+ arithmetic: `D12 ${d12}${terms(t.modifiers)} = ${d12 + t.modifier} ${pass ? '<=' : '>'} ${statName} ${stat}: ${pass ? 'pass' : 'fail'}` });
+  return { roll: d12, pass };
+}
+
+// Fisher-Yates on a copy with the seeded PRNG, unless a scripted order is queued for this deck.
+export function shuffle(game, items, deck) {
+  const scripted = game.rng.orders?.[deck]?.shift();
+  let a;
+  if (scripted) a = scriptedOrder(items, scripted, deck);
+  else {
+    a = [...items];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(next(game.rng) * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+  }
+  logEvent(game, { kind: 'shuffle', deck, count: a.length, scripted: !!scripted });
+  return a;
+}
+
+// A scripted order lists items (or card ids, matching their next unused copy "id#n") from the top.
+function scriptedOrder(items, prefix, deck) {
+  const rest = [...items];
+  const top = prefix.map(want => {
+    const i = rest.findIndex(x => x === want || x.startsWith(want + '#'));
+    if (i < 0) throw new Error(`Scripted ${deck} order: ${want} is not in the deck`);
+    return rest.splice(i, 1)[0];
+  });
+  return [...top, ...rest];
+}
