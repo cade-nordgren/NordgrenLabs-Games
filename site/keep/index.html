@@ -902,7 +902,7 @@ dialog.sheet .btn:not(.primary):not(.danger):not(.undo-here) { background: trans
 .herobar .stats b { color: #EEE4CF; }
 .herobar .hb-items { flex: none; width: 52px; height: 46px; border-radius: 10px; border: 1px solid #5D5A3A; background: #1D1E1B; color: #EEE4CF; display: grid; place-items: center; align-content: center; gap: 1px; padding: 0; font-size: 12px; cursor: pointer; }
 .herobar .hb-items:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 2px; }
-#roll[data-kind="fire"] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #C2434F, 0 0 30px rgba(242, 131, 58, .5), 0 12px 30px rgba(0, 0, 0, .6); } /* the dragon wakes, dragon fire */
+#roll[data-kind="fire"] { box-shadow: inset 0 0 0 5px var(--glass), inset 0 0 0 6px #C2434F, 0 0 30px rgba(242, 131, 58, .5), 0 12px 30px rgba(0, 0, 0, .6); } /* the dragon wakes, dragon fire */
 #roll[data-kind="fire"] .cardscene { box-shadow: inset 0 0 0 1px #7E1F2A, 0 0 18px rgba(242, 131, 58, .45); }
 /* Press to roll (owner): the design's sum line once the dice land. */
 #roll p.sumline { margin: 0 0 2px; font: 600 22px/1.2 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums; color: #7E1F2A; text-align: left; }
@@ -1095,10 +1095,10 @@ dialog.sheet .sheet-x { background: transparent; box-shadow: inset 0 0 0 1px #9C
 #roll .goldplate { margin: 0; display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; border-radius: 10px; background: linear-gradient(180deg, #F6E3B5 0%, #E8C77E 100%); border: 1px solid #B9812F; font-size: 17px; color: #4A3410; }
 #roll .goldplate::before { content: ''; align-self: center; width: 22px; height: 22px; border-radius: 50%; background: #DAA24C; box-shadow: inset 0 0 0 2px #8A5A1C, inset 0 0 0 6px #DAA24C, inset 0 0 0 7px #8A5A1C; }
 #roll .goldplate b { font-size: 28px; font-weight: 600; line-height: 1; color: #3E2A0C; font-variant-numeric: lining-nums; }
-#roll[data-kind] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #9C8A66, 0 12px 30px rgba(0, 0, 0, .6); }
-#roll[data-kind="trap"] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #A72D38, 0 12px 30px rgba(0, 0, 0, .6); }
-#roll[data-kind="treasure"] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #DAA24C, 0 0 28px rgba(218, 162, 76, .45), 0 12px 30px rgba(0, 0, 0, .6); }
-#roll[data-kind="item"] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #7C9440, 0 12px 30px rgba(0, 0, 0, .6); }
+#roll[data-kind] { box-shadow: inset 0 0 0 5px var(--glass), inset 0 0 0 6px #9C8A66, 0 12px 30px rgba(0, 0, 0, .6); }
+#roll[data-kind="trap"] { box-shadow: inset 0 0 0 5px var(--glass), inset 0 0 0 6px #A72D38, 0 12px 30px rgba(0, 0, 0, .6); }
+#roll[data-kind="treasure"] { box-shadow: inset 0 0 0 5px var(--glass), inset 0 0 0 6px #DAA24C, 0 0 28px rgba(218, 162, 76, .45), 0 12px 30px rgba(0, 0, 0, .6); }
+#roll[data-kind="item"] { box-shadow: inset 0 0 0 5px var(--glass), inset 0 0 0 6px #7C9440, 0 12px 30px rgba(0, 0, 0, .6); }
 #roll[data-kind="monster"] { --ink: #EEE4CF; --ink2: #BDB5A4; --fill: rgba(238, 228, 207, .1); --hair: rgba(238, 228, 207, .18); --solid: #252724; background: #252724; color: #EEE4CF;
   box-shadow: inset 0 0 0 5px #252724, inset 0 0 0 6px #7E1F2A, 0 12px 30px rgba(0, 0, 0, .6); }
 #roll[data-kind="monster"] .rollbtns { background: linear-gradient(transparent, #252724 12px); }
@@ -1221,7 +1221,7 @@ main > h1 { font-size: 30px; }
 .choice.combatcard small.rule:last-child { color: #7E1F2A; font-weight: 600; }
 /* Sheets and cards: parchment with an ink rule, dark text (Event card, Items, Settings). */
 dialog.sheet { --ink: #252724; --ink2: #4A4436; --fill: rgba(59, 47, 34, .08); --hair: rgba(59, 47, 34, .22); --edge: rgba(59, 47, 34, .3); --glass: #EEE4CF; --glass-strong: #F6EFDF; --solid: #F6EFDF;
-  background: #EEE4CF; color: var(--ink); box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #9C8A66, 0 -10px 30px rgba(0, 0, 0, .6); }
+  background: #EEE4CF; color: var(--ink); box-shadow: inset 0 0 0 5px var(--glass), inset 0 0 0 6px #9C8A66, 0 -10px 30px rgba(0, 0, 0, .6); }
 dialog.sheet .choice { background: #F6EFDF; color: #252724; box-shadow: inset 0 0 0 1px #9C8A66; }
 dialog.sheet .choice small { color: #4A4436; }
 dialog.sheet .choice.primary { color: #2A1A06; background: linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%); box-shadow: inset 0 0 0 1px #6E4A17, inset 0 1px 0 rgba(255, 240, 205, .7), 0 4px 10px rgba(0, 0, 0, .25); }
@@ -1236,6 +1236,41 @@ dialog.sheet .segmented button[aria-pressed="true"] { color: #EEE4CF; }
 /* The roll and result card's dice: the approved bone faces with a gold result face. */
 #roll .d12, #draft .d12 { --die: #FBF6EA; --pip: #2E2A22; --accent: #DAA24C; }
 .menu-trigger, .menu .item { color: #EEE4CF; }
+/* Dark parchment (owner, 2026-11-22): in the dark theme the pop-up sheets (cards, Items, Settings, log) turn to dark vellum with
+   light ink. Playing cards (A, B and C, the fight's letters) and the dice stay bone, as objects on the table, and
+   the setup and title panels stay parchment (owner: "The game screens are good as is").
+   shortcut: keyed on data-theme only, which platform.js always sets; no prefers-color-scheme fallback without JS. */
+:root[data-theme="dark"] dialog.sheet { --ink: #EEE4CF; --ink2: #BDB5A4; --fill: rgba(238, 228, 207, .07); --hair: rgba(238, 228, 207, .14); --edge: rgba(238, 228, 207, .2); --glass: #2A2925; --glass-strong: #34322C; --solid: #34322C; background: #2A2925; }
+:root[data-theme="dark"] dialog.sheet .choice { background: #34322C; color: #EEE4CF; }
+:root[data-theme="dark"] dialog.sheet .choice small { color: #CDBFAE; }
+:root[data-theme="dark"] dialog.sheet .btn:not(.primary):not(.danger):not(.undo-here) { color: #EEE4CF; }
+:root[data-theme="dark"] dialog.sheet .segmented { background: #1D1E1B; }
+:root[data-theme="dark"] dialog.sheet .segmented::before { background: #DAA24C; }
+:root[data-theme="dark"] dialog.sheet .segmented button[aria-pressed="true"] { color: #2A1A06; }
+:root[data-theme="dark"] #roll .rollbtns { background: linear-gradient(transparent, #2A2925 12px); }
+:root[data-theme="dark"] #roll p.sumline, :root[data-theme="dark"] #settings .setmore p.warn { color: #F0B5B9; }
+:root[data-theme="dark"] #roll .kind-empty.kindtag { color: #CDBFAE; }
+:root[data-theme="dark"] #roll .cardart.kind-trap { color: #F0B5B9; background: radial-gradient(circle at 50% 55%, #4A2C2A 0%, #2E2420 70%); }
+:root[data-theme="dark"] #roll .cardart.kind-treasure { color: #F3D79A; background: radial-gradient(circle at 50% 50%, #5C4720 0%, #3A3020 100%); }
+:root[data-theme="dark"] #roll .cardart.kind-item { color: #C3D78F; background: radial-gradient(circle at 50% 55%, #3C4726 0%, #2C3020 100%); }
+:root[data-theme="dark"] #roll .cardart.kind-empty { color: #BDB5A4; background: radial-gradient(circle at 50% 55%, #3A372F 0%, #2A2925 100%); }
+:root[data-theme="dark"] #items .inv li, :root[data-theme="dark"] #items .inv-equipment li:has(.itemtext), :root[data-theme="dark"] #items .inv-equipment li:has(.usetag) { background: #34322C; border-color: #4A4434; }
+:root[data-theme="dark"] #items .inv-treasure li, :root[data-theme="dark"] #items .inv-chamber li { background: none; border-color: #4A4434; }
+:root[data-theme="dark"] #items .inv-equipment li { background: none; }
+:root[data-theme="dark"] #items h3.grp-items { color: #C3D78F; }
+:root[data-theme="dark"] #items h3.grp-ring { color: #F0B5B9; }
+:root[data-theme="dark"] #items h3.grp-equipment { color: #CDBFAE; }
+:root[data-theme="dark"] #items h3.grp-treasure, :root[data-theme="dark"] #items h3.grp-chamber { color: #F3D79A; }
+:root[data-theme="dark"] #items .inv .meta.why, :root[data-theme="dark"] #items .meta.spent, :root[data-theme="dark"] #items .inv li .usetag.spent { color: #BDB5A4; }
+:root[data-theme="dark"] #itemsTitle::before { background: #DAA24C; }
+:root[data-theme="dark"] #inspect ul.sides li { background: #34322C; box-shadow: inset 0 0 0 1px #4A4434; color: #E3D8C1; }
+:root[data-theme="dark"] #inspectBody > p:first-child { color: #EEE4CF; }
+:root[data-theme="dark"] #settings h2, :root[data-theme="dark"] #settings .setmore, :root[data-theme="dark"] #settings .setmore + h3 { border-color: #4A4434; }
+:root[data-theme="dark"] #settings .setmore > summary::after { border-color: #DAA24C; }
+:root[data-theme="dark"] dialog.sheet .btn.danger { color: #F0B5B9; }
+:root[data-theme="dark"] #log li.turnlog + li.turnlog { border-top-color: #4A4434; }
+:root[data-theme="dark"] #log li.turnlog h3, :root[data-theme="dark"] #log .loglines li { color: #EEE4CF; }
+:root[data-theme="dark"] #log li.turnlog h3 span, :root[data-theme="dark"] #log .loglines small { color: #BDB5A4; }
 </style>
 </head>
 <body>
