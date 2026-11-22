@@ -1565,6 +1565,7 @@ function renderPrompt(v, la, targets) {
       const heroSet = heroDef(g.heroes[g.encounter.seat]).combatSetId;
       if (cb.mode === 'target') {
         p = fightPanel('Throw at the target');
+        p.classList.add('target'); // compact: the banner and the options fit the dock
         p.append(el('p', 'help', `${cb.label}. Throw the combat die, then enter where it came to rest and the face up.`), fightRow(v, enc.seat, enc));
         const last = lastLine(v, enc);
         if (last) p.append(last);

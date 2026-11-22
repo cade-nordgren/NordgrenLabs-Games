@@ -733,6 +733,15 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 .numpick .btn { background: #1D1E1B; color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; font: 600 21px 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums; } /* the number picker (torch, spider, ceiling): plain numerals, not the display face's old-style ones */
 .numpick .btn[aria-pressed="true"] { background: linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%); color: #2A1A06; box-shadow: inset 0 0 0 1px #6E4A17, 0 0 10px rgba(218, 162, 76, .5); }
 .panel ol.steps li::marker { color: #DAA24C; }
+/* The original solo fight, the target throw (2026-11-22): a shorter banner, the six landing places and three faces as
+   compact buttons three across, gold when picked. */
+.panel.fight.target .foe.pic { height: 104px; }
+.panel.fight.target .help { font-size: 14px; }
+.panel .tools .btn { background: #1D1E1B; color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; font: 400 16px 'IM Fell English SC', Georgia, serif; } /* Items and History under a fight */
+.panel.fight.target h3 { margin: 10px 0 4px; font: 400 17px 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+.panel.fight.target .choices.grid2, .panel.fight.target .choices.grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
+.panel.fight.target .grid2 .choice, .panel.fight.target .grid3 .choice { min-height: 46px; padding: 6px 6px; justify-items: center; align-content: center; text-align: center; background: #1D1E1B; font: 400 15px/1.1 'IM Fell English SC', Georgia, serif; }
+.panel.fight.target .choice[aria-pressed="true"] { background: #3A3423; color: #F3E7CC; box-shadow: inset 0 0 0 2px #DAA24C, 0 0 10px rgba(218, 162, 76, .35); }
 /* Rare moments (2026-11-22). The fight-end card is a bottom drawer on an upright phone, like every other drawer. The
    pass-the-phone cover is the design's hand-off screen: a card back with gold borders, the name large, a gold button. */
 @media (orientation: portrait) and (max-width: 819.98px) { #outcome { width: 100%; margin: auto 0 0; } }

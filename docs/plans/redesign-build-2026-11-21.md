@@ -146,3 +146,6 @@ real saves in it, signed-in saves on the deployed site.
   gold borders, the name large, a gold button); the number picker (torch, spider, ceiling) has stone buttons that turn
   gold when picked, with plain numerals; an empty card's tag reads "Empty". The tower choice, sunset and results
   already matched and were left.
+- The original solo fight, the target throw (2026-11-22): a shorter monster banner, the six landing places and three
+  faces as compact buttons three across that turn gold when picked, so they fit the phone's dock; the Items and
+  History buttons under a fight are dark like the others. The crossbow shot already uses the Roll button.
