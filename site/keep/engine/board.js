@@ -68,6 +68,10 @@ export function exits(game, content, seat) {
   const hero = game.heroes[seat];
   const turn = game.turn && game.turn.seat === seat ? game.turn : null;
   const room = squareKind(content.board, hero.coord) === 'center' ? content.board.center : [hero.coord];
+  // D42 (spec v4): on a well tile the hero is at one edge: the entry side (near), or after a jump the opposite one
+  // (CROSSED). Only that side's opening can be left by; any other needs a jump (interpretation for other shapes).
+  const rs = hero.roomState;
+  const wellSide = rs?.special === 'well' ? (rs.phase === 'CROSSED' ? OPPOSITE[rs.entryEdge] : rs.entryEdge) : null;
   const out = [];
   for (const from of room) for (const dir of SIDES) {
     const to = neighbour(from, dir);
@@ -78,6 +82,8 @@ export function exits(game, content, seat) {
     const unrevealed = kind === 'maze' && !game.board.tiles[key(to)];
     let reason = null;
     if (edge === 'wall') reason = 'wall';
+    else if (wellSide && dir !== wellSide) reason = 'across-the-well';
+
     else if (edge === 'door' && turn?.triedDoors.includes(edgeKey(from, dir))) reason = 'door-closed';
     else if (turn?.transitFrom === dir) reason = 'tower-entry'; // transit: not back the way the hero came in
     else if (unrevealed && !game.board.tileBag.length) reason = 'no-tiles-left'; // D27

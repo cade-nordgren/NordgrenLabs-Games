@@ -20,7 +20,8 @@ export const cardDef = (content, inst) => {
 export function initDecks(g, content) {
   g.decks = {};
   for (const [cat, key] of Object.entries(DECKS)) g.decks[cat] = { order: shuffle(g, instances(content[key] || []), cat), shuffles: 1 };
-  g.dragon = { remaining: shuffle(g, instances(content.dragon || []), 'DRAGON'), aside: [], resets: 0 };
+  g.dragon = { remaining: shuffle(g, instances(content.dragon || []), 'DRAGON'), aside: [], resets: 0, awake: false }; // awake: D40
+
 }
 
 // priv: the seat allowed to see the card (treasury holder, monster controller); null = public.

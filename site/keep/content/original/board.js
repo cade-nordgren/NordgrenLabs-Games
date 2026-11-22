@@ -24,4 +24,17 @@
 // }
 // SKELETON END
 
-export default null;
+export default {
+  id: 'BOARD_01', status: 'approved', name: 'The keep',
+  notes: 'Owner, 2026-11-19: 10 x 11, a tower in each corner open to both adjacent squares, no walls printed on the board.',
+  width: 10, height: 11,
+  towers: [
+    { x: 0, y: 0, sides: { N: 'wall', E: 'open', S: 'open', W: 'wall' } },
+    { x: 9, y: 0, sides: { N: 'wall', E: 'wall', S: 'open', W: 'open' } },
+    { x: 0, y: 10, sides: { N: 'open', E: 'open', S: 'wall', W: 'wall' } },
+    { x: 9, y: 10, sides: { N: 'open', E: 'wall', S: 'wall', W: 'open' } },
+  ],
+  center: [{ x: 4, y: 5 }, { x: 5, y: 5 }],
+  walls: [],
+  edges: {},
+};

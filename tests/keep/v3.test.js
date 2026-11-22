@@ -53,17 +53,26 @@ test('v3 monster HP never reaches the hero or a public view at any step of an en
   const dead = view(g, FX, 0).log.find(e => e.kind === 'monster-dead');
   assert.deepEqual(Object.keys(dead).sort(), ['kind', 'round', 'seat', 'seq'], 'announced, with no HP figure');
   assert.equal(view(g, FX, 0).log.filter(e => e.kind === 'monster-wound').length, 2, 'each hit is still announced');
-  // Solo: the computer is the monster player; the one human never sees it either (D37).
-  let solo = meet('FX_MON_BRUTE', { players: 1 });
-  const soloSteps = [solo];
-  solo = act(solo, 'RESPOND', { choice: 'attack' });
-  soloSteps.push(solo);
-  solo = act(solo, 'TARGET_RESULT', { placement: 'inner', face: 'other' });
-  soloSteps.push(solo);
-  solo = act(solo, 'TARGET_RESULT', { placement: 'inner', face: 'other' });
-  soloSteps.push(solo);
-  assert.equal(solo.encounter, null, 'four damage on the target kills it');
-  for (const s of soloSteps) assertNoMonsterSecrets(s, [0, null]);
+  // Solo: the computer is the monster player and keeps the card (D37). Spec v4: once it is revealed the player sees its
+  // HP and the running damage; the public view never does; the house rule soloMonsterHp 'hidden-house-rule' hides it again.
+  for (const hidden of [false, true]) {
+    let solo = meet('FX_MON_BRUTE', { players: 1, prep: s => { if (hidden) s.rules.soloMonsterHp = 'hidden-house-rule'; } });
+    const soloSteps = [solo];
+    solo = act(solo, 'RESPOND', { choice: 'attack' });
+    soloSteps.push(solo);
+    solo = act(solo, 'TARGET_RESULT', { placement: 'inner', face: 'other' });
+    soloSteps.push(solo);
+    solo = act(solo, 'TARGET_RESULT', { placement: 'inner', face: 'other' });
+    soloSteps.push(solo);
+    assert.equal(solo.encounter, null, 'four damage on the target kills it');
+    for (const s of soloSteps) assertNoMonsterSecrets(s, hidden ? [0, null] : [null]);
+    if (hidden) continue;
+    assert.equal(view(soloSteps[0], FX, 0).encounter.monster, null, 'nothing before the reveal');
+    assert.deepEqual([1, 2].map(i => view(soloSteps[i], FX, 0).encounter.monster), [{ groupId: 'FX_S09', hp: 4, wounds: 0 }, { groupId: 'FX_S09', hp: 4, wounds: 2 }], 'HP shown, updating with each hit');
+    assert.ok(soloSteps.every(s => !JSON.stringify(view(s, FX, 0)).includes('FX_MON_')), 'the card stays with the computer');
+    assert.deepEqual(view(solo, FX, 0).log.filter(e => e.kind === 'monster-wound').map(e => e.wounds), [2, 4], 'the running total in the solo log');
+  }
+
 });
 
 test('v3 encounter choices: the card decides what each choice leads to; no Wait or Flee once an exchange is under way (spec v3 section 2)', () => {

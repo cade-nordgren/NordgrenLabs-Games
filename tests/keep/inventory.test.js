@@ -61,7 +61,7 @@ test('v3 Use only where card data allows it now; a one-use item resolves and goe
   assertCensus(assert, g);
 });
 
-test('v3 special weapon card: offered before the reveal only when held and allowed, reads the Attack reaction, kept when its data says keep; never in an ambush', () => {
+test('v3 special weapon card: offered before the reveal only when held and allowed, reads the Attack reaction, kept when its data says keep; in an ambush too (D41, spec v4)', () => {
   const meet = (room, held) => {
     let g = setup({ players: 2, towers: [0, 1], deckOrders: { ROOM: [room, ...EMPTY_ROOMS], MONSTER: ['FX_MON_BRUTE'] }, script: [5] });
     place(g, '1,0', 'FX_CROSS');
@@ -81,7 +81,8 @@ test('v3 special weapon card: offered before the reveal only when held and allow
   assert.equal(g.encounter.monster.wounds, 1, 'its own effect: 1 damage');
   assert.deepEqual(g.heroes[0].held, ['FX_ROOM_SPEAR#1', 'FX_ROOM_RELIC#1'], 'afterUse keep: not consumed');
   assert.deepEqual(items(g, 'use').map(e => e.value), ['FX_ROOM_SPEAR#1']);
-  assert.deepEqual(responses(meet('FX_ROOM_AMBUSH', ['FX_ROOM_SPEAR'])), ['attack', 'flee'], 'ambush: Attack or Flee only');
+  assert.deepEqual(responses(meet('FX_ROOM_AMBUSH', ['FX_ROOM_SPEAR'])), ['attack', 'flee', 'special:FX_ROOM_SPEAR#1'], 'ambush: Attack, Flee or the weapon, never Wait (D41)');
+
 });
 
 test('v3 escape scores retained treasure: ordinary loot and treasure-chamber cards both count', () => {

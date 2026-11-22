@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import { createGame, reduce, DEFAULT_RULES, RULE_TAGS, AUTHORITY_TAGS } from '../../site/keep/engine/reducer.js';
 import { legalActions } from '../../site/keep/engine/phases.js';
 import ORIGINAL from '../../site/keep/content/original/index.js';
+import { validateContent } from '../../site/keep/content/schema.js';
 import { FX, setup } from './helpers.js';
 
 const names = n => Array.from({ length: n }, (_, i) => `P${i + 1}`);
@@ -100,14 +101,17 @@ test('out-of-turn and repeated picks are rejected; towers may be shared (RB 4 st
 });
 
 test('T30 full-fidelity start blocked without verified content; fixtures flagged (SP 11, SP 12 #30)', () => {
-  assert.throws(() => createGame({ players: names(1), seed: 1, content: ORIGINAL }), /Full-fidelity start blocked/);
+  // The shipped owner content blocks the full Start for exactly as long as the checker says it is incomplete.
+  const start = () => createGame({ players: names(1), seed: 1, content: ORIGINAL });
+  if (validateContent(ORIGINAL).fullStartAllowed) assert.equal(start().banner, null);
+  else assert.throws(start, /Full-fidelity start blocked/);
   const g = createGame({ players: names(1), seed: 1, content: FX });
   assert.equal(g.contentMode, 'fixture');
   assert.equal(g.banner, 'NON-AUTHENTIC TEST DATA');
 });
 
 test('rules config: defaults, settable values, unknown rules and values rejected, every entry tagged (plan section 9, spec v2)', () => {
-  assert.deepEqual(DEFAULT_RULES, { darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', forcedMoveTileEffects: true, soloCombat: 'target', towerAtSunsetCountsAsEscape: false, escapeWithoutExploring: false });
+  assert.deepEqual(DEFAULT_RULES, { darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', forcedMoveTileEffects: true, soloCombat: 'target', towerAtSunsetCountsAsEscape: false, escapeWithoutExploring: false, soloMonsterHp: 'visible', rotatingRoomRing: 'every-entry' });
   assert.equal(createGame({ players: names(1), seed: 1, content: FX }).rules.darkRoomPolicy, 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY');
   assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomPolicy: 'EVERY_ENTRY' } }).rules.darkRoomPolicy, 'EVERY_ENTRY');
   assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { darkRoomOnReentry: true } }), /Unknown rule/, 'the old flag is gone');
@@ -117,4 +121,13 @@ test('rules config: defaults, settable values, unknown rules and values rejected
   assert.deepEqual(Object.keys(RULE_TAGS).filter(k => !(k in DEFAULT_RULES)), ['towerEscapeOnLaterTurns'], 'fixed rulings tagged without a switch');
   for (const tags of Object.values(RULE_TAGS)) assert.ok(tags.length && tags.every(t => AUTHORITY_TAGS.includes(t)));
   assert.deepEqual([RULE_TAGS.towerAtSunsetCountsAsEscape, RULE_TAGS.escapeWithoutExploring, RULE_TAGS.darkRoomPolicy], [['interpretation'], ['interpretation'], ['interpretation']]);
+  // Spec v4: solo monster HP visible is the printed rule; hidden only as a house rule (no user-facing switch yet).
+  assert.deepEqual(RULE_TAGS.soloMonsterHp, ['explicit2023', 'houseRule']);
+  assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { soloMonsterHp: 'hidden-house-rule' } }).rules.soloMonsterHp, 'hidden-house-rule');
+  assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { soloMonsterHp: 'hidden' } }), /cannot be/);
+  // Spec v9 (D67): the Protection Ring at the rotating room on every entry by default; 'first-reveal' and 'never' stay settable.
+  assert.deepEqual(RULE_TAGS.rotatingRoomRing, ['interpretation']);
+  for (const v of ['first-reveal', 'never']) assert.equal(createGame({ players: names(1), seed: 1, content: FX, rules: { rotatingRoomRing: v } }).rules.rotatingRoomRing, v);
+  assert.throws(() => createGame({ players: names(1), seed: 1, content: FX, rules: { rotatingRoomRing: 'always' } }), /cannot be/);
+
 });

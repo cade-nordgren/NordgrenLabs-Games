@@ -3,6 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { wakeOdds, forcedMoveTargets } from '../../site/keep/engine/treasury.js';
+import { view } from '../../site/keep/engine/view.js';
 import { FX, setup, acts, act, types, place, putHero, draws, assertCensus, EMPTY_ROOMS } from './helpers.js';
 
 const SLEEPING7 = Array(7).fill('FX_DRAGON_SLEEPING');
@@ -113,7 +114,7 @@ test('T26 the wake: waker first then clockwise; treasure-chamber cards to the bo
   assertCensus(assert, g);
 });
 
-test('T26b no legal adjacent tile: the hero stays put; a D12 can kill (D19 stay-put exception, provisional)', () => {
+test('T26b no legal adjacent tile: the hero stays put with the dragon awake, no reset until the chamber is empty; a D12 can kill (D19 stay-put, D40)', () => {
   let g = nearChamber({ dragon: ['FX_DRAGON_AWAKE'], script: [3] });
   g.board.tiles = {};
   putHero(g, 0, '4,5');
@@ -123,7 +124,17 @@ test('T26b no legal adjacent tile: the hero stays put; a D12 can kill (D19 stay-
   assert.ok(g.log.some(e => e.kind === 'forced-move-none' && e.seat === 0));
   assert.deepEqual(g.heroes[0].coord, { x: 4, y: 5 }, 'stays in the chamber');
   assert.equal(g.heroes[0].hp, 14);
-  assert.equal(g.dragon.remaining.length, 8, 'deck reset after the wake');
+  assert.deepEqual([g.dragon.awake, g.dragon.resets, g.dragon.remaining.length], [true, 0, 7], 'D40: still awake, no reset while a hero is inside');
+  assert.ok(g.log.some(e => e.kind === 'dragon-stays-awake' && e.seats.join() === '0'));
+  // Next turn: no Stay and collect, with the reason; leaving by an ordinary move empties the chamber and resets the deck.
+  assert.ok(!types(g).includes('COLLECT'));
+  assert.match(view(g, FX, 0).collectUnavailable, /dragon is awake/);
+  assert.equal(view(g, FX, 0).dragon.awake, true);
+  g = act(g, 'MOVE', { dir: 'N' }); // (4,4) is unexplored: a normal move reveals it
+  assert.deepEqual(g.heroes[0].coord, { x: 4, y: 4 });
+  assert.deepEqual([g.dragon.awake, g.dragon.resets, g.dragon.remaining.length], [false, 1, 8], 'reset the moment the chamber is empty');
+  assert.equal(view(g, FX, 0).collectUnavailable, null);
+
   let k = nearChamber({ dragon: ['FX_DRAGON_AWAKE'], script: [12] });
   k.heroes[0].hp = 5;
   k = act(k, 'MOVE', { dir: 'S' });

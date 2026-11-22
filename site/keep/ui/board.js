@@ -2,8 +2,8 @@
 // comes from the engine's own board helpers (BoardDefinition first) and the targets the caller passes
 // are legal actions from the engine. Pointer events and CSS transforms; nothing depends on hover.
 import { squareKind, sideAt, edgeKind, edgeKey, neighbour, key } from '../engine/board.js';
-import { isActive, ESCAPED } from '../engine/heroes.js';
-import { contentIndex } from '../content/schema.js';
+import { isActive, ESCAPED, DEAD } from '../engine/heroes.js';
+import { contentIndex, chamberName } from '../content/schema.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const C = 100; // one square
@@ -72,12 +72,12 @@ export function cellInfo(v, content, c, names = []) {
   const left = typeof v.board.tileBag === 'number' ? v.board.tileBag : v.board.tileBag.length;
   let what;
   if (kind === 'tower') what = towerAt(c);
-  else if (kind === 'center') what = v.board.chamberPlaced ? 'treasure chamber' : 'chamber reserve, not yet entered';
+  else if (kind === 'center') what = v.board.chamberPlaced ? chamberName(content) : `${chamberName(content)}, not yet entered`;
   else if (def) what = `revealed ${tileWords(def)}${def.mark !== 'none' ? `, ${def.mark} mark` : ''}, entry dot ${DIR[inst.entrySide]}`;
   else what = left ? 'unexplored, will reveal a tile' : 'unexplored, no tiles left';
   const sides = SIDES.map(side => ({ side, word: sideWord(v, content, c, side) }));
-  const occupants = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED) && h.coord.x === c.x && h.coord.y === c.y)
-    .map(h => `${names[h.seat] ?? `Seat ${h.seat + 1}`}${h.status === ESCAPED ? ' (escaped)' : ''}`);
+  const occupants = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED || h.status === DEAD) && h.coord.x === c.x && h.coord.y === c.y)
+    .map(h => `${names[h.seat] ?? `Seat ${h.seat + 1}`}${h.status === ESCAPED ? ' (escaped)' : h.status === DEAD ? ' (dead)' : ''}`);
   return { title: capital(place(c)), kind, what, sides, occupants };
 }
 
@@ -93,10 +93,10 @@ export function cellLabel(v, content, c, names, extra) {
   return [info.title, info.what, topology(info.sides), info.occupants.length ? list(info.occupants) : 'empty', extra].filter(Boolean).join(', ');
 }
 
-// The chamber's one label: "Treasure chamber, row 6, columns 5 to 6", then who is in it.
+// The chamber's one label: "Dragon's Lair, row 6, columns 5 to 6" (its name, chamberName), then who is in it.
 function chamberLabel(v, content, ch, names) {
   const who = ch.cells.flatMap(t => cellInfo(v, content, t, names).occupants);
-  return [`Treasure chamber, ${ch.where}`, v.board.chamberPlaced ? '' : 'not yet entered', who.length ? list(who) : 'empty'].filter(Boolean).join(', ');
+  return [`${capital(chamberName(content))}, ${ch.where}`, v.board.chamberPlaced ? '' : 'not yet entered', who.length ? list(who) : 'empty'].filter(Boolean).join(', ');
 }
 
 // ---- Glyphs
@@ -109,18 +109,28 @@ export function markGlyph(g, mark, cx, cy) {
   if (mark === 'blue') svg('path', { d: `M${cx + 4} ${cy - 15}a15 15 0 1 0 11 24a12 12 0 1 1-11-24z`, class: cls }, g);
 }
 
-function specialGlyph(g, special, cx, cy) {
-  if (special === 'well') {
-    svg('circle', { cx, cy, r: 24, class: 'glyph' }, g);
-    svg('circle', { cx, cy, r: 13, class: 'pit' }, g);
-  }
+function specialGlyph(g, special, cx, cy, open = []) {
+  if (special === 'well') pitGlyph(g, cx, cy, 30);
   if (special === 'rotating') {
-    svg('path', { d: `M${cx + 20} ${cy}a20 20 0 1 1-6-14`, class: 'glyph', fill: 'none' }, g);
-    svg('path', { d: `M${cx + 16} ${cy - 24}l0 12-12 0`, class: 'glyph', fill: 'none' }, g);
+    // A round room (owner): dark corners outside the circle, a short way in on each open side, the turn arrow inside.
+    svg('path', { d: `M2 2H98V98H2Z M${cx - 40} ${cy}a40 40 0 1 0 80 0a40 40 0 1 0-80 0Z`, class: 'round-out', 'fill-rule': 'evenodd' }, g);
+    svg('circle', { cx, cy, r: 40, class: 'round-wall' }, g);
+    for (const s of open) {
+      const way = svg('g', { transform: `rotate(${{ N: 0, E: 90, S: 180, W: 270 }[s]} ${cx} ${cy})` }, g);
+      svg('rect', { x: cx - 18, y: 2, width: 36, height: 16, class: 'floor' }, way);
+      svg('path', { d: `M${cx - 18} 2V${cy - 35.7}M${cx + 18} 2V${cy - 35.7}`, class: 'round-wall' }, way);
+    }
+    svg('path', { d: `M${cx + 18} ${cy}a18 18 0 1 1-5-12.5`, class: 'glyph', fill: 'none' }, g);
+    svg('path', { d: `M${cx + 14} ${cy - 22}l0 11-11 0`, class: 'glyph', fill: 'none' }, g);
   }
   if (special === 'rubble') {
-    for (const [dx, dy, r] of [[-12, 8, 9], [9, 10, 8], [0, -8, 8], [16, -10, 5]]) svg('circle', { cx: cx + dx, cy: cy + dy, r, class: 'stone' }, g);
+    for (const [dx, dy, r] of [[-22, 14, 11], [-2, 18, 12], [20, 12, 10], [-14, -4, 10], [8, -6, 11], [26, -12, 7], [-26, -18, 6], [-4, -22, 8]]) svg('circle', { cx: cx + dx, cy: cy + dy, r, class: 'stone' }, g);
   }
+}
+// A pit: a dark hole in a stone rim (the well, and a hero who fell through a trapdoor).
+function pitGlyph(g, cx, cy, r) {
+  svg('circle', { cx, cy, r, class: 'pit-rim' }, g);
+  svg('circle', { cx, cy, r: r * 0.74, class: 'pit' }, g);
 }
 
 // [x1, y1, x2, y2] in the group's units; kind wall, door or gate; extra: fixed (printed on the board) or fallen.
@@ -218,6 +228,11 @@ export function frameView(s0, c, cells, room) {
 // The treasure chamber: one cell, or two adjacent cells that are one room. Drawn as one tile at the first (top
 // left) cell, which is also its one tap and keyboard target; the other cell's key maps to it. chamber: the view's
 // `chamber` ({ cells, bounds, seats }, D39) when given, else the BoardDefinition's center cells.
+// The board's lair tile art, original to this game (design canvas, "Dragon art, draft", the board tile).
+const LAIR_ART = `<defs><radialGradient id="dubg" cx="0.5" cy="0.6" r="0.6"><stop offset="0" stop-color="#6A4416"></stop><stop offset="1" stop-color="#2A1C10"></stop></radialGradient><linearGradient id="dug" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6CF7A"></stop><stop offset="1" stop-color="#9A6A22"></stop></linearGradient><linearGradient id="dub" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3F5418"></stop><stop offset="1" stop-color="#7E9438"></stop></linearGradient></defs><rect width="68" height="34" fill="url(#dubg)"></rect><path d="M20 17L30 4.5L40 15Q35 12.5 31 16Q26 13.5 20 17Z" fill="#A72D38" stroke="#120D07" stroke-width="0.7" stroke-linejoin="round"></path><path d="M30 4.5L26 16M30 4.5L33 15" stroke="#2E3B1A" stroke-width="0.8" fill="none"></path><path d="M9 31C7 23 15 16 27 15C38 14 45 16 49 20C52 17 56 16 58 18L56 24L50 28L52 31Z" fill="url(#dub)" stroke="#120D07" stroke-width="0.7" stroke-linejoin="round"></path><path d="M44 25C48 24 51 22 52 21" stroke="#A72D38" stroke-width="1.6" fill="none" stroke-linecap="round"></path><path d="M24 15.4l1.4 -2.6l1.2 2.4ZM42 16.2l1.6 -2.4l0.8 2.8ZM48 18.4l1.8 -2l0.4 2.6Z" fill="#A72D38" stroke="#120D07" stroke-width="0.4"></path><path d="M51 18.6C54 15.6 59 15.8 62 18L66.4 19.8C67 21.6 65.6 22.8 63 22.8L54 23.6Z" fill="#5E7A2A" stroke="#120D07" stroke-width="0.7" stroke-linejoin="round"></path><path d="M53 17.4L46.6 13L55.4 16.4Z" fill="#EDE0BE" stroke="#120D07" stroke-width="0.4"></path><path d="M56.6 19.4q1.6 1.2 3.2 0" stroke="#F6CF7A" stroke-width="0.7" fill="none" stroke-linecap="round"></path><path d="M2 34C12 26 28 24 38 25C50 25 60 28 67 34Z" fill="url(#dug)" stroke="#6E4A17" stroke-width="0.6"></path><path d="M12 30C5 31 2 26 5 22.5" stroke="#3F5418" stroke-width="2.6" fill="none" stroke-linecap="round"></path><path d="M5.2 23.2L2.6 21.4L5.6 17.4L8.2 21.6Z" fill="#A72D38" stroke="#120D07" stroke-width="0.4"></path><circle cx="30" cy="28" r="0.9" fill="#FFF4D6"></circle><circle cx="46" cy="30" r="0.7" fill="#FFF4D6"></circle><rect x="0.75" y="0.75" width="66.5" height="32.5" fill="none" stroke="#DAA24C" stroke-width="1.5"></rect>`;
+// The hero figures' size switch, kept per device (display only).
+const FIG_KEY = 'nl-keep-figures';
+let figSmall = (() => { try { return localStorage.getItem(FIG_KEY) === 'small'; } catch { return false; } })();
 export function chamberRoom(bd, chamber = null) {
   const cs = chamber?.cells || bd.center || [];
   const xs = cs.map(t => t.x), ys = cs.map(t => t.y);
@@ -263,6 +278,13 @@ export function mountBoard(host, opts) {
   };
   pat('fog', 'fog-bg', 'fog-line');
   pat('off', 'off-bg', 'off-line');
+  // Stone floors and the torchlight round the hero (design canvas): drawing only.
+  const stone = svg('pattern', { id: 'stone', width: 50, height: 50, patternUnits: 'userSpaceOnUse' }, defs);
+  svg('rect', { width: 50, height: 50, class: 'stone-bg' }, stone);
+  svg('path', { d: 'M0 25H50M25 0V25M12 25V50M37 25V50', class: 'stone-line' }, stone);
+  const torch = svg('radialGradient', { id: 'torch' }, defs);
+  svg('stop', { offset: '0', class: 'torch-in' }, torch);
+  svg('stop', { offset: '1', class: 'torch-out' }, torch);
   svg('rect', { x: -M, y: -M, width: W, height: H, class: 'offboard' }, root);
   // The dusk vignette (its strength follows the sun, index.html): under the squares, so only the margin and gaps darken.
   const vg = svg('radialGradient', { id: 'vignette', r: '71%' }, defs);
@@ -271,7 +293,8 @@ export function mountBoard(host, opts) {
   svg('rect', { x: -M, y: -M, width: W, height: H, class: 'dusk' }, root);
 
   const ix = contentIndex(content);
-  const heroes = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED));
+  const heroes = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED || h.status === DEAD)); // the dead stay where they fell (owner)
+  const figs = [];
   for (let y = 0; y < bd.height; y++) {
     const row = svg('g', { role: 'row' }, root);
     for (let x = 0; x < bd.width; x++) {
@@ -291,13 +314,23 @@ export function mountBoard(host, opts) {
       } else if (kind === 'center') {
         // One outline around the whole room, no line between its squares, one label or chest a little above the middle.
         svg('rect', { x: 2, y: 2, width: w - 4, height: h - 4, rx: 4, class: v.board.chamberPlaced ? 'chamber' : 'reserved' }, g);
+        // The owner's own dragon scene (opts.lairArt: asleep, or awake while it is awake); test data keeps the drawn draft.
+        // Decoration only; the label and chest say what it is.
+        if (opts.lairArt) svg('image', { href: opts.lairArt, x: 4, y: 4, width: w - 8, height: h - 8, preserveAspectRatio: 'xMidYMid slice', class: 'lair-art', 'aria-hidden': 'true' }, g);
+        else svg('svg', { x: 4, y: 4, width: w - 8, height: h - 8, viewBox: '0 0 68 34', preserveAspectRatio: 'xMidYMid slice', class: 'lair-art', 'aria-hidden': 'true' }, g).innerHTML = LAIR_ART;
         const lx = w / 2, ly = ch.cells.length > 1 && w >= h ? 36 : h / 2;
         if (v.board.chamberPlaced) chestGlyph(g, lx, ly);
-        else svg('text', { x: lx, y: ly + 7, class: 'reserved-label', 'text-anchor': 'middle' }, g).textContent = 'Chamber';
+        else {
+          // The chamber's name, squeezed to fit the room when it is too long for it (about 11 units a letter at 19px).
+          const name = capital(chamberName(content)), fit = w - 16;
+          const label = svg('text', { x: lx, y: ly + 7, class: 'reserved-label', 'text-anchor': 'middle' }, g);
+          label.textContent = name;
+          if (name.length * 11 > fit) { label.setAttribute('textLength', fit); label.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+        }
       } else if (inst) {
         const def = ix.tiles.get(inst.defId);
         svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 4, class: 'floor' }, g);
-        if (def.special !== 'none') specialGlyph(g, def.special, 50, 50);
+        if (def.special !== 'none') specialGlyph(g, def.special, 50, 50, SIDES.filter(s => sideAt(v, content, c, s) !== 'wall'));
         if (def.mark !== 'none') def.special !== 'none' ? markGlyph(g, def.mark, 26, 28) : markGlyph(g, def.mark, 50, 50);
         entryGlyph(g, inst.entrySide);
       } else {
@@ -319,11 +352,15 @@ export function mountBoard(host, opts) {
       // room mark still shows.
       const long = w >= h, along = (i, n) => (long ? w : h) / 2 + (i - (n - 1) / 2) * 42;
       here.forEach((h, i) => {
+        const pit = h.conditions?.some(k => k.id === 'trapdoor'); // fell through a trapdoor: in the middle of a pit
         const off = kind === 'center' && ch.cells.length > 1 ? (long ? [along(i, here.length), 72] : [72, along(i, here.length)])
-          : here.length === 1 ? [72, 72] : [[30, 30], [70, 30], [30, 70], [70, 70]][i % 4];
-        const tg = svg('g', { class: `token seat-${h.seat}${h.status === ESCAPED ? ' escaped' : ''}${h.seat === v.activeSeat ? ' active' : ''}`, transform: `translate(${off[0]} ${off[1]})`, 'aria-hidden': 'true' }, g);
+          : here.length === 1 ? (pit ? [50, 56] : [72, 72]) : [[30, 30], [70, 30], [30, 70], [70, 70]][i % 4];
+        if (pit) pitGlyph(g, off[0], off[1], here.length === 1 ? 38 : 26);
+        const tg = svg('g', { class: `token seat-${h.seat}${h.status === ESCAPED ? ' escaped' : ''}${h.status === DEAD ? ' dead' : ''}${h.seat === v.activeSeat ? ' active' : ''}`, transform: `translate(${off[0]} ${off[1]})`, 'aria-hidden': 'true' }, g);
         svg('circle', { r: here.length === 1 ? 19 : 16, class: 'token-disc' }, tg); // off centre, so the room mark still shows
         svg('text', { y: 7, 'text-anchor': 'middle', class: 'token-num' }, tg).textContent = h.seat + 1;
+        // The owner's hero art stands on this seal like a miniature; drawn later on its own top layer (figs below).
+        if (opts.art?.[h.seat]) figs.push({ seat: h.seat, x: x * C + off[0], y: y * C + off[1], shared: here.length > 1, active: h.seat === v.activeSeat });
       });
       if (t) svg('rect', { x: 5, y: 5, width: w - 10, height: h - 10, rx: 9, class: 'target' }, g);
       svg('rect', { x: 3, y: 3, width: w - 6, height: h - 6, rx: 10, class: 'focusring' }, g);
@@ -413,8 +450,29 @@ export function mountBoard(host, opts) {
     wantZoom = wantClear = false;
   };
   ro?.disconnect();
-  ro = new ResizeObserver(() => { if (!view.clientWidth) return; if (!vp || vp.fit) fit(); else clamp(); autoZoom(); });
+  // Spec v12 fix 5: settle also runs at once once the map is in the page (app.js), so framing never waits for a frame.
+  const settle = () => { if (!view.isConnected || !view.clientWidth) return; if (!vp || vp.fit) fit(); else clamp(); autoZoom(); };
+  ro = new ResizeObserver(settle);
   ro.observe(view);
+
+  // ---- Hero figures (the owner's art): one top layer over every square, so no wall, mark or fog line crosses them, and
+  // pointer-events none, so a tap or click always reaches the square underneath. Off their turn a figure fits inside its
+  // square; the active hero stands taller. The Figures tool makes every figure small (remembered on this device).
+  if (home) svg('circle', { cx: home.x * C + C / 2, cy: home.y * C + C / 2, r: C * 2.6, fill: 'url(#torch)', class: 'torch', 'aria-hidden': 'true' }, root);
+  if (figs.length) {
+    const layer = svg('g', { class: 'figures', 'aria-hidden': 'true' }, root);
+    for (const f of figs) {
+      const ht = f.shared ? 44 : f.active ? 92 : 58, pose = opts.poses?.[f.seat];
+      const fg = svg('g', { transform: `translate(${f.x} ${f.y})` }, layer);
+      // Walking in (the move before its card): from the square left to this one, then still.
+      const mv = opts.moveFrom?.seat === f.seat && opts.moveFrom.from ? opts.moveFrom.from.split(',').map(Number) : null;
+      const walk = mv ? svg('g', {}, fg) : fg;
+      if (mv) svg('animateTransform', { attributeName: 'transform', type: 'translate', from: `${(mv[0] * C + C / 2) - f.x} ${(mv[1] * C + C / 2) - f.y}`, to: '0 0', dur: '0.6s', fill: 'freeze', calcMode: 'spline', keySplines: '.3 0 .3 1', keyTimes: '0;1' }, walk);
+      const sz = svg('g', { class: `fig-size${f.active && !f.shared ? ' big' : ''}` }, walk);
+      svg('image', { href: opts.art[f.seat], x: -ht * 0.34, y: -ht - 4, width: ht * 0.68, height: ht, preserveAspectRatio: 'xMidYMax meet', class: `token-art${f.active ? ' active' : ''}${pose ? ` pose-${pose}` : ''}` }, sz);
+    }
+  }
+  wrap.classList.toggle('figs-small', figs.length > 0 && figSmall);
 
   // ---- Tools: buttons, so they work by touch, mouse and keyboard alike.
   const middle = () => { const [vw, vh] = size(); return [vw / 2, vh / 2]; };
@@ -435,6 +493,13 @@ export function mountBoard(host, opts) {
   tool('+', 'Zoom in', () => zoomAt(1.4, ...middle()));
   tool('Fit board', `Fit board: all ${bd.width * bd.height} squares`, fit, 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5');
   if (home) tool('Centre on hero', 'Centre on the hero', () => frame(fitScale() * 2),'M12 2v4M12 18v4M2 12h4M18 12h4M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0');
+  if (figs.length) {
+    tool('Figures', '', () => setFigSmall(!figSmall), 'M12 3.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 1 1 0-5M7.5 20.5v-5a4.5 4.5 0 0 1 9 0v5M4 20.5h16');
+    const fb = tools.lastChild;
+    const say = () => { fb.setAttribute('aria-label', figSmall ? 'Hero figures: small. Make them full size' : 'Hero figures: full size. Make them small'); fb.setAttribute('aria-pressed', figSmall); };
+    const setFigSmall = on => { figSmall = on; try { localStorage.setItem(FIG_KEY, on ? 'small' : 'full'); } catch {} wrap.classList.toggle('figs-small', on); say(); };
+    say();
+  }
   if (opts.tilesLeft !== undefined) {
     const s = document.createElement('span');
     s.className = 'tiles';
@@ -552,5 +617,5 @@ export function mountBoard(host, opts) {
     }
   });
 
-  return { focus: () => cellAt(focusKey && cellAt(focusKey) ? focusKey : start)?.focus({ preventScroll: true }) };
+  return { focus: () => cellAt(focusKey && cellAt(focusKey) ? focusKey : start)?.focus({ preventScroll: true }), settle };
 }

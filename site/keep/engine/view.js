@@ -1,12 +1,14 @@
 // Hidden-information projection and undo commit points (system 1/10; plan 4.3, 4.9; SP 9, SP 11).
 // view(game, viewer) is what a given seat may see; the full state never goes to the screen.
-import { wakeOdds } from './treasury.js';
+import { wakeOdds, inChamber } from './treasury.js';
 import { heroGold } from './heroes.js';
 import { cardDef } from './decks.js';
 import { legalActions, searchUnavailable } from './phases.js';
 import { actionTests } from './movement.js';
 import { inventoryView } from './inventory.js';
-import { contentIndex } from '../content/schema.js';
+import { contentIndex, chamberName, theChamber } from '../content/schema.js';
+import { soloHpShown } from './monsters.js';
+
 import { shownEffectText } from './describe.js';
 
 // viewer: a seat number, or null for a public screen (nobody's private cards).
@@ -18,7 +20,8 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   delete v.rng; // seed, PRNG state and any scripted dice or orders are the future
   if (v.board) v.board.tileBag = game.board.tileBag.length;
   if (v.decks) for (const cat of Object.keys(v.decks)) v.decks[cat] = { count: game.decks[cat].order.length, shuffles: game.decks[cat].shuffles };
-  if (v.dragon) v.dragon = { remaining: game.dragon.remaining.length, aside: game.dragon.aside, resets: game.dragon.resets, odds: wakeOdds(game, content) };
+  // D40 (spec v4): awake from the wake until the chamber holds no surviving hero.
+  if (v.dragon) v.dragon = { remaining: game.dragon.remaining.length, aside: game.dragon.aside, resets: game.dragon.resets, odds: wakeOdds(game, content), awake: !!game.dragon.awake };
   // RB 9.1, SP 9, D25: treasure-chamber cards are private to the holder; held loot stays public.
   // gold: what this viewer may know, the holder's full total, or only the public held loot for others.
   const heldGold = h => h.held.reduce((sum, inst) => sum + (cardDef(content, inst).gold || 0), 0);
@@ -38,11 +41,13 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   const enc = v.encounter;
   if (enc) {
     // RB 8.1, RB 8.3: only the controller reads the card; the hero hears the announced reaction.
-    // D37 (spec v3): the hero never sees the monster's card, HP or damage tally, solo included (there the
-    // computer is the monster player). groupId stays: the monster's A/B/C cards are revealed in play.
+    // D37 (spec v3): in multiplayer the hero never sees the monster's card, HP or damage tally. Amended by spec v4:
+    // in solo the computer still holds the card, but once it is revealed the player sees its HP and wounds
+    // (soloMonsterHp 'hidden-house-rule' keeps them hidden). groupId stays: the monster's A/B/C cards are revealed in play.
     const isController = viewer === enc.controller && viewer !== enc.seat;
+    const soloHp = enc.monster && enc.announced && viewer === enc.seat && soloHpShown(game);
     if (enc.monster && !isController) {
-      enc.monster = { groupId: enc.monster.groupId };
+      enc.monster = { groupId: enc.monster.groupId, ...(soloHp ? { hp: enc.monster.hp, wounds: enc.monster.wounds } : {}) };
       if (!enc.announced) enc.reaction = null;
       else enc.reaction = { type: enc.reaction.type };
     }
@@ -58,13 +63,17 @@ export function view(game, content, viewer = null, { debug = false } = {}) {
   // A visible entry naming a card instance (a draw, a kept or returned card, an item) also gets the card's name
   // and effectText, from its data. Redacted entries keep neither.
   const cards = contentIndex(content).cards;
-  const named = e => { const def = typeof e.value === 'string' && cards.get(e.value.split('#')[0]); return def ? { ...e, cardName: def.name, effectText: shownEffectText(def) } : e; };
+  const named = e => { const def = typeof e.value === 'string' && cards.get(e.value.split('#')[0]); return def ? { ...e, cardName: def.name, effectText: shownEffectText(def, chamberName(content)) } : e; };
   v.log = v.log.filter(e => e.kind !== 'shuffle').map(e => (e.private !== undefined && e.private !== viewer ? redact(e) : named(e)));
   // Hidden choices in pending effects are fine to show: they are labels of the active hero's options.
   // Spec v3: every attribute test a legal action may roll, for a confirmation first (the shape of dice.testPreview).
   v.pendingTests = legal.flatMap(action => actionTests(game, content, action).map(t => ({ action, ...t })));
   // RB 7.1 (R55-R57): when the active hero is not offered SEARCH, a short reason why; null when it is offered.
   v.searchUnavailable = legal.some(a => a.type === 'SEARCH') ? null : searchUnavailable(game, content);
+  // D40 (spec v4): why the active hero in the chamber is not offered Stay and collect; null otherwise.
+  const here = game.status === 'playing' && game.dragon.awake && inChamber(game, content).some(h => h.seat === game.activeSeat);
+  v.collectUnavailable = here ? `the dragon is awake. No treasure can be taken in ${theChamber(content)} until every hero has left it.` : null;
+
   return v;
 }
 

@@ -139,3 +139,23 @@ const FIXTURES = {
 for (const k of ['specialWeapons', 'combat', 'treasury', 'dragon', 'room', 'search', 'roomSearch', 'chest', 'door', 'monster', 'rings']) FIXTURES[k] = FIXTURES[k].map(e => ({ ...e, text: shownEffectText(e) }));
 
 export default FIXTURES;
+
+// NON-AUTHENTIC TEST DATA in the 2023 card structure (owner research 2026-11-19): one made-up monster card with a
+// row per monster type (here the fixture monster-group sets FX_S09 and FX_S10) and a reaction per hero choice,
+// a fight's HP on its reaction. The encounter cards name the type met. A separate set, so the default fixture
+// decks (and every seeded test drawing from them) stay as they are.
+const withText = e => ({ ...e, text: shownEffectText(e) });
+const ENCOUNTER_TYPES = { FX_ROOM_MONSTER: 'FX_S09', FX_ROOM_AMBUSH: 'FX_S10', FX_RSEARCH_LURKER: 'FX_S09' };
+const typed = c => (ENCOUNTER_TYPES[c.id] ? withText({ ...c, followUpDeck: null, effects: [{ op: 'MONSTER_ENCOUNTER', ambush: c.id === 'FX_ROOM_AMBUSH', monster: ENCOUNTER_TYPES[c.id] }] }) : c);
+export const ROW_FIXTURES = {
+  ...FIXTURES,
+  room: FIXTURES.room.map(typed),
+  roomSearch: FIXTURES.roomSearch.map(typed),
+  monster: [withText({
+    ...F, id: 'FX_MON_ROWS', name: 'Test row monster card', deck: 'MONSTER', copies: 1, art: null,
+    rows: {
+      FX_S09: { attack: { ...reaction('combat'), hp: 4 }, wait: reaction('monster-flees'), flee: reaction('flight-succeeds') },
+      FX_S10: { attack: { ...reaction('strike-then-combat', { die: 'D6', plus: -2 }), hp: 3 }, wait: reaction('monster-flees'), flee: reaction('strike-then-flight', 2) },
+    },
+  })],
+};

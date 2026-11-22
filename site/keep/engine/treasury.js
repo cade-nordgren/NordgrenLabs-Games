@@ -22,6 +22,9 @@ export function wakeOdds(g, content) {
 // shortcut: treasure-chamber cards are kept as drawn; card effects on them run once that content exists (M4).
 export function collect(g, content, seat) {
   const hero = g.heroes[seat];
+  // D40 (spec v4): no treasure or dragon card while the dragon is awake; entering then is allowed (interpretation).
+  if (g.dragon.awake) { logEvent(g, { kind: 'dragon-awake-no-collect', seat }); return; }
+
   g.phase = 'TREASURY_COLLECT';
   for (let k = 0; k < 2; k++) {
     const inst = draw(g, 'TREASURY', 'chamber collect', seat);
@@ -39,6 +42,7 @@ export function collect(g, content, seat) {
   const here = new Set(inChamber(g, content).map(h => h.seat));
   const queue = Array.from({ length: n }, (_, k) => (seat + k) % n).filter(s => here.has(s));
   g.wake = { waker: seat, queue, burned: false };
+  g.dragon.awake = true; // D40 (spec v4): until the chamber holds no surviving hero
   logEvent(g, { kind: 'dragon-wakes', waker: seat, queue });
   g.phase = 'DRAGON_WAKES';
 }
@@ -56,8 +60,9 @@ export function forcedMoveTargets(g, content) {
 }
 
 // RB 9.2, SP 8, per hero in the queue: treasure-chamber cards to the bottom of their deck, a straight
-// D12 of damage (no Luck), then a forced move outside turn order. D19: no legal tile -> stays put.
+// D12 of damage (no Luck), then a forced move outside turn order. D19, D40: no legal tile -> stays put, the dragon awake.
 export function continueWake(g, content) {
+  if (g.pending) return; // spec v9: a driven hero's ring choice at a rotating room comes first; the wake goes on after it
   const w = g.wake;
   while (w.queue.length) {
     if (g.pending) return;
@@ -71,7 +76,7 @@ export function continueWake(g, content) {
     if (!isActive(hero)) { w.queue.shift(); w.burned = false; continue; }
     const targets = forcedMoveTargets(g, content);
     if (!targets.length) {
-      logEvent(g, { kind: 'forced-move-none', seat }); // D19 stay-put exception (house rule, provisional)
+      logEvent(g, { kind: 'forced-move-none', seat }); // D19 stay-put exception; D40: an owner interpretation, the dragon stays awake
       w.queue.shift(); w.burned = false;
       continue;
     }
@@ -79,9 +84,12 @@ export function continueWake(g, content) {
     g.pending = { kind: 'forced-move', seat, targets: targets.map(t => t.to) };
     return;
   }
-  // RB 9.2: after the evacuation the dragon sleeps and all eight cards are reshuffled.
+  // RB 9.2, 2023 rules 10.1: the dragon sleeps and all eight cards are reshuffled once everyone has left. D40 (spec v4):
+  // a hero who could not leave keeps it awake; the reset waits until the chamber is empty (checkDragonReset).
   g.wake = null;
-  resetDragon(g);
+  const left = inChamber(g, content).map(h => h.seat);
+  if (left.length) logEvent(g, { kind: 'dragon-stays-awake', seats: left });
+  else resetDragon(g);
   g.turn.endAfter = true;
   run(g, content);
 }
@@ -102,11 +110,13 @@ export function resetDragon(g) {
   g.dragon.remaining = shuffle(g, all.sort(), 'DRAGON');
   g.dragon.aside = [];
   g.dragon.resets += 1;
+  g.dragon.awake = false;
   logEvent(g, { kind: 'dragon-reset' });
 }
 
-// D22 (interpretation): the deck also resets when the chamber empties after voluntary exits.
+// D22 (2023 rules 10.1): the deck also resets when the chamber empties after voluntary exits; D40: so does an awake
+// dragon, once no surviving hero is left inside (the dead do not keep it awake).
 export function checkDragonReset(g, content) {
-  if (g.status !== 'playing' || g.wake || !g.dragon.aside.length || inChamber(g, content).length) return;
+  if (g.status !== 'playing' || g.wake || (!g.dragon.aside.length && !g.dragon.awake) || inChamber(g, content).length) return;
   resetDragon(g);
 }

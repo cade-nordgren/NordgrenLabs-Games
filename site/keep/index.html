@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Dusk Keep · NordgrenLabs Games</title>
+<title>Dragon's Keep · NordgrenLabs Games</title>
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -15,7 +15,18 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
 <link rel="stylesheet" href="../style.css">
+<link rel="preload" href="fonts/eb-garamond-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/im-fell-english-sc-latin.woff2" as="font" type="font/woff2" crossorigin>
 <style>
+/* The game's own fonts (owner, 2026-11-22), packed with it rather than loaded from Google: EB Garamond, IM Fell English SC
+   and MedievalSharp, each under the SIL Open Font License (fonts/OFL-*.txt), Latin and Latin Extended only. */
+@font-face { font-family: 'EB Garamond'; font-style: italic; font-weight: 400; font-display: swap; src: url(fonts/eb-garamond-italic-latin-ext.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'EB Garamond'; font-style: italic; font-weight: 400; font-display: swap; src: url(fonts/eb-garamond-italic-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'EB Garamond'; font-style: normal; font-weight: 400 600; font-display: swap; src: url(fonts/eb-garamond-latin-ext.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'EB Garamond'; font-style: normal; font-weight: 400 600; font-display: swap; src: url(fonts/eb-garamond-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'IM Fell English SC'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/im-fell-english-sc-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
+@font-face { font-family: 'MedievalSharp'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/medievalsharp-latin-ext.woff2) format('woff2'); unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF; }
+@font-face { font-family: 'MedievalSharp'; font-style: normal; font-weight: 400; font-display: swap; src: url(fonts/medievalsharp-latin.woff2) format('woff2'); unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD; }
 /* Dusk over the keep: the shared backdrop, warmed towards amber and violet. */
 body::before {
   background:
@@ -26,6 +37,191 @@ body::before {
 /* black-translucent puts the page under the status bar, so everything starts below env(safe-area-inset-top). */
 .app { padding-top: max(10px, env(safe-area-inset-top)); }
 .app.wide { max-width: 1060px; }
+
+/* ---- Who goes first (design canvas: "Who goes first"): calm stone, the game's own dice on a parchment card. */
+.app.dfirst { max-width: none; color: #EEE4CF; font-family: 'EB Garamond', Georgia, serif;
+  background: radial-gradient(120% 40% at 50% 0%, #4A1A20 0%, #2C2523 55%, #252724 100%) fixed #252724; }
+.app.dfirst > .banner { margin-left: max(0px, calc((100% - 440px) / 2)); margin-right: max(60px, calc((100% - 440px) / 2)); } /* clear of the menu circle */
+#draft.dfirst .d12 { --die: #FBF6EA; --pip: #2E2A22; --accent: #DAA24C; } /* the approved dice colours: gold result face, in both themes */
+#draft.dfirst { width: 100%; max-width: 440px; margin: 0 auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
+#draft.dfirst .dhead { min-height: 44px; display: flex; align-items: center; padding-right: 58px; color: #BDB5A4; font-size: 15px; }
+#draft.dfirst > h1 { margin: 2px 0 0; font: 400 30px/1.1 'IM Fell English SC', Georgia, serif; letter-spacing: 0; color: #EEE4CF; }
+#draft.dfirst .dsub { margin: 0; font-size: 17px; line-height: 1.45; color: #D6CCB8; }
+#draft.dfirst .dcard { border-radius: 12px; padding: 18px 12px 14px; background: #EEE4CF; box-shadow: inset 0 0 0 3px #EEE4CF, inset 0 0 0 4px #9C8A66, 0 6px 18px rgba(0, 0, 0, .4); }
+#draft.dfirst .dcard .dice { padding: 4px 0; }
+#draft.dfirst .dcard .dice figcaption { color: #252724; font: 16px 'EB Garamond', Georgia, serif; }
+#draft.dfirst .firstres { margin: 0; font: 400 26px/1.15 'IM Fell English SC', Georgia, serif; color: #F0C27A; }
+#draft.dfirst .dorder h2 { margin: 0 0 6px; font: 400 17px 'IM Fell English SC', Georgia, serif; color: #E3D8C1; }
+#draft.dfirst .dorder ol { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px; }
+#draft.dfirst .dorder li { display: flex; align-items: center; gap: 6px; padding: 4px 12px 4px 4px; border-radius: 999px; background: rgba(29, 30, 27, .85); border: 1px solid #5D5A3A; font-size: 16px; }
+#draft.dfirst .seal { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #F6EBD6; font: 400 15px 'IM Fell English SC', Georgia, serif;
+  background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%); }
+#draft.dfirst .dbar { margin-top: auto; position: sticky; bottom: 0; z-index: 2; padding: 14px 0 max(16px, env(safe-area-inset-bottom)); background: linear-gradient(180deg, rgba(37, 39, 36, 0) 0, #252724 14px); } /* Choose stays in reach on a short phone */
+#draft.dfirst .dbar .choice.primary { width: 100%; min-height: 62px; box-sizing: border-box; border-radius: 12px; padding: 10px 18px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 1px; text-align: left;
+  border: 1px solid #6E4A17; color: #2A1A06; background: linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 240, 205, .7), inset 0 -2px 0 rgba(90, 55, 15, .45), 0 4px 14px rgba(0, 0, 0, .45); }
+#draft.dfirst .dbar .choice.primary span { font: 400 22px/1.1 'IM Fell English SC', Georgia, serif; color: #2A1A06; }
+#draft.dfirst .dbar .choice.primary small { font-size: 15px; color: #3E2A0C; }
+#draft.dfirst .dbar .choice.primary:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 3px; }
+#draft.dfirst .dhero-card { padding: 14px; display: flex; flex-direction: column; gap: 10px; color: #252724; }
+#draft.dfirst .dh-top { display: flex; gap: 12px; }
+#draft.dfirst .dh-portrait { flex: none; width: 84px; height: 104px; box-sizing: border-box; border-radius: 6px; border: 2px solid #3B2F22; display: grid; place-items: center; color: #4A3A26;
+  box-shadow: inset 0 0 0 3px #E2D5B8, inset 0 0 0 4px #9C8A66; background: radial-gradient(circle at 50% 35%, #F6EFDF 0%, #DCCDAA 100%); }
+#draft.dfirst .dh-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; align-items: flex-start; }
+#draft.dfirst .dh-info h2 { margin: 0; font: 400 24px/1.1 'IM Fell English SC', Georgia, serif; color: #252724; }
+#draft.dfirst .dh-class { margin: 0; font-style: italic; font-size: 17px; color: #4A4436; }
+#draft.dfirst .dh-hp { margin: 6px 0 0; display: flex; align-items: baseline; gap: 6px; }
+#draft.dfirst .dh-hp svg { align-self: center; width: 18px; height: 18px; }
+#draft.dfirst .dh-hp b { font-size: 30px; font-weight: 600; font-variant-numeric: lining-nums; line-height: 1; }
+#draft.dfirst .dh-hp span { font-size: 16px; color: #4A4436; }
+#draft.dfirst .dh-tag { margin-top: 4px; padding: 2px 8px; border-radius: 999px; border: 1px solid #5E7A2A; font-size: 14px; color: #3F5418; }
+#draft.dfirst .dh-stats { margin: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 16px; }
+#draft.dfirst .dh-row { display: flex; justify-content: space-between; align-items: baseline; }
+#draft.dfirst .dh-row dt { font-size: 15px; color: #4A4436; }
+#draft.dfirst .dh-row dd { margin: 0; font-size: 20px; font-weight: 600; font-variant-numeric: lining-nums; }
+#draft.dfirst .dh-pips { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; margin-top: 3px; }
+#draft.dfirst .dh-pips i { height: 6px; border-radius: 1px; background: #D8CCB0; }
+#draft.dfirst .dh-pips i.on { background: #5E5B2F; }
+#draft.dfirst .dh-eq { margin: 0; font-size: 16px; border-top: 1px solid #C9BB9C; padding-top: 8px; }
+#draft.dfirst .dh-eq span { color: #4A4436; }
+#draft.dfirst .dh-text { margin: 0; font-size: 16px; line-height: 1.4; }
+#draft.dfirst .dheroes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#draft.dfirst .dhero { min-height: 56px; min-width: 0; border-radius: 10px; padding: 6px 10px 6px 6px; display: flex; align-items: center; gap: 8px; text-align: left; font-family: inherit; cursor: pointer;
+  border: 1px solid #5D5A3A; background: #1D1E1B; color: #EEE4CF; }
+#draft.dfirst .dhero .badge { flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: #2E2F2A; color: #CDBFAE; }
+#draft.dfirst .dhero[aria-pressed="true"] { border: 2px solid #DAA24C; background: #3A3423; color: #F3E7CC; box-shadow: 0 0 12px rgba(218, 162, 76, .35); }
+#draft.dfirst .dhero[aria-pressed="true"] .badge { background: #EEE4CF; color: #3B2F22; }
+#draft.dfirst .dhero:disabled { border-style: dashed; border-color: #4A4A40; background: transparent; color: #8F897C; cursor: not-allowed; }
+#draft.dfirst .dhero:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 2px; }
+#draft.dfirst .dhero-t { min-width: 0; display: flex; flex-direction: column; }
+#draft.dfirst .dhero-t strong { font: 400 16px/1.15 'IM Fell English SC', Georgia, serif; overflow-wrap: anywhere; }
+#draft.dfirst .dhero-t small { font-size: 14px; opacity: .85; }
+#draft.dfirst .dbar .undo-here { margin-top: 10px; }
+#draft.dfirst .drings { display: flex; flex-direction: column; gap: 10px; }
+#draft.dfirst .dring { min-height: 104px; border-radius: 12px; padding: 12px; display: flex; align-items: flex-start; gap: 12px; text-align: left; font-family: inherit; cursor: pointer;
+  border: 1px solid #5D5A3A; background: #1D1E1B; color: #EEE4CF; }
+#draft.dfirst .dring-art { flex: none; width: 60px; height: 60px; border-radius: 50%; background: radial-gradient(circle at 50% 40%, #2E2F2A 0%, #181916 100%); }
+#draft.dfirst .dring-t { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+#draft.dfirst .dring-h { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+#draft.dfirst .dring-h strong { font: 400 20px/1.1 'IM Fell English SC', Georgia, serif; }
+#draft.dfirst .dring-h small { flex: none; font-size: 14px; color: #CDBFAE; }
+#draft.dfirst .dring-t em { font-size: 15px; color: #C3D78F; }
+#draft.dfirst .dring-t > span:last-child { font-size: 16px; line-height: 1.35; }
+#draft.dfirst .dring[aria-pressed="true"] { border: 2px solid #DAA24C; background: #EEE4CF; color: #252724; box-shadow: 0 0 14px rgba(218, 162, 76, .4); }
+#draft.dfirst .dring[aria-pressed="true"] .dring-art { background: radial-gradient(circle at 50% 40%, #3A1C22 0%, #1E0E12 100%); }
+#draft.dfirst .dring[aria-pressed="true"] .dring-h small { color: #5A3A0E; }
+#draft.dfirst .dring[aria-pressed="true"] .dring-t em { color: #4F5A22; }
+#draft.dfirst .dring:disabled { border-style: dashed; border-color: #4A4A40; background: transparent; color: #8F897C; cursor: not-allowed; }
+#draft.dfirst .dring:disabled .dring-art { opacity: .45; }
+#draft.dfirst .dring:disabled .dring-t em, #draft.dfirst .dring:disabled .dring-h small { color: #8F897C; }
+#draft.dfirst .dring:focus-visible, #draft.dfirst .dtower:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 2px; }
+#draft.dfirst .dmap { align-self: center; width: 100%; padding: 6px; box-sizing: border-box; border-radius: 6px; background: #3A3423; box-shadow: inset 0 0 0 1px #6E5A35, 0 6px 18px rgba(0, 0, 0, .5); }
+#draft.dfirst .dtowers { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+#draft.dfirst .dtower { min-height: 52px; border-radius: 10px; padding: 6px 12px; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; text-align: left; font-family: inherit; cursor: pointer;
+  border: 1px solid #5D5A3A; background: #1D1E1B; color: #EEE4CF; }
+#draft.dfirst .dtower strong { font: 400 17px/1.1 'IM Fell English SC', Georgia, serif; }
+#draft.dfirst .dtower small { font-size: 14px; opacity: .85; }
+#draft.dfirst .dtower[aria-pressed="true"] { border: 2px solid #DAA24C; background: #3A3423; color: #F3E7CC; box-shadow: 0 0 12px rgba(218, 162, 76, .35); }
+/* ---- Start screen and player names (design canvas: "Proposal: Red dusk" and "Player names"). Its own look, dark in
+   both themes: crimson dusk, a keep in silhouette, brass and parchment controls. Fonts: MedievalSharp for the title,
+   IM Fell English SC for labels, EB Garamond for reading (Google Fonts, system serif fallbacks). */
+.app.title { max-width: none; padding: 0; }
+.app.title #title { columns: auto; position: relative; min-height: 100dvh; display: flex; flex-direction: column; overflow: hidden;
+  color: #EEE4CF; font-family: 'EB Garamond', Georgia, serif;
+  background: linear-gradient(180deg, #2A0B12 0%, #5E1822 22%, #A72D38 44%, #C9563A 54%, #2A1A16 60%, #252724 100%); }
+#title .tl-scene { position: relative; flex: 1 0 auto; min-height: 330px; }
+#title .tl-art { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#title .tl-head { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; text-align: center;
+  padding: calc(max(10px, env(safe-area-inset-top)) + 46px) max(24px, env(safe-area-inset-right)) 0 max(24px, env(safe-area-inset-left)); }
+#title .tl-head h1 { margin: 0; font: 400 54px/1 MedievalSharp, Georgia, serif; letter-spacing: 0; color: #EEE4CF; text-shadow: 0 2px 0 #2A0B12, 0 0 22px rgba(0, 0, 0, .5); }
+#title .tl-rule { width: 128px; height: 7px; background: linear-gradient(#DAA24C, #DAA24C) 0 50% / 56px 1px no-repeat, linear-gradient(#DAA24C, #DAA24C) 100% 50% / 56px 1px no-repeat; position: relative; }
+#title .tl-rule::after { content: ''; position: absolute; left: 50%; top: 0; width: 7px; height: 7px; margin-left: -3.5px; background: #DAA24C; transform: rotate(45deg); }
+#title .tl-head .lede { margin: 0; max-width: 310px; font-style: italic; font-size: 18px; line-height: 1.4; color: #F4EAD6; text-shadow: 0 1px 6px rgba(42, 11, 18, .8); }
+#title .tl-panel { position: relative; margin-top: -40px; display: flex; flex-direction: column; gap: 12px;
+  padding: 40px max(20px, env(safe-area-inset-right)) max(18px, env(safe-area-inset-bottom)) max(20px, env(safe-area-inset-left));
+  background: linear-gradient(180deg, rgba(37, 39, 36, 0) 0, rgba(37, 39, 36, .94) 40px, #252724 100%); }
+#title .tl-panel > * { width: 100%; max-width: 440px; margin-inline: auto; box-sizing: border-box; }
+#title .tl-plate { min-height: 62px; border-radius: 12px; padding: 10px 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  text-align: left; font-family: inherit; cursor: pointer; border: 1px solid #6E4A17; color: #2A1A06;
+  background: linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 240, 205, .7), inset 0 -2px 0 rgba(90, 55, 15, .45), 0 4px 14px rgba(0, 0, 0, .45); }
+#title .tl-plate > span { display: flex; flex-direction: column; gap: 1px; }
+#title .tl-plate strong { font: 400 21px/1.1 'IM Fell English SC', Georgia, serif; }
+#title .tl-plate small { font-size: 15px; color: #3E2A0C; }
+#title .tl-plate svg { flex: none; width: 22px; height: 22px; }
+#title .tl-plate:disabled { opacity: .5; cursor: not-allowed; }
+#title .tl-plate:focus-visible, #title .tl-links button:focus-visible, #title .tl-back:focus-visible, #title summary:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 3px; }
+#title .tl-lock { margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; font-size: 15px; color: #BDB5A4; text-align: center; }
+#title .tl-lock:empty { display: none; }
+#title .tl-lock::before { content: ''; flex: none; width: 15px; height: 15px; background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Crect x='5' y='11' width='14' height='9' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round'%3E%3Crect x='5' y='11' width='14' height='9' rx='2'/%3E%3Cpath d='M8 11V8a4 4 0 0 1 8 0v3'/%3E%3C/svg%3E") center / contain no-repeat; }
+#title .tl-saves { border-radius: 12px; border: 1px solid #5D5A3A; overflow: hidden; background: rgba(29, 30, 27, .85); }
+#title .tl-saves summary { min-height: 56px; box-sizing: border-box; padding: 8px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px; cursor: pointer; list-style: none;
+  font: 400 20px 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+#title .tl-saves summary::-webkit-details-marker { display: none; }
+#title .tl-saves summary::after { content: ''; width: 22px; height: 22px; flex: none; background: #DAA24C; transition: transform .15s;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E") center / contain no-repeat; }
+#title .tl-saves[open] summary::after { transform: rotate(180deg); }
+#title .tl-saves[open] summary { margin-bottom: 0; }
+#title .tl-saves .note { margin: 0; padding: 0 16px 10px; color: #CDBFAE; }
+#title .tl-saves #saves { margin: 0; background: #EEE4CF; color: #252724; }
+#title .tl-saves #saves li { border-top: 1px solid #C9BB9C; padding: 0 6px 0 16px; }
+#title .tl-saves #saves .resume { color: #252724; font-family: inherit; }
+#title .tl-saves #saves .resume strong { font: 400 18px 'IM Fell English SC', Georgia, serif; }
+#title .tl-saves #saves .resume span { color: #4A4436; font-size: 15px; }
+#title .tl-saves #saves .remove { color: #8A2530; }
+#title .tl-links { display: flex; align-items: center; gap: 20px; border-top: 1px solid #3D3F38; padding-top: 4px; }
+#title .tl-links button { min-height: 44px; padding: 0; background: none; border: 0; color: #DAA24C; font: 17px 'EB Garamond', Georgia, serif; cursor: pointer; }
+#title .tl-links .tl-muted { margin-left: auto; font-size: 15px; color: #B3AF7A; }
+#title .tl-more { border-radius: 12px; padding: 4px 16px 14px; background: #1D1E1B; border: 1px solid #3D3F38; color: #D6CCB8; font-size: 16px; line-height: 1.45; }
+#title .tl-more h2 { margin: 12px 0 4px; font: 400 18px 'IM Fell English SC', Georgia, serif; color: #E3D8C1; }
+#title .tl-more .note, #title .tl-more .applabel { color: #BDB5A4; font-size: 15px; }
+#title .tl-more ul { padding-left: 20px; }
+#title .tl-more .btn { margin-top: 8px; }
+/* Player names: the same type and brass, on calm stone. */
+.app.title #title.setup { background: radial-gradient(120% 40% at 50% 0%, #4A1A20 0%, #2C2523 55%, #252724 100%); }
+#title.setup .tl-scene, #title.setup #tlMenu { display: none; }
+#title .tl-setup { margin-top: 0; flex: 1; background: none; padding-top: calc(max(10px, env(safe-area-inset-top)) + 4px); gap: 14px; }
+#title .tl-setuphead { display: flex; align-items: center; gap: 12px; padding-right: 58px; color: #BDB5A4; font-size: 15px; }
+#title .tl-back { flex: none; width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(238, 228, 207, .35); background: rgba(37, 39, 36, .55); color: #EEE4CF; display: grid; place-items: center; cursor: pointer; }
+#title .tl-chip { margin-left: auto; padding: 3px 10px; border-radius: 999px; border: 1px solid #5E7A2A; color: #C3D78F; font-size: 14px; }
+#title .tl-chip:empty { display: none; }
+#title .tl-setup h2 { margin: 6px auto 0; font: 400 34px/1.1 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+#title .tl-setup .tl-sub { margin: 0 auto; font-size: 17px; line-height: 1.45; color: #D6CCB8; }
+#title .tl-setup h3 { margin: 4px auto 0; font: 400 18px 'IM Fell English SC', Georgia, serif; color: #E3D8C1; }
+#title .tl-setup .segmented { background: #1D1E1B; box-shadow: inset 0 0 0 1px #5D5A3A; }
+#title .tl-setup .segmented button { color: #EEE4CF; font: 600 20px 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums; min-height: 48px; }
+#title .tl-setup .segmented::before { background: #3A3423; box-shadow: inset 0 0 0 2px #DAA24C, 0 0 12px rgba(218, 162, 76, .35); }
+#title .tl-setup .segmented button[aria-pressed="true"] { color: #F3D79A; }
+#title .tl-setup #names { margin: 0 auto; padding: 6px 16px; border-radius: 12px; background: #EEE4CF; color: #252724; box-shadow: inset 0 0 0 3px #EEE4CF, inset 0 0 0 4px #9C8A66, 0 6px 18px rgba(0, 0, 0, .4); counter-reset: seat; }
+#title .tl-setup #names li { counter-increment: seat; display: flex; align-items: center; gap: 12px; border-top: 1px solid #C9BB9C; padding: 10px 0; }
+#title .tl-setup #names li:first-child { border-top: 0; }
+#title .tl-setup #names li::before { content: counter(seat); flex: none; width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%); box-shadow: inset 0 0 0 2px rgba(60, 10, 15, .35); color: #F6EBD6; font: 400 20px 'IM Fell English SC', Georgia, serif; }
+#title .tl-setup #names input { flex: 1; min-width: 0; min-height: 44px; box-sizing: border-box; padding: 6px 10px; border-radius: 4px 4px 0 0; border-bottom: 1px solid #6B5D44; background: #F6EFDF; color: #252724; font: 19px 'EB Garamond', Georgia, serif; }
+#title .tl-setup #names input::placeholder { color: #7A705C; opacity: 1; }
+#title .tl-setup #names input:focus-visible { box-shadow: none; outline: 2px solid #DAA24C; outline-offset: 2px; }
+#title .tl-setup #setupGo { margin-top: auto; margin-inline: auto; }
+#title .tl-setup .note { margin: 0 auto; color: #F0B5B9; }
+#title .tl-setup .note:empty { display: none; }
+.tl-ember { transform-box: fill-box; animation: tl-ember 7s ease-in infinite; }
+.tl-flicker { animation: tl-flicker 3.2s ease-in-out infinite; }
+@keyframes tl-ember { 0% { transform: translateY(0); opacity: 0; } 15% { opacity: .95; } 100% { transform: translateY(-90px); opacity: 0; } }
+@keyframes tl-flicker { 0%, 100% { opacity: .95; } 45% { opacity: .7; } 60% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tl-ember, .tl-flicker { animation: none; opacity: .8; } }
+/* Desktop and phone landscape: the scene on the left, the panel on the right (design canvas: "Start screen, desktop"). */
+@media (min-width: 900px), (orientation: landscape) and (max-height: 540px) {
+  .app.title #title:not(.setup) { flex-direction: row; }
+  #title:not(.setup) .tl-scene { flex: 1 1 auto; min-height: 100dvh; }
+  #title:not(.setup) .tl-head { align-items: flex-start; text-align: left; padding: calc(max(10px, env(safe-area-inset-top)) + 40px) 40px 0 max(40px, env(safe-area-inset-left)); }
+  #title:not(.setup) .tl-head .lede { max-width: 440px; }
+  #title:not(.setup) #tlMenu { flex: none; width: min(46%, 480px); margin: 0; justify-content: center; box-sizing: border-box;
+    padding: 72px max(40px, env(safe-area-inset-right)) 32px 40px; background: linear-gradient(90deg, rgba(26, 26, 23, 0) 0, rgba(26, 26, 23, .9) 48px, #1A1A17 100%); }
+}
+@media (min-width: 900px) { #title:not(.setup) .tl-head h1 { font-size: 88px; } #title:not(.setup) .tl-head .lede { font-size: 22px; } }
+@media (orientation: landscape) and (max-height: 540px) { #title:not(.setup) .tl-head h1 { font-size: 44px; } #title:not(.setup) .tl-head .lede { font-size: 16px; } #title:not(.setup) #tlMenu { padding-top: 56px; gap: 10px; } }
 main > h1 { margin-top: 2px; }
 .group { padding: 16px; margin-bottom: 14px; }
 .note { margin: 10px 0 0; font-size: 14px; color: var(--ink2); }
@@ -45,6 +241,10 @@ h3 { margin: 14px 0 6px; font-size: 15px; font-weight: 600; color: var(--ink2); 
 .banner ul { flex-basis: 100%; margin: 0 0 10px; padding-left: 18px; text-align: left; font-weight: 500; font-size: 14px; }
 .banner li { break-inside: avoid; overflow-wrap: anywhere; }
 @media (min-width: 640px) { .banner ul { columns: 2; column-gap: 24px; } } /* one column on phones, so items never collide */
+/* Name-the-numbers picker (owner catalogue: torch, giant spider, ceiling): six toggles in one row, the picked ones filled. */
+.numpick { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; margin: 8px 0 4px; }
+.numpick .btn { min-height: 44px; padding: 0; font: 600 18px var(--num); }
+.numpick .btn[aria-pressed="true"] { box-shadow: inset 0 0 0 2px var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .movehint { margin: 12px 0 0; font-weight: 600; }
 .movewhy { display: none; margin-top: 4px; font-size: 14px; color: var(--ink2); }
 @media (hover: hover) and (pointer: fine) { .movewhy { display: block; } } /* the keyboard hint, not on touch phones */
@@ -177,7 +377,7 @@ details li + li { margin-top: 6px; }
 .keep-gate { fill: var(--tower); }
 .chamber { fill: var(--chamber); }
 .reserved { fill: var(--floor); stroke: var(--wall); stroke-width: 3; stroke-dasharray: 8 8; }
-.reserved-label { fill: var(--wall); font: 600 19px var(--text); } /* fits one square */
+.reserved-label { fill: var(--wall); font: 600 19px var(--text); } /* the chamber name; board.js squeezes a long one to fit */
 .wall { stroke: var(--wall); stroke-width: 9; stroke-linecap: round; }
 .wall.fixed { stroke-width: 15; stroke-linecap: square; }
 .blocked { stroke: var(--wall); stroke-width: 6; stroke-dasharray: 9 8; stroke-linecap: butt; }
@@ -227,6 +427,15 @@ details li + li { margin-top: 6px; }
 .chip { flex: none; display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; background: var(--fill); color: var(--ink); font-size: 14px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chip svg { width: 15px; height: 15px; flex: none; }
 .chip.tilesleft { display: none; }
+/* Solo (soloStrip in app.js): the name leaves the status bar (readers still hear it) and a strip under it, same glass
+   and width, holds the hero's HP, stats and gold; a button for the Items sheet. Labels --ink2, numbers --ink. */
+.statusbar.solo .who { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.herostrip { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; width: calc(100% - 60px); min-height: 44px; padding: 4px 16px; margin: -6px 60px 14px 0;
+  text-align: left; font-size: 14px; color: var(--ink2); font-variant-numeric: tabular-nums; }
+.herostrip b { font-weight: 600; color: var(--ink); }
+.herostrip .stats { display: flex; gap: 10px; }
+.herostrip .stats span, .herostrip .gold { white-space: nowrap; }
+.herostrip .herohp .hp { width: 48px; }
 .tablegrid { display: grid; gap: 14px; }
 .tablegrid > * { min-width: 0; }
 .tablegrid .panel { scroll-margin-top: 76px; }
@@ -309,6 +518,21 @@ details li + li { margin-top: 6px; }
 #roll p.verdict.pass { background: color-mix(in srgb, var(--good) 24%, transparent); }
 #roll p.verdict.fail { background: color-mix(in srgb, var(--danger) 22%, transparent); }
 #roll p.sum { color: var(--ink); font-variant-numeric: tabular-nums; }
+/* Result cards (spec v12): what the card is, each die's consequence and the result lines, each with an outcome tag in
+   words (the tag's colour only repeats it). Left-aligned for reading; the dice stay centred. */
+#roll p.count { margin: 0; font-size: 13px; color: var(--ink2); }
+#roll p.what { margin: 0; color: var(--ink); font-size: 15px; }
+#roll p.what + p.what { color: var(--ink2); }
+#roll .outcome:has(.tagged) { justify-items: stretch; text-align: left; }
+#roll ul.results { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+#roll .tagged { margin: 0; color: var(--ink); font-size: 15px; line-height: 1.4; }
+#roll .tag { display: inline-block; margin-right: 2px; padding: 0 8px; border-radius: 999px; font: 600 13px/1.6 var(--text); color: var(--ink); background: var(--fill); }
+#roll :is(.tag-success, .tag-healed, .tag-item) { background: color-mix(in srgb, var(--good) 24%, transparent); }
+#roll :is(.tag-failure, .tag-damage, .tag-death) { background: color-mix(in srgb, var(--danger) 22%, transparent); }
+#roll .tag-death { font-weight: 800; }
+#roll .tag-action { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+/* Continue stays in reach when a long card scrolls inside the sheet. */
+#roll .rollbtns { position: sticky; bottom: 0; padding-top: 8px; background: linear-gradient(transparent, var(--solid) 12px); }
 .rollbtns { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 10px; margin-top: 4px; }
 .rollbtns .btn { min-height: 54px; }
 #heroes ul { list-style: none; margin: 8px 0 0; padding: 0; }
@@ -356,7 +580,10 @@ details li + li { margin-top: 6px; }
 .tools details[open] summary { display: inline-flex; }
 .tools details ol { margin: 6px 0 0; padding-left: 22px; font-size: 14px; color: var(--ink2); }
 .tools details p { margin: 6px 0 0; font-size: 14px; color: var(--ink2); }
-.dock.fight > #latest { order: 0; } /* a fight prompt first: its buttons before what just happened */
+.dock.fight > #latest, .dock.first > #latest { order: 0; } /* a fight prompt, or a number picker, first: its buttons before what just happened */
+/* Spec v12: a prompt's rule as short steps under its buttons. */
+ol.steps { margin: 6px 0 0; padding-left: 22px; display: grid; gap: 2px; font-size: 15px; color: var(--ink); }
+ol.steps li::marker { color: var(--ink2); }
 .inv .itemtext { font-size: 14px; color: var(--ink); }
 /* The event log sheet: the full screen height, its list scrolling between the title and Close. */
 #logSheet { width: min(100% - 24px, 640px); height: calc(100dvh - max(12px, env(safe-area-inset-top)) - max(12px, env(safe-area-inset-bottom))); overflow: hidden; }
@@ -416,6 +643,7 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .app.table > #table:not([hidden]) { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .banner { margin-bottom: 6px; font-size: 14px; }
   .statusbar { flex: none; min-height: 44px; padding: 4px 12px; margin: 0 0 8px; } /* sits below the menu button, so full width */
+  .herostrip { flex: none; width: 100%; padding: 4px 12px; margin: 0 0 8px; } /* its height comes out of the map, not the dock */
   .tablegrid { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
   .tablegrid > .side { display: contents; }
   .dock { flex: none; max-height: 50dvh; overflow: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 8px; border-radius: 26px; }
@@ -441,6 +669,9 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .chip { gap: 3px; padding: 2px 7px; }
   .chip svg { width: 13px; height: 13px; }
   .chip.tilesleft { display: inline-flex; }
+  .herostrip { gap: 2px 8px; font-size: 13px; }
+  .herostrip .stats { gap: 8px; }
+  .herostrip .herohp .hp { width: 40px; }
   #table .board-panel { flex: 1; min-height: 140px; display: flex; flex-direction: column; padding: 6px; }
   #table .board-host, #table .map { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   #table .map { position: relative; }
@@ -469,12 +700,13 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   .cover > div > svg { display: none; } /* the keep picture, so the button stays on a 375px high screen */
   .cover h2 { font-size: 26px; }
   .app.table { max-width: none; height: 100dvh; min-height: 0; padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom));
-    display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 42%, 420px); grid-template-rows: auto auto minmax(0, 1fr); column-gap: 10px; }
+    display: grid; grid-template-columns: minmax(0, 1fr) clamp(280px, 42%, 420px); grid-template-rows: auto auto auto minmax(0, 1fr); column-gap: 10px; }
   .app.table > #table:not([hidden]), .app.table .tablegrid { display: contents; }
   .app.table > .banner { grid-column: 2; grid-row: 1; margin: 0 60px 6px 0; } /* clear of the menu circle */
   .app.table .statusbar { grid-column: 2; grid-row: 2; margin: 0 60px 8px 0; min-height: 44px; padding: 4px 12px; }
   .app.table .board-panel { grid-column: 1; grid-row: 1 / -1; position: static; min-height: 0; }
-  .app.table .side { grid-column: 2; grid-row: 3; min-height: 0; overflow: auto; overscroll-behavior: contain; border-radius: 26px; padding-bottom: 8px; }
+  .app.table .herostrip { grid-column: 2; grid-row: 3; margin: 0 60px 8px 0; width: calc(100% - 60px); padding: 4px 12px; }
+  .app.table .side { grid-column: 2; grid-row: 4; min-height: 0; overflow: auto; overscroll-behavior: contain; border-radius: 26px; padding-bottom: 8px; }
   .app.table .side .panel { margin-bottom: 8px; }
   #roll > div { gap: 6px; padding: 14px 16px 12px; }
   #roll .dice { padding: 4px 0; }
@@ -482,12 +714,533 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   #roll .d12 { --a: 17px; }
   #roll .facts div { padding: 3px 0; }
   #roll p.verdict { font-size: 24px; }
+  /* Spec v12 follow-up (browser re-test at 667x375 and 568x320): a prompt's controls without scrolling the column. The
+     solo hero strip goes under the board, the status bar takes the full column under the banner (which clears the
+     menu circle), and the prompts are compact: a number picker's Roll sits beside its count, under the six numbers. */
+  .app.table { grid-template-rows: auto auto auto minmax(0, 1fr) auto; }
+  .app.table .board-panel { grid-row: 1 / 5; }
+  .app.table .herostrip { grid-column: 1; grid-row: 5; width: 100%; margin: 8px 0 0; }
+  .app.table .side { grid-row: 3 / -1; }
+  .app.table > #banner:not([hidden]) ~ #table .statusbar { margin-right: 0; }
+  .app.table .side .panel { padding: 10px 12px; }
+  .app.table .side .panel > h2 { font-size: 17px; }
+  .app.table .side .panel > p { margin-top: 4px; font-size: 14px; }
+  .app.table .side .choices { margin-top: 8px; gap: 6px; }
+  .app.table .side .choice { min-height: 44px; padding: 6px 12px; }
+  .app.table .side .choice small { font-size: 13px; }
+  .app.table .side .fightrow { margin-top: 4px; }
+  .app.table .side .numpick { margin: 6px 0 0; }
+  .app.table .side .panel:has(> .numpick) { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 10px; align-items: center; }
+  .app.table .side .panel:has(> .numpick) > * { grid-column: 1 / -1; }
+  .app.table .side .panel:has(> .numpick) > .numpick + p { grid-column: 1; margin-top: 6px; }
+  .app.table .side .panel:has(> .numpick) > .numpick + p + .choices { grid-column: 2; margin-top: 6px; }
+  .app.table .side .panel:has(> .numpick) > .numpick + p + .choices > .btn.primary { width: auto; min-height: 44px; padding: 0 18px; font-size: 16px; }
 }
+</style>
+<style id="keep-skin">
+/* Owner play-test, round 2 (2026-11-22): a pit you can see (the well, a trapdoor), rubble as a heap of stones, the
+   rotating room round like a cul-de-sac, and the dead left lying where they fell, greyed. */
+.board-wrap .pit-rim { fill: #5E5B48; stroke: var(--wall); stroke-width: 3; }
+.board-wrap .pit { fill: #050504; stroke: #24231C; stroke-width: 3; }
+.board-wrap .stone { fill: #6E6B55; stroke: var(--wall); stroke-width: 3; }
+.board-wrap .round-out { fill: #12120F; }
+.board-wrap .round-wall { fill: none; stroke: var(--wall); stroke-width: 6; }
+.token.dead { filter: grayscale(1) brightness(.75); }
+.token.dead .token-disc { stroke-dasharray: 3 4; }
+/* The room card scrolls inside its frame (owner play-test: the ambush card's Continue sat over the bottom border), and
+   a creature's picture is a little shorter on an upright phone so the card mostly fits. */
+#roll[open] { display: flex; flex-direction: column; overflow: hidden; }
+#roll[open] > div { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 6px; }
+#roll[open] > div { grid-auto-rows: max-content; } /* nothing squeezed: the card scrolls instead */
+@media (orientation: portrait) and (max-width: 819.98px) { #roll[open] .cardart.pic img { max-height: 40dvh; } }
+/* The turn hand-over banner (owner play-test, 2026-11-22): whose turn ended, whose begins, for two seconds. */
+.turnbanner { position: fixed; z-index: 30; left: 50%; top: 10px; translate: -50% 0; display: none; align-items: center; gap: 10px; padding: 7px 18px 7px 8px; border-radius: 999px;
+  background: rgba(29, 30, 27, .94); box-shadow: inset 0 0 0 1px #DAA24C, 0 0 24px rgba(218, 162, 76, .35), 0 12px 30px rgba(0, 0, 0, .6); color: #EEE4CF; pointer-events: none; }
+.turnbanner.show { display: flex; animation: tb-show 2.2s ease forwards; }
+.turnbanner .seal { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 400 16px 'IM Fell English SC', Georgia, serif; color: #F6EBD6; background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%); box-shadow: 0 0 0 2px #DAA24C; }
+.turnbanner .tb-words { display: grid; white-space: nowrap; }
+.turnbanner small { font-size: 14px; color: #BDB5A4; }
+.turnbanner strong { font: 400 24px/1.1 'IM Fell English SC', Georgia, serif; color: #F3D79A; }
+@keyframes tb-show { 0% { opacity: 0; scale: .92; } 12%, 78% { opacity: 1; scale: 1; } 100% { opacity: 0; scale: 1; visibility: hidden; } }
+@media (prefers-reduced-motion: reduce) { .turnbanner.show { animation: tb-still 2.2s steps(1) forwards; } @keyframes tb-still { 100% { visibility: hidden; } } }
+/* The combat reveal (owner play-test, 2026-11-22): a shorter banner and smaller cards, so Continue shows without
+   scrolling. */
+.panel.fight.reveal .foe.pic { height: 96px; }
+.panel.fight.reveal .vs { margin-top: 4px; gap: 12px; }
+.panel.fight.reveal .vs > div > span { width: 58px; height: 78px; font-size: 40px; border-radius: 8px; }
+.panel.fight.reveal .vs > small { font-size: 16px; }
+.panel.fight.reveal .exchange { margin: 6px 0 0; }
+.panel.fight.reveal .choices { margin-top: 8px; }
+@media (orientation: portrait) and (max-width: 819.98px) { .panel.fight .foe.pic { height: 120px; } .panel.fight .choice.combatcard .big { font-size: 42px; } } /* the A, B and C cards above the fold too */
+/* Tap feedback on gold and red buttons (owner play-test, 2026-11-22): the shared .tapped film replaced the gradient
+   with a dark one for a moment (the numbers went black); here it darkens the gradient a little instead. */
+.tapped:is(.btn.primary, .choice.primary, .choice.enc-wait, #itemsDone, #coverGo), .numpick .btn[aria-pressed="true"].tapped, .dbar .choice.primary.tapped { background-image: linear-gradient(rgba(0, 0, 0, .16), rgba(0, 0, 0, .16)), linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%) !important; }
+.choice.enc-attack.tapped { background-image: linear-gradient(rgba(0, 0, 0, .16), rgba(0, 0, 0, .16)), linear-gradient(180deg, #C2434F 0%, #A72D38 55%, #7E1F2A 100%) !important; }
+/* Hero list (owner play-test, 2026-11-22): the name on one line, then class and HP, then the four stats; the picked
+   hero is marked with a ring, not a thicker border, so nothing reflows. */
+#draft.dfirst .dhero { padding: 6px 8px 6px 6px; gap: 7px; }
+#draft.dfirst .dhero .badge { width: 34px; height: 34px; }
+#draft.dfirst .dhero[aria-pressed="true"] { border: 1px solid #DAA24C; box-shadow: inset 0 0 0 1px #DAA24C, 0 0 12px rgba(218, 162, 76, .35); }
+#draft.dfirst .dhero-t strong { font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; overflow-wrap: normal; }
+#draft.dfirst .dhero-t small { font-size: 13px; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#draft.dfirst .dhero-t small.dh-statline { font-size: 12px; letter-spacing: -.01em; white-space: pre; opacity: .8; font-variant-numeric: lining-nums; }
+/* Items sheet details (2026-11-22, design canvas "Items"): the coin on the gold plate, uses left as a corner tag, the
+   ring's picture, a gold Close. */
+#items .goldplate::before { content: ''; align-self: center; flex: none; width: 26px; height: 26px; border-radius: 50%; background: #DAA24C; box-shadow: inset 0 0 0 2px #8A5A1C, inset 0 0 0 7px #DAA24C, inset 0 0 0 8px #8A5A1C; }
+#items .inv li { position: relative; }
+#items .inv li .usetag { position: absolute; top: 9px; right: 10px; padding: 1px 9px; border-radius: 999px; font-size: 13px; background: #7C9440; color: #F6F9EC; }
+#items .inv li .usetag.spent { background: transparent; color: #6B5D44; box-shadow: inset 0 0 0 1px #B5A784; }
+#items .inv li:has(.usetag) > strong { padding-right: 96px; }
+#items .inv li.ringrow { padding-left: 62px; }
+#items .inv li.ringrow .dring-art { position: absolute; left: 10px; top: 10px; width: 42px; height: 42px; }
+#items .inv-equipment li:has(.itemtext), #items .inv-equipment li:has(.usetag) { flex: 1 0 100%; padding: 10px 12px; border-radius: 12px; background: #F6EFDF; border: 1px solid #C9BB9C; } /* a special weapon: a card, not a name pill */
+#items .inv-equipment li:has(.itemtext) strong { font: 400 18px 'IM Fell English SC', Georgia, serif; }
+#items #itemsDone { color: #2A1A06; background: linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%); box-shadow: inset 0 0 0 1px #6E4A17, inset 0 1px 0 rgba(255, 240, 205, .7); font: 400 19px 'IM Fell English SC', Georgia, serif; }
+/* The results scene (2026-11-22, design canvas "Results"): the keep at nightfall, the title in the sky over it. */
+#results > div.r-scene { height: 300px; background: linear-gradient(180deg, #141428 0%, #2E2440 70%, #1D1E1B 100%); filter: none; }
+#results > div.r-scene.lost { background: linear-gradient(180deg, #1A0709 0%, #4A1018 60%, #1D1E1B 100%); filter: none; }
+#results .r-scene .r-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+#results .r-head { position: absolute; z-index: 1; left: 0; right: 0; top: 44px; padding: 0 20px; text-align: center; }
+#results .r-head h1 { margin: 0 0 8px; font: 400 clamp(34px, 10vw, 46px)/1.05 MedievalSharp, Georgia, serif; color: #F3D79A; text-shadow: 0 2px 0 #000, 0 0 24px rgba(0, 0, 0, .6); text-wrap: balance; }
+#results .r-head h1.lost { color: #F6D9DC; }
+#results .r-head h1.shared { font-size: clamp(28px, 8.4vw, 36px); }
+#results .r-head .lede { margin: 0; font-style: italic; font-size: 18px; color: #F4EAD6; text-shadow: 0 1px 6px #000; }
+.numpick .btn { background: #1D1E1B; color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; font: 600 21px 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums; } /* the number picker (torch, spider, ceiling): plain numerals, not the display face's old-style ones */
+.numpick .btn[aria-pressed="true"] { background: linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%); color: #2A1A06; box-shadow: inset 0 0 0 1px #6E4A17, 0 0 10px rgba(218, 162, 76, .5); }
+.panel ol.steps li::marker { color: #DAA24C; }
+/* Wide desktop as on the design canvas "Game board, desktop" (2026-11-22): three columns, the heroes (order of play)
+   on the left, the board in the middle, the prompt and what just happened on the right; the heroes list stands in
+   for the hero bar there. */
+@media (min-width: 1100px) and (min-height: 600px) {
+  .app.wide.table { max-width: 1480px; } /* the board takes the middle of a wide screen */
+  .tablegrid { grid-template-columns: minmax(240px, 280px) minmax(0, 1fr) minmax(300px, 360px); align-items: start; }
+  .tablegrid > .side { display: contents; }
+  .tablegrid > .board-panel { grid-column: 2; grid-row: 1; width: 100%; max-width: calc((100dvh - 165px) * .8); justify-self: center; } /* the whole board fits the window's height */
+  .tablegrid > .side > .dock { grid-column: 3; grid-row: 1; display: grid; gap: 14px; position: sticky; top: 12px; }
+  .tablegrid > .side > .fold { grid-column: 1; grid-row: 1; position: sticky; top: 12px; }
+  #table .herostrip.herobar { display: none; }
+  #heroes li { grid-template-columns: 44px minmax(0, 1fr); padding: 8px 10px; }
+  #heroes .havatar, #heroes .havatar .hface { width: 44px; height: 44px; }
+  #heroes .name { font-size: 16px; white-space: normal; }
+  #heroes .meta { font-size: 13px; }
+}
+/* The original solo fight, the target throw (2026-11-22): a shorter banner, the six landing places and three faces as
+   compact buttons three across, gold when picked. */
+.panel.fight.target .foe.pic { height: 104px; }
+.panel.fight.target .help { font-size: 14px; }
+.panel .tools .btn { background: #1D1E1B; color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; font: 400 16px 'IM Fell English SC', Georgia, serif; } /* Items and History under a fight */
+.panel.fight.target h3 { margin: 10px 0 4px; font: 400 17px 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+.panel.fight.target .choices.grid2, .panel.fight.target .choices.grid3 { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 4px; }
+.panel.fight.target .grid2 .choice, .panel.fight.target .grid3 .choice { min-height: 46px; padding: 6px 6px; justify-items: center; align-content: center; text-align: center; background: #1D1E1B; font: 400 15px/1.1 'IM Fell English SC', Georgia, serif; }
+.panel.fight.target .choice[aria-pressed="true"] { background: #3A3423; color: #F3E7CC; box-shadow: inset 0 0 0 2px #DAA24C, 0 0 10px rgba(218, 162, 76, .35); }
+/* Rare moments (2026-11-22). The fight-end card is a bottom drawer on an upright phone, like every other drawer. The
+   pass-the-phone cover is the design's hand-off screen: a card back with gold borders, the name large, a gold button. */
+@media (orientation: portrait) and (max-width: 819.98px) { #outcome { width: 100%; margin: auto 0 0; } }
+.cover { background: radial-gradient(circle at 50% 30%, #2E2B26 0%, #141512 75%); color: #EEE4CF; }
+.cover > div { gap: 16px; }
+.cover > div > svg { display: none; }
+.cover > div::before { content: ''; width: 112px; height: 160px; border-radius: 10px; background: #7E1F2A url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Cpath d='M20 3 37 20 20 37 3 20z' fill='%235E141C' stroke='%23DAA24C' stroke-width='2'/%3E%3C/svg%3E") center / 40px no-repeat;
+  box-shadow: inset 0 0 0 4px #7E1F2A, inset 0 0 0 5px #DAA24C, inset 0 0 0 9px #7E1F2A, inset 0 0 0 10px #DAA24C, 0 10px 24px rgba(0, 0, 0, .6); }
+.cover h2 { font: 400 32px/1.1 'IM Fell English SC', Georgia, serif; color: #EEE4CF; text-wrap: balance; }
+.cover p { font-size: 17px; line-height: 1.4; color: #D6CCB8; }
+.cover #coverGo { width: 100%; min-height: 62px; margin-top: 8px; border-radius: 12px; font: 400 21px 'IM Fell English SC', Georgia, serif; }
+@media (max-height: 540px) and (orientation: landscape) { .cover > div::before { width: 64px; height: 92px; background-size: 24px; } .cover h2 { font-size: 26px; } }
+#title #howto li::marker { color: #DAA24C; } /* start-screen sections (2026-11-22) */
+#title #builder .btn:not(.primary) { background: transparent; color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; font: 400 17px 'IM Fell English SC', Georgia, serif; }
+/* Smaller sheets (2026-11-22): outlined secondary buttons, the event log's turns as headed groups, a square's sides
+   as chips. */
+dialog.sheet .btn:not(.primary):not(.danger):not(.undo-here) { background: transparent; color: #252724; box-shadow: inset 0 0 0 1px #9C8A66; font: 400 17px 'IM Fell English SC', Georgia, serif; }
+#roll[data-kind="monster"] .btn:not(.primary) { color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; }
+#log li.turnlog + li.turnlog { margin-top: 12px; padding-top: 10px; border-top: 1px solid #C9BB9C; }
+#log li.turnlog h3 { margin: 0 0 4px; display: flex; align-items: baseline; justify-content: space-between; gap: 8px; font: 400 18px/1.15 'IM Fell English SC', Georgia, serif; color: #252724; }
+#log li.turnlog h3 span { flex: none; font: 400 14px 'EB Garamond', Georgia, serif; color: #6B5D44; }
+#log .loglines li { color: #3B3428; }
+#log .loglines small { color: #6B5D44; }
+#inspect ul.sides { list-style: none; margin: 4px 0 6px; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 6px; }
+#inspect ul.sides li { padding: 4px 10px; border-radius: 8px; background: #F6EFDF; box-shadow: inset 0 0 0 1px #C9BB9C; font-size: 15px; color: #3B3428; }
+#inspectBody > p:first-child { font-size: 17px; color: #252724; }
+/* Heroes panel and map key (2026-11-22): stone hero cards with the owner's portraits and red seals, crimson HP,
+   gold with a coin; the map key folded like the Settings sections, in two columns. */
+#heroes ul { display: grid; gap: 10px; }
+#heroes li { border-top: 0; padding: 10px 12px; border-radius: 12px; background: #2A2B26; box-shadow: inset 0 0 0 1px #3D3F38; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 12px; }
+#heroes li.active { background: #2E2C24; box-shadow: inset 0 0 0 2px #DAA24C, 0 0 12px rgba(218, 162, 76, .25); border-radius: 12px; }
+#heroes .havatar { position: relative; width: 56px; height: 56px; border-radius: 50%; overflow: visible; background: radial-gradient(circle at 50% 35%, #3A3423 0%, #1D1E1B 100%); box-shadow: inset 0 0 0 1px #5D5A3A; }
+#heroes .havatar .hface { display: block; width: 56px; height: 56px; border-radius: 50%; object-fit: cover; object-position: 50% 6%; }
+#heroes .havatar .pawn { position: absolute; right: -4px; bottom: -4px; width: 24px; height: 24px; border: 0; font: 400 13px 'IM Fell English SC', Georgia, serif; color: #F6EBD6;
+  background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%) !important; box-shadow: 0 0 0 2px #1A1A17; }
+#heroes .havatar .pawn:only-child { inset: 0; margin: auto; width: 34px; height: 34px; font-size: 16px; }
+#heroes li.active .havatar .pawn { box-shadow: 0 0 0 2px #DAA24C; }
+#heroes .name { font: 400 18px/1.15 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+#heroes .stats { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 4px 0; }
+#heroes .stats span { padding: 1px 8px; border-radius: 999px; font-size: 13px; color: #CDBFAE; background: rgba(238, 228, 207, .06); box-shadow: inset 0 0 0 1px #4A4A40; }
+#heroes .hp { height: 7px; border-radius: 4px; background: #45231F; margin: 4px 0 6px; }
+#heroes .hp i { background: linear-gradient(90deg, #A72D38, #D2484F); }
+#heroes .meta { font-size: 14px; line-height: 1.4; color: #BDB5A4; }
+#heroes .meta.room { color: #F0C27A; }
+#heroes .btn { min-height: 40px; padding: 0 14px; border-radius: 10px; background: #1D1E1B; color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; font: 400 15px 'IM Fell English SC', Georgia, serif; }
+#table details > summary { display: flex; align-items: center; justify-content: space-between; min-height: 32px; cursor: pointer; list-style: none; font: 400 19px 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+#table details > summary::-webkit-details-marker { display: none; }
+#table details > summary::after { content: ''; width: 9px; height: 9px; margin-right: 6px; border-right: 2px solid #DAA24C; border-bottom: 2px solid #DAA24C; transform: rotate(45deg); transition: transform .2s; }
+#table details[open] > summary::after { transform: rotate(-135deg); }
+#table .key { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; font-size: 13px; line-height: 1.25; color: #CDBFAE; }
+#table .key span { align-items: center; }
+#table .key svg { width: 28px; height: 28px; box-shadow: inset 0 0 0 1px #3D3F38; }
+#table .map-tools { gap: 5px; } /* five 40px buttons fit a short map, as on the design canvas */
+@media (orientation: portrait) and (max-width: 819.98px), (max-height: 540px) and (orientation: landscape) { #table .map-tools { flex-wrap: wrap-reverse; max-height: calc(100% - 12px); align-content: flex-start; } } /* a map too short for five: a second column to the left */
+/* The hero bar as on the design canvas (2026-11-22): seal, name and gold, then HP and stats, an Items button. */
+.herostrip.herobar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 5px 5px 5px 7px; min-height: 0; cursor: default; }
+.herobar .seal { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font: 400 16px 'IM Fell English SC', Georgia, serif; color: #F6EBD6; background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%); box-shadow: 0 0 0 2px #DAA24C; }
+.herobar .hb-info { min-width: 0; display: grid; gap: 3px; }
+.herobar .hb-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.herobar .hb-top strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 17px/1.1 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+.herobar .gold { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 15px; }
+.herobar .gold::before { content: ''; width: 13px; height: 13px; border-radius: 50%; background: #DAA24C; box-shadow: inset 0 0 0 2px #8A5A1C; }
+.herobar .hb-low { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; font-size: 13px; color: #CDBFAE; white-space: nowrap; }
+.herobar .herohp { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: #EEE4CF; font-variant-numeric: lining-nums; }
+.herobar .herohp .hp { width: 36px; }
+.herobar .stats { display: flex; gap: 6px; letter-spacing: -.01em; }
+.herobar .stats b { color: #EEE4CF; }
+.herobar .hb-items { flex: none; width: 52px; height: 46px; border-radius: 10px; border: 1px solid #5D5A3A; background: #1D1E1B; color: #EEE4CF; display: grid; place-items: center; align-content: center; gap: 1px; padding: 0; font-size: 12px; cursor: pointer; }
+.herobar .hb-items:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 2px; }
+#roll[data-kind="fire"] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #C2434F, 0 0 30px rgba(242, 131, 58, .5), 0 12px 30px rgba(0, 0, 0, .6); } /* the dragon wakes, dragon fire */
+#roll[data-kind="fire"] .cardscene { box-shadow: inset 0 0 0 1px #7E1F2A, 0 0 18px rgba(242, 131, 58, .45); }
+/* Press to roll (owner): the design's sum line once the dice land. */
+#roll p.sumline { margin: 0 0 2px; font: 600 22px/1.2 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums; color: #7E1F2A; text-align: left; }
+#roll[data-kind="monster"] p.sumline { color: #F0B5B9; }
+/* The owner's creature drawings (2026-11-21), always whole (owner: "use the whole image for each character"). On a card
+   the drawing runs the card's width at its own shape; in a fight it stands whole at the banner's right, the name at the
+   left. Phone landscape: the card goes side by side, the drawing on the left at the drawer's height. */
+.fightrow .foe.pic { height: 165px; }
+.fightrow .foe .foeart { position: absolute; top: 0; right: 0; height: 100%; width: auto; max-width: 62%; object-fit: contain; border-left: 1px solid #3D3F38; }
+.fightrow .foe.pic .foecap { z-index: 1; right: auto; max-width: 44%; flex-direction: column; align-items: flex-start; gap: 6px; }
+.fightrow .foe.pic .foecap strong { font-size: 26px; }
+#roll .cardart.pic { height: auto; overflow: hidden; padding: 0; display: block; box-shadow: inset 0 0 0 1px #3B2F22; background: #1E201C; }
+#roll .cardart.pic img { display: block; width: 100%; height: auto; max-height: 56dvh; object-fit: contain; }
+@media (orientation: portrait) and (max-width: 819.98px) { dialog.sheet { max-height: calc(100dvh - 12px); } }
+@media (max-height: 540px) and (orientation: landscape) {
+  .fightrow .foe.pic { height: 120px; }
+  .fightrow .foe.pic .foecap strong { font-size: 20px; }
+  #roll:has(.cardart.pic) { width: min(100% - 24px, 760px); max-height: calc(100dvh - 16px); }
+  #roll:has(.cardart.pic) > div { grid-template-columns: minmax(0, 42%) minmax(0, 1fr); column-gap: 16px; align-items: start; }
+  #roll:has(.cardart.pic) > div > *, #roll:has(.cardart.pic) #rollBody > * { grid-column: 2; }
+  #roll:has(.cardart.pic) #rollBody > .cardart.pic { grid-column: 1; grid-row: 1 / span 12; position: sticky; top: 0; }
+  #roll .cardart.pic img { max-height: calc(100dvh - 48px); }
+}
+/* Setup as a wizard (owner, 2026-11-21): Back on every step and a five-step progress bar in place of "n of 5". */
+.dprog { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.dprog i { height: 6px; border-radius: 3px; background: rgba(238, 228, 207, .16); }
+.dprog i.on { background: #B9812F; }
+.dprog i.now { background: #DAA24C; box-shadow: 0 0 8px rgba(218, 162, 76, .7); }
+#title .tl-setuphead .dprog { margin: 0 4px; }
+#draft.dfirst .dhead { gap: 12px; }
+#draft.dfirst .dback { flex: none; width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(238, 228, 207, .35); background: rgba(37, 39, 36, .55); color: #EEE4CF; display: grid; place-items: center; cursor: pointer; }
+#draft.dfirst .dback:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 3px; }
+/* The starting-tower map as on the design canvas (rebuilt 2026-11-21): a cream frame round a plain 32px grid, tower
+   buttons in the corners overhanging inward, walled on their outer sides, a gold beacon until picked; red seals; the
+   lair tile with the owner's dragon. */
+#draft.dfirst .tmap { --c: min(32px, calc((100vw - 56px) / 10)); align-self: center; padding: 6px; border-radius: 6px; background: #EEE4CF; box-shadow: inset 0 0 0 2px #EEE4CF, inset 0 0 0 3px #3B2F22, 0 6px 18px rgba(0, 0, 0, .45); }
+@media (min-width: 900px) { #draft.dfirst .tmap { --c: 38px; } }
+#draft.dfirst .tgrid { position: relative; width: calc(var(--c) * var(--cols)); height: calc(var(--c) * var(--rows)); background-color: #1E201C;
+  background-image: radial-gradient(circle at 50% 50%, rgba(130, 127, 71, .10) 0%, rgba(0, 0, 0, .35) 100%), repeating-linear-gradient(0deg, rgba(164, 190, 100, .12) 0 1px, transparent 1px var(--c)), repeating-linear-gradient(90deg, rgba(164, 190, 100, .12) 0 1px, transparent 1px var(--c)); }
+#draft.dfirst .tlair { position: absolute; left: calc(var(--c) * var(--x)); top: calc(var(--c) * var(--y)); width: calc(var(--c) * var(--w)); height: calc(var(--c) * var(--h)); box-sizing: border-box; overflow: hidden;
+  border: 1px solid #DAA24C; background: radial-gradient(circle at 50% 50%, #5A3A14 0%, #2A1C10 100%); box-shadow: 0 0 14px rgba(218, 162, 76, .45); display: grid; place-items: center; }
+#draft.dfirst .tlair img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#draft.dfirst .tlair span { position: relative; font: 400 11px/1 'IM Fell English SC', Georgia, serif; color: #F6E3B5; text-align: center; text-shadow: 0 0 3px #000, 0 1px 2px #000, 0 0 6px #000; }
+#draft.dfirst .ttower { position: absolute; left: calc(var(--c) * var(--x)); top: calc(var(--c) * var(--y)); width: var(--c); height: var(--c); box-sizing: border-box; padding: 0; border: 0 solid #C9BB9C; border-radius: 2px;
+  display: grid; place-items: center; cursor: pointer; background: #3D3F38; color: #EEE4CF; animation: t-beacon 1.8s ease-in-out infinite; }
+#draft.dfirst .ttower.t-nw { border-top-width: 3px; border-left-width: 3px; }
+#draft.dfirst .ttower.t-ne { border-top-width: 3px; border-right-width: 3px; }
+#draft.dfirst .ttower.t-sw { border-bottom-width: 3px; border-left-width: 3px; }
+#draft.dfirst .ttower.t-se { border-bottom-width: 3px; border-right-width: 3px; }
+#draft.dfirst .ttower.on { animation: none; background: #DAA24C; color: #2A1A06; box-shadow: 0 0 16px 4px rgba(218, 162, 76, .7); }
+#draft.dfirst .ttower .seal { position: absolute; right: -7px; bottom: -7px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 400 12px 'IM Fell English SC', Georgia, serif; color: #F6EBD6;
+  background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%); border: 1px solid #F6EBD6; }
+#draft.dfirst .ttower .seal + .seal { right: 10px; }
+#draft.dfirst .ttower .seal + .seal + .seal { right: 26px; }
+#draft.dfirst > h1 { font-size: 26px; line-height: 1.1; } /* as on the design canvas */
+#draft.dfirst .dbar .choice.primary { position: relative; padding-right: 48px; }
+#draft.dfirst .dbar .choice.primary::after { content: ''; position: absolute; right: 22px; top: 50%; width: 10px; height: 10px; margin-top: -6px; border-right: 2.5px solid #2A1A06; border-top: 2.5px solid #2A1A06; transform: rotate(45deg); } /* the design's next arrow */
+@keyframes t-beacon { 0%, 100% { box-shadow: 0 0 0 2px #DAA24C, 0 0 6px 2px rgba(218, 162, 76, .35); } 50% { box-shadow: 0 0 0 2px #DAA24C, 0 0 14px 5px rgba(218, 162, 76, .6); } }
+@media (prefers-reduced-motion: reduce) { #draft.dfirst .ttower:not(.on) { animation: none; box-shadow: 0 0 0 2px #DAA24C, 0 0 10px 3px rgba(218, 162, 76, .5); } }
+/* The starting-tower map as the game board (owner, 2026-11-22): the board's frame, hatched unexplored squares with dark
+   gaps between them, the black outer wall, stone-coloured towers with the board's keep, the dragon's lair. */
+#draft.dfirst .tmap { padding: 6px; border-radius: 10px; background: #3A3423; box-shadow: inset 0 0 0 1px #6E5A35, 0 6px 18px rgba(0, 0, 0, .5); }
+#draft.dfirst .tgrid { background-color: #2F302A; box-shadow: 0 0 0 3px #000;
+  background-image: repeating-linear-gradient(0deg, #1C1D19 0 1.5px, transparent 1.5px var(--c)), repeating-linear-gradient(90deg, #1C1D19 0 1.5px, transparent 1.5px var(--c)),
+    repeating-linear-gradient(45deg, rgba(243, 230, 207, .1) 0 1.2px, transparent 1.2px 4.5px); background-position: -1px -1px, -1px -1px, 0 0; }
+#draft.dfirst .ttower { border-width: 0 !important; border-radius: 4px; background: #C9BB9C; padding: 1px; }
+#draft.dfirst .ttower.on { background: #DAA24C; }
+#draft.dfirst .ttower svg { width: 100%; height: 100%; }
+#draft.dfirst .ttower .tk { fill: #5A5948; }
+#draft.dfirst .ttower .tg { fill: #C9BB9C; }
+#draft.dfirst .ttower.on .tk { fill: #2A1A06; }
+#draft.dfirst .ttower.on .tg { fill: #DAA24C; }
+#draft.dfirst .tlair { border: 1px solid #000; box-shadow: none; }
+/* Drawers on a phone held upright: bottom sheets, full width, with a grab bar; swipe down to close (app.js). */
+@media (orientation: portrait) and (max-width: 819.98px) {
+  dialog.sheet { width: 100%; margin: auto 0 0; border-radius: 18px 18px 0 0; max-height: calc(100dvh - 40px); padding-bottom: env(safe-area-inset-bottom); }
+  dialog.sheet > div::before { content: ''; justify-self: center; width: 42px; height: 5px; margin: -12px 0 2px; border-radius: 3px; background: rgba(59, 47, 34, .3); order: -10; }
+  #roll[data-kind="monster"] > div::before { background: rgba(238, 228, 207, .3); }
+}
+/* Results rows as on the design canvas: the seat's seal, the player and hero, what became of them, the gold large on the
+   right; the title and its line centred over the keep. */
+#results > h1, #results > .lede { text-align: center; }
+#results .panel ol, #results .panel ul { list-style: none; }
+#results .panel li:not(.none) { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 12px; }
+#results .panel li .seal { flex: none; width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; font: 400 16px 'IM Fell English SC', Georgia, serif; color: #F6EBD6; background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%); box-shadow: 0 0 0 2px #1A1A17; }
+#results .panel li.win .seal { box-shadow: 0 0 0 2px #DAA24C; }
+#results .panel li .words { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+#results .panel li .words strong { font: 400 18px/1.15 'IM Fell English SC', Georgia, serif; }
+#results .panel li .words span { font-size: 15px; opacity: .85; }
+#results .panel li .gold { flex: none; font-size: 14px; }
+#results .panel li .gold b { font-size: 24px; font-weight: 600; font-variant-numeric: lining-nums; }
+#results .panel li.win .gold b { color: #5A3A0E; }
+#results .r-dead li .seal { filter: grayscale(1); opacity: .6; }
+#results .again .btn:not(.primary) { background: transparent; box-shadow: inset 0 0 0 1px #5D5A3A; font: 400 17px 'IM Fell English SC', Georgia, serif; }
+/* Settings as on the design canvas: a ruled title row, section names in the display face, Rules in play and the builder's
+   debug log folded away, a brass Done. */
+#settings h2 { margin: 0 -4px 6px; padding-bottom: 10px; border-bottom: 1px solid #C9BB9C; font-size: 26px; }
+#settings h3 { font: 400 19px 'IM Fell English SC', Georgia, serif; }
+dialog.sheet .sheet-x { background: transparent; box-shadow: inset 0 0 0 1px #9C8A66; }
+#settings .setmore { margin-top: 14px; padding-top: 12px; border-top: 1px solid #C9BB9C; }
+#settings .setmore > summary { min-height: 32px; display: flex; align-items: center; justify-content: space-between; list-style: none; cursor: pointer; font: 400 19px 'IM Fell English SC', Georgia, serif; }
+#settings .setmore > summary::-webkit-details-marker { display: none; }
+#settings .setmore > summary::after { content: ''; width: 9px; height: 9px; margin-right: 6px; border-right: 2px solid #6E4A17; border-bottom: 2px solid #6E4A17; transform: rotate(45deg); transition: transform .2s; }
+#settings .setmore[open] > summary::after { transform: rotate(-135deg); }
+#settings .setmore + h3 { margin-top: 14px; padding-top: 12px; border-top: 1px solid #C9BB9C; }
+#settings .setmore h3 { margin-top: 8px; font: 600 16px 'EB Garamond', Georgia, serif; }
+#settings .setmore p.warn { color: #7E1F2A; }
+#settings #settingsDone { width: 100%; min-height: 56px; margin-top: 16px; font: 400 21px 'IM Fell English SC', Georgia, serif; }
+/* The move panel as on the design canvas: Search the room, Stop here and Items as small dark buttons two across, their
+   longer words kept for readers only. */
+.briefrow { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.briefrow > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+.choice.brief { min-height: 48px; padding: 6px 10px; justify-items: center; align-content: center; text-align: center; background: #1D1E1B; font: 400 17px/1.15 'IM Fell English SC', Georgia, serif; }
+.choice.brief small { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.choice.brief { position: relative; }
+/* Lair and items as on the design canvas. The lair prompt opens on the owner's dragon scene with the chamber's name and
+   the wake odds. The items sheet: a pack icon, the gold carried on a plate, coloured group headings, each item a card
+   (a usable one ringed in green), a spent ring dashed and struck, the treasure as a ledger. Display only. */
+.lairscene { position: relative; margin: 2px 0 10px; border-radius: 12px; overflow: hidden; aspect-ratio: 3 / 1; box-shadow: inset 0 0 0 1px #6E5A35, 0 4px 14px rgba(0, 0, 0, .45); }
+.lairscene img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.lairscene::after { content: ''; position: absolute; inset: 0; background: linear-gradient(transparent 45%, rgba(10, 10, 9, .75)); }
+.lairscene .laircap { position: absolute; z-index: 1; left: 12px; right: 12px; bottom: 8px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.lairscene .lairname { font: 400 26px/1 MedievalSharp, Georgia, serif; color: #F3D79A; text-shadow: 0 2px 8px #000; }
+.lairscene .lairodds { padding: 2px 10px; border-radius: 999px; font-size: 14px; color: #FBEFE6; background: rgba(167, 45, 56, .55); border: 1px solid #C2434F; }
+.lairscene.awake { box-shadow: inset 0 0 0 1px #C2434F, 0 0 18px rgba(242, 131, 58, .45); }
+@media (max-height: 540px) and (orientation: landscape) { .lairscene { aspect-ratio: 5 / 1; } .lairscene .lairname { font-size: 20px; } }
+#itemsTitle { display: flex; align-items: center; gap: 10px; font-size: 25px; }
+#itemsTitle::before { content: ''; flex: none; width: 28px; height: 28px; background: #6E4A17;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M6 8h12l1 12H5z M9 8V6a3 3 0 0 1 6 0v2 M9 13h6'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'%3E%3Cpath d='M6 8h12l1 12H5z M9 8V6a3 3 0 0 1 6 0v2 M9 13h6'/%3E%3C/svg%3E") center / contain no-repeat; }
+#items .goldplate { margin: 8px 0 0; display: flex; align-items: baseline; gap: 10px; padding: 10px 14px; border-radius: 12px; background: linear-gradient(180deg, #F6E3B5 0%, #E8C77E 100%); border: 1px solid #B9812F; font-size: 17px; color: #4A3410; }
+#items .goldplate b { font-size: 30px; font-weight: 600; line-height: 1; color: #3E2A0C; font-variant-numeric: lining-nums; }
+#items h3 { font: 400 18px 'IM Fell English SC', Georgia, serif; }
+#items h3.grp-items { color: #3F5418; }
+#items h3.grp-ring { color: #7E1F2A; }
+#items h3.grp-equipment { color: #4A4436; }
+#items h3.grp-treasure, #items h3.grp-chamber { color: #6E4A17; }
+#items .inv { display: grid; gap: 8px; }
+#items .inv li { border-top: 0; padding: 10px 12px; border-radius: 12px; background: #F6EFDF; border: 1px solid #C9BB9C; }
+#items .inv li strong { font: 400 18px 'IM Fell English SC', Georgia, serif; }
+#items .inv li.usable { border: 2px solid #7C9440; box-shadow: 0 0 0 3px rgba(164, 190, 100, .25); }
+#items .inv .meta.why { font-style: italic; color: #6B5D44; }
+#items .inv-treasure, #items .inv-chamber { gap: 0; }
+#items .inv-treasure li, #items .inv-chamber li { padding: 6px 2px; border-radius: 0; background: none; border: 0; border-bottom: 1px dashed #C9BB9C; }
+#items .inv-treasure li:last-child, #items .inv-chamber li:last-child { border-bottom: 0; }
+#items .inv-treasure .meta.why, #items .inv-chamber .meta.why, #items .inv-equipment .meta { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); } /* for readers only, as on the design */
+#items .inv-equipment { display: flex; flex-wrap: wrap; gap: 6px; }
+#items .inv-equipment li { padding: 4px 12px; border-radius: 999px; background: none; border: 1px solid #9C8A66; }
+#items .inv-equipment li strong { display: inline-block; font: 400 16px 'EB Garamond', Georgia, serif; }
+#items .inv-equipment li strong::first-letter { text-transform: uppercase; }
+#items .meta.spent { padding: 10px 12px; border-radius: 12px; border: 1px dashed #B5A784; color: #6B5D44; text-decoration: line-through; }
+/* The fight as on the design's Combat screen: the monster banner over the fight, the hero's HP in crimson, parchment
+   A/B/C cards with the rule beneath. Display only. */
+.fightrow .foe { position: relative; flex: 1 0 100%; height: 96px; margin-bottom: 4px; border-radius: 12px; overflow: hidden; background: radial-gradient(circle at 50% 35%, #2E2B26 0%, #141512 75%); box-shadow: inset 0 0 0 1px #3D3F38; }
+.fightrow .foe > svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.fightrow .foecap { position: absolute; left: 12px; right: 12px; bottom: 8px; display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; }
+.fightrow .foecap strong { display: block; margin-top: 4px; font: 400 24px/1 'IM Fell English SC', Georgia, serif; color: #EEE4CF; text-shadow: 0 2px 8px #000; }
+.fightrow .foe .kindtag { padding: 1px 9px; border-radius: 999px; font-size: 13px; background: #A72D38; color: #FBEFE6; border: 1px solid #C2434F; }
+.fightrow .foe .secret { font-size: 13px; color: #BDB5A4; }
+.fightrow .hp { background: #45231F; }
+.fightrow .hp i { background: linear-gradient(90deg, #A72D38, #D2484F); }
+.vs { gap: 14px; perspective: 800px; }
+.vs > div { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.vs > div > span { display: grid; place-items: center; width: 96px; height: 128px; border-radius: 10px; background: #EEE4CF; color: #252724; font: 400 64px/1 'IM Fell English SC', Georgia, serif;
+  box-shadow: inset 0 0 0 4px #EEE4CF, inset 0 0 0 5px #9C8A66, 0 8px 18px rgba(0, 0, 0, .5); animation: vs-flip .45s cubic-bezier(.2, .8, .3, 1) both; }
+.vs > div:last-child > span { background: #252724; color: #EEE4CF; box-shadow: inset 0 0 0 4px #252724, inset 0 0 0 5px #7E1F2A, 0 8px 18px rgba(0, 0, 0, .5); }
+.vs > small { font: 400 20px 'IM Fell English SC', Georgia, serif; color: #8F897C; }
+@keyframes vs-flip { from { transform: rotateY(90deg); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .vs > div > span { animation: none; } }
+@media (max-height: 540px) and (orientation: landscape) { .fightrow .foe { height: 46px; } .fightrow .foecap { bottom: 6px; } .fightrow .foecap > div { display: flex; align-items: center; gap: 8px; } .fightrow .foecap strong { margin: 0; font-size: 19px; } }
+/* Result cards as on the design canvas: deck label and kind tag, the kind's picture, a gold plate for treasure, the
+   card's edge in the kind's colour (gold glows), a monster card in dark stone. Display only. */
+#roll h2 { font-size: 30px; line-height: 1.05; }
+#roll:has(.cardhead) #rollBody { display: contents; } /* deck label and picture above the title, as on the card design; readers still hear the title first */
+#roll .cardhead { order: -2; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+#roll:has(.cardhead) .cardart, #roll:has(.cardhead) .cardscene { order: -1; margin: 0; }
+#roll .cardhead .deck { font: 400 15px 'IM Fell English SC', Georgia, serif; color: var(--ink2); }
+#roll .kindtag { padding: 2px 10px; border-radius: 999px; font-size: 14px; border: 1px solid; }
+#roll .kind-trap.kindtag, #roll .kind-monster.kindtag { background: #A72D38; color: #FBEFE6; border-color: #7E1F2A; }
+#roll .kind-treasure.kindtag { background: #DAA24C; color: #2A1A06; border-color: #8A5A1C; }
+#roll .kind-item.kindtag { background: #E1EBC4; color: #3F5418; border-color: #7C9440; }
+#roll .kind-empty.kindtag { background: transparent; color: #4A4436; border-color: #9C8A66; }
+#roll .cardart { height: 104px; border-radius: 8px; display: flex; align-items: center; justify-content: center; }
+#roll .cardart.kind-trap { color: #3B2F22; background: radial-gradient(circle at 50% 55%, #F3D6CF 0%, #E2C9B4 70%); }
+#roll .cardart.kind-treasure { color: #7A4E12; background: radial-gradient(circle at 50% 50%, #FFF1C9 0%, #F0D28D 45%, #E3C9A0 100%); }
+#roll .cardart.kind-item { color: #3F5418; background: radial-gradient(circle at 50% 55%, #EEF5D6 0%, #D9E2B4 50%, #E2D5B8 100%); }
+#roll .cardart.kind-empty { color: #6B5D44; background: radial-gradient(circle at 50% 55%, #F6EFDF 0%, #E2D5B8 100%); }
+#roll .cardart.kind-monster { color: #8F897C; background: radial-gradient(circle at 50% 60%, #2E2B26 0%, #151512 80%); }
+#roll p.what:first-of-type { font-size: 18px; line-height: 1.4; }
+#roll .goldplate { margin: 0; display: flex; align-items: baseline; gap: 8px; padding: 8px 12px; border-radius: 10px; background: linear-gradient(180deg, #F6E3B5 0%, #E8C77E 100%); border: 1px solid #B9812F; font-size: 17px; color: #4A3410; }
+#roll .goldplate::before { content: ''; align-self: center; width: 22px; height: 22px; border-radius: 50%; background: #DAA24C; box-shadow: inset 0 0 0 2px #8A5A1C, inset 0 0 0 6px #DAA24C, inset 0 0 0 7px #8A5A1C; }
+#roll .goldplate b { font-size: 28px; font-weight: 600; line-height: 1; color: #3E2A0C; font-variant-numeric: lining-nums; }
+#roll[data-kind] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #9C8A66, 0 12px 30px rgba(0, 0, 0, .6); }
+#roll[data-kind="trap"] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #A72D38, 0 12px 30px rgba(0, 0, 0, .6); }
+#roll[data-kind="treasure"] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #DAA24C, 0 0 28px rgba(218, 162, 76, .45), 0 12px 30px rgba(0, 0, 0, .6); }
+#roll[data-kind="item"] { box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #7C9440, 0 12px 30px rgba(0, 0, 0, .6); }
+#roll[data-kind="monster"] { --ink: #EEE4CF; --ink2: #BDB5A4; --fill: rgba(238, 228, 207, .1); --hair: rgba(238, 228, 207, .18); --solid: #252724; background: #252724; color: #EEE4CF;
+  box-shadow: inset 0 0 0 5px #252724, inset 0 0 0 6px #7E1F2A, 0 12px 30px rgba(0, 0, 0, .6); }
+#roll[data-kind="monster"] .rollbtns { background: linear-gradient(transparent, #252724 12px); }
+/* The board as on the design canvas: stone floors, heavy ink walls, gold dashed squares to move to, torchlight, round
+   stone map buttons; the sun row bare, the hero bar a stone strip; on a phone the board and the prompt only (the event
+   log stays in the menu, owner 2026-11-20). */
+.board-wrap .floor { fill: url(#stone); }
+.board-wrap .stone-bg { fill: var(--floor); }
+.board-wrap .stone-line { fill: none; stroke: #6F6D58; stroke-width: 2.4; }
+.board-wrap .wall { stroke-width: 7; } /* thin black walls (owner play-test) */
+.board-wrap .wall.fixed { stroke-width: 11; }
+.board-wrap .target { fill: rgba(218, 162, 76, .16); stroke: #DAA24C; stroke-width: 5; stroke-dasharray: 16 10; animation: tgt-pulse 1.6s ease-in-out infinite; }
+@keyframes tgt-pulse { 0%, 100% { fill: rgba(218, 162, 76, .1); } 50% { fill: rgba(218, 162, 76, .34); } }
+.board-wrap .torch { pointer-events: none; mix-blend-mode: screen; }
+.board-wrap .torch-in { stop-color: #F7BE66; stop-opacity: .55; } /* owner play-test: the torchlight shows well on the darker ground */
+.board-wrap .torch-out { stop-color: #F2B35A; stop-opacity: 0; }
+.map-tools .btn { border-radius: 999px; background: rgba(29, 30, 27, .92); color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; }
+#table .map-tools .btn { width: 40px; height: 40px; border-radius: 20px; background: rgba(29, 30, 27, .92); color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A, 0 2px 6px rgba(0, 0, 0, .4); font-size: 24px; min-width: 0; padding: 0; display: grid; place-items: center; }
+#table .map-tools .ico { display: block; width: 22px; height: 22px; } /* round icon buttons at every size (owner: the zoom, fit and centre icons) */
+#table .map-tools .tool-text { display: none; }
+.statusbar { background: transparent; border-color: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.herostrip { border-radius: 12px; background: #2A2B26; box-shadow: inset 0 0 0 1px #3D3F38; -webkit-backdrop-filter: none; backdrop-filter: none; }
+.herostrip .hp { height: 7px; border-radius: 4px; background: #45231F; }
+.herostrip .hp i { background: linear-gradient(90deg, #A72D38, #D2484F); }
+.herostrip .gold b { color: #F0C27A; }
+.board-panel { border-radius: 10px; background: #3A3423; box-shadow: inset 0 0 0 1px #6E5A35, 0 6px 18px rgba(0, 0, 0, .5); }
+@media (prefers-reduced-motion: reduce) { .board-wrap .target { animation: none; fill: rgba(218, 162, 76, .24); } }
+/* The owner's hero art and dragon scenes (2026-11-21). */
+#draft.dfirst .dh-portrait { overflow: hidden; }
+#draft.dfirst .dh-art { width: 100%; height: 100%; object-fit: contain; object-position: 50% 100%; padding: 4px 2px 0; box-sizing: border-box; }
+#draft.dfirst .dhero .badge { overflow: hidden; }
+#draft.dfirst .dh-face { width: 100%; height: 100%; object-fit: cover; object-position: 50% 0; transform: scale(1.5); transform-origin: 50% 0; }
+#roll .cardscene { display: block; width: 100%; aspect-ratio: 3 / 1; object-fit: cover; border-radius: 8px; margin: 2px 0 10px; box-shadow: inset 0 0 0 1px #3B2F22, 0 3px 10px rgba(0, 0, 0, .35); }
+.token-art { pointer-events: none; transform-box: fill-box; transform-origin: 50% 100%; filter: drop-shadow(0 3px 2px rgba(0, 0, 0, .65)); }
+.token-art.active { animation: tk-idle 2.4s ease-in-out infinite; }
+.figures, .figures * { pointer-events: none; } /* taps always reach the square underneath */
+.fig-size { transform-box: fill-box; transform-origin: 50% 100%; transition: transform .2s ease; }
+.figs-small .fig-size.big { transform: scale(.63); } /* the Figures tool: the active hero as small as the rest */
+.token-art.pose-walk { animation: tk-walk .9s ease-in-out 2; }
+.token-art.pose-fight { animation: tk-fight 1.1s ease-in-out infinite; }
+.token-art.pose-flee { animation: tk-flee .8s ease-in-out 2; }
+.token-art.pose-jump { animation: tk-jump .8s cubic-bezier(.3, .7, .4, 1) 1; }
+.token-art.pose-hurt { animation: tk-hurt .5s ease-in-out 2; }
+.token-art.pose-walk-fight { animation: tk-walk .9s ease-in-out 1, tk-fight 1.1s ease-in-out .9s infinite; }
+.token-art.pose-hurt-fight { animation: tk-hurt .5s ease-in-out 2, tk-fight 1.1s ease-in-out 1s infinite; }
+.token-art.pose-jump-fight { animation: tk-jump .8s cubic-bezier(.3, .7, .4, 1) 1, tk-fight 1.1s ease-in-out .8s infinite; }
+.token-art.pose-down { animation: none; transform: translate(14px, 8px) rotate(-84deg); filter: grayscale(1) brightness(.7); opacity: .8; }
+@keyframes tk-idle { 0%, 100% { transform: scaleY(1); } 50% { transform: scaleY(1.025); } }
+@keyframes tk-walk { 0%, 50%, 100% { transform: translateY(0) rotate(0); } 25% { transform: translateY(-6px) rotate(-5deg); } 75% { transform: translateY(-6px) rotate(5deg); } }
+@keyframes tk-fight { 0%, 100% { transform: translateX(0) rotate(0); } 35% { transform: translateX(7px) rotate(7deg); } 55% { transform: translateX(-2px) rotate(-2deg); } }
+@keyframes tk-flee { 0%, 100% { transform: scaleX(-1); } 25%, 75% { transform: scaleX(-1) translate(5px, -6px) rotate(-6deg); } 50% { transform: scaleX(-1) translateX(9px); } }
+@keyframes tk-jump { 0%, 100% { transform: none; } 15% { transform: scaleY(.9); } 50% { transform: translateY(-28px) scaleY(1.05); } 85% { transform: scaleY(.92); } }
+@keyframes tk-hurt { 0%, 100% { transform: none; } 25% { transform: translateX(-5px) rotate(-4deg); filter: drop-shadow(0 0 7px #E0656F) sepia(.5) hue-rotate(-35deg) saturate(2); } 75% { transform: translateX(5px) rotate(4deg); } }
+@media (prefers-reduced-motion: reduce) { .token-art, .token-art[class*="pose-"]:not(.pose-down), .fig-size { animation: none; } }
+/* The lair tile: the dragon art fills it, the name reads over it in pale gold (design canvas). */
+:root .board-wrap .reserved-label { fill: #F6E3B5; stroke: #1A1A17; stroke-width: 6px; paint-order: stroke; font-family: 'IM Fell English SC', Georgia, serif; font-weight: 400; }
+.board-wrap .lair-art { pointer-events: none; }
+/* Results (design canvas): the keep at dusk, a gold title, winners on gold plates, the dead dashed, the gold of those inside at sunset struck out. */
+#results .r-scene { position: relative; height: 230px; margin: 0 calc(-1 * max(16px, env(safe-area-inset-left))) 0; overflow: hidden;
+  background: linear-gradient(180deg, #2A0B12 0%, #5E1822 35%, #A72D38 70%, #C9563A 100%); -webkit-mask-image: linear-gradient(#000 55%, transparent); mask-image: linear-gradient(#000 55%, transparent); }
+#results .r-scene .tl-art { position: absolute; inset: 0; width: 100%; height: 100%; }
+#results .r-scene.lost { filter: hue-rotate(-12deg) saturate(1.25) brightness(.72); }
+#results > h1 { position: relative; margin: -70px 0 6px; font: 400 clamp(30px, 8.5vw, 44px)/1.05 MedievalSharp, Georgia, serif; color: #F3D79A; text-shadow: 0 2px 0 #000, 0 0 24px rgba(0, 0, 0, .6); }
+#results > h1.lost { color: #F6D9DC; }
+#results > .lede { margin: 0 0 14px; font-style: italic; font-size: 18px; color: #F4EAD6; }
+#results .panel ol, #results .panel ul { margin: 8px 0 0; padding: 0; list-style-position: inside; display: grid; gap: 8px; }
+#results .panel li { padding: 8px 10px; border-radius: 10px; background: #2A2B26; box-shadow: inset 0 0 0 1px #5D5A3A; }
+#results .panel li.win { color: #2A1A06; background: linear-gradient(180deg, #F6E3B5 0%, #E8C77E 100%); box-shadow: inset 0 0 0 1px #B9812F, 0 0 16px rgba(218, 162, 76, .4); }
+#results .r-dead li { background: transparent; box-shadow: none; outline: 1px dashed #5D5A3A; outline-offset: -1px; color: #BDB5A4; }
+#results .r-inside li { background: rgba(126, 31, 42, .28); box-shadow: inset 0 0 0 1px #7E1F2A; color: #F6D9DC; }
+#results .again { display: grid; gap: 8px; }
+/* ---- Keep skin (design canvas). Dark in both themes: crimson, charcoal, parchment, brass, dragon green. */
+:root, :root[data-theme], :root:not([data-theme]) {
+  color-scheme: dark;
+  --canvas: #1D1E1B; --solid: #252724; --ink: #EEE4CF; --ink2: #BDB5A4;
+  --accent: #DAA24C; --danger: #C2434F; --good: #A4BE64; --primary: #B9812F;
+  --glass: rgba(37, 39, 36, .94); --glass-strong: rgba(46, 47, 42, .96);
+  --edge: rgba(238, 228, 207, .14); --hair: rgba(238, 228, 207, .12); --fill: rgba(238, 228, 207, .07);
+  --thumb: #3A3423; --glass-menu: rgba(29, 30, 27, .96); --tap: rgba(0, 0, 0, .5);
+  --die: #FBF6EA; --die-edge: rgba(0, 0, 0, .1); --pip: #2E2A22;
+  --text: 'EB Garamond', Georgia, serif; --num: 'EB Garamond', Georgia, serif;
+  --seat0: #E0656F; --seat1: #F0C27A; --seat2: #C3D78F; --seat3: #9CC3E6; --token-ink: #1A1A17;
+  --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 12px 40px rgba(0, 0, 0, .5);
+}
+body { font-variant-numeric: lining-nums; }
+body::before { background:
+  radial-gradient(70vmax 40vmax at 50% 0%, rgba(167, 45, 56, .22), transparent 60%),
+  radial-gradient(60vmax 50vmax at 50% 100%, rgba(218, 162, 76, .10), transparent 60%); }
+/* The board: mossy stone floors, ink walls, gold targets, dark unexplored squares. */
+:root .board-wrap, :root[data-theme] .board-wrap, :root:not([data-theme]) .board-wrap {
+  --floor: #8A8870; --wall: #000; --fog-bg: #2F302A; --fog-line: rgba(20, 20, 16, .35); --tower: #C9BB9C; --keep: #5A5948; --door: #9C6A2E; --chamber: #DAA24C;
+  --dot-black: #1A1A17; --dot-red: #C2434F; --dot-yellow: #DAA24C; --dot-blue: #7FA8D8; --target: #DAA24C; --focus: #FFE2A6; --off-bg: #262721; --off-line: rgba(20, 20, 16, .3); } /* owner play-test 2026-11-22: a lighter ground so the black walls stand out */
+:root .statusbar, :root[data-theme] .statusbar, :root:not([data-theme]) .statusbar { --sun-fill: #DAA24C; }
+/* Type: IM Fell English SC for titles and labels, EB Garamond for reading. */
+main h1, .panel > h2, dialog.sheet h2, #outcome h2, #cover h2 { font-family: 'IM Fell English SC', Georgia, serif; font-weight: 400; letter-spacing: 0; }
+main > h1 { font-size: 30px; }
+.panel > h2 { font-size: 21px; }
+.panel { border-radius: 14px; box-shadow: inset 0 0 0 1px #3D3F38, 0 6px 18px rgba(0, 0, 0, .35); }
+.banner { background: #7E1F2A; color: #FBEFE6; box-shadow: inset 0 0 0 1px #A72D38; border-radius: 8px; font-weight: 600; }
+/* Buttons: stone choices, brass primary. */
+.choice { border-radius: 10px; background: #2E2F2A; color: var(--ink); box-shadow: inset 0 0 0 1px #5D5A3A; font-weight: 400; }
+.choice > span { font: 400 18px/1.15 'IM Fell English SC', Georgia, serif; }
+.choice small { font-size: 15px; color: #CDBFAE; }
+.choice.primary, .btn.primary { color: #2A1A06; background: linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%);
+  box-shadow: inset 0 0 0 1px #6E4A17, inset 0 1px 0 rgba(255, 240, 205, .7), inset 0 -2px 0 rgba(90, 55, 15, .45), 0 4px 14px rgba(0, 0, 0, .4); }
+.choice.primary small { color: #3E2A0C; }
+.choice:disabled, .btn:disabled { opacity: .5; }
+.choice:focus-visible, .btn:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 2px; }
+.btn { border-radius: 10px; }
+/* Encounter: Attack red, Wait gold, Flee stone (design review). */
+.choice.enc-attack { color: #FBEFE6; background: linear-gradient(180deg, #C2434F 0%, #A72D38 55%, #7E1F2A 100%); box-shadow: inset 0 0 0 1px #5E141C, inset 0 1px 0 rgba(255, 210, 210, .35), 0 4px 14px rgba(0, 0, 0, .4); }
+.choice.enc-attack small { color: #F6D9DC; }
+.choice.enc-wait { color: #2A1A06; background: linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%); box-shadow: inset 0 0 0 1px #6E4A17, inset 0 1px 0 rgba(255, 240, 205, .7); }
+.choice.enc-wait small { color: #3E2A0C; }
+/* A, B and C: parchment combat cards with the letter large. */
+.choice.combatcard { background: #EEE4CF; color: #252724; text-align: center; justify-items: center;
+  box-shadow: inset 0 0 0 1px #3B2F22, inset 0 0 0 4px #EEE4CF, inset 0 0 0 5px #9C8A66, 0 4px 10px rgba(0, 0, 0, .4); }
+.choice.combatcard .big { font: 400 54px/0.95 'IM Fell English SC', Georgia, serif; color: #252724; }
+.choice.combatcard small { color: #4A4436; }
+.choice.combatcard small.rule:last-child { color: #7E1F2A; font-weight: 600; }
+/* Sheets and cards: parchment with an ink rule, dark text (Event card, Items, Settings). */
+dialog.sheet { --ink: #252724; --ink2: #4A4436; --fill: rgba(59, 47, 34, .08); --hair: rgba(59, 47, 34, .22); --edge: rgba(59, 47, 34, .3); --glass: #EEE4CF; --glass-strong: #F6EFDF; --solid: #F6EFDF;
+  background: #EEE4CF; color: var(--ink); box-shadow: inset 0 0 0 5px #EEE4CF, inset 0 0 0 6px #9C8A66, 0 -10px 30px rgba(0, 0, 0, .6); }
+dialog.sheet .choice { background: #F6EFDF; color: #252724; box-shadow: inset 0 0 0 1px #9C8A66; }
+dialog.sheet .choice small { color: #4A4436; }
+dialog.sheet .choice.primary { color: #2A1A06; background: linear-gradient(180deg, #EBC077 0%, #DAA24C 55%, #B9812F 100%); box-shadow: inset 0 0 0 1px #6E4A17, inset 0 1px 0 rgba(255, 240, 205, .7), 0 4px 10px rgba(0, 0, 0, .25); }
+dialog.sheet .choice.primary small { color: #3E2A0C; }
+dialog.sheet .segmented { background: #DCCDAA; }
+dialog.sheet .segmented::before { background: #252724; }
+dialog.sheet .segmented button[aria-pressed="true"] { color: #EEE4CF; }
+#roll::backdrop, #outcome::backdrop, dialog.sheet::backdrop { background: rgba(10, 10, 9, .72); }
+#roll .tag-action { background: rgba(218, 162, 76, .3); }
+#roll .rollbtns { background: linear-gradient(transparent, #EEE4CF 12px); }
+#outcome h2 { font-size: 28px; }
+/* The roll and result card's dice: the approved bone faces with a gold result face. */
+#roll .d12, #draft .d12 { --die: #FBF6EA; --pip: #2E2A22; --accent: #DAA24C; }
+.menu-trigger, .menu .item { color: #EEE4CF; }
 </style>
 </head>
 <body>
 <div class="app">
-  <nav class="menu" id="menu" aria-label="Dusk Keep">
+  <nav class="menu" id="menu" aria-label="Dragon's Keep">
     <button class="menu-trigger glass" aria-controls="menuItems">
       <svg class="bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
       <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
@@ -519,65 +1272,134 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   <div class="banner" id="banner" hidden><span id="bannerText"></span><button type="button" id="bannerToggle" aria-expanded="false" aria-controls="synthetic" aria-label="What is synthetic">Details</button><ul id="synthetic" aria-label="Synthetic content" hidden></ul></div>
 
   <main id="title">
-    <h1>Dusk Keep</h1>
-    <p class="applabel" id="appLabel"></p>
-    <p class="lede">Explore the keep, take what gold you can carry, and reach a tower before the sun goes down.</p>
+    <div class="tl-scene">
+      <svg class="tl-art" viewBox="0 0 390 520" preserveAspectRatio="xMidYMax slice" aria-hidden="true" focusable="false">
+      <defs>
+      <radialGradient id="tl-sun" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#F6C26A" stop-opacity="0.95"></stop>
+      <stop offset="0.35" stop-color="#E58A45" stop-opacity="0.55"></stop>
+      <stop offset="1" stop-color="#C9563A" stop-opacity="0"></stop>
+      </radialGradient>
+      <radialGradient id="tl-gateglow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#FFD58A" stop-opacity="0.9"></stop>
+      <stop offset="0.4" stop-color="#DAA24C" stop-opacity="0.45"></stop>
+      <stop offset="1" stop-color="#DAA24C" stop-opacity="0"></stop>
+      </radialGradient>
+      <linearGradient id="tl-gate" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFE2A6"></stop>
+      <stop offset="1" stop-color="#DAA24C"></stop>
+      </linearGradient>
+      <linearGradient id="tl-spill" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#DAA24C" stop-opacity="0.55"></stop>
+      <stop offset="1" stop-color="#DAA24C" stop-opacity="0"></stop>
+      </linearGradient>
+      <linearGradient id="tl-haze" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#EEE4CF" stop-opacity="0"></stop>
+      <stop offset="0.5" stop-color="#EEE4CF" stop-opacity="0.12"></stop>
+      <stop offset="1" stop-color="#EEE4CF" stop-opacity="0"></stop>
+      </linearGradient>
+      </defs>
+      <circle cx="112" cy="392" r="78" fill="url(#tl-sun)"></circle>
+      <path fill="#6B2329" d="M0 418 L38 400 L76 410 L126 386 L168 404 L228 390 L286 406 L338 391 L390 404 V520 H0 Z"></path>
+      <path fill="#4A1A1E" d="M0 440 L60 426 L110 436 L170 424 L250 434 L320 422 L390 432 V520 H0 Z"></path>
+      <g fill="#1C1B19">
+      <rect x="70" y="350" width="260" height="122"></rect>
+      <rect x="70" y="342" width="10" height="8"></rect><rect x="140" y="342" width="10" height="8"></rect><rect x="246" y="342" width="10" height="8"></rect><rect x="316" y="342" width="14" height="8"></rect>
+      <rect x="92" y="275" width="44" height="197"></rect>
+      <rect x="92" y="265" width="9" height="10"></rect><rect x="104" y="265" width="9" height="10"></rect><rect x="116" y="265" width="9" height="10"></rect><rect x="127" y="265" width="9" height="10"></rect>
+      <rect x="160" y="205" width="80" height="267"></rect>
+      <rect x="160" y="193" width="12" height="12"></rect><rect x="177" y="193" width="12" height="12"></rect><rect x="194" y="193" width="12" height="12"></rect><rect x="211" y="193" width="12" height="12"></rect><rect x="228" y="193" width="12" height="12"></rect>
+      <rect x="262" y="255" width="46" height="217"></rect>
+      <polygon points="256,256 285,198 314,256"></polygon>
+      <rect x="284" y="186" width="2" height="14"></rect>
+      </g>
+      <path fill="#151412" d="M160 205 H170 V472 H160 Z M92 275 H99 V472 H92 Z M262 255 H269 V472 H262 Z"></path>
+      <g fill="#F2B35A" class="tl-flicker">
+      <rect x="196" y="236" width="6" height="14" rx="3"></rect>
+      <rect x="180" y="292" width="5" height="10" rx="2.5"></rect>
+      <rect x="282" y="286" width="5" height="12" rx="2.5"></rect>
+      <rect x="111" y="312" width="5" height="10" rx="2.5"></rect>
+      </g>
+      <ellipse cx="200" cy="452" rx="74" ry="46" fill="url(#tl-gateglow)"></ellipse>
+      <path fill="url(#tl-gate)" d="M184 472 V432 Q200 406 216 432 V472 Z"></path>
+      <path fill="none" stroke="#3B2A16" stroke-width="2" d="M180 472 V431 Q200 400 220 431 V472"></path>
+      <polygon points="184,472 216,472 262,520 138,520" fill="url(#tl-spill)"></polygon>
+      <rect x="0" y="372" width="390" height="120" fill="url(#tl-haze)"></rect>
+      <path fill="#121311" d="M0 466 Q36 452 70 466 L118 474 Q146 468 158 480 L146 520 H0 Z"></path>
+      <path fill="#121311" d="M390 458 Q352 448 322 466 L272 478 Q256 476 250 490 L262 520 H390 Z"></path>
+      <g fill="#F2B35A">
+      <circle class="tl-ember" cx="230" cy="330" r="1.6" style="animation-delay: 0s"></circle>
+      <circle class="tl-ember" cx="252" cy="372" r="1.2" style="animation-delay: 1.4s"></circle>
+      <circle class="tl-ember" cx="150" cy="352" r="1.4" style="animation-delay: 2.6s"></circle>
+      <circle class="tl-ember" cx="302" cy="318" r="1" style="animation-delay: 3.3s"></circle>
+      <circle class="tl-ember" cx="206" cy="300" r="1.2" style="animation-delay: 4.5s"></circle>
+      <circle class="tl-ember" cx="122" cy="388" r="1" style="animation-delay: 5.2s"></circle>
+      <circle class="tl-ember" cx="332" cy="360" r="1.4" style="animation-delay: 6s"></circle>
+      </g>
+      </svg>
+      <header class="tl-head">
+        <h1>Dragon's Keep</h1>
+        <span class="tl-rule" aria-hidden="true"></span>
+        <p class="lede">Explore the keep, take what gold you can carry, and reach a tower before the sun goes down.</p>
+      </header>
+    </div>
 
-    <details class="glass group" id="savedGroup" hidden>
-      <summary id="savedSummary">Saved games</summary>
-      <p class="note" id="savedNote" role="status" hidden></p>
-      <ul id="saves"></ul>
-    </details>
+    <div class="tl-panel" id="tlMenu">
+      <details class="tl-saves" id="savedGroup" hidden>
+        <summary id="savedSummary">Saved games</summary>
+        <p class="note" id="savedNote" role="status" hidden></p>
+        <ul id="saves"></ul>
+      </details>
+      <button type="button" class="tl-plate" id="mixed"><span><strong>Play-test my content</strong><small>Uses your draft cards and heroes</small></span><svg viewBox="0 0 24 24" fill="none" stroke="#5E7A2A" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l3 6 6 3-6 3-3 6-3-6-6-3 6-3z"/></svg></button>
+      <button type="button" class="tl-plate" id="start" hidden><span><strong>Start game</strong><small>Every content category is approved</small></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      <p class="tl-lock" id="startReason"></p>
+      <nav class="tl-links" aria-label="More">
+        <button type="button" id="howBtn" aria-expanded="false" aria-controls="howto">How to play</button>
+        <button type="button" id="setBtn">Settings</button>
+        <button type="button" class="tl-muted" id="builderBtn" aria-expanded="false" aria-controls="builder">Builder tools</button>
+      </nav>
+      <section class="tl-more" id="howto" aria-label="How to play" hidden>
+        <ul>
+              <li>Each round the sun moves one step. After sun 26 it sets, and anyone still inside is lost.</li>
+              <li>On your turn, go one square. New squares are drawn and turned so their mark faces you.</li>
+              <li>Rooms, doors, portcullises and monsters ask for cards, tests on a D12 against your stats, or a choice.</li>
+              <li>The square in the middle holds <span id="howChamber">the treasure chamber</span>. Each turn there gives two secret cards, then a dragon card.</li>
+              <li>Escape through any tower. Of those who escape, the most gold wins.</li>
+            </ul>
+      </section>
+      <section class="tl-more" id="builder" aria-label="Builder tools" hidden>
+        <p class="applabel" id="appLabel"></p>
+        <h2>Test with fixtures</h2>
+        <p class="note">Plays the whole game on made-up test data. Nothing in it is the real content, and every screen says so.</p>
+        <button class="btn" id="fixtures">Test with fixtures</button>
+        <h2>Play-test</h2>
+        <p class="note">Plays your draft and approved entries before they are all approved. Any slot you have not finished is filled with made-up test data. Every screen says which, under a red banner.</p>
+        <p class="note reason" id="mixedReason"></p>
+        <h2>Content status</h2>
+        <p class="note" id="statusNote"></p>
+        <details>
+          <summary>Every slot</summary>
+          <ul id="status"></ul>
+        </details>
+      </section>
+    </div>
 
-    <section class="glass group">
-      <h2 id="countTitle">Players</h2>
+    <section class="tl-panel tl-setup" id="setup" aria-labelledby="setupTitle" hidden>
+      <div class="tl-setuphead">
+        <button type="button" class="tl-back" id="setupBack" aria-label="Back to the start screen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+        <div class="dprog" role="progressbar" aria-label="Setting up" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" aria-valuetext="Step 1 of 5: Players"><i class="now"></i><i></i><i></i><i></i><i></i></div>
+        <span class="tl-chip" id="setupChip"></span>
+      </div>
+      <h2 id="setupTitle" tabindex="-1">Who enters the keep?</h2>
+      <p class="tl-sub">Choose how many will play, then name each adventurer. Leave a name blank to keep the default.</p>
+      <h3 id="countTitle">Players</h3>
       <div class="segmented" id="countSeg" role="group" aria-labelledby="countTitle">
         <button value="1">1</button><button value="2">2</button><button value="3">3</button><button value="4">4</button>
       </div>
       <ul id="names"></ul>
-      <div id="soloBox" hidden>
-        <h3 id="soloTitle">Solo combat</h3>
-        <div class="segmented" id="soloSeg" role="group" aria-labelledby="soloTitle">
-          <button value="target">Target</button>
-          <button value="abc-digital-variant">A, B or C</button>
-        </div>
-        <p class="note" id="soloNote"></p>
-      </div>
+      <button type="button" class="tl-plate" id="setupGo"><span><strong>Continue</strong></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      <p class="note reason" id="setupReason"></p>
     </section>
-
-    <section class="glass group">
-      <h2>Content status</h2>
-      <p class="note" id="statusNote"></p>
-      <details>
-        <summary>Every slot</summary>
-        <ul id="status"></ul>
-      </details>
-    </section>
-
-    <button class="btn primary" id="start">Start game</button>
-    <p class="note reason" id="startReason"></p>
-    <section class="glass group">
-      <h2>Test with fixtures</h2>
-      <p class="note">Plays the whole game on made-up test data. Nothing in it is the real content, and every screen says so.</p>
-      <button class="btn" id="fixtures">Test with fixtures</button>
-    </section>
-    <section class="glass group">
-      <h2>Play-test your content</h2>
-      <p class="note">Play-test: your content plus NON-AUTHENTIC fill-in. Plays your draft and approved entries, with made-up test data filling every slot you have not finished. Every screen says so.</p>
-      <button class="btn" id="mixed">Play-test my content</button>
-      <p class="note reason" id="mixedReason"></p>
-    </section>
-
-    <details class="glass group">
-      <summary>How to play</summary>
-      <ul>
-        <li>Each round the sun moves one step. After sun 26 it sets, and anyone still inside is lost.</li>
-        <li>On your turn, go one square. New squares are drawn and turned so their mark faces you.</li>
-        <li>Rooms, doors, portcullises and monsters ask for cards, tests on a D12 against your stats, or a choice.</li>
-        <li>The square in the middle holds the treasure chamber. Each turn there gives two secret cards, then a dragon card.</li>
-        <li>Escape through any tower. Of those who escape, the most gold wins.</li>
-      </ul>
-    </details>
   </main>
 
   <main id="draft" hidden></main>
@@ -657,6 +1479,14 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
   <div>
     <button class="sheet-x" aria-label="Close settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
     <h2 id="settingsTitle">Settings</h2>
+    <div id="soloBox">
+      <h3 id="soloTitle">Solo combat</h3>
+      <div class="segmented" id="soloSeg" role="group" aria-labelledby="soloTitle">
+        <button value="target">Target</button>
+        <button value="abc-digital-variant">A, B or C</button>
+      </div>
+      <p class="note" id="soloNote"></p>
+    </div>
     <h3 id="themeTitle">Appearance</h3>
     <div class="appearance">
       <div class="segmented" id="themeSeg" role="group" aria-labelledby="themeTitle">
@@ -677,19 +1507,24 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
         <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor" stroke="none"/>
       </svg>
     </div>
-    <h3 id="debugTitle">Debug log</h3>
-    <div class="segmented" id="debugSeg" role="group" aria-labelledby="debugTitle">
-      <button value="off">Off</button>
-      <button value="on">On</button>
-    </div>
-    <p>Shows deck ids, every hidden card and the dice generator in the event log, for checking the engine. It reveals secrets on a shared screen.</p>
-    <h3>Rules in play</h3>
-    <p>Read only. Each line names its ruling and its class: an original rule, an interpretation, a house rule or application only.</p>
-    <ul id="rules"></ul>
+    <details class="setmore">
+      <summary>Rules in play</summary>
+      <p>Read only. Each line names its ruling and its class: an original rule, an interpretation, a house rule or application only.</p>
+      <ul id="rules"></ul>
+    </details>
+    <details class="setmore">
+      <summary>Builder tools</summary>
+      <h3 id="debugTitle">Debug log</h3>
+      <div class="segmented" id="debugSeg" role="group" aria-labelledby="debugTitle">
+        <button value="off">Off</button>
+        <button value="on">On</button>
+      </div>
+      <p class="warn">Shows deck ids, every hidden card and the dice generator in the event log, for checking the engine. It reveals secrets on a shared screen.</p>
+    </details>
     <h3>About</h3>
-    <p>Dusk Keep: <span id="appLabelSettings"></span>.</p>
+    <p>Dragon's Keep: <span id="appLabelSettings"></span>.</p>
     <div class="account" id="account" hidden><h3>Account</h3></div>
-    <button class="btn" id="settingsDone">Done</button>
+    <button class="btn primary" id="settingsDone">Done</button>
   </div>
 </dialog>
 

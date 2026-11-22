@@ -24,4 +24,18 @@
 // SKELETON END
 
 export default [
+  { id: 'SEARCH_001', copies: 1, status: 'draft', name: 'Shuffle again', text: '', deck: 'SEARCH', kind: 'reshuffle', cardDisposition: 'RESHUFFLE_DECK',
+    notes: 'Owner catalogue 2026-11-19 (SR-001). Goes back into the search deck, which is shuffled without the cards heroes hold (R62); the hero then at once draws another search card, which resolves normally as the result of the search, again if it is this card; no extra turn, no cancelled action, no extra card. Status: 1985-SUPPORTED INTERPRETATION (original-rule-supported interpretation consistent with Alga 2023: 1985 rules section 24; owner decision spec v7, plan D62). Draft until the owner approves.' },
+  { id: 'SEARCH_002', copies: 2, status: 'draft', name: 'Scorpion', text: '', deck: 'SEARCH', kind: 'event', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D6', plus: -2 } }],
+    notes: 'Owner catalogue 2026-11-19 (SR-002, 2 copies). Draft until the owner approves.' },
+  { id: 'SEARCH_003', copies: 1, status: 'draft', name: 'Necklace', text: '', deck: 'SEARCH', kind: 'treasure', gold: 150, cardDisposition: 'RETAIN_HELD',
+    notes: 'Owner catalogue 2026-11-19 (SR-003). Treasure worth 150 gold, kept; no other ability. Draft until the owner approves.' },
+  { id: 'SEARCH_004', copies: 5, status: 'draft', name: 'Nothing', text: '', deck: 'SEARCH', kind: 'empty',
+    notes: 'Owner catalogue 2026-11-19 (SR-004, 5 copies). No effect. Draft until the owner approves.' },
+  { id: 'SEARCH_005', copies: 3, status: 'draft', name: 'Rope', text: '', deck: 'SEARCH', kind: 'item', cardDisposition: 'RETAIN_HELD', frees: ['trapdoor'],
+    notes: 'Owner catalogue 2026-11-19 (SR-005, 3 copies). Kept, never used up (none is printed). After a fall through a trapdoor the hero climbs out at the start of the next turn without the Agility test and plays on (plan D55). Climbing without the test and never consumed: an owner-approved interpretation (owner spec v11, 2026-11-20). Draft until the owner approves.' },
+  { id: 'SEARCH_006', copies: 2, status: 'draft', name: 'Coins', text: '', deck: 'SEARCH', kind: 'treasure', gold: 60, cardDisposition: 'RETAIN_HELD',
+    notes: 'Owner catalogue 2026-11-19 (SR-006, 2 copies). Treasure worth 60 gold, kept; no other ability. Draft until the owner approves.' },
+  { id: 'SEARCH_007', copies: 1, status: 'draft', name: 'Small flask', text: '', deck: 'SEARCH', kind: 'item', cardDisposition: 'RETAIN_HELD', use: { timing: 'free', uses: 1, afterUse: 'bottom', effects: [{ op: 'ROLL_D12', store: 'gain' }, { op: 'ROLL_D6', store: 'loss' }, { op: 'ADJUST_HP', amount: { reg: 'gain', minusReg: 'loss' }, uncapped: true }] },
+    notes: 'Owner catalogue 2026-11-19 (SR-007). Kept until the hero drinks it: roll a D12 and a D6 together, gain the D12 and lose the D6 as one net change, with no cap at starting HP (the 2023 rules print no maximum); final HP 0 or less is death; then this copy goes to the bottom of its own deck, never out of the game. Drinking does not use the turn. Status: OWNER_APPROVED_INTERPRETATION (a literal 2023 card reading with no stated maximum, approved by the owner on 2026-11-20 as an interpretation; printed on the card: roll a D12 and a D6, gain one and lose the other; the free-use timing, a free action in the normal action window of the hero that never interrupts an unresolved event, is also an owner-approved interpretation, spec v10, 2026-11-20; plan D53). Draft until the owner approves.' },
 ];

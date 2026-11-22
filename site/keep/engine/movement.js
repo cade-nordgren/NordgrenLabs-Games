@@ -3,10 +3,12 @@
 import { roll, testStat, testPreview, logEvent } from './dice.js';
 import { key, squareKind, exits, exitFor, edgeKey } from './board.js';
 import { SIDES, OPPOSITE, rotationFor, sideOnBoard } from './tiles.js';
-import { contentIndex } from '../content/schema.js';
+import { contentIndex, chamberCards } from '../content/schema.js';
 import { killHero, setCondition, clearCondition, statOf, TILE_CONDITIONS, hasCondition, EXPLORING, IN_TOWER } from './heroes.js';
 import { drawAndResolve, run } from './effects.js';
+import { cardDef } from './decks.js';
 import { collect } from './treasury.js';
+import { ringFor, consumeRing } from './inventory.js';
 
 const tileDefAt = (g, content, c) => contentIndex(content).tiles.get(g.board.tiles[key(c)].defId);
 
@@ -27,7 +29,7 @@ export function allowContinue(g, reason, extra = {}) {
 
 // Turn-scoped state: set at TURN_START, read by exits() and the resolution loop.
 export function freshTurn(seat) {
-  return { seat, stage: 'start', mayContinue: false, endAfter: false, endNow: false, openedDoor: null, triedDoors: [], secret: null, transitFrom: null };
+  return { seat, stage: 'start', mayContinue: false, endAfter: false, endNow: false, openedDoor: null, triedDoors: [], secret: null, transitFrom: null, resume: null };
 }
 
 // SP 4 step 2, RB 5 step 1: carry-over effects resolve before a fresh action. Card conditions with
@@ -37,8 +39,12 @@ export function beginTurn(g, content) {
   g.stack = [];
   g.pending = null;
   const hero = g.heroes[g.activeSeat];
-  for (const c of [...hero.conditions]) {
+  // Skipped turns (D54) are pushed last so they run first: a skipped turn does nothing else.
+  for (const c of [...hero.conditions].sort((a, b) => (a.id === 'skip-turns') - (b.id === 'skip-turns'))) {
     if (!c.onTurnStart?.length) continue;
+    // D55: a kept card whose data frees the hero from this effect (the rope and the trapdoor) does so, untested, unspent.
+    const item = hero.held.find(inst => cardDef(content, inst).frees?.includes(c.id));
+    if (item) { clearCondition(g, hero.seat, c.id); logEvent(g, { kind: 'freed', seat: hero.seat, id: c.id, item }); continue; }
     g.stack.push({ effects: c.onTurnStart, i: 0 });
     if (c.turns !== null && --c.turns <= 0) clearCondition(g, hero.seat, c.id);
   }
@@ -81,6 +87,26 @@ export function attemptMove(g, content, dir, { noDetour = false, from = null } =
     return enterTile(g, content, seat, ex.to, { dir, via: 'gate' });
   }
   enterTile(g, content, seat, ex.to, { dir, via: ex.edge === 'secret' ? 'secret' : 'move' });
+}
+
+// Spec v5 Opening Ring (interpretation): instead of the door card or the Strength test, the door opens or the
+// portcullis lifts, and the hero goes through exactly as after an opened door (it relocks behind them, same-turn
+// flight back excepted, RB 6.6) or a lifted portcullis (it stays down, RB 6.7).
+export function passBarrier(g, content, dir, from = null) {
+  const seat = g.activeSeat;
+  const hero = g.heroes[seat];
+  const ex = exitFor(g, content, seat, dir, from);
+  if (ex.edge !== 'door' && ex.edge !== 'gate') return;
+  hero.coord = { ...ex.from };
+  g.turn.mayContinue = false;
+  const edge = edgeKey(hero.coord, dir);
+  if (ex.edge === 'door') {
+    logEvent(g, { kind: 'door', result: 'opens', edge, ring: true });
+    g.turn.openedDoor = edge;
+    return enterTile(g, content, seat, ex.to, { dir, via: 'door' });
+  }
+  logEvent(g, { kind: 'gate', edge, pass: true, ring: true });
+  enterTile(g, content, seat, ex.to, { dir, via: 'gate' });
 }
 
 // RB 6.4, SP 5: 90 degrees clockwise, connectivity changes for everyone.
@@ -143,10 +169,40 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
   g.phase = 'RESOLVE_TILE_ENTRY';
   const def = tileDefAt(g, content, to);
   const effects = via === 'forced' ? applyTile && g.rules.forcedMoveTileEffects : applyTile;
+  const ctx = { first, via, dir, drawRoom, effects };
+  // Order for tiles that combine a special and a mark (D29, data decides): rotation, gate behind,
+  // well test, turn-ending conditions, then the room card.
+  if (effects && def.special === 'rotating') {
+    // Spec v9 (owner-approved interpretation, D67): with the Protection Ring unused, the hero first chooses whether the
+    // room turns on this entry; the room stays placed and unturned until then (answerRotationRing).
+    if (rotationRingOffered(g, content, seat, first)) { g.pending = { kind: 'rotation-ring', seat, at: key(to), ...ctx }; return; }
+    rotateTile(g, to); // D10: first reveal orients by the dot, then rotates
+  }
+  finishEntry(g, content, seat, ctx);
+}
+
+// Spec v9: rotatingRoomRing 'every-entry' (default: reveal, re-entry, flight, forced move), 'first-reveal' or 'never'.
+const rotationRingOffered = (g, content, seat, first) =>
+  (g.rules.rotatingRoomRing === 'every-entry' || (g.rules.rotatingRoomRing === 'first-reveal' && first)) && !!ringFor(g, content, seat, 'trap-drawn');
+
+// Spec v9: Use the ring: consumed as on a trap card, the room does not turn this entry. Keep it: the normal quarter
+// turn now. Either way the entry then resolves exactly as it would have (no extra turn or move); the caller runs on.
+export function answerRotationRing(g, content, use) {
+  const p = g.pending;
+  g.pending = null;
+  if (use) { consumeRing(g, content, p.seat); logEvent(g, { kind: 'rotation-ignored', seat: p.seat, at: p.at }); }
+  else { logEvent(g, { kind: 'ring-kept', seat: p.seat }); rotateTile(g, g.heroes[p.seat].coord); }
+  finishEntry(g, content, p.seat, p);
+}
+
+// The rest of a tile entry, after the rotation.
+function finishEntry(g, content, seat, { first, via, dir, drawRoom, effects }) {
+  const hero = g.heroes[seat];
+  const to = hero.coord;
+  const own = seat === g.activeSeat && via !== 'forced';
+  const retreat = via === 'flight' || via === 'forced';
+  const def = tileDefAt(g, content, to);
   if (effects) {
-    // Order for tiles that combine a special and a mark (D29, data decides): rotation, gate behind,
-    // well test, turn-ending conditions, then the room card.
-    if (def.special === 'rotating') rotateTile(g, to); // D10: first reveal orients by the dot, then rotates
     if (def.mark === 'red') {
       // RB 6.1, RB 6.7: a portcullis falls behind the entrant.
       g.board.edges[edgeKey(to, hero.enteredFrom)] = 'gate';
@@ -154,7 +210,8 @@ export function enterTile(g, content, seat, to, { dir, via, drawRoom = true, app
     }
     if (def.special === 'well') {
       // RB 6.3, SP 5: Agility test on entry; failure is death, success clings to the near edge.
-      const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well entry');
+      const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well entry', 0, seat);
+
       if (!pass) return killHero(g, content, seat, 'fell into the well');
       setCondition(g, seat, { id: 'well-edge', turns: null });
       hero.roomState = { special: 'well', entryEdge: hero.enteredFrom, phase: 'AT_NEAR_EDGE' }; // spec v2
@@ -200,7 +257,7 @@ export function rollDarkExit(g, content) {
   logEvent(g, { kind: 'dark-exit', roll: d6, dir, exits: exitSides.length });
   const ex = exits(g, content, hero.seat).find(e => e.dir === dir);
   if (!ex || !ex.legal) {
-    // D07 (house rule, provisional): a blocked rolled exit keeps the hero here to roll again next turn.
+    // D07 (house rule; OWNER_APPROVED_INTERPRETATION, spec v11): a blocked rolled exit keeps the hero here to roll again next turn.
     logEvent(g, { kind: 'dark-blocked', dir, reason: ex ? ex.reason : 'off-board' });
     g.turn.endAfter = true;
     return;
@@ -209,7 +266,7 @@ export function rollDarkExit(g, content) {
 }
 
 // RB 6.3, spec v3 section 4: +1 on the jump per treasure-chamber card carried.
-export const wellJumpModifiers = hero => [{ source: 'treasure chamber cards carried', value: hero.treasury.length }];
+export const wellJumpModifiers = (hero, content) => [{ source: `${chamberCards(content)} carried`, value: hero.treasury.length }];
 
 // Spec v3: the attribute tests an action may roll, for a confirmation before it (view.pendingTests).
 // Only what the engine knows in advance: a portcullis on the edge (RB 6.7: only a fallen or printed one,
@@ -227,7 +284,7 @@ export function actionTests(g, content, action) {
     if (inst && contentIndex(content).tiles.get(inst.defId).special === 'well') out.push(testPreview('AGI', stat('AGI'), 'well entry'));
     return out;
   }
-  if (action.type === 'WELL_JUMP') return [testPreview('AGI', stat('AGI'), 'well jump', wellJumpModifiers(hero))];
+  if (action.type === 'WELL_JUMP') return [testPreview('AGI', stat('AGI'), 'well jump', wellJumpModifiers(hero, content))];
   if (action.type === 'RUBBLE_FORCE') return [testPreview('AGI', stat('AGI'), 'force rubble')];
   return [];
 }

@@ -4,29 +4,35 @@
 import { newRng, roll, testStat, shuffle, logEvent } from './dice.js';
 import { tileSlots } from './tiles.js';
 import { startTurn, endTurn } from './clock.js';
-import { initDecks, toBottom } from './decks.js';
+import { initDecks, toBottom, cardDef } from './decks.js';
 import { run, drawAndResolve } from './effects.js';
-import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers, allowContinue } from './movement.js';
-import { killHero, clearCondition, statOf, READY, ESCAPED } from './heroes.js';
+import { attemptMove, rollDarkExit, enterTile, wellJumpModifiers, allowContinue, answerRotationRing } from './movement.js';
+import { killHero, clearCondition, setCondition, statOf, READY, ESCAPED } from './heroes.js';
 import { neighbour } from './board.js';
 import { respond, announce, combatPick, targetResult } from './monsters.js';
 import { collect, forcedMove, checkDragonReset } from './treasury.js';
 import { legalActions, sameAction } from './phases.js';
-import { spendUse, itemLog } from './inventory.js';
+import { spendUse, itemLog, consumeRing } from './inventory.js';
 import { validateContent, contentIndex, contentHash, MIXED_BANNER } from '../content/schema.js';
 
 export const SCHEMA_VERSION = 1;
-export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v4'; // v4: two-square chamber room (D39), escape sun, continue reasons; older saves are refused
+export const MECHANICS_VERSION = 'rb-0.2/sp-1.0/v10'; // v10: owner spec v9 (the Protection Ring may stop the rotating room turning, on every entry). v9: owner spec v7 (every "shuffle again" card redraws at once, not only the door's). v8: owner spec v6 (ceiling second roll, door shuffle redraws, torch card returned, flask uncapped, wider trap scope); older saves are refused
 export const MAX_PLAYERS = 4;
 
 // Rules config: rulings kept as data so a change is a flag, not code (plan section 9).
 export const DEFAULT_RULES = {
   // D06: the dark effect on the initial reveal and on a flee back in, not on ordinary re-entry; or 'EVERY_ENTRY'.
   darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY',
-  forcedMoveTileEffects: true, // plan 13 #3 default: tile effects at the post-wake forced-move target apply as for flight (D16)
+  forcedMoveTileEffects: true, // plan 13 #3, owner spec v11 decision 6: tile entry effects at the post-wake forced-move target apply as for flight (D16), never a room card
   soloCombat: 'target', // D17: 'target' (original, manual result entry) or 'abc-digital-variant' (class 4, labelled)
   towerAtSunsetCountsAsEscape: false, // D32: a hero in a tower at sunset who never chose Escape is not escaped
   escapeWithoutExploring: false, // D33: a hero still in its start tower is never offered Escape
+  // D37 as amended by spec v4: solo shows the revealed monster's HP (2023 rules 11); 'hidden-house-rule' restores the
+  // old solo behaviour (no user-facing switch yet: the owner may offer it later as a labelled house rule).
+  soloMonsterHp: 'visible',
+  // D67 (owner spec v9, owner-approved interpretation): the Protection Ring is offered on entering a rotating room, before it
+  // turns: 'every-entry' (reveal, re-entry, flight, the dragon's forced move), 'first-reveal' only, or 'never' (before v9).
+  rotatingRoomRing: 'every-entry',
 };
 const RULE_VALUES = {
   darkRoomPolicy: ['ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', 'EVERY_ENTRY'],
@@ -34,6 +40,8 @@ const RULE_VALUES = {
   soloCombat: ['target', 'abc-digital-variant'],
   towerAtSunsetCountsAsEscape: [true, false],
   escapeWithoutExploring: [true, false],
+  soloMonsterHp: ['visible', 'hidden-house-rule'],
+  rotatingRoomRing: ['every-entry', 'first-reveal', 'never'],
 };
 // Spec v2 authority levels: A explicit2023, B componentData, C legacySupported, D interpretation,
 // E houseRule, F developer assumption (forbidden), plus app-only for class 4 behaviour.
@@ -44,6 +52,8 @@ export const RULE_TAGS = {
   soloCombat: ['explicit2023', 'app-only'], // target mode explicit; the A/B/C computer variant app-only
   towerAtSunsetCountsAsEscape: ['interpretation'],
   escapeWithoutExploring: ['interpretation'],
+  soloMonsterHp: ['explicit2023', 'houseRule'], // visible explicit (2023 rules 11); hidden a house rule
+  rotatingRoomRing: ['interpretation'], // the room is a trap and turns on every entry: explicit (5.7); the ring's part is the owner's interpretation
   // Fixed rulings without a switch (not in DEFAULT_RULES), tagged all the same:
   towerEscapeOnLaterTurns: ['interpretation'], // plan 13 #25: after Stay, Escape stays offered on later turns
 };
@@ -74,7 +84,7 @@ export function createGame({ players, seed, content, rules = {}, diceScript = nu
     schemaVersion: SCHEMA_VERSION,
     mechanicsVersion: MECHANICS_VERSION,
     contentMode: content.mode,
-    banner: content.mode === 'fixture' ? 'NON-AUTHENTIC TEST DATA' : content.mode === 'mixed' ? MIXED_BANNER : null,
+    banner: content.mode === 'fixture' ? 'NON-AUTHENTIC TEST DATA' : content.mode === 'mixed' ? content.label || MIXED_BANNER : null,
     contentHash: contentHash(content),
     rules: { ...DEFAULT_RULES, ...rules },
     phase: 'SETUP',
@@ -138,7 +148,7 @@ const apply = {
   PICK_HERO(g, { seat, heroId }, content) {
     const def = contentIndex(content).heroes.get(heroId);
     g.seats[seat].heroId = heroId;
-    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0, itemUses: {}, escapeSun: null };
+    g.heroes[seat] = { heroId, seat, status: READY, roomState: null, coord: null, prevCoord: null, enteredFrom: null, enteredVia: null, startTower: null, hp: def.hp, hpStart: def.hp, held: [], treasury: [], conditions: [], weaponUses: 0, itemUses: {}, ringUsed: false, escapeSun: null };
     logEvent(g, { kind: 'pick-hero', seat, heroId });
     if (++g.setup.index === n(g)) nextPick(g, 'rings', [...g.setup.order].reverse());
   },
@@ -192,17 +202,50 @@ const apply = {
     itemLog(g, seat, 'discard', card, 'chamber', { to: 'bottom of TREASURY' });
   },
   // Spec v3 section 4: a held card whose own `use` data allows it, as the turn's action (timing 'turn-action').
+  // D53: an item whose use timing is 'free' (the flask) does not use the turn: the turn goes on where it was.
   USE_ITEM(g, { seat, item }, content) {
+    if (cardDef(content, item).use.timing === 'free') g.turn.resume = g.phase;
     g.stack.push({ effects: spendUse(g, content, seat, item), i: 0 });
     run(g, content);
   },
+  // D56, D58, D59: the named numbers (a sorted list such as '1,3,5'), then one D6; a match runs the card's onMatch.
+  NAME_NUMBERS(g, { seat, numbers }, content) {
+    const p = g.pending;
+    g.pending = null;
+    const named = numbers.split(',').map(Number);
+    const value = roll(g, 'D6', `named roll${p.label ? ` (${p.label})` : ''}`);
+    const match = named.includes(value);
+    if (p.store) g.registers[p.store] = value;
+    logEvent(g, { kind: 'named-roll', seat, numbers: named, value, match, label: p.label, card: p.card });
+    g.stack.push({ effects: match ? p.onMatch : p.onMiss, i: 0 });
+    run(g, content);
+  },
+  // Spec v5: the seat's ring, at the one moment its card data allows (phases.js offers it only then). It is consumed;
+  // its effects run with the door or portcullis it was used at (Opening Ring).
+  USE_RING(g, { seat, dir, from }, content) {
+    if (g.pending?.kind === 'rotation-ring') { answerRotationRing(g, content, true); return run(g, content); } // spec v9
+    g.pending = null;
+    const effects = consumeRing(g, content, seat);
+    g.stack.push({ effects, i: 0, ...(dir ? { passage: { dir, from: from ?? null } } : {}) });
+    run(g, content);
+  },
+  // The trap happens: the card resolves as drawn and the ring stays unused.
+  // Spec v9: at a rotating room, the room turns now.
+  DECLINE_RING(g, { seat }, content) {
+    if (g.pending?.kind === 'rotation-ring') { answerRotationRing(g, content, false); return run(g, content); }
+    g.pending = null; logEvent(g, { kind: 'ring-kept', seat }); run(g, content);
+  },
   // RB 6.3, SP 5: AGI test on D12 + held treasure-chamber cards. D08 (interpretation): a failed jump is death.
+  // D42 (spec v4): success leaves the hero on the well tile at the opposite edge (CROSSED) and ends the turn; a jump
+  // from CROSSED goes back to the near edge (interpretation), which is the clinging state again.
   WELL_JUMP(g, { seat }, content) {
     const hero = g.heroes[seat];
     g.pending = null;
-    const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', wellJumpModifiers(hero));
+    const back = hero.roomState?.phase === 'CROSSED';
+    const { pass } = testStat(g, 'AGI', statOf(content, hero, 'AGI'), 'well jump', wellJumpModifiers(hero, content));
     if (!pass) killHero(g, content, seat, 'failed the well jump');
-    else { clearCondition(g, seat, 'well-edge'); hero.roomState = { ...hero.roomState, phase: 'CROSSED' }; } // plan 13 #10: across, the turn ends
+    else if (back) { setCondition(g, seat, { id: 'well-edge', turns: null }); hero.roomState = { ...hero.roomState, phase: 'AT_NEAR_EDGE' }; }
+    else { clearCondition(g, seat, 'well-edge'); hero.roomState = { ...hero.roomState, phase: 'CROSSED' }; }
     g.turn.endAfter = true;
     run(g, content);
   },
@@ -224,6 +267,8 @@ const apply = {
   },
   // Spec v2, owner tower ruling: only ESCAPE sets ESCAPED (final, the hero leaves the turn order); STAY ends
   // the turn in the tower; CONTINUE goes on through another legal tower passage this turn (transit).
+  // Deliberate owner rule (D23, D32-D34), not the printed rulebook (which only says reach any tower before
+  // sunset, 2023 rules section 2): do not "correct" Escape / Stay / Continue or INSIDE_AT_SUNSET from the PDF.
   TOWER_CHOICE(g, { seat, choice }, content) {
     const hero = g.heroes[seat];
     g.pending = null;

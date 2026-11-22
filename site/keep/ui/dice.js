@@ -103,7 +103,7 @@ export function rollDice(host, items, { sides = 12, animate = true } = {}) {
   });
   host.replaceChildren(row);
   const land = pop => { for (const d of dice) { d.classList.add('landed'); if (pop) d.parentElement.classList.add('pop'); } };
-  if (!animate || still()) { land(false); return Promise.resolve(); }
+  if (!animate || still() || document.hidden) { land(false); return Promise.resolve(); }
   // The same transform functions at both ends, so the browser turns the angles, whole spins included, rather than
   // taking the short way between two matrices.
   const rest = d => REST[d.className];
@@ -114,5 +114,6 @@ export function rollDice(host, items, { sides = 12, animate = true } = {}) {
   });
   row.getBoundingClientRect(); // lay out the spin first, so the turn below is transitioned from it
   for (const d of dice) { d.style.transition = ''; d.style.transform = pose(rest(d)); }
+  // A timer, not the transition's end event: the result shows and Continue works even when no frame is drawn (spec v12 fix 5).
   return new Promise(done => setTimeout(() => { land(true); done(); }, LAND));
 }

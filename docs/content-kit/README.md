@@ -111,7 +111,7 @@ The new entry is a valid `draft` with neutral values. Change the values, then ch
 | `status` | yes | `'draft'` while you work on it, `'approved'` when it is final. Only approved entries count towards the full game. |
 | `name` | most slots | Your own name for the card, tile or hero. |
 | `text` | no | Your own wording. When it is set, the game shows it instead of the summary it would otherwise generate from the mechanics (for cards, monsters, tiles, heroes and rings). Leave it out, or `''`, to use the generated summary. |
-| `notes` | no | Notes to yourself. Never shown in the game. |
+| `notes` | no | Notes to yourself. Never shown in the game. A flagged entry names its evidence status here as `Status: ` followed by one of `DIRECT 2023 RULE`, `DIRECT 2023 CARD`, `1985-SUPPORTED INTERPRETATION`, `OWNER_APPROVED_INTERPRETATION` (an interpretation you directed or approved, not a printed rule and not waiting on a ruling; owner spec v9), `PROVISIONAL/INFERRED`, `OWNER DECISION REQUIRED` (owner spec v6); the checker groups entries by it. None of them means approved: only `status: 'approved'` does. |
 | `art` | where the skeleton has it | Leave `null` for now. Art comes later. |
 
 You don't write `source`; the kit marks every entry in these files as your original content.
@@ -128,23 +128,35 @@ Cards (and special weapons, rings and monster reactions) carry `effects`: a list
 |---|---|---|
 | `ROLL_D12` / `ROLL_D6` | `store: 'a name'` | Rolls the die and remembers the result under that name, for a later step to use (see `reg` below). |
 | `CHECK_STAT` | `stat: 'STR' \| 'AGI' \| 'ARM' \| 'LCK'`, `modifier:` dice or number, `onPass: [steps]`, `onFail: [steps]` | A stat test: roll a D12, add the modifier; at or under the hero's stat passes. Then runs `onPass` or `onFail`. |
-| `DEAL_DAMAGE` | `target: 'hero' \| 'monster'`, `amount:` dice or number | Damage. A result below 0 counts as 0 (ruling D03). |
+| `DEAL_DAMAGE` | `target: 'hero' \| 'monster'`, `amount:` dice or number, `store: 'a name'` (optional) | Damage. A result below 0 counts as 0 (ruling D03). `store` remembers the damage actually taken, for a later step (one skipped turn per point, for example). |
+| `ADJUST_HP` | `amount:` dice or number, `uncapped: true` (optional) | One net change of HP: above 0 heals (never above starting HP, D04, unless `uncapped`), below 0 is damage and can kill. The flask: a D12 gained and a D6 lost at once, `uncapped: true` (D53, spec v6: the 2023 rules print no maximum). |
+| `SKIP_TURNS` | `turns:` dice or number, `label: 'words'` (optional) | The hero misses that many of their next turns (more add to any already owed; 0 or less: none, D54). `label` is the short reason players read, for example `'Unconscious'`. |
+| `NAME_NUMBERS` | `count: 1 \| 3`, `label: 'words'`, `store: 'a name'` (optional), `onMatch: [steps]`, `onMiss: [steps]` | The hero names that many different numbers from 1 to 6, then a D6 is rolled: a named number runs `onMatch`, any other `onMiss`. `store` remembers the roll. |
+| `KILL_HERO` | none | The hero dies. |
+| `FLEE` | none | The hero flees back the way they came, as from a monster (no room card there, the turn ends), when that way exists. |
+| `ROTATE_TILES` | `mark: 'yellow'` (any mark), `degrees: 90 \| 180 \| 270` | Every placed tile with that mark turns clockwise by that much (270 is a quarter turn counter-clockwise). Heroes stay on their squares; fallen portcullises stay on their edges (D57). |
 | `HEAL` | `amount:` dice or number, `uncapped: true` (optional) | Healing, never above the hero's starting HP (D04) unless `uncapped: true`. |
 | `DRAW_CARD` | `deck: 'ROOM' \| 'SEARCH' \| 'ROOM_SEARCH' \| 'CHEST' \| 'DOOR' \| 'TREASURY' \| 'MONSTER'`, `then: 'resolve' \| 'keep'` | Draws from another deck: `resolve` plays that card now, `keep` puts it in the hero's hand unplayed (a treasury card goes to their private treasury). |
 | `RETAIN_CARD` | `into: 'held' \| 'treasury'` | The hero keeps this card (its gold counts at the end). `treasury` keeps it private. |
 | `GRANT_TREASURE` | none | Same as keeping the card in hand: its `gold` counts. |
+| `RETURN_HELD` | `card: 'ROOM_004'` (a card id) | One kept card with that id leaves the hero for the bottom of its own deck: a kept card whose lasting effect is over (the relit torch, D56, spec v6). Usually inside a condition's `onTurnStart` branch. |
 | `RETURN_CARD_TO_BOTTOM` | `card: 'self'` | This card goes under its deck now (the usual ending, written out, for example in one choice of a `REQUEST_CHOICE`). |
 | `SHUFFLE_DECK` | `deck:` a deck name (optional) | Shuffles this card's deck after it is done, or the named deck now. |
 | `REMOVE_TREASURY_CARDS` | `who: 'hero'` | The hero loses their treasure chamber cards, to the bottom of the treasury deck. |
 | `MOVE_HERO` | `to: 'prev' \| 'adjacent-choice' \| 'N' \| 'E' \| 'S' \| 'W'`, `drawRoom: true/false`, `applyTile: true/false` | Moves the hero: back where they came from, to a neighbouring square they choose, or one step that way. `drawRoom` says whether a room card is drawn there, `applyTile` whether the tile's dot and special rules apply. |
 | `END_TURN` | none | The turn ends at once; later steps on this card are skipped. |
 | `CONTINUE_MOVEMENT` | none | The hero may keep moving this turn. |
-| `SET_CONDITION` | `id: 'a name'`, `turns:` a number or `null`, `onTurnStart: [steps]` | A lasting effect on the hero. Its `onTurnStart` steps run at the start of each of their turns, for that many turns (`null`: until cleared). |
+| `SET_CONDITION` | `id: 'a name'`, `turns:` a number or `null`, `onTurnStart: [steps]`, `label: 'words'` (optional) | A lasting effect on the hero. Its `onTurnStart` steps run at the start of each of their turns, for that many turns (`null`: until cleared). `label` is the short reason line players see on the hero and the prompt, for example `'In a trapdoor pit'`. A kept card whose `frees` names this `id` lifts it at the start of the turn, untested. |
 | `CLEAR_CONDITION` | `id: 'a name'` | Ends a lasting effect with that name. |
-| `REQUEST_CHOICE` | `options: [{ label: 'words', effects: [steps] }, ...]` | The player picks one option; its steps run. |
-| `MONSTER_ENCOUNTER` / `REQUEST_COMBAT` | `ambush: true/false` | A monster: the hero commits to Attack, Wait, Flee or Special before the monster card is revealed. In an ambush the monster strikes first and Wait is not offered (RB 8.7). |
+| `REQUEST_CHOICE` | `options: [{ label: 'words', effects: [steps], requires: 'can-flee' (optional) }, ...]` | The player picks one option; its steps run. An option with `requires: 'can-flee'` is offered only when the hero has a way back (as for fleeing a monster). An option labelled `'Leave it'` makes the prompt ask the first option as a question ("Open the chest?"). |
+| `MONSTER_ENCOUNTER` / `REQUEST_COMBAT` | `ambush: true/false`, `monster: 'S09'` (the monster type met) | A monster: the hero commits to Attack, Wait, Flee or Special before the monster card is revealed. In an ambush the monster strikes first (D12 minus Luck, never below 0) and Wait is not offered (RB 8.7); a special weapon still is (D41). `monster` names the type the hero meets, a monster-group combat set `'S09'` to `'S12'`; the drawn monster card is read on that type's row ([Monster cards](#monster-cards)). It is required once your monster cards have rows. |
 | `OPEN_TEMPORARY_PASSAGE` | `side: 'N' \| 'E' \| 'S' \| 'W' \| 'any-orthogonal'` | A secret passage for this turn's move, which may cross a printed wall (D11, provisional; plan 13 #4 and #15). |
 | `ROTATE_TILE` | `degrees: 90` | Turns the hero's room a quarter turn clockwise. |
+| `ROLL_TABLE` | `die: 'D6' \| 'D12'`, `store: 'a name'` (optional), `rows: [{ min, max, effects: [steps] }, ...]` | Rolls the die and runs the steps of the row the result falls in (`min` to `max`, both included). Every face must be in exactly one row. A row may be `{ parity: 'odd' }` or `{ parity: 'even' }` instead of `min`/`max` (every odd or every even face). A row with no steps does nothing (for a weapon the game says "Miss."). |
+| `KILL_MONSTER` | none | The monster met dies at once, whatever its HP. It gives no reaction. |
+| `OPEN_PASSAGE` | none | Ring use only: the door or portcullis the ring was used at opens, and the hero goes through as through an opened door or lifted portcullis. |
+| `MONSTER_FLEES` | none | Ring use only: the monster met flees; no reaction, no damage; the encounter ends as when a monster flees. |
+| `IGNORE_TRAP` | none | Ring use only: the trap card just drawn does nothing (its `effects` are skipped; the rest of the card is unchanged). |
 
 ### Dice and numbers
 
@@ -158,6 +170,9 @@ Wherever a step asks for an amount or a modifier you can write:
 | `{ die: 'D12', minusStat: 'LCK' }` | D12 minus the hero's luck |
 | `{ die: 'D12', plusCount: 'treasuryCards' }` | D12 plus the number of treasury cards the hero holds |
 | `{ reg: 'a name', plus: -3 }` | a roll remembered earlier by `ROLL_D6` or `ROLL_D12` with `store: 'a name'`, minus 3 |
+| `{ reg: 'a name', div: 2 }` | that roll divided by 2, rounded down (`div` divides the whole total, after `plus` and the rest) |
+| `{ reg: 'gain', minusReg: 'loss' }` | the roll remembered as `gain` minus the roll remembered as `loss` |
+| `{ die: 'D12', plus: -3, minusStat: 'ARM' }` | D12 minus 3 minus the hero's armour |
 
 There is no free-form code: if what you want can't be said with these steps, note it and raise it, rather than bending a card to fit.
 
@@ -230,7 +245,8 @@ Rules and rulings:
 
 - **Entry side must be open.** A door or gate on the dot side is not documented in the rules, so the checker rejects it by id ("PENDING owner ruling on door/gate entry sides", plan 13 #8). If your tile design needs one, make the ruling first; until then, the tile cannot be loaded.
 - **Blue (dark) tiles** need exactly 2 or 3 non-wall sides (RB 6.2). They trigger on first discovery, on retreat into them, and on ordinary re-entry while the `darkRoomOnReentry` flag is on (D06, provisional). A blocked rolled exit keeps the hero there to roll again next turn (D07).
-- **Well:** a failed jump is death (D08); treasury cards discarded there go to the bottom of the treasury deck (D09).
+- **Well:** a failed jump is death (D08); treasury cards discarded there go to the bottom of the treasury deck (D09). A successful jump leaves the hero on the well tile at the far edge; they leave by that side on a later turn, or jump back (D42).
+
 - **Rotating:** it turns 90 degrees on every entry, including the first reveal, after being oriented by the dot (D10).
 - **Special plus mark:** allowed. Nothing bans a special room from also having a dot (D29); your data decides. The order the engine applies them in is plan 13 #13.
 - Total copies must be exactly 88 for the full game.
@@ -255,9 +271,11 @@ export default [
 | `class` | text | Your own class word. |
 | `stats` | `{ STR, AGI, ARM, LCK }`, each a whole number 1 to 12 | Strength, agility, armour, luck. A stat test passes when a D12 (plus any modifier) is at or under the stat. |
 | `hp` | whole number, 1 or more | Starting hit points (also the healing cap, D04). |
-| `equipment` | list of text | What they carry, as words. |
-| `combatSetId` | `'S01'` to `'S08'` | The hero's own A/B/C combat set in `combat.js`. It must exist and be a hero set. |
-| `specialWeaponId` | `null`, `'XBOW_1'` or `'XBOW_2'` | The special weapon card this hero may use, if any. It must exist in `special-weapons.js`. |
+| `equipment` | list of text | What they carry, as words. Words only: equipment has no rules of its own. A word naming the hero's special weapon card (for example `'crossbow'`) is shown once, as that card. |
+| `combatSetId` | `'S01'` to `'S08'` | The hero's own A/B/C combat set in `combat.js`. It must be a hero set (not a monster-group set); it may be one you have not written yet (below). |
+| `specialWeaponId` | `null`, `'XBOW_1'` or `'XBOW_2'` | The special weapon card this hero may use, if any. It must be in `special-weapons.js`, or one you have not written yet (below). |
+
+**Heroes can come before their combat cards.** You can write all eight heroes while `combat.js` and `special-weapons.js` are still empty. Until those files are complete, a hero naming a set (`'S01'` to `'S08'`) or a weapon (`'XBOW_1'`, `'XBOW_2'`) you have not written yet is waiting on it, not an error. The checker shows it under Heroes, for example `Heroes: waiting on combat sets S01-S08 (Combat cards 0/36)` or `Heroes: waiting on special weapon XBOW_1 (Special weapon cards 0/2)`, still says "No errors", and Play-test stays on. A waiting hero doesn't count as verified even when approved, so Start stays off. Once all 36 combat cards (or both weapon cards) are written, a set or weapon that still isn't there is an error. A set that exists but belongs to a monster group is always an error.
 
 A dead hero's identity, combat and ring cards never become loot (D28). Heroes are original characters: don't reuse the published set's characters or stat lines.
 
@@ -277,10 +295,13 @@ export default [
 
 | Field | Allowed values | Meaning |
 |---|---|---|
-| `setId` | `'S01'` to `'S12'` | The set. `S01` to `S08` are hero sets (one per hero), `S09` to `S12` monster groups (D24, provisional). |
+| `setId` | `'S01'` to `'S12'` | The set. `S01` to `S08` are hero sets (one per hero), `S09` to `S12` the four monster types (24 hero cards plus 12 monster cards, 4 types x 3, D24; 2023 rules 1.7 and 9.3: the monster's cards are sorted into a pile per monster). |
 | `owner` | `'hero'` or `'monster-group'` | `'hero'` for S01 to S08, `'monster-group'` for S09 to S12. |
 | `letter` | `'A' \| 'B' \| 'C'` | Each set has exactly one A, one B and one C. |
 | `doubleAgainst` | `[]`, or the one letter this card beats | This card hits twice when it wins against that letter. |
+| `groupName` | monster sets only: words, for example `'Orc'` | The monster type's name players read ("against the Orc"). Leave it `''` on hero cards. |
+
+The checker counts the two kinds apart, for example `Combat cards 36/36: hero sets 24/24, monster sets 12/12 (0 approved, 36 draft)`. In Play-test, missing monster sets are filled with NON-AUTHENTIC fixture sets (the banner says combat cards are partly synthetic and names them); your heroes always fight with their own sets once written, never with fixture hero cards.
 
 **Matchups (RB 8.4):** A beats B, B beats C, C beats A. The winner deals 1 damage, or 2 if its card lists the losing letter in `doubleAgainst`. So an A card may only list `['B']`, a B card only `['C']`, a C card only `['A']`. The same letter on both sides is a tie: 1 damage each, always, even if a card lists a double (D13). Hero and monster can both reach 0 in one exchange; then both die (D14). Solo play uses the target with results entered by hand; A/B/C against a computer pick is a labelled digital variant (D17).
 
@@ -294,6 +315,9 @@ export default [
   { id: 'COMBAT_S09_A', copies: 1, status: 'draft', setId: 'S09', owner: 'monster-group', letter: 'A', doubleAgainst: [], art: null },
   { id: 'COMBAT_S09_B', copies: 1, status: 'draft', setId: 'S09', owner: 'monster-group', letter: 'B', doubleAgainst: [], art: null },
   { id: 'COMBAT_S09_C', copies: 1, status: 'draft', setId: 'S09', owner: 'monster-group', letter: 'C', doubleAgainst: ['A'], art: null },
+  { id: 'COMBAT_S10_A', copies: 1, status: 'draft', setId: 'S10', owner: 'monster-group', letter: 'A', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S10_B', copies: 1, status: 'draft', setId: 'S10', owner: 'monster-group', letter: 'B', doubleAgainst: [], art: null },
+  { id: 'COMBAT_S10_C', copies: 1, status: 'draft', setId: 'S10', owner: 'monster-group', letter: 'C', doubleAgainst: [], art: null },
 ];
 ```
 
@@ -303,18 +327,22 @@ export default [
 
 | Field | Allowed values | Meaning |
 |---|---|---|
-| `power` | text | Your own words for the ring's power, shown during the draft (your `text`, if set, is shown instead). |
-| `trigger` | `'passive' \| 'once-per-game' \| 'on-test' \| 'on-encounter'` | When the power applies. |
-| `effects` | list of steps | The power as steps (stored, not run yet: see section 10). |
+| `power` | text | Optional: your own words for the ring's power, shown during the draft (your `text`, if set, is shown instead; with neither, the game says what the `use` does in its own plain words). |
+| `trigger` | `'passive' \| 'once-per-game' \| 'on-test' \| 'on-encounter'` | When the power applies (stored; the `use` block below is what runs). |
+| `effects` | list of steps | Stored, not run (see section 10). |
+| `use` | `{ timing, effects }` | The ring's one use. `timing` is when it is offered, and only then: `'turn-action'` (at the start of the hero's turn, in place of the turn), `'door-or-portcullis'` (when the hero could try a door or portcullis, in place of the door card or the Strength test), `'encounter-choice'` (when a monster appears, beside Attack / Wait / Flee, never in an ambush), `'trap-drawn'` (when a card the hero has just drawn has `kind: 'trap'`). `effects` are the steps it runs. |
 
-Rings are drafted in reverse seat order at setup (RB 4) and are never loot (D28).
+Rings are drafted in reverse seat order at setup (RB 4) and are never loot (D28). Every ring is single-use: its use consumes it, it leaves the hero's inventory (removed from play) and the log says so. A ring without `use` shows as pending.
+
+**What counts as a trap** (Protection Ring, `'trap-drawn'`): a drawn card whose `kind` is `'trap'`, in the room, door, search, room-search, chest or treasury deck. Nothing else is a trap card to the engine: not wells, portcullises, rubble or dark rooms, not monsters, and not a damage card you have not marked `kind: 'trap'` (owner, spec v5; plan section 13 #41). Mark your trap cards with `kind: 'trap'`. The owner's list (spec v6, D63): poisonous snakes, poisonous mist, explosion, arrow trap, ceiling collapses, trapdoor, both door traps and the chest trap; vampire bats, giant spider, centipede, scorpion and monsters are not traps. The ring is offered before anything of the trap happens (before its first roll or test), and using it skips the whole card's effects. The rotating room has its own prompt (owner spec v9, plan D67, an owner-approved interpretation, not a printed rule): a hero entering one with the ring unused may use it so the room does not turn on that entry, on every entry (first reveal, walking back in, fleeing back in, the dragon's forced move); kept, the room turns as usual. Nothing in your tile data changes for it. The wizard's curse is not a trap (owner interpretation, spec v8).
 
 **Example only, not real content, not authentic:**
 
 ```js
 export default [
   { id: 'RING_1', copies: 1, status: 'draft', name: 'Example ring of small mercies',
-    power: 'Example wording: once per game, heal 2.', trigger: 'once-per-game', effects: [{ op: 'HEAL', amount: 2 }] },
+    power: 'Example wording: once, heal 2 instead of your turn.', trigger: 'once-per-game', effects: [],
+    use: { timing: 'turn-action', effects: [{ op: 'HEAL', amount: 2 }, { op: 'END_TURN' }] } },
 ];
 ```
 
@@ -326,9 +354,11 @@ export default [
 |---|---|---|
 | `heroIds` | list of hero ids | The heroes who may use it. They must exist in `heroes.js`. |
 | `effects` | list of steps | What happens when the hero declares the special weapon at a monster. |
-| `uses` | `null` or a whole number | `null` for no limit, otherwise uses per game. |
+| `uses` | `null` or a whole number | `null` for no limit, otherwise uses per game (each hero keeps their own count; no reload). |
+| `verb` | text (optional) | The encounter button's word, for example `'Shoot'`; without it the button says "Use" and the name. |
+| `unit` | text (optional) | What one use is called, for example `'shot'` ("3 shots left"); without it, "use". |
 
-Declaring the special weapon is answered by the monster's **attack** reaction (RB 8.1). It is not offered during an ambush (plan 13 #12).
+Declaring the special weapon is answered by the monster's **attack** reaction (RB 8.1), unless the weapon kills it first (`KILL_MONSTER`, or enough damage): then there is no reaction. It is offered during an ambush too, after the ambush damage (D41, owner ruling). Combat cards and their double hits never apply to a weapon's damage.
 
 **Example only, not real content, not authentic:**
 
@@ -346,7 +376,7 @@ export default [
 | Field | Allowed values | Meaning |
 |---|---|---|
 | `deck` | `'ROOM'` | Always `'ROOM'` in this file. |
-| `kind` | `'empty' \| 'treasure' \| 'item' \| 'monster' \| 'trap' \| 'branch'` | What sort of card it is. It labels the card; what happens comes from the fields below. |
+| `kind` | `'empty' \| 'treasure' \| 'item' \| 'monster' \| 'trap' \| 'branch' \| 'event' \| 'reshuffle'` | What sort of card it is. It labels the card; what happens comes from the fields below. Only `'trap'` meets the Protection Ring (D50): use `'event'` for a hazard your card does not call a trap. |
 | `gold` | whole number, 0 or more | Coins it is worth if the hero keeps it. |
 | `effects` | list of steps | What happens, in order. |
 | `followUpDeck` | `null`, `'SEARCH'`, `'CHEST'`, `'DOOR'`, `'MONSTER'` | After this card, draw from that deck ([branch draws](#branch-draws-name-a-subdeck)). |
@@ -355,6 +385,7 @@ export default [
 | `privacy` | `'public'` (usual), `'private-to-holder'` | Whether other players see it when kept. Kept room loot and its gold are public (D25). |
 | `specialWeapon` | `true` / `false` | Marks an item as a special weapon. It can be chosen before a monster is revealed only if `use` says how (otherwise the app shows its effect as pending). |
 | `use` | optional `{ timing, effects, afterUse, uses }` | How a kept card can be used ([using kept cards](#using-kept-cards)). Leave it out and the card has no Use action. |
+| `frees` | optional list of condition ids, for example `['trapdoor']` | A kept card that works by itself: at the start of the hero's turn it lifts a lasting effect with that id, with no test, and is not used up (the rope, D55). Needs `cardDisposition: 'RETAIN_HELD'`. |
 
 After a monster flees or the hero flees, the rest of the room card is skipped; after a won fight the rest still runs (plan 13 #16), so a card can say "defeat it, then keep this".
 
@@ -386,10 +417,12 @@ These four decks share the card fields of room cards above, with their own `deck
 | `chest.js` | `'CHEST'` | 14 | `CHEST_001`..`CHEST_014` | A card branches to it. |
 | `treasury.js` | `'TREASURY'` | 33 | `TREASURY_001`..`TREASURY_033` | Two per turn in the treasure chamber (RB 9.1). |
 
-`kind`: `'treasure' \| 'item' \| 'trap' \| 'secret-door' \| 'empty' \| 'branch' \| 'reshuffle'`.
+`kind`: `'treasure' \| 'item' \| 'trap' \| 'secret-door' \| 'empty' \| 'branch' \| 'reshuffle' \| 'event'`.
+
+The checker holds values to their kind: a `'treasure'` card needs `gold` of 1 or more and is kept (`'RETAIN_HELD'`, or `'RETAIN_TREASURY'` in `treasury.js`); every treasury card is a treasure; a `'reshuffle'` card needs `cardDisposition: 'RESHUFFLE_DECK'`; a card with `use` or `frees` needs `cardDisposition: 'RETAIN_HELD'`.
 
 - **Secret doors** (room search): `kind: 'secret-door'` with `OPEN_TEMPORARY_PASSAGE`. They may cross printed walls; use and timing follow your card (D11, provisional; plan 13 #4 and #15).
-- **Reshuffle cards:** `kind: 'reshuffle'` with `cardDisposition: 'RESHUFFLE_DECK'`: the card goes back and its deck is shuffled.
+- **Reshuffle cards:** `kind: 'reshuffle'` with `cardDisposition: 'RESHUFFLE_DECK'`: the card goes back, its deck is shuffled (without the cards heroes hold), and another card is drawn from the same deck at once and resolves in its place, again if it is another shuffle card (R62, D62; owner spec v7, the same as the door deck). A deck with a shuffle card needs at least one other card; the checker says so.
 - **Treasury cards** are private: `privacy: 'private-to-holder'` and `cardDisposition: 'RETAIN_TREASURY'`. Their gold counts at the end only if the hero escapes. When the dragon wakes they go to the bottom of the treasury deck (RB 9.2). Effects printed on treasury cards are not run at collection yet (section 10).
 
 **Example only, not real content, not authentic:**
@@ -413,7 +446,7 @@ export default [
 
 `door.js`, 15 cards, ids `DOOR_001` to `DOOR_015`, `deck: 'DOOR'`. Same fields as room cards. A door card is drawn whenever a hero tries a door (RB 6.6).
 
-`kind` decides the door here: `'opens'` (the hero goes through into the next square), `'closed'` (it stays shut; the hero may use another free passage this turn), `'trap'` (the card's `effects` run and the turn ends). The door locks again behind the hero. A door that stays closed during a forced move ends the turn (plan 13 #14).
+`kind` decides the door here: `'opens'` (the hero goes through into the next square), `'closed'` (it stays shut; the hero may use another free passage this turn), `'trap'` (the card's `effects` run and the turn ends), `'reshuffle'` (the card goes back, the door deck is shuffled, and the hero at once draws another door card, which decides the door; again if it is another shuffle card; no extra turn; D62, spec v6). The door locks again behind the hero. A door that stays closed during a forced move ends the turn (plan 13 #14).
 
 **Example only, not real content, not authentic:**
 
@@ -431,41 +464,52 @@ export default [
 
 `monster.js`, 15 cards, ids `MONSTER_001` to `MONSTER_015`, `deck: 'MONSTER'`.
 
+The 15 are cards, not 15 kinds of monster. The room card (or search card) says which monster type the hero meets; the top monster card is then read on that type's row, in the column of the hero's choice (2023 rules section 9; owner research 2026-11-19). The four monster types are the four monster-group combat sets `S09` to `S12` in `combat.js`, three cards each.
+
 | Field | Allowed values | Meaning |
 |---|---|---|
-| `hp` | whole number, 1 or more | The monster's hit points (hidden from the other players). |
-| `groupId` | `'S09'` to `'S12'` | The monster-group combat set it fights with. It must exist in `combat.js` with `owner: 'monster-group'`. |
-| `reactions` | `{ attack, wait, flee }` | The reaction table: what the monster does for each hero choice ([how it maps](#monster-reaction-tables)). All three are required, and nothing else. |
+| `rows` | `{ S09: { attack, wait, flee }, S10: { ... }, ... }` | One row per monster type: what that monster does for each hero choice ([how it maps](#monster-reaction-tables)). Each key must be a set in `combat.js` with `owner: 'monster-group'`. Every type a card in your decks can name needs a row on every monster card. |
 
-Each reaction is `{ type, damage, effects }`:
+Each reaction is `{ type, damage, hp, effects }`:
 
 | `type` | Means | Allowed under |
 |---|---|---|
-| `'combat'` | It fights: A/B/C combat starts. | attack, wait, flee |
+| `'combat'` | It fights: A/B/C combat starts against `hp`. | attack, wait, flee |
 | `'monster-flees'` | It runs off; the encounter ends and the turn ends. | attack, wait, flee |
-| `'strike-then-combat'` | It strikes for `damage`, then fights. | attack, wait, flee |
+| `'strike-then-combat'` | It strikes for `damage`, then fights against `hp`. | attack, wait, flee |
 | `'strike-then-flight'` | It strikes for `damage`, then the hero gets away. | flee only |
 | `'flight-succeeds'` | The hero gets away unharmed. | flee only |
 | `'other'` | Only the reaction's own `effects` run, then the encounter ends. | attack, wait, flee |
 
-`damage` is a number or dice ([section 5](#dice-and-numbers)) for the two strike types, otherwise `null`. `effects` are extra steps that run before the reaction.
+`damage` is a number or dice ([section 5](#dice-and-numbers)) for the two strike types, for example `{ die: 'D6', plus: -2 }` for "D6 minus 2", otherwise `null`. `hp` is the monster's hit points in that fight, a whole number 1 or more, required for `'combat'` and `'strike-then-combat'` and left out otherwise; only the monster player sees it. `effects` are extra steps that run before the reaction. `printedStat: 'FP'` (optional, the only value allowed) records that the physical card prints FP where the others print KP; the `hp` is still read as the monster's HP, and the engine and players never see the field (owner spec v6: four cells, probable printing errors, D51).
 
-The hero commits before the card is revealed; the seated player to the right controls the monster, even if that player is dead or escaped, and in solo the hero reveals it (D12). Fleeing goes back to the previous tile with no room card, and that tile's effects apply again (D16); it is not offered through a red-room gate that fell behind the hero (D15).
+The hero commits before the card is revealed; the seated player to the right controls the monster, even if that player is dead or escaped (D12), and in solo the computer plays the monster and never shows the card, but once the monster is revealed the player sees its HP and the damage it has taken, as the printed rule says (D37 as amended by the owner). In multiplayer only the monster's player sees its HP. Fleeing goes back to the previous tile with no room card, and that tile's effects apply again (D16); it is not offered back through a secret passage just used or through a red-room gate that fell behind the hero (D15).
+
+**Single-monster form.** A card may instead describe one monster for any encounter: `hp`, `groupId` (its monster-group set) and one `reactions: { attack, wait, flee }` table, no `rows`. The fixtures use it; a card has either `rows` or these three, never both.
 
 **Example only, not real content, not authentic:**
 
 ```js
 export default [
-  { id: 'MONSTER_001', copies: 2, status: 'draft', name: 'Example cellar rat swarm', text: 'Example wording: a hundred small teeth.',
-    deck: 'MONSTER', hp: 3, groupId: 'S09',
-    reactions: {
-      attack: { type: 'combat', damage: null, effects: [] },
-      wait: { type: 'strike-then-combat', damage: { die: 'D6', plus: -3 }, effects: [] },
-      flee: { type: 'strike-then-flight', damage: 1, effects: [] },
+  { id: 'MONSTER_001', copies: 1, status: 'draft', name: 'Example card one', text: 'Example wording.',
+    deck: 'MONSTER',
+    rows: {
+      S09: {
+        attack: { type: 'combat', hp: 3, damage: null, effects: [] },
+        wait: { type: 'monster-flees', damage: null, effects: [] },
+        flee: { type: 'strike-then-flight', damage: 1, effects: [] },
+      },
+      S10: {
+        attack: { type: 'strike-then-combat', hp: 2, damage: { die: 'D6', plus: -2 }, effects: [] },
+        wait: { type: 'combat', hp: 2, damage: null, effects: [] },
+        flee: { type: 'flight-succeeds', damage: null, effects: [] },
+      },
     },
     art: null },
 ];
 ```
+
+And the room card that names the type, in `room.js`: `effects: [{ op: 'MONSTER_ENCOUNTER', ambush: false, monster: 'S09' }]`.
 
 ### Dragon cards
 
@@ -475,7 +519,7 @@ export default [
 |---|---|---|
 | `kind` | `'sleeping'` or `'awake'` | All copies together must be 7 sleeping and 1 awake (RB 9, SP 8). This structure is the rule; names and art are yours. |
 
-One dragon card is drawn per chamber turn without replacement, shared by all heroes, so the odds climb from 1 in 8 (RB 9.3). When the awake card comes up, every hero in the chamber loses their treasury cards, takes a full D12 of damage and is driven to an already revealed maze tile next to the chamber square, never a new one (D19); the deck resets when the chamber empties (D22).
+One dragon card is drawn per chamber turn without replacement, shared by all heroes, so the odds climb from 1 in 8 (RB 9.3). When the awake card comes up, every hero in the chamber loses their treasury cards, takes a full D12 of damage and is driven to an already revealed maze tile next to the chamber square, never a new one (D19); the deck resets when the chamber empties (D22). A hero who has no such tile stays in the chamber with the dragon awake: nobody can take treasure there until every surviving hero has left, and only then does the deck reset (D40).
 
 **Example only, not real content, not authentic:**
 
@@ -506,16 +550,16 @@ When a monster appears, the hero first picks Attack, Wait, Flee or Special (spec
 
 | Hero chose | The engine reads |
 |---|---|
-| Attack | `reactions.attack` |
-| Wait | `reactions.wait` (not offered in an ambush) |
-| Flee | `reactions.flee` |
-| Special (special weapon) | `reactions.attack`, after the weapon's effects (RB 8.1) |
+| Attack | `attack` in the row of the monster type met |
+| Wait | `wait` (not offered in an ambush) |
+| Flee | `flee` (not offered when the way back is gone) |
+| Special (special weapon) | `attack`, after the weapon's effects (RB 8.1) |
 
 That is why the table has no `special` key.
 
 ### Branch draws name a subdeck
 
-A card with `followUpDeck` hands over to another deck once it is done: `'SEARCH'`, `'CHEST'` or `'DOOR'` draws and plays the top card of that deck, and `'MONSTER'` starts a monster encounter (RB 7.3). Inside `effects`, `DRAW_CARD` does the same mid-card and lets you choose `then: 'keep'` to put the drawn card in the hero's hand instead of playing it.
+A card with `followUpDeck` hands over to another deck once it is done: `'SEARCH'`, `'CHEST'` or `'DOOR'` draws and plays the top card of that deck, and `'MONSTER'` starts a monster encounter with no monster type, so once your monster cards have rows use a `MONSTER_ENCOUNTER` step with `monster:` instead (RB 7.3). Inside `effects`, `DRAW_CARD` does the same mid-card and lets you choose `then: 'keep'` to put the drawn card in the hero's hand instead of playing it.
 
 ### Using kept cards
 
@@ -523,7 +567,7 @@ A kept card (in the hero's hand or treasury) gets a Use action only when its ent
 
 | Field | Allowed values | Meaning |
 |---|---|---|
-| `timing` | `'turn-action'`, `'encounter-special'` | `'turn-action'`: used as the hero's action at the start of their turn; the turn then ends unless the effects say `CONTINUE_MOVEMENT`. `'encounter-special'`: chosen as a special weapon before a monster is revealed (not in an ambush), so the monster answers with its Attack reaction (RB 8.1); needs `specialWeapon: true`. |
+| `timing` | `'turn-action'`, `'encounter-special'`, `'free'` | `'free'`: on the hero's own turn while choosing a move or whether to keep moving, without using the turn (the flask, D53). `'turn-action'`: used as the hero's action at the start of their turn; the turn then ends unless the effects say `CONTINUE_MOVEMENT`. `'encounter-special'`: chosen as a special weapon before a monster is revealed (in an ambush too, D41), so the monster answers with its Attack reaction (RB 8.1); needs `specialWeapon: true`. |
 | `effects` | list of steps | What using it does, in order. |
 | `afterUse` | `'keep'` (usual), `'bottom'`, `'remove'` | Where the card goes after a use: stays in hand, under its own deck, or out of the game. |
 | `uses` | whole number 1 or more, or `null` | How many times it can be used while kept; `null` means no limit. |
@@ -546,7 +590,7 @@ If the turn ends early, the hero dies or the hero flees, the card goes under its
 
 ## 8. The workflow
 
-1. **Write as draft.** Add entries with `status: 'draft'` (or run `node tools/keep-content.js new room`). Work deck by deck; there is no need to finish one before starting another.
+1. **Write as draft.** Add entries with `status: 'draft'` (or run `node tools/keep-content.js new room`). Work deck by deck; there is no need to finish one before starting another. Heroes can go in before their combat cards and weapon cards: the checker shows them as waiting until those are written ([Heroes](#heroes)).
 2. **Run the checker.** From the repo folder: `node tools/keep-content.js check`. It lists every slot with its count and every problem by id.
 3. **Fix** what it reports and check again until it says "No errors."
 4. **Play-test** your drafts (below). Try the cards in play, read your `text` on screen, adjust.
@@ -561,7 +605,7 @@ If the turn ends early, the hero dies or the hero flees, the card goes under its
 | **Play-test my content** | Play-test: your content plus NON-AUTHENTIC fill-in. Every one of your entries, draft and approved, plus the made-up fixture data for each slot you have not completed. | At least one entry, and no checker errors. |
 | **Test with fixtures** | Only the made-up fixture data. | Nothing. For checking the engine itself. |
 
-In a play-test, a slot you have completed (all its copies written) plays with your entries alone. A slot you have not completed gets your entries plus the whole fixture deck, so decks are larger than the real count and the odds are not the real game's. The dragon deck is the exception: until all 8 of yours are written, the play-test uses the fixture dragon deck alone, so there is always exactly one awake card. If you have no board or chamber yet, the fixture ones are used. Fixture heroes and monsters bring their own fixture combat sets. Every screen of a play-test carries the banner "Play-test: your content plus NON-AUTHENTIC fill-in", and so does its save title.
+In a play-test, a slot you have completed (all its copies written) plays with your entries alone. A slot you have not completed gets your entries plus the whole fixture deck, so decks are larger than the real count and the odds are not the real game's. The dragon deck is the exception: until all 8 of yours are written, the play-test uses the fixture dragon deck alone, so there is always exactly one awake card. If you have no board or chamber yet, the fixture ones are used. Fixture heroes and monsters bring their own fixture combat sets. Once all 8 of your heroes are written, only yours are offered; a hero whose combat set you have not written yet fights with the fixture hero set of the same number (your `S03` hero uses the fixture set `FX_S03`), and a hero whose weapon card you have not written yet has no special weapon. The fixture crossbow belongs to a fixture hero, so it leaves with the fixture heroes. Once your monster cards have rows, the fixture room and search cards meet the first monster type every one of your row cards covers, so you can play-test monster cards before writing room cards. Every screen of a play-test carries the banner "Play-test: your content plus NON-AUTHENTIC fill-in", and so does its save title. Once every slot holds your own entries there is no fill-in: the banner then says "Play-test: your own draft content, not approved yet", and its Details list which categories are still draft how many entries wait on a ruling (`Status: OWNER DECISION REQUIRED` in their notes) and how many more are interpretations or provisional (the checker lists the same entries, grouped by status). It stays until the full game unlocks.
 
 A play-test or a saved game opens only with the content it was made with. After you change your files, start a new play-test; older play-test saves will say they can't be opened.
 
@@ -582,13 +626,21 @@ Typical messages and what to do:
 | Message | Meaning |
 |---|---|
 | `ROOM_017: followUpDeck TREASURY not one of SEARCH/CHEST/DOOR/MONSTER` | A value outside the allowed list. |
-| `MONSTER_003: reaction flee missing` | The reaction table needs attack, wait and flee. |
+| `MONSTER_003: row S09: reaction flee missing` | Every row needs attack, wait and flee. |
+| `MONSTER_003: row S10: reaction attack: combat needs hp, an integer >= 1 (the monster's hit points in that fight)` | A fight needs the monster's HP on that reaction. |
+| `MONSTER_003: no row for monster type S11 (met on ROOM_020)` | A card names a monster type this monster card has no row for. |
+| `ROOM_020: names no monster type, but monster cards with rows need one (add monster: 'S09' to the step)` | Say which monster type the hero meets. |
 | `TILE_034: entrySide is a door: PENDING owner ruling on door/gate entry sides (plan 13 #8)` | See [Maze tiles](#maze-tiles). |
 | `Maze tiles: copies total 91, expected 88` | The copies add up to more than exist. |
 | `ROOM_999: id ROOM_999 is not one of ROOM_001..ROOM_060` | Use the slot's own ids. |
 | `S01: a combat set needs exactly one A, one B and one C` | Finish the set. |
+| `Heroes: waiting on combat sets S01-S08 (Combat cards 0/36)` | Not an error: your heroes name sets you have not written yet. Write the combat cards when you are ready. |
+| `XBOW_1: ROLL_TABLE: rows must cover each face 1 to 6 exactly once` | A result table leaves a face out or lists one twice. |
+| `HERO_1: combatSetId S09 is not a hero combat set` | The set is a monster group's, or (once all 36 combat cards are written) it doesn't exist. |
 | `ROOM_004: status aproved must be "draft" or "approved"` | A typo in the status. |
 | `Could not read the content: door.js: Unexpected token ...` followed by a line | A notation slip (a missing comma, quote or bracket) on the line shown. |
+
+After the errors, `check` lists flagged entries by evidence status, one line each, for example `1 entry with status DIRECT 2023 CARD: ROOM_004`. These are not errors and do not stop anything; an entry still marked `NEEDS OWNER CONFIRMATION` (the older flag) is listed as such.
 
 Approved entries with errors don't count as verified. The checker uses the same validation as the game, so if it says "No errors", the game agrees.
 
@@ -597,8 +649,8 @@ Approved entries with errors don't count as verified. The checker uses the same 
 These fields are checked and saved, but the engine does not act on them yet. Fill them in anyway; they are ready for when it does:
 
 - tile `effects` (dot and special behaviour come from the rules, not data);
-- ring `trigger` and `effects` (rings are drafted and shown by their `power` or `text`);
-- hero `equipment` (shown in the hero's inventory, effect pending);
+- ring `trigger` and `effects` (a ring's `use` block is what the engine runs);
+- hero `equipment` (shown in the hero's inventory as words; it has no rules of its own);
 - effects printed on treasury cards, which are kept as drawn (plan section 13, M2 shortcuts);
 - `turnDisposition: 'ongoing'` (use `SET_CONDITION` for lasting effects);
 - `art` everywhere.

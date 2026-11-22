@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { createGame, reduce } from '../../site/keep/engine/reducer.js';
 import { legalActions } from '../../site/keep/engine/phases.js';
 import { view, canUndoTo } from '../../site/keep/engine/view.js';
-import { entries, lines, undoLabel, cardText, monsterText } from '../../site/keep/ui/words.js';
+import { entries, lines, undoLabel, cardText, monsterText, fightRowModel } from '../../site/keep/ui/words.js';
 import { cellInfo, cellLabel, actionSquare } from '../../site/keep/ui/board.js';
 import { squareKind, exits, exitFor, neighbour, key } from '../../site/keep/engine/board.js';
 import { FX, setup, place, putHero, EMPTY_ROOMS } from './helpers.js';
@@ -22,9 +22,23 @@ function checkView(v, g, viewer, from) {
   const ctx = { content: FX, name: s => names[s] };
   for (const x of entries(v.log.slice(from), ctx)) { ok(x.text, `log ${x.e.kind} (viewer ${viewer})`); if (x.detail) ok(x.detail, `log detail ${x.e.kind}`); }
   if (g.status !== 'playing') return;
-  // D37: nobody but the monster player sees the monster's card, HP or damage; in solo that is the computer.
+  // D37: nobody but the monster player sees the monster's card, HP or damage; in solo the computer holds the card.
+  // Spec v4: the solo player sees the revealed monster's HP and wounds (unless the house rule hides them); the
+  // multiplayer hero, bystanders and the public view never do, in the encounter or in the log.
   const enc = v.encounter;
-  if (enc?.monster && !(viewer === enc.controller && viewer !== enc.seat)) assert.deepEqual(Object.keys(enc.monster), ['groupId'], 'monster data hidden');
+  const controller = enc && viewer === enc.controller && viewer !== enc.seat;
+  const soloHp = g.seats.length === 1 && viewer === 0 && g.rules.soloMonsterHp === 'visible';
+  if (enc?.monster && soloHp) { soloHpSeen++; assert.deepEqual(enc.monster, { groupId: g.encounter.monster.groupId, hp: g.encounter.monster.hp, wounds: g.encounter.monster.wounds }, 'solo: HP after the reveal'); }
+  else if (enc?.monster && !controller) assert.deepEqual(Object.keys(enc.monster), ['groupId'], 'monster data hidden');
+  for (const e of v.log) if ('wounds' in e) assert.equal(g.log[e.seq - 1].private, viewer, `viewer ${viewer}: a damage tally only in its own monster player's log`);
+  // The fight row (ui/app.js) shows monster HP exactly when the view carries it.
+  if (enc) {
+    const f = fightRowModel(v, enc.seat, enc, s => names[s], FX);
+    ok(`${f.who} ${f.hero.label} ${f.monster?.label ?? ''}`, 'fight row');
+    assert.equal(!!f.monster, Number.isInteger(enc.monster?.hp), 'monster HP in the fight row only when in the view');
+    if (!soloHp && !controller) assert.equal(f.monster, null, 'never for a multiplayer hero, bystander or the table');
+  }
+
   if (enc?.combat) ok(enc.combat.label, 'combat label');
   for (const t of v.pendingTests) { ok(t.success, 'test preview'); assert.ok(Number.isInteger(t.passingRolls) && Array.isArray(t.modifiers)); }
   v.heroes.forEach((h, seat) => {
@@ -69,7 +83,7 @@ function checkSquares(g, la) {
   return chamber;
 }
 
-let chamberMoves = 0;
+let chamberMoves = 0, soloHpSeen = 0;
 function playGame(players, seed, rules = {}) {
   const pick = picker(seed);
   let g = createGame({ players: Array.from({ length: players }, (_, i) => `P${i + 1}`), seed, content: FX, rules });
@@ -91,10 +105,12 @@ test('random legal play: 1, 2 and 4 players, every view reads cleanly', () => {
   // KEEP_PLAY_GAMES=300 for a long run; the default keeps the suite to a few seconds.
   for (let i = 0; i < (+process.env.KEEP_PLAY_GAMES || 36); i++) {
     const players = [1, 2, 4][i % 3];
-    const g = playGame(players, 1000 + i, players === 1 && i % 2 ? { soloCombat: 'abc-digital-variant' } : {});
+    const g = playGame(players, 1000 + i, players === 1 ? { ...(i % 2 ? { soloCombat: 'abc-digital-variant' } : {}), ...(i % 9 === 6 ? { soloMonsterHp: 'hidden-house-rule' } : {}) } : {});
     for (const e of g.log) seen.add(e.kind === 'commit' && e.item ? 'commit-item' : e.kind === 'item' ? `item-${e.action}` : e.kind);
   }
   for (const kind of ['item-obtain', 'encounter', 'exchange', 'throw', 'test', 'monster-wound', 'may-continue']) assert.ok(seen.has(kind), `random play reached ${kind}`);
+  assert.ok(soloHpSeen > 0, 'random play showed a solo player the revealed monster HP');
+
   if (+process.env.KEEP_PLAY_GAMES >= 200) assert.ok(chamberMoves > 0, 'random play moved out of the chamber'); // rare in the short run; the next test scripts it
 });
 
@@ -111,18 +127,51 @@ test('item and monster lines: a chamber card stays unnamed for others, a kill is
     { kind: 'item', action: 'lose', seat: 1, value: 'hidden', group: 'chamber', to: 'bottom of TREASURY', why: 'dragon' },
     { kind: 'monster-dead', seat: 0 }, { kind: 'bottom' }, { kind: 'encounter-end', outcome: 'monster-killed' },
   ], ctx), [
-    'P1 discards a chamber card.',
-    'P2 loses a chamber card when the dragon wakes.',
+    'P1 discards a treasure chamber card.',
+    'P2 loses a treasure chamber card when the dragon wakes.',
     'The monster is dead.',
   ]);
   // Where the card went is deck bookkeeping: the debug log alone says it.
   const debug = entries([{ kind: 'item', action: 'discard', seat: 0, value: 'hidden', group: 'chamber', to: 'bottom of TREASURY' }, { kind: 'bottom', deck: 'MONSTER', value: 'hidden' }, { kind: 'shuffle', deck: 'CHEST' }], ctx, { debug: true });
   assert.deepEqual(debug.map(x => [x.text, x.mech]), [
-    ['P1 discards a chamber card.', 'It goes to the bottom of the treasure chamber pile.'],
+    ['P1 discards a treasure chamber card.', 'It goes to the bottom of the treasure chamber pile.'],
     ['', 'A card goes to the bottom of the monster pile.'],
     ['', 'The chest pile is shuffled.'],
   ]);
   assert.equal(entries([{ kind: 'bottom', deck: 'MONSTER', value: 'hidden' }], ctx).length, 0, 'not in the plain log');
+});
+
+test('the chamber is called by its content name in log lines, prompts and card text; with no name it falls back', async () => {
+  const { mixContent, chamberName } = await import('../../site/keep/content/schema.js');
+  const { shownEffectText } = await import('../../site/keep/engine/describe.js');
+  const { wellJumpModifiers } = await import('../../site/keep/engine/movement.js');
+  const NAMED = { ...FX, chamber: { ...FX.chamber, name: "Dragon's Lair" } };
+  const events = [
+    { kind: 'place-chamber' }, { kind: 'stay', seat: 0 }, { kind: 'dragon-wakes', waker: 1, queue: [1] },
+    { kind: 'item', action: 'discard', seat: 0, value: 'hidden', group: 'chamber', to: 'bottom of TREASURY' },
+  ];
+  const thief = FX.room.find(e => e.id === 'FX_ROOM_THIEF');
+  const g = setup();
+  putHero(g, 0, '4,5');
+  const say = c => ({
+    log: lines(events, { content: c, name: s => `P${s + 1}` }),
+    search: view(g, c).searchUnavailable, cell: cellInfo(view(g, c), c, { x: 4, y: 5 }).what,
+    card: shownEffectText(thief, chamberName(c)), jump: wellJumpModifiers({ treasury: [] }, c)[0].source,
+  });
+  assert.deepEqual(say(NAMED), {
+    log: ["The Dragon's Lair is entered for the first time.", "P1 stays in the Dragon's Lair.", "The dragon wakes. Everyone in the Dragon's Lair, from P2 clockwise.", "P1 discards a Dragon's Lair card."],
+    search: "not a room square (this is the Dragon's Lair). Only black or red dot rooms can be searched.",
+    cell: "Dragon's Lair, not yet entered", card: "Made-up test card. You lose your Dragon's Lair cards.", jump: "Dragon's Lair cards carried",
+  });
+  assert.deepEqual(say(FX), {
+    log: ['The treasure chamber is entered for the first time.', 'P1 stays in the treasure chamber.', 'The dragon wakes. Everyone in the treasure chamber, from P2 clockwise.', 'P1 discards a treasure chamber card.'],
+    search: 'not a room square (this is the treasure chamber). Only black or red dot rooms can be searched.',
+    cell: 'treasure chamber, not yet entered', card: 'Made-up test card. You lose your treasure chamber cards.', jump: 'treasure chamber cards carried',
+  });
+  assert.equal(chamberName({ chamber: { name: "  The Dragon's Lair " } }), "Dragon's Lair", 'a leading "The" is not doubled');
+  // Play-test: fixture cards say their generated line with the owner's chamber name.
+  const own = Object.fromEntries(Object.keys(FX).map(k => [k, Array.isArray(FX[k]) ? [] : null]));
+  assert.equal(mixContent({ ...own, chamber: NAMED.chamber }, FX).room.find(e => e.id === 'FX_ROOM_THIEF').text, "Made-up test card. You lose your Dragon's Lair cards.");
 });
 
 test('a hero in the chamber sees all six squares around the room lit, and each sends its own move (D39)', () => {
@@ -159,4 +208,16 @@ test('why the hero may keep moving, the escape sun and a drawn card read by name
     'Cade escapes the keep on sun 12.',
     `Room card: Test draught (keep moving). ${FX.room.find(d => d.id === 'FX_ROOM_DRAFT').text || 'Made-up test card. You may keep moving this turn.'}`,
   ]);
+});
+
+test('owner play-test: the crossbow log says both dice, and the damage in plain words', () => {
+  const ctx = { content: FX, name: s => `P${s + 1}` };
+  const out = entries([
+    { kind: 'roll', seat: 0, die: 'D6', value: 4, reason: 'table roll' },
+    { kind: 'roll', seat: 0, die: 'D6', value: 6, reason: 'table roll second' },
+    { kind: 'formula', reason: 'damage formula', value: 3, arithmetic: 'floor((second 6) / 2) = 3' },
+    { kind: 'monster-wound', amount: 3 },
+  ], ctx);
+  assert.deepEqual(out.map(x => x.text), ['P1 rolls 4 on the D6.', 'P1 rolls 6 on the second D6.', 'The monster takes 3.']);
+  assert.equal(out[2].detail, 'Half of D6 6, rounded down: 3');
 });

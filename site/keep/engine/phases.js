@@ -1,14 +1,31 @@
 // Legal actions per phase (system 1; SP 4). reduce() accepts only these, so a repeated
 // click or a refresh cannot resolve anything twice. No PvP, trading or revival action exists (SP 9).
 import { exits, key, squareKind } from './board.js';
-import { contentIndex } from '../content/schema.js';
+import { contentIndex, theChamber } from '../content/schema.js';
 import { responseOptions, combatActions } from './monsters.js';
-import { usableHeld } from './inventory.js';
+import { usableHeld, ringFor } from './inventory.js';
 
 // D39: a move out of the chamber also names the cell it leaves by (from: 'x,y'), as two sides share a direction.
 const moves = (game, content, seat) => {
   const room = squareKind(content.board, game.heroes[seat].coord) === 'center';
   return exits(game, content, seat).filter(e => e.legal).map(e => ({ type: 'MOVE', seat, dir: e.dir, ...(room ? { from: key(e.from) } : {}) }));
+};
+
+// Spec v5 ring uses, each only at its own moment (owner: no universal ring use). Opening Ring: one per door or
+// portcullis the hero could try now, in place of the door card or the Strength test.
+const ringAt = (game, content, seat, timing) => (ringFor(game, content, seat, timing) ? [{ type: 'USE_RING', seat }] : []);
+const ringPassages = (game, content, seat) => {
+  if (!ringFor(game, content, seat, 'door-or-portcullis')) return [];
+  const room = squareKind(content.board, game.heroes[seat].coord) === 'center';
+  return exits(game, content, seat).filter(e => e.legal && (e.edge === 'door' || e.edge === 'gate')).map(e => ({ type: 'USE_RING', seat, dir: e.dir, ...(room ? { from: key(e.from) } : {}) }));
+};
+
+// Every set of count different D6 numbers, as sorted lists '1,2,3' (20 sets of three, 6 of one).
+const numberSets = count => {
+  const out = [];
+  const pick = (from, chosen) => { if (chosen.length === count) return out.push(chosen.join(',')); for (let n = from; n <= 6; n++) pick(n + 1, [...chosen, n]); };
+  pick(1, []);
+  return out;
 };
 
 export function legalActions(game, content) {
@@ -36,17 +53,24 @@ export function legalActions(game, content) {
       const kind = squareKind(content.board, hero.coord);
       // RB 7.1, SP 6: search only in a black or red room.
       if (kind === 'maze' && ['black', 'red'].includes(contentIndex(content).tiles.get(game.board.tiles[key(hero.coord)].defId).mark)) out.push({ type: 'SEARCH', seat });
-      if (kind === 'center') out.push({ type: 'COLLECT', seat }); // RB 9.1: stay and collect
-      // Spec v3 section 4: a Use action only where the item's own card data allows it now.
+      // RB 9.1: stay and collect. D40 (spec v4): not while the dragon is awake (view.collectUnavailable says why).
+      if (kind === 'center' && !game.dragon.awake) out.push({ type: 'COLLECT', seat });
+      // D42 (spec v4, interpretation): across the well, the near side is reached only by jumping back (cards may go first).
+      if (hero.roomState?.special === 'well' && hero.roomState.phase === 'CROSSED') out.push(...hero.treasury.map(card => ({ type: 'WELL_DISCARD', seat, card })), { type: 'WELL_JUMP', seat });
+      // Spec v3 section 4: a Use action only where the item's own card data allows it now. D53: 'free' items too.
       out.push(...usableHeld(game, content, seat, 'turn-action').map(item => ({ type: 'USE_ITEM', seat, item })));
+      // D53: a 'free' item (the flask) is never the turn's action, so it never stands in for a forced skip either.
+      const free = usableHeld(game, content, seat, 'free').map(item => ({ type: 'USE_ITEM', seat, item }));
+      // Spec v5: the Strength Ring skips this turn (turn-action); the Opening Ring at a door or portcullis.
+      out.push(...ringAt(game, content, seat, 'turn-action'), ...ringPassages(game, content, seat));
       // D33 (interpretation): escaping straight from the start tower only if escapeWithoutExploring is on.
       if (hero.status === 'READY_IN_START_TOWER' && game.rules.escapeWithoutExploring) out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
       // Plan 13 #25 (interpretation): a hero who stayed in a tower after exploring may escape on any later turn.
       if (hero.status === 'IN_TOWER_NOT_ESCAPED') out.push({ type: 'TOWER_CHOICE', seat, choice: 'ESCAPE' });
       // D20: no voluntary pass; a forced skip exists only when no legal action does.
-      return out.length ? out : [{ type: 'FORCED_SKIP', seat }];
+      return [...(out.length ? out : [{ type: 'FORCED_SKIP', seat }]), ...free];
     }
-    case 'CHOOSE_EXIT': return [...moves(game, content, seat), { type: 'STOP', seat }];
+    case 'CHOOSE_EXIT': return [...moves(game, content, seat), ...ringPassages(game, content, seat), ...usableHeld(game, content, seat, 'free').map(item => ({ type: 'USE_ITEM', seat, item })), { type: 'STOP', seat }];
     case 'TURN_START': {
       if (p.kind === 'dark') return [{ type: 'ROLL_DARK_EXIT', seat }];
       const back = exits(game, content, seat).find(e => e.dir === hero.enteredFrom)?.legal;
@@ -55,7 +79,11 @@ export function legalActions(game, content) {
       }
       return [...(back ? [{ type: 'RUBBLE_RETURN', seat }] : []), { type: 'RUBBLE_FORCE', seat }];
     }
-    case 'RESOLVE_CARD': return p.options.map((_, option) => ({ type: 'CHOOSE', seat: p.seat, option }));
+    case 'RESOLVE_CARD':
+      // Spec v5: a trap card just drawn, with the Protection Ring unused: use it, or let the trap happen.
+      if (p.kind === 'trap-ring') return [{ type: 'USE_RING', seat: p.seat }, { type: 'DECLINE_RING', seat: p.seat }];
+      if (p.kind === 'name-numbers') return numberSets(p.count).map(numbers => ({ type: 'NAME_NUMBERS', seat: p.seat, numbers }));
+      return p.options.map((_, option) => ({ type: 'CHOOSE', seat: p.seat, option }));
     case 'TOWER_CHOICE': {
       // Continue only through another legal tower passage (not back the way in).
       const onward = p.transit && exits(game, content, seat).some(e => e.legal && e.dir !== hero.enteredFrom);
@@ -63,12 +91,16 @@ export function legalActions(game, content) {
     }
     case 'CHOOSE_MONSTER_RESPONSE': return [
       ...responseOptions(game, content).map(choice => ({ type: 'RESPOND', seat, choice })),
-      // Spec v3: a held special weapon card whose data allows it (not in an ambush, as the hero's own weapon).
-      ...(game.encounter.ambush ? [] : usableHeld(game, content, seat, 'encounter-special').map(item => ({ type: 'RESPOND', seat, choice: 'special', item }))),
+      // Spec v3: a held special weapon card whose data allows it. D41 (spec v4): also in an ambush, after its damage.
+      ...usableHeld(game, content, seat, 'encounter-special').map(item => ({ type: 'RESPOND', seat, choice: 'special', item })),
+      // Spec v5: the Thunder Ring in a normal encounter only, never in an ambush.
+      ...(game.encounter.ambush ? [] : ringAt(game, content, seat, 'encounter-choice')),
     ];
     case 'MONSTER_REACT': return [{ type: 'ANNOUNCE', seat: p.seat }];
     case 'COMBAT_SELECT': return combatActions(game);
     case 'FORCED_MOVE': return p.targets.map(to => ({ type: 'FORCED_MOVE', seat: p.seat, to }));
+    // Spec v9: entering a rotating room with the Protection Ring unused, before it turns; the entering (or driven) hero's seat.
+    case 'RESOLVE_TILE_ENTRY': return p?.kind === 'rotation-ring' ? [{ type: 'USE_RING', seat: p.seat }, { type: 'DECLINE_RING', seat: p.seat }] : [];
     default: return [];
   }
 }
@@ -82,7 +114,7 @@ export function searchUnavailable(game, content) {
   const kind = squareKind(content.board, hero.coord);
   const mark = kind === 'maze' ? contentIndex(content).tiles.get(game.board.tiles[key(hero.coord)].defId).mark : null;
   if (kind !== 'maze' || !['black', 'red'].includes(mark)) {
-    const where = kind === 'tower' ? 'a tower' : kind === 'center' ? 'the treasure chamber' : mark === 'yellow' ? 'a yellow corridor' : mark === 'blue' ? 'a dark room' : 'a special room with no dot';
+    const where = kind === 'tower' ? 'a tower' : kind === 'center' ? theChamber(content) : mark === 'yellow' ? 'a yellow corridor' : mark === 'blue' ? 'a dark room' : 'a special room with no dot';
     return `not a room square (this is ${where}). Only black or red dot rooms can be searched.`;
   }
   if (game.phase === 'CHOOSE_ACTION') return null;

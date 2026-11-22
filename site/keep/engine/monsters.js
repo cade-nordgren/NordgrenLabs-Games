@@ -24,8 +24,11 @@ export function weaponOf(g, content, seat) {
 }
 
 // RB 8.1, SP 7: the hero commits before anything about the monster exists in the state.
-// RB 8.7, SP 7: an ambush first deals D12 - Luck (floored at 0, D03), then only Attack or Flee.
-export function startEncounter(g, content, { ambush }) {
+// RB 8.7, SP 7: an ambush first deals D12 - Luck (floored at 0, D03), then Attack or Flee, and (D41, spec v4) a
+// special weapon when the hero has an applicable one; never Wait.
+// type: the monster type the room card names (a monster-group combat set id), read from a card's row; null
+// for a single-monster card, which is the monster itself.
+export function startEncounter(g, content, { ambush, type = null }) {
   const seat = g.activeSeat;
   const hero = g.heroes[seat];
   logEvent(g, { kind: 'encounter', seat, ambush });
@@ -36,9 +39,10 @@ export function startEncounter(g, content, { ambush }) {
   }
   const controller = controllerSeat(g, seat);
   // D37 (spec v3): monster card and HP are private to the monster player: the controller, or in solo the
-  // computer ('computer' matches no viewer seat, so only the debug view shows them).
+  // computer ('computer' matches no viewer seat, so only the debug view shows the card). Solo HP: soloHpShown.
+
   const priv = g.seats.length === 1 ? 'computer' : controller;
-  g.encounter = { seat, ambush, controller, priv, choice: null, monster: null, reaction: null, announced: false, combat: null };
+  g.encounter = { seat, ambush, type, controller, priv, choice: null, monster: null, reaction: null, announced: false, combat: null };
   g.phase = 'CHOOSE_MONSTER_RESPONSE';
   g.pending = { kind: 'monster-response', seat };
 }
@@ -48,10 +52,14 @@ export function responseOptions(g, content) {
   const out = ['attack'];
   if (!ambush) out.push('wait');
   if (canFlee(g, content, seat)) out.push('flee');
-  // shortcut: ambush offers Attack or Flee only (RB 8.7), so the special weapon is not offered there either.
-  if (!ambush && weaponOf(g, content, seat)) out.push('special');
+  // D41 (spec v4, interpretation of 2023 rules 9.1 and 9.5): the special weapon is an alternative to Attack, ambush included.
+  if (weaponOf(g, content, seat)) out.push('special');
   return out;
 }
+
+// D37 as amended by spec v4: in solo the revealed monster's HP and damage are the player's to see (2023 rules 11),
+// unless the house rule soloMonsterHp 'hidden-house-rule' is chosen. The card itself stays with the computer.
+export const soloHpShown = g => g.seats.length === 1 && g.rules.soloMonsterHp === 'visible';
 
 // Commit, then the controller draws the top monster card privately and reads the matching reaction.
 // RB 8.1: a special weapon reads the Attack reaction.
@@ -62,21 +70,24 @@ export function respond(g, content, choice, item = null) {
   logEvent(g, { kind: 'commit', seat: enc.seat, choice, ...(item ? { item } : {}) });
   const inst = draw(g, 'MONSTER', 'monster encounter', enc.priv);
   const def = cardDef(content, inst);
-  enc.monster = { inst, hp: def.hp, wounds: 0, groupId: def.groupId };
-  enc.reaction = def.reactions[choice === 'special' ? 'attack' : choice];
+  // A card with rows (2023 structure): the row of the named monster type, one reaction per hero choice, and
+  // a fight's HP on that reaction. A single-monster card: its own reactions, HP and combat set.
+  const table = def.rows ? def.rows[enc.type] : def.reactions;
+  if (!table) throw new Error(`${inst} has no row for monster type ${enc.type}`); // content validation prevents this
+  enc.reaction = table[choice === 'special' ? 'attack' : choice];
+  enc.monster = { inst, hp: enc.reaction.hp ?? def.hp ?? null, wounds: 0, groupId: def.rows ? enc.type : def.groupId };
   // D37: in solo the computer reads the card and announces at once; nobody sees the card.
   if (enc.priv === 'computer') return announce(g, content);
   g.phase = 'MONSTER_REACT';
   g.pending = { kind: 'announce', seat: enc.controller };
 }
 
-// The controller announces the reaction (the hot-seat cover step). Weapon effects, then the
-// reaction's own effects, then its type.
+// The controller announces the reaction (the hot-seat cover step). Weapon effects first; then, only if the
+// monster survived them (spec v5: a crossbow 6 kills outright), the reaction is said and its effects and type apply.
 export function announce(g, content) {
   const enc = g.encounter;
   enc.announced = true;
   g.pending = null;
-  logEvent(g, { kind: 'reaction', seat: enc.seat, type: enc.reaction.type });
   const effects = [];
   if (enc.choice === 'special' && enc.item) effects.push(...spendUse(g, content, enc.seat, enc.item));
   else if (enc.choice === 'special') {
@@ -85,19 +96,36 @@ export function announce(g, content) {
     itemLog(g, enc.seat, 'use', w.id, 'equipment');
     effects.push(...(w.effects || []));
   }
-  effects.push(...(enc.reaction.effects || []), { op: '_REACT' });
+  effects.push({ op: '_REVEAL' });
   g.stack.push({ effects, i: 0 });
+}
+
+// After the weapon: a dead monster ends the encounter unanswered; otherwise the reaction is logged and resolved.
+export function revealReaction(g) {
+  const enc = g.encounter;
+  if (!enc) return; // the hero died to a weapon effect
+  if (monsterDead(g)) return endEncounter(g, 'monster-killed', 'endAfter');
+  logEvent(g, { kind: 'reaction', seat: enc.seat, type: enc.reaction.type });
+  g.stack.push({ effects: [...(enc.reaction.effects || []), { op: '_REACT' }], i: 0 });
+}
+
+// Spec v5: KILL_MONSTER (a crossbow 6): the monster dies at once, whatever its HP. The kill is announced by the
+// encounter's end, never with its HP.
+export function killMonster(g) {
+  const m = g.encounter?.monster;
+  if (m) m.killed = true;
 }
 
 export function woundMonster(g, amount) {
   const m = g.encounter?.monster;
   if (!m) throw new Error('No monster to damage');
   m.wounds += amount;
-  // Spec v3: the monster player tracks damage privately; the running total is theirs alone.
-  logEvent(g, { kind: 'monster-wound', amount, wounds: m.wounds, private: g.encounter.priv });
+  // Spec v3: the monster player tracks damage privately; the running total is theirs alone (in solo the player's, D37).
+  logEvent(g, { kind: 'monster-wound', amount, wounds: m.wounds, private: soloHpShown(g) ? g.encounter.seat : g.encounter.priv });
+
 }
 
-const monsterDead = g => g.encounter.monster.wounds >= g.encounter.monster.hp;
+const monsterDead = g => { const m = g.encounter.monster; return !!m.killed || (m.hp !== null && m.wounds >= m.hp); }; // hp null: a reaction with no fight
 
 // RB 8.2: monster flees -> cards under their decks, turn ends. RB 8.6: strike then flight or combat.
 export function applyReaction(g, content) {
@@ -116,7 +144,7 @@ export function applyReaction(g, content) {
   }
 }
 
-function endEncounter(g, outcome, turnEffect) {
+export function endEncounter(g, outcome, turnEffect) {
   const enc = g.encounter;
   if (enc.monster) toBottom(g, 'MONSTER', enc.monster.inst, enc.priv);
   logEvent(g, { kind: 'encounter-end', outcome });

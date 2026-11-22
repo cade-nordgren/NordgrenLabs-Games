@@ -125,7 +125,7 @@ test('fixture names read as placeholders and each card says in plain words what 
   assert.match(salve.text, /heals 2 HP \(1 use\)\./);
   assert.equal(mechanicsText(salve), 'After use it goes to the bottom of its deck.', 'where it goes is for the debug log');
   const fork = FX.room.find(c => c.id === 'FX_ROOM_FORK');
-  assert.equal(fork.text, 'Made-up test card. Choose Take it (you keep it) or Leave it. Worth 4 gold.');
+  assert.equal(fork.text, 'Made-up test card. Take it or leave it. Worth 4 gold.', 'spec v12 follow-up: a choice reads as its options; the prompt has the steps');
   assert.equal(mechanicsText(fork), 'Leave it: the card goes to the bottom of its deck.');
   assert.equal(FX.room.find(c => c.id === 'FX_ROOM_STOP').text, 'Made-up test card. Your turn ends at once.', 'nothing after END_TURN runs, so it is not described');
 });

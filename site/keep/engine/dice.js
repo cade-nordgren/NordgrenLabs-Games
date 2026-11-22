@@ -57,11 +57,13 @@ export function testPreview(statName, stat, reason, modifiers = 0) {
   return { die: 'D12', stat: statName, target: stat, modifiers: mods, modifier, reason, success: `D12${terms(mods)} <= ${statName} ${stat}`, passingRolls: Math.max(0, Math.min(12, stat - modifier)) };
 }
 
-export function testStat(game, statName, stat, reason, modifiers = 0) {
+// seat: the tested hero, when not the active one (a forced move into a well after the wake, spec v4 item 4).
+export function testStat(game, statName, stat, reason, modifiers = 0, seat = game.activeSeat) {
   const t = testPreview(statName, stat, reason, modifiers);
   const d12 = roll(game, 'D12', reason);
   const pass = statPasses(d12, stat, t.modifier);
-  logEvent(game, { kind: 'test', ...t, roll: d12, pass, arithmetic: `D12 ${d12}${terms(t.modifiers)} = ${d12 + t.modifier} ${pass ? '<=' : '>'} ${statName} ${stat}: ${pass ? 'pass' : 'fail'}` });
+  logEvent(game, { kind: 'test', seat, ...t, roll: d12, pass,
+ arithmetic: `D12 ${d12}${terms(t.modifiers)} = ${d12 + t.modifier} ${pass ? '<=' : '>'} ${statName} ${stat}: ${pass ? 'pass' : 'fail'}` });
   return { roll: d12, pass };
 }
 
