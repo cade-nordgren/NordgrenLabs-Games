@@ -157,8 +157,10 @@ export function describe(e, ctx, next) {
       if (e.reason === 'dark room exit') return null; // its own line follows
       if (e.reason === 'ambush' || e.reason === 'dragon fire') return [null, `${e.die} ${e.value}`]; // the damage line carries it
       const card = /^card roll /.test(e.reason), table = /^table roll/.test(e.reason);
-      if ((card || table) && next?.kind === 'formula') return null; // the formula's arithmetic shows the roll
-      return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} rolls ${e.value} on the ${e.die}${card ? ' for the card' : ''}.`, card || table ? '' : e.reason];
+      // A roll the formula after it uses is still said (owner: the crossbow's second D6 was missing from the log).
+      const second = / roll second$/.test(e.reason) ? 'second ' : '';
+      if ((card || table) && next?.kind === 'formula' && !second) return null; // the formula's arithmetic shows the roll
+      return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} rolls ${e.value} on the ${second}${e.die}${card && !second ? ' for the card' : ''}.`, card || table ? '' : e.reason];
     }
     case 'test':
       return [`${e.seat !== undefined ? who(e.seat) : 'The hero'} ${e.pass ? 'passes' : 'fails'} the ${STAT[e.stat]} test ${TEST_WHY[e.reason] || `(${e.reason})`}.`, testWords(e).join(' ')];
@@ -299,7 +301,8 @@ export function entries(events, ctx, { debug = false } = {}) {
     if (m) regs[m[1]] = e.die;
     const r = describe(e, ctx, events[i + 1]);
     let [text, detail, mech = ''] = Array.isArray(r) ? r : [r, ''];
-    if (detail) detail = detail.replace(/[A-Za-z_]\w*/g, w => (Object.hasOwn(regs, w) ? regs[w] : Object.hasOwn(STAT, w) ? STAT[w] : w)).replace(/ {2,}/g, ' ');
+    if (detail && e.kind === 'formula' && detail === e.arithmetic && detail.startsWith('floor(')) detail = formulaWords(detail, regs, ctx.content); // plain words, not floor((D6 6) / 2)
+    else if (detail) detail = detail.replace(/[A-Za-z_]\w*/g, w => (Object.hasOwn(regs, w) ? regs[w] : Object.hasOwn(STAT, w) ? STAT[w] : w)).replace(/ {2,}/g, ' ');
     if (!text) {
       if (detail) carry.push(detail);
       if (debug && mech) out.push({ e, text: '', detail: '', mech });

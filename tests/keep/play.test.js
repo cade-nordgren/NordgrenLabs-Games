@@ -209,3 +209,15 @@ test('why the hero may keep moving, the escape sun and a drawn card read by name
     `Room card: Test draught (keep moving). ${FX.room.find(d => d.id === 'FX_ROOM_DRAFT').text || 'Made-up test card. You may keep moving this turn.'}`,
   ]);
 });
+
+test('owner play-test: the crossbow log says both dice, and the damage in plain words', () => {
+  const ctx = { content: FX, name: s => `P${s + 1}` };
+  const out = entries([
+    { kind: 'roll', seat: 0, die: 'D6', value: 4, reason: 'table roll' },
+    { kind: 'roll', seat: 0, die: 'D6', value: 6, reason: 'table roll second' },
+    { kind: 'formula', reason: 'damage formula', value: 3, arithmetic: 'floor((second 6) / 2) = 3' },
+    { kind: 'monster-wound', amount: 3 },
+  ], ctx);
+  assert.deepEqual(out.map(x => x.text), ['P1 rolls 4 on the D6.', 'P1 rolls 6 on the second D6.', 'The monster takes 3.']);
+  assert.equal(out[2].detail, 'Half of D6 6, rounded down: 3');
+});
