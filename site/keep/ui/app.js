@@ -270,7 +270,7 @@ function tryAct(a) {
   body.push(el('p', 'need', need === null ? `Roll the ${info.die}` : need >= 12 ? 'Any roll on the D12 passes' : need < 1 ? 'No roll on the D12 can pass' : `Roll ${need} or less on a D12`));
   $('rollBody').replaceChildren(...body);
   const go = el('button', 'btn primary', 'Roll');
-  go.onclick = () => { d.dataset.mode = 'rolling'; act(a); };
+  go.onclick = () => { d.dataset.mode = 'rolling'; rollPressed = true; act(a); };
   const btns = [go];
   if (info.cancel) { const back = el('button', 'btn', 'Back'); back.onclick = () => d.close(); btns.unshift(back); }
   $('rollBtns').replaceChildren(...btns);
@@ -306,8 +306,18 @@ function cardKind(card) {
   if (lines.some(t => /empty|Nothing is found/.test(t))) return 'empty';
   return null;
 }
+// The player rolls a card's dice (owner): true just after a press of Roll elsewhere, so that roll's own card tumbles
+// at once rather than asking again.
+let rollPressed = false;
+// The design's sum line, read from the card's own dice line ("Rolled 9, minus Agility 4: 5 damage.").
+function sumLine(text) {
+  const m = /^Rolled (\d+), minus (?:([A-Za-z]+) )?(\d+): (\d+) damage/.exec(text || '');
+  return m ? `${m[1]} − ${m[3]}${m[2] ? ` (${m[2]})` : ''} = ${m[4]} damage` : null;
+}
 function drawCard(card, i, n) {
   const d = $('roll');
+  const pressed = i === 0 && rollPressed;
+  rollPressed = false;
   $('rollTitle').textContent = card.title;
   const body = [];
   if (n > 1) body.push(el('p', 'count', `${i + 1} of ${n}`));
@@ -344,6 +354,8 @@ function drawCard(card, i, n) {
   const gold = kind === 'treasure' && goldOf(card);
   if (gold) { const g = el('p', 'goldplate'); g.setAttribute('aria-hidden', 'true'); g.append(el('b', '', gold), ' gold'); body.push(g); } // the words above say it
   const dice = el('div'), out = el('div', 'outcome');
+  const sums = card.dice.map(x => sumLine(x.text)).filter(Boolean);
+  for (const t of sums) { const p = el('p', 'sumline', t); p.setAttribute('aria-hidden', 'true'); out.append(p); } // the line below says it in words
   for (const x of card.dice) { const p = el('p', 'tagged'); p.append(tagChip(x.tag), ' ', x.text); out.append(p); }
   if (card.results.length) {
     const ul = el('ul', 'results');
@@ -364,10 +376,19 @@ function drawCard(card, i, n) {
   ok.disabled = true;
   if (!card.dice.length) return shown(false);
   out.style.visibility = 'hidden';
-  $('rollTitle').focus(); // until Continue is available
   // The tumble only decorates: it settles on a timer (dice.js), and is skipped while the page is hidden or under
   // reduced motion (then the promise is already settled and the result shows with Continue at once).
-  rollDice(dice, card.dice.map(x => ({ value: x.value, sides: x.die === 'D12' ? 12 : 6 })), { animate: !document.hidden }).then(() => { if (d.open && out.isConnected) shown(true); });
+  const sides = x => (x.die === 'D12' ? 12 : 6);
+  const tumble = () => rollDice(dice, card.dice.map(x => ({ value: x.value, sides: sides(x) })), { animate: !document.hidden }).then(() => { if (d.open && out.isConnected) shown(true); });
+  if (pressed) { $('rollTitle').focus(); return tumble(); } // until Continue is available
+  // Press to roll (owner): the dice wait unrolled; Roll takes the place of Continue until they land. Nothing changes
+  // in play: the engine rolled already, the dice only show it.
+  rollDice(dice, card.dice.map(x => ({ value: '?', sides: sides(x) })), { animate: false });
+  const go = el('button', 'btn primary', `Roll ${card.dice.length === 1 ? `the ${card.dice[0].die}` : 'the dice'}`);
+  ok.hidden = true;
+  go.onclick = () => { go.remove(); ok.hidden = false; $('rollTitle').focus(); tumble(); };
+  $('rollBtns').replaceChildren(go, ok);
+  go.focus();
 }
 // After the last card: close, then the fight's end card, the table, focus and dusk, all inside the click handler.
 function cardsDone() {
@@ -1345,7 +1366,7 @@ function numberPicker(v, pend, legal) {
   }
   go.onclick = () => {
     const a = legal.find(x => x.numbers === [...named.picks].sort((m, k) => m - k).join(','));
-    if (a) { named = { key: null, picks: [] }; act(a); }
+    if (a) { named = { key: null, picks: [] }; rollPressed = true; act(a); }
   };
   sync();
   const ch = el('div', 'choices');

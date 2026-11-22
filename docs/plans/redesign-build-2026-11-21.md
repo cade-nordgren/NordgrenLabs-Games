@@ -124,3 +124,9 @@ real saves in it, signed-in saves on the deployed site.
   the card's width at its own shape (drawers on an upright phone may now reach 12px from the top, and scroll), in a
   fight it stands whole at the banner's right with the name at the left, and in phone landscape a picture card goes
   side by side, the drawing on the left at the drawer's height.
+- Press to roll (owner, 2026-11-20: "Let the user press a button to roll the dice. Then have it say # - 4 (Agility) =
+  #"): a result card with dice shows them unrolled with "Roll the D12" (or D6, or "the dice") in place of Continue;
+  pressed, they tumble to what the engine already rolled and a sum line shows in large type ("10 − 7 (Luck) = 3
+  damage"), read from the card's own dice line. A card right after a press of Roll elsewhere (the roll card for a
+  test, the giant spider's number picker) tumbles at once instead of asking twice. Esc and a swipe do nothing until the
+  dice land. Display only: no roll moved or changed.

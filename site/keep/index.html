@@ -730,6 +730,9 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 }
 </style>
 <style id="keep-skin">
+/* Press to roll (owner): the design's sum line once the dice land. */
+#roll p.sumline { margin: 0 0 2px; font: 600 22px/1.2 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums; color: #7E1F2A; text-align: left; }
+#roll[data-kind="monster"] p.sumline { color: #F0B5B9; }
 /* The owner's creature drawings (2026-11-21), always whole (owner: "use the whole image for each character"). On a card
    the drawing runs the card's width at its own shape; in a fight it stands whole at the banner's right, the name at the
    left. Phone landscape: the card goes side by side, the drawing on the left at the drawer's height. */
