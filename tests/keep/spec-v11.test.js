@@ -170,7 +170,7 @@ test('spec v11 decision 7: the dragon card drawn on the flight is the awake one:
 
 // ---- Labels (spec v11): the approvals are named in the card notes in words; no Status label changed; physical details stay
 // flagged; the rule switches keep their documented defaults and have no control; every entry stays draft.
-test('spec v11 labels: notes name the approvals, the coins stay PROVISIONAL/INFERRED, the switches keep their defaults, nothing approved', async () => {
+test('spec v11 labels: notes name the approvals, the coins stay PROVISIONAL/INFERRED, the switches keep their defaults, only the monster cards still draft (spec v13)', async () => {
   const { DEFAULT_RULES } = await import('../../site/keep/engine/reducer.js');
   assert.deepEqual(DEFAULT_RULES, { darkRoomPolicy: 'ON_INITIAL_REVEAL_PLUS_SPECIAL_REENTRY', forcedMoveTileEffects: true, soloCombat: 'target', towerAtSunsetCountsAsEscape: false, escapeWithoutExploring: false, soloMonsterHp: 'visible', rotatingRoomRing: 'every-entry' }, 'decision 9: documented defaults preserved');
   const all = Object.values(ORIGINAL).filter(Array.isArray).flat();
@@ -181,5 +181,5 @@ test('spec v11 labels: notes name the approvals, the coins stay PROVISIONAL/INFE
   for (const id of ['ROOM_003', 'ROOM_005']) assert.match(notes(id), /Status: 1985-SUPPORTED INTERPRETATION/, `${id}: trap classification label unchanged`);
   for (let v = 13; v <= 33; v++) assert.match(notes(`TREASURY_0${v}`), /Status: PROVISIONAL\/INFERRED/, 'coins not directly verified');
   assert.ok(!all.some(e => typeof e.notes === 'string' && e.notes.includes('OWNER DECISION REQUIRED')));
-  assert.deepEqual([all.filter(e => e.status === 'DRAFT').length, all.filter(e => e.status !== 'DRAFT').every(e => e.id.startsWith('TILE_'))], [162, true], 'the 162 draft entries stay draft; only the tiles (and the single board and chamber) are approved');
+  assert.deepEqual([all.filter(e => e.status === 'DRAFT').length, all.filter(e => e.status === 'DRAFT').every(e => e.id.startsWith('MONSTER_'))], [15, true], 'spec v13: only the 15 monster cards are still draft');
 });

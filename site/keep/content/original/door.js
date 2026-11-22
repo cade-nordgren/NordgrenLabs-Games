@@ -24,14 +24,14 @@
 // SKELETON END
 
 export default [
-  { id: 'DOOR_001', copies: 7, status: 'draft', name: 'Door opens', text: '', deck: 'DOOR', kind: 'opens',
-    notes: 'Owner catalogue 2026-11-19 (DR-001, 7 copies). The hero goes through; it relocks behind them (R47, R50). Draft until the owner approves.' },
-  { id: 'DOOR_002', copies: 5, status: 'draft', name: 'Door stays shut', text: '', deck: 'DOOR', kind: 'closed',
-    notes: 'Owner catalogue 2026-11-19 (DR-002, 5 copies). The hero may try another way this turn (R48). Draft until the owner approves.' },
-  { id: 'DOOR_003', copies: 1, status: 'draft', name: 'Door trap', text: '', deck: 'DOOR', kind: 'trap', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D12', minusStat: 'LCK' } }],
-    notes: 'Owner catalogue 2026-11-19 (DR-003). Called a trap by the catalogue and spec v6 (Protection Ring, plan D63): D12 minus Luck; the door stays shut and the turn ends (R49). Draft until the owner approves.' },
-  { id: 'DOOR_004', copies: 1, status: 'draft', name: 'Door trap', text: '', deck: 'DOOR', kind: 'trap', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D6' } }],
-    notes: 'Owner catalogue 2026-11-19 (DR-004). Called a trap by the catalogue and spec v6 (Protection Ring, plan D63): D6; the door stays shut and the turn ends (R49). Draft until the owner approves.' },
-  { id: 'DOOR_005', copies: 1, status: 'draft', name: 'Shuffle again', text: '', deck: 'DOOR', kind: 'reshuffle', cardDisposition: 'RESHUFFLE_DECK',
-    notes: 'Owner catalogue 2026-11-19 (DR-005). Goes back into the door deck, which is shuffled (R62); the hero then at once draws the door card they were trying to get and it resolves normally, again if it is this card; no extra turn, and the door is not treated as shut. Status: 1985-SUPPORTED INTERPRETATION (explicit in the 1985 rules, compatible with the 2023 recycling rule; spec v6, plan D62). Draft until the owner approves.' },
+  { id: 'DOOR_001', copies: 7, status: 'approved', name: 'Door opens', text: '', deck: 'DOOR', kind: 'opens',
+    notes: 'Owner catalogue 2026-11-19 (DR-001, 7 copies). The hero goes through; it relocks behind them (R47, R50). Approved by the owner 2026-11-22.' },
+  { id: 'DOOR_002', copies: 5, status: 'approved', name: 'Door stays shut', text: '', deck: 'DOOR', kind: 'closed',
+    notes: 'Owner catalogue 2026-11-19 (DR-002, 5 copies). The hero may try another way this turn (R48). Approved by the owner 2026-11-22.' },
+  { id: 'DOOR_003', copies: 1, status: 'approved', name: 'Door trap', text: '', deck: 'DOOR', kind: 'trap', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D12', minusStat: 'LCK' } }],
+    notes: 'Owner catalogue 2026-11-19 (DR-003). Called a trap by the catalogue and spec v6 (Protection Ring, plan D63): D12 minus Luck; the door stays shut and the turn ends (R49). Approved by the owner 2026-11-22.' },
+  { id: 'DOOR_004', copies: 1, status: 'approved', name: 'Door trap', text: '', deck: 'DOOR', kind: 'trap', effects: [{ op: 'DEAL_DAMAGE', target: 'hero', amount: { die: 'D6' } }],
+    notes: 'Owner catalogue 2026-11-19 (DR-004). Called a trap by the catalogue and spec v6 (Protection Ring, plan D63): D6; the door stays shut and the turn ends (R49). Approved by the owner 2026-11-22.' },
+  { id: 'DOOR_005', copies: 1, status: 'approved', name: 'Shuffle again', text: '', deck: 'DOOR', kind: 'reshuffle', cardDisposition: 'RESHUFFLE_DECK',
+    notes: 'Owner catalogue 2026-11-19 (DR-005). Goes back into the door deck, which is shuffled (R62); the hero then at once draws the door card they were trying to get and it resolves normally, again if it is this card; no extra turn, and the door is not treated as shut. Status: 1985-SUPPORTED INTERPRETATION (explicit in the 1985 rules, compatible with the 2023 recycling rule; spec v6, plan D62). Approved by the owner 2026-11-22.' },
 ];

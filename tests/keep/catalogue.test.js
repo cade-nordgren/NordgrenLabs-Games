@@ -55,7 +55,7 @@ test('catalogue: exact deck sizes and variant frequencies in every category', ()
       assert.equal(e.name, name, `${e.id} name`);
       assert.equal(e.copies, n, `${e.id} (${name}) copies`);
       assert.equal(e.gold ?? null, gold, `${e.id} (${name}) gold`);
-      assert.equal(e.status, 'DRAFT', `${e.id} is draft, never approved by the build`);
+      assert.equal(e.status, 'OWNER_APPROVED', `${e.id}: approved by the owner (spec v13, 2026-11-22), never by the build`);
       assert.equal(e.text, '', `${e.id}: no copied wording`);
     });
   }
