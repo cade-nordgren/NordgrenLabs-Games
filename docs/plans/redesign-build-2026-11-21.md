@@ -164,3 +164,7 @@ real saves in it, signed-in saves on the deployed site.
 - Results scene (2026-11-22, canvas "Results"): the keep at nightfall in place of the start screen's keep at dusk, with
   the title and its line up in the sky. Someone escaped: a night sky with stars, a gold glow and a small figure carrying
   gold away. The keep wins: a blood-red sky and two lit red windows. A shared win's longer title is set smaller.
+- Items sheet details (2026-11-22, canvas "Items"): the groups in the design's order (useful items, ring, equipment,
+  treasure, the chamber's cards), the ring's own picture (its gem as on the ring picker), uses left as a green corner
+  tag (outlined when none are left), a coin on the gold plate, a gold Close; a special weapon with rules text (the
+  hunters' crossbow) shows as a card among the equipment pills.

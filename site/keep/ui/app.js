@@ -1910,7 +1910,7 @@ function itemsButton(v, seat, cls) {
 }
 const SOURCE = { hero: 'Hero equipment', specialWeapons: 'Special weapon card' };
 const ringOfSeat = seat => contentIndex(content()).rings.get(S.game.seats[seat].ringId);
-const ITEM_GROUPS = [['equipment', 'Starting equipment'], ['ring', 'Magic ring'], ['items', 'Weapons and useful items'], ['treasure', 'Treasure'], ['chamber', null]]; // null: the chamber's name, from the content
+const ITEM_GROUPS = [['items', 'Weapons and useful items'], ['ring', 'Magic ring'], ['equipment', 'Starting equipment'], ['treasure', 'Treasure'], ['chamber', null]]; // the design's order: what can be used first // null: the chamber's name, from the content
 function openItems(seat) {
   const g = S.game, v = view(g, content(), viewer), inv = v.heroes[seat].inventory;
   $('itemsTitle').textContent = `${nameOf(seat)}'s items`;
@@ -1929,9 +1929,11 @@ function openItems(seat) {
     for (const item of list) {
       const li = el('li');
       li.append(el('strong', '', item.name || item.id || 'Unnamed'));
+      // The design's tag for uses left, in the corner; the ring's own picture (its gem as on the ring picker).
+      if (Number.isInteger(item.usesLeft)) li.append(el('span', `usetag${item.usesLeft ? '' : ' spent'}`, `${item.usesLeft} ${item.unit ? unitWord(item, item.usesLeft) : item.usesLeft === 1 ? 'use' : 'uses'} left`));
+      if (k === 'ring') { const i = (content().rings || []).findIndex(r => r.id === item.id); li.classList.add('ringrow'); li.prepend(ringArt(RING_GEMS[Math.max(0, i) % RING_GEMS.length])); }
       const facts = [item.deck ? capital(deckWord(item.deck, content())) : SOURCE[item.source] || (k === 'ring' ? 'Ring' : '')];
       if (item.gold) facts.push(`${item.gold} gold`);
-      if (Number.isInteger(item.usesLeft)) facts.push(`${item.usesLeft} ${item.unit ? unitWord(item, item.usesLeft) : item.usesLeft === 1 ? 'use' : 'uses'} left`);
       li.append(el('span', 'meta', facts.filter(Boolean).join(' · ')));
       const def = item.inst ? cardDef(content(), item.inst) : item.group === 'ring' ? contentIndex(content()).rings.get(item.id) : (content().specialWeapons || []).find(w => w.id === item.id);
       const text = itemText(item) || itemText(def);
