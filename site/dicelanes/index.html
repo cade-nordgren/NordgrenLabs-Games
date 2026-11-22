@@ -80,8 +80,11 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 #modeSeg { margin-top: 12px; }
 #startHint { text-align: center; }
 
-/* ---- Game header: player chips and the turn line, kept left of the menu and Undo circles (which reach 106px down). */
+/* ---- Game header: player chips, kept left of the menu and Undo circles (which reach 106px down). With digital dice
+   the tray is the top element and takes that place beside the circles, so the chips sit under it at full width. */
 .head { padding-right: 58px; min-height: 106px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
+#gamePage.digital .head { padding-right: 0; min-height: 0; }
+#gamePage.digital .head:has(#chips[hidden]) { display: none; }
 #chips { display: flex; gap: 6px; overflow-x: auto; padding: 2px; margin: -2px; }
 .chip { flex: 1 1 auto; min-width: 0; max-width: 160px; min-height: 44px; padding: 0 10px; border-radius: 999px; background: var(--fill);
   display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 600; font-size: 15px; }
@@ -100,8 +103,10 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 #status strong { color: var(--ink); }
 
 /* ---- Dice tray */
-#tray { padding: 12px; margin-bottom: 12px; border-radius: 22px; }
+#tray { padding: 12px; margin: 0 58px 12px 0; border-radius: 22px; }
 .tray-head { display: flex; align-items: center; gap: 10px; }
+.round { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink); }
+.round svg { width: 22px; height: 22px; }
 .sum { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; }
 .sum span { font-size: 14px; font-weight: 600; color: var(--ink2); }
 #sum { font: 800 34px/1 var(--num); letter-spacing: -.02em; min-width: 1.3em; font-variant-numeric: tabular-nums; }
@@ -109,7 +114,8 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 @keyframes pop { 40% { transform: scale(1.18); } }
 #trayToggle svg { transition: transform .3s ease; }
 #tray.compact #trayToggle svg { transform: rotate(180deg); }
-#dice { --h: 19px; display: flex; justify-content: space-between; gap: 6px; padding: 12px 2px 10px; }
+/* Six dice fit beside the circles: half a die per twelfth of what is left after gutters, padding and gaps. */
+#dice { --h: clamp(12px, calc((100vw - 32px - 58px - 28px - 30px) / 12), 19px); display: flex; justify-content: space-between; gap: 6px; padding: 12px 2px 10px; }
 #tray.compact #dice { --h: 12px; padding: 8px 2px 4px; }
 .slot { width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; flex: none; }
 .slot.gone { border-radius: 24%; border: 2px dashed color-mix(in srgb, var(--lane) 55%, transparent); }
@@ -158,9 +164,11 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 /* Skipped: dimmed and struck through, never usable again. */
 .cell.skip { background: color-mix(in srgb, var(--cell) 55%, transparent); color: color-mix(in srgb, var(--cell-ink) 45%, transparent); box-shadow: none; }
 .cell.skip::before { content: ""; position: absolute; left: 22%; right: 22%; top: 50%; height: 2px; border-radius: 2px; background: currentColor; transform: rotate(-55deg); }
-/* Digital: while someone chooses, their legal cells keep full strength with a ring; the rest step back. */
-.choosing .cell:not(.legal):not(.x):not(.skip):not(.pick) { opacity: .55; }
+/* Digital: while someone chooses, their legal cells keep full strength with a ring; cells a pick rules out (tap to
+   swap) are muted with a dashed ring; everything else steps further back. */
+.choosing .cell:not(.legal):not(.x):not(.skip):not(.pick):not(.swap) { opacity: .45; }
 .cell.legal { box-shadow: inset 0 0 0 3px var(--cell-ink), 0 2px 6px rgb(0 0 0 / .25); }
+.choosing .cell.swap { opacity: .72; box-shadow: none; outline: 2px dashed var(--cell-ink); outline-offset: -5px; }
 /* A tentative pick: an X in the accent colour with a ring, until the player taps Done. */
 .cell.pick { box-shadow: inset 0 0 0 3px var(--accent), 0 2px 6px rgb(0 0 0 / .25); }
 .cell.pick .n { opacity: .3; }
@@ -228,16 +236,18 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
   .cell { height: 62px; border-radius: 10px; font-size: 26px; }
   .lane { gap: 5px; padding: 6px; border-radius: 16px; }
   .lanes { margin: 0; }
-  #dice { --h: 26px; justify-content: center; gap: 22px; }
+  #dice { --h: 24px; justify-content: center; gap: 20px; }
   #tray.compact #dice { --h: 16px; }
   .points { font-size: 14px; }
 }
-/* Wide screens: the tray sits beside the sheet. */
+/* Wide screens: the tray sits beside the sheet, still clear of the circles. */
 @media (min-width: 1040px) {
-  .app:has(#gamePage:not([hidden]) .table.digital) { max-width: 1040px; }
-  .table.digital { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
-  .table.digital #tray { order: 2; position: sticky; top: 16px; margin: 0; }
-  .table.digital #dice { --h: 19px; justify-content: space-between; gap: 6px; }
+  .app:has(#gamePage.digital:not([hidden])) { max-width: 1100px; }
+  #gamePage.digital { display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-areas: "head tray" "board tray"; column-gap: 16px; align-items: start; }
+  #gamePage.digital #tray { grid-area: tray; position: sticky; top: 16px; }
+  #gamePage.digital .head { grid-area: head; }
+  #gamePage.digital #board { grid-area: board; }
+  #gamePage.digital #dice { --h: 19px; justify-content: space-between; gap: 6px; }
 }
 /* Phone in landscape: sheet on the left, tray on the right. */
 @media (orientation: landscape) and (max-height: 540px) {
@@ -249,8 +259,10 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
   #setupPage { columns: 2; column-gap: 14px; }
   #setupPage > * { break-inside: avoid; }
   #setupPage > .logo, #setupPage > .lede { column-span: all; }
-  .table.digital { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 12px; align-items: start; }
-  .table.digital #tray { order: 2; position: sticky; top: 10px; margin: 0; }
+  #gamePage.digital { display: grid; grid-template-columns: minmax(0, 1fr) 250px; grid-template-areas: "head tray" "board tray"; column-gap: 12px; align-items: start; }
+  #gamePage.digital #tray { grid-area: tray; position: sticky; top: 10px; margin: 0; }
+  #gamePage.digital .head { grid-area: head; }
+  #gamePage.digital #board { grid-area: board; }
   .cell { height: 40px; font-size: 19px; }
   .lanes { gap: 5px; }
   #dice { --h: 15px; padding: 8px 2px 6px; }
@@ -277,6 +289,18 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20V11M12 20V4M18 20v-6"/></svg>
         <span class="glass">Scores</span>
       </button>
+      <button class="item glass" id="exitBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
+        <span class="glass">Exit</span>
+      </button>
+      <button class="item glass" id="newBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span class="glass">New game</span>
+      </button>
+      <button class="item glass" id="restart" data-keep-open>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>
+        <span class="glass">Restart</span>
+      </button>
       <button class="item glass" id="rulesBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6"/></svg>
         <span class="glass">Rules</span>
@@ -284,18 +308,6 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
       <button class="item glass" id="settingsBtn">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
         <span class="glass">Settings</span>
-      </button>
-      <button class="item glass" id="pause">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg>
-        <span class="glass">Pause and save</span>
-      </button>
-      <button class="item glass" id="restart" data-keep-open>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>
-        <span class="glass">Restart</span>
-      </button>
-      <button class="item glass" id="newGame" data-keep-open>
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-        <span class="glass">New game</span>
       </button>
     </div>
   </nav>
@@ -343,6 +355,19 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
     </section>
 
     <section id="gamePage" class="page" hidden>
+      <section id="tray" class="glass" aria-label="Dice">
+        <div class="tray-head">
+          <div class="sum"><span id="sumLabel">White sum</span><strong id="sum" aria-live="polite"></strong></div>
+          <button class="round" id="trayToggle" aria-expanded="true" aria-label="Smaller dice">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+          </button>
+        </div>
+        <div id="dice"></div>
+        <div class="tray-actions">
+          <button class="btn primary" id="roll">Roll</button>
+          <button class="btn primary" id="doneBtn">Done</button>
+        </div>
+      </section>
       <div class="head">
         <div id="chips" role="group" aria-label="Show sheet for"></div>
         <p id="status" role="status"></p>
@@ -353,25 +378,13 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
         <ol class="standings" id="finalList"></ol>
         <div class="stack">
           <button class="btn primary" id="again">Play again</button>
-          <button class="btn" id="fresh">New game</button>
+          <button class="btn" id="players">Change players</button>
         </div>
       </div>
 
       <div id="board">
-        <div class="table" id="table">
-          <section id="tray" class="glass" aria-label="Dice">
-            <div class="tray-head">
-              <div class="sum"><span id="sumLabel">White sum</span><strong id="sum" aria-live="polite"></strong></div>
-              <button class="round" id="trayToggle" aria-expanded="true" aria-label="Smaller dice">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
-              </button>
-            </div>
-            <div id="dice"></div>
-            <div class="tray-actions">
-              <button class="btn primary" id="roll">Roll</button>
-              <button class="btn primary" id="doneBtn">Done</button>
-            </div>
-          </section>
+        <div class="table">
+
           <div>
             <div class="lanes" id="lanes"></div>
             <section class="panel glass" aria-label="Score">
@@ -391,6 +404,26 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
   </main>
 
 </div>
+
+<dialog class="sheet glass" id="endSheet" aria-labelledby="endTitle">
+  <div>
+    <h2 id="endTitle"></h2>
+    <p id="endNote"></p>
+    <button class="btn primary" id="saveExit">Save and exit</button>
+    <button class="btn danger" id="discard"></button>
+    <button class="btn" id="keep"></button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="newSheet" aria-labelledby="newTitle">
+  <div>
+    <h2 id="newTitle">Start a new game?</h2>
+    <p id="newNote"></p>
+    <button class="btn primary" id="saveNew">Save and start new</button>
+    <button class="btn danger" id="newNoSave">Start new without saving</button>
+    <button class="btn" id="newKeep">Keep playing</button>
+  </div>
+</dialog>
 
 <dialog class="sheet glass" id="scoresSheet" aria-labelledby="scoresTitle">
   <div>
@@ -416,7 +449,7 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
       <li>Everyone chooses at once, in any order. Tap a name to switch sheets.</li>
       <li>Anyone may cross off the sum of the two white dice in any lane.</li>
       <li>The active player may also cross off one white die plus one coloured die, in that colour's lane. The white sum counts first.</li>
-      <li>Picks can change until that player taps Done. When everyone is done, the crosses go on.</li>
+      <li>Picks can change until that player taps Done. A greyed number with a dashed ring is ruled out by a pick; tap it to swap it in. When everyone is done, the crosses go on.</li>
       <li>If the active player crossed nothing, they take a penalty.</li>
     </ol>
     <p>Several players can lock the same colour on one roll. A colour locked on a roll closes once everyone is done, and its die leaves the game.</p>

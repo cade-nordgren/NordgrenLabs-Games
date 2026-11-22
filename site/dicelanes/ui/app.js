@@ -1,6 +1,6 @@
 // DiceLanes screens. All rules live in ../engine; this file dispatches actions and draws state.
 import { LANES, LAST, POINTS, MARKS_BEFORE_LAST, MAX_PENALTIES, MAX_PLAYERS, score, standings } from '../engine/lanes.js';
-import { canMark, isSkipped, pickOptions, hasPicks, indexOf, whiteSum } from '../engine/moves.js';
+import { canMark, isSkipped, cellChoice, pickedCells, hasPicks, whiteSum } from '../engine/moves.js';
 import { newGame, reduce, validState, endReason } from '../engine/reducer.js';
 import { record, undo as undoHist, cleanHist, SAVE_CAP } from '../engine/history.js';
 import { mountDie, showDie } from './dice.js';
@@ -63,7 +63,7 @@ NL.ready.then(i => {
 });
 NL.account($('account'));
 
-let rolling = false, note = '', popMarks = false; // popMarks: animate new crosses only right after a move
+let rolling = false, popMarks = false; // popMarks: animate new crosses only right after a move
 
 // Digital: the roller. Everyone chooses at once after a roll, so this only marks who rolled and who risks a penalty.
 const mover = g => g.turn ? g.turn.active : null;
@@ -88,7 +88,6 @@ function change(action) {
   if (next === S.g) return false;
   S.hist = record(S.hist, S.g);
   S.g = next;
-  note = '';
   follow(action);
   popMarks = true;
   render();
@@ -108,7 +107,6 @@ function undo() {
   S.g = u.g;
   S.hist = u.hist;
   rolling = false;
-  note = '';
   fixSel();
   buzz(6);
   render();
@@ -145,12 +143,13 @@ async function saveGame() {
     state: { g: S.g, hist: S.hist.slice(-SAVE_CAP), sel: S.sel },
   });
 }
-async function pause() {
+// Saves the current game; on failure says so in the sheet's note and returns false.
+async function saveNow(noteEl) {
   let saved;
-  try { saved = await saveGame(); } catch { note = 'Could not save on this device.'; return render(); }
+  try { saved = await saveGame(); } catch { noteEl.textContent = 'Could not save on this device.'; return false; }
   shown = NL.saves.cached('dicelanes') || [saved, ...(shown || []).filter(x => x.id !== saved.id)];
   loadingSaves = false;
-  toSetup();
+  return true;
 }
 const okRecord = r => !!r && validState(r.state?.g);
 async function resume(id) {
@@ -301,14 +300,6 @@ const dieEls = SLOTS.map(([id, name], k) => {
 });
 
 // ---- Taps on the sheet.
-// Digital: this player's tentative picks as cells, so they can be drawn and tapped again to take back.
-function pickedCells(g, p) {
-  const t = g.turn, k = t?.phase === 'choose' ? t.picks[p] : null, out = [];
-  if (!k) return out;
-  if (k.white != null) out.push({ lane: k.white, index: indexOf(k.white, whiteSum(t.dice)), kind: 'white' });
-  if (k.colour) out.push({ lane: k.colour.lane, index: indexOf(k.colour.lane, t.dice.w[k.colour.die] + t.dice.c[k.colour.lane]), kind: 'colour' });
-  return out;
-}
 function tapCell(l, i) {
   const g = S.g;
   if (!g || g.status !== 'playing') return;
@@ -318,37 +309,28 @@ function tapCell(l, i) {
     if (i === 11 && !canMark(g.players[p], g.closed, l, LAST)) ok = change({ type: 'close', lane: l });
     else ok = change({ type: 'mark', player: p, lane: l, index: idx });
   } else {
-    if (rolling || g.turn.phase !== 'choose' || g.turn.done[p]) return;
-    const mine = pickedCells(g, p).find(c => c.lane === l && c.index === idx);
-    if (mine) ok = change({ type: 'unpick', player: p, kind: mine.kind });
-    else {
-      // A cell both picks could reach goes to the kind not used yet, white first.
-      const here = legalMoves().filter(m => m.lane === l && m.index === idx), cur = g.turn.picks[p];
-      const m = here.find(o => o.kind === 'white' && cur.white == null) || here.find(o => o.kind === 'colour' && !cur.colour) || here[0];
-      if (!m) return;
-      ok = change(m.kind === 'white' ? { type: 'pick', player: p, kind: 'white', lane: l } : { type: 'pick', player: p, kind: 'colour', lane: l, die: m.pick.colour.die });
-    }
+    if (!choosingNow()) return;
+    ok = change({ type: 'choose', player: p, lane: l, index: idx }); // add, move, swap or take back (engine cellChoice)
   }
   if (ok) { buzz(10); if ($('picker').open) $('picker').close(); }
 }
-function legalMoves() {
-  const g = S.g;
-  if (!g?.turn || rolling || g.status !== 'playing') return [];
-  return pickOptions(g, S.sel);
-}
+// Digital: the selected player can pick right now.
+const choosingNow = () => { const t = S.g?.turn; return !!t && !rolling && S.g.status === 'playing' && t.phase === 'choose' && !t.done[S.sel]; };
 
-function paintCell(b, l, i, legal) {
+function paintCell(b, l, i) {
   const g = S.g, sheet = g.players[S.sel], lane = LANES[l], lock = i === 11, playing = g.status === 'playing';
   const marked = lock ? sheet.locks[l] : sheet.marks[l].includes(i);
   const skip = !lock && isSkipped(sheet, l, i);
-  const isLegal = legal.some(m => m.lane === l && m.index === (lock ? LAST : i));
-  const isPick = g.mode === 'digital' && pickedCells(g, S.sel).some(c => c.lane === l && c.index === (lock ? LAST : i));
+  // Digital: pick (an accent X), legal (ring), swap (muted, dashed ring: tapping it replaces what conflicts), none.
+  const choice = g.mode === 'digital' && choosingNow() ? cellChoice(g, S.sel, l, lock ? LAST : i).state : 'none';
+  const t = g.turn, shownPick = !!t && t.phase === 'choose' && !rolling && pickedCells(t.dice, t.picks[S.sel]).some(c => c.lane === l && c.index === (lock ? LAST : i));
   const wasX = b.classList.contains('x');
   b.classList.toggle('x', marked);
   b.classList.toggle('pop', marked && !wasX && popMarks);
   b.classList.toggle('skip', skip);
-  b.classList.toggle('legal', isLegal && !isPick);
-  b.classList.toggle('pick', isPick);
+  b.classList.toggle('legal', choice === 'legal');
+  b.classList.toggle('swap', choice === 'swap');
+  b.classList.toggle('pick', shownPick);
   b.classList.toggle('held', lock && marked);
   let label;
   if (lock) {
@@ -358,13 +340,15 @@ function paintCell(b, l, i, legal) {
     label = `${lane.name} lock` + (marked ? ', locked by this player' : closed ? ', closed' : left > 0 ? `, needs ${left} more` : ', ready');
   } else {
     if (b.firstChild?.textContent !== String(lane.nums[i])) b.replaceChildren(el('span', 'n', lane.nums[i]));
-    label = `${lane.name} ${lane.nums[i]}` + (marked ? ', crossed' : isPick ? ', picked, tap to take back' : skip ? ', skipped' : '');
+    label = `${lane.name} ${lane.nums[i]}` + (marked ? ', crossed' : skip ? ', skipped' : '');
   }
+  if (shownPick) label += ', picked, tap to take back';
+  else if (choice === 'swap') label += ', conflicts with a pick, tap to swap';
   b.setAttribute('aria-label', label);
   let can;
   if (!playing) can = false;
   else if (g.mode === 'physical') can = canMark(sheet, g.closed, l, lock ? LAST : i) || (lock && !g.players.some(p => p.locks[l]));
-  else can = (isLegal || isPick) && !rolling;
+  else can = choice !== 'none';
   b.disabled = !can;
 }
 
@@ -377,8 +361,7 @@ function render() {
   $('gamesLink').hidden = playing;
   $('undo').hidden = !playing;
   $('undo').disabled = !S.hist.length;
-  $('pause').hidden = !playing || S.g.status === 'over';
-  $('restart').hidden = $('newGame').hidden = !playing;
+  for (const id of ['scoresBtn', 'exitBtn', 'newBtn', 'restart']) $(id).hidden = !playing;
   playing ? renderGame() : renderSetup();
   if ($('scoresSheet').open) renderScores();
 }
@@ -440,28 +423,27 @@ function renderGame() {
   const g = S.g, over = g.status === 'over', digital = !!g.turn;
   renderChips();
   $('results').hidden = !over;
-  $('status').hidden = over;
   $('board').hidden = over;
+  $('gamePage').classList.toggle('digital', digital && !over);
+  $('tray').hidden = !digital || over;
+  // One player with their own dice has no chips: a title keeps the header from looking empty.
+  $('status').textContent = g.players.length === 1 && !digital && !over ? 'Your sheet' : '';
+  $('status').hidden = !$('status').textContent;
   if (over) return renderResults();
 
   const sheet = g.players[S.sel];
-  const status = $('status');
-  status.replaceChildren(...(note ? [note] : digital ? turnLine() : g.players.length > 1 ? [el('strong', '', sheet.name), "'s sheet"] : ['Your sheet']));
-
-  $('table').classList.toggle('digital', digital);
-  $('tray').hidden = !digital;
   if (digital) renderTray();
 
-  const legal = legalMoves(), picker = pickerOn();
-  $('lanes').classList.toggle('choosing', digital && !rolling && g.turn.phase === 'choose' && !g.turn.done[S.sel]);
+  const picker = pickerOn();
+  $('lanes').classList.toggle('choosing', digital && choosingNow());
   laneEls.forEach((row, l) => {
     row.classList.toggle('closed', g.closed[l]);
     row.classList.toggle('pickable', picker);
     if (picker) { row.tabIndex = 0; row.setAttribute('role', 'button'); row.setAttribute('aria-label', `${LANES[l].name} lane, open large`); }
     else { row.removeAttribute('tabindex'); row.setAttribute('role', 'group'); row.setAttribute('aria-label', `${LANES[l].name} lane`); }
-    cellEls[l].forEach((b, i) => { paintCell(b, l, i, legal); if (picker) b.tabIndex = -1; else b.removeAttribute('tabindex'); });
+    cellEls[l].forEach((b, i) => { paintCell(b, l, i); if (picker) b.tabIndex = -1; else b.removeAttribute('tabindex'); });
   });
-  if ($('picker').open) paintPicker(legal);
+  if ($('picker').open) paintPicker();
 
   penEls.forEach((b, k) => {
     b.classList.toggle('on', k < sheet.penalties);
@@ -472,22 +454,6 @@ function renderGame() {
   sc.lanes.forEach((v, l) => { eqEls.parts[l].textContent = v; });
   eqEls.pen.textContent = sc.penalty;
   eqEls.total.replaceChildren(el('small', '', 'Total'), String(sc.total));
-}
-
-// Digital: the line under the chips says whose sheet this is and what they may do.
-function turnLine() {
-  const g = S.g, t = g.turn, p = S.sel, name = g.players[p].name, solo = g.players.length === 1;
-  const who = solo ? [] : [el('strong', '', name), ': '];
-  if (rolling) return ['Rolling.'];
-  if (t.phase === 'roll') return [`Turn ${t.n}. `, ...(solo ? ['Roll the dice.'] : [el('strong', '', g.players[t.active].name), ' rolls.'])];
-  const s = whiteSum(t.dice);
-  if (t.done[p]) {
-    const waiting = g.players.filter((_, i) => !t.done[i]).map(x => x.name);
-    return [...who, `done. Waiting for ${listOf(waiting)}.`];
-  }
-  const any = legalMoves().length || hasPicks(t.picks[p]);
-  if (p === t.active) return [...who, any ? `cross off the white sum ${s}, one white die plus a colour, or both. Then tap Done.` : 'nothing fits this roll. Tap Done.'];
-  return [...who, any ? `you may cross off ${s === 8 || s === 11 ? "an" : "a"} ${s}. Then tap Done.` : `no ${s} fits. Tap Done.`];
 }
 
 function renderTray() {
@@ -505,7 +471,7 @@ function renderTray() {
     if (!rolling && v && die.dataset.shown !== String(v)) { showDie(die, v); die.dataset.shown = v; }
   });
   $('sum').textContent = dice && fresh && !rolling ? whiteSum(dice) : '';
-  $('sumLabel').textContent = fresh ? 'White sum' : 'Ready to roll';
+  $('sumLabel').textContent = fresh ? 'White sum' : g.players.length === 1 ? 'Ready to roll' : `${g.players[t.active].name} rolls`;
   $('roll').hidden = t.phase !== 'roll';
   $('roll').disabled = rolling;
   const done = $('doneBtn'), p = S.sel, mine = fresh && t.done[p];
@@ -555,12 +521,12 @@ function openPicker(l) {
   $('pickerCells').style.setProperty('--lane', `var(--${LANES[l].id})`);
   $('pickerName').textContent = `${LANES[l].name} lane`;
   $('picker').style.setProperty('--lane', `var(--${LANES[l].id})`);
-  paintPicker(legalMoves());
+  paintPicker();
   $('picker').showModal();
 }
-function paintPicker(legal) {
+function paintPicker() {
   const g = S.g;
-  bigCells.forEach((b, i) => paintCell(b, pickLane, i, legal));
+  bigCells.forEach((b, i) => paintCell(b, pickLane, i));
   $('pickerNote').textContent = `${g.players[S.sel].name}. ${g.closed[pickLane] ? 'This colour is closed.' : 'Tap a number to cross it off.'}`;
 }
 $('pickerDone').onclick = () => $('picker').close();
@@ -610,7 +576,27 @@ const inProgress = () => !!S.g && S.g.status === 'playing' && S.hist.length > 0;
 // Restart and New game stay in the open menu for their second tap (data-keep-open), then close it.
 const chip = id => $(id).querySelector('span');
 twoTap($('restart'), on => { chip('restart').textContent = on ? 'Tap again to restart' : 'Restart'; }, inProgress, () => !!S.g, () => { closeMenu(); restart(); });
-twoTap($('newGame'), on => { chip('newGame').textContent = on ? 'Tap again to end this game' : 'New game'; }, inProgress, () => !!S.g, () => { closeMenu(); toSetup(); });
+// Exit (Bank's End game) and New game confirm in a sheet, so they need no second tap.
+$('exitBtn').onclick = () => {
+  const fin = S.g?.status === 'over';
+  $('endTitle').textContent = fin ? 'Leave the final scores?' : 'End this game?';
+  $('endNote').textContent = fin ? 'Save the result to see it again later.' : 'Save it to pick up later from Saved games.';
+  $('discard').textContent = fin ? 'Exit without saving' : 'End without saving';
+  $('keep').textContent = fin ? 'Back to scores' : 'Keep playing';
+  $('endSheet').showModal();
+};
+// Back to the start screen at once with the save in the list; the upload finishes in the background.
+$('saveExit').onclick = async () => {
+  if (await saveNow($('endNote'))) { $('endSheet').close(); toSetup(); }
+};
+$('discard').onclick = () => { $('endSheet').close(); toSetup(); };
+$('keep').onclick = () => $('endSheet').close();
+$('newBtn').onclick = () => { $('newNote').textContent = 'Same players and dice, fresh sheets. Save this game to pick it up later from Saved games.'; $('newSheet').showModal(); };
+$('saveNew').onclick = async () => {
+  if (await saveNow($('newNote'))) { $('newSheet').close(); restart(); }
+};
+$('newNoSave').onclick = () => { $('newSheet').close(); restart(); };
+$('newKeep').onclick = () => $('newSheet').close();
 
 // ---- Sheets: Esc and a backdrop click close them.
 for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
@@ -631,11 +617,10 @@ $('add').onsubmit = e => {
 };
 $('start').onclick = start;
 $('undo').onclick = undo;
-$('pause').onclick = pause;
 $('roll').onclick = roll;
 $('doneBtn').onclick = doneTap;
 $('again').onclick = restart;
-$('fresh').onclick = toSetup;
+$('players').onclick = toSetup;
 $('trayToggle').onclick = () => { S.compact = !S.compact; render(); };
 narrow.addEventListener('change', render);
 
