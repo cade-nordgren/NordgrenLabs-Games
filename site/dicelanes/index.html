@@ -1,0 +1,505 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DiceLanes · NordgrenLabs Games</title>
+<meta name="description" content="Cross off numbers in four coloured lanes, with your own dice or dice on screen.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="DiceLanes">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f3ec">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!-- use-credentials: the Worker gates every file but the root manifest behind the session cookie. -->
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
+<link rel="stylesheet" href="../style.css">
+<style>
+/* Lane colours: vivid, the same hue in both themes; numbers sit on their own cells, so contrast comes from the cell. */
+:root {
+  --canvas: #f6f3ec;
+  --red: #e2353b; --yellow: #f1b300; --green: #2c9d4b; --blue: #1f73da;
+  --cell: #fff; --cell-ink: #1d1d1f; --cross: #1d1d1f;
+  --gone: #8e8e93;
+  --dock-shadow: 0 10px 30px rgb(0 0 0 / .14), 0 2px 8px rgb(0 0 0 / .08);
+}
+:root[data-theme="dark"] {
+  --canvas: #000;
+  --red: #d8333a; --yellow: #e0a600; --green: #2a9147; --blue: #1d6acb;
+  --cell: #2c2c2e; --cell-ink: #f5f5f7; --cross: #fff;
+  --dock-shadow: 0 12px 32px rgb(0 0 0 / .7), 0 2px 8px rgb(0 0 0 / .5);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { --canvas: #000; --cell: #2c2c2e; --cell-ink: #f5f5f7; --cross: #fff; --dock-shadow: 0 12px 32px rgb(0 0 0 / .7), 0 2px 8px rgb(0 0 0 / .5); }
+}
+body::before {
+  background:
+    radial-gradient(60vmax 50vmax at 0% 0%, rgba(226, 53, 59, .14), transparent 60%),
+    radial-gradient(50vmax 45vmax at 100% 20%, rgba(241, 179, 0, .14), transparent 60%),
+    radial-gradient(60vmax 50vmax at 70% 100%, rgba(31, 115, 218, .14), transparent 60%);
+}
+
+/* The bottom dock is fixed, so every page leaves room for it. */
+.app { --dock-h: 60px; --dock-gap: max(1rem, calc(env(safe-area-inset-bottom) - .75rem));
+  padding-top: max(14px, env(safe-area-inset-top));
+  padding-bottom: calc(var(--dock-h) + var(--dock-gap) + 28px); }
+.page > h1 { margin-top: 4px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* ---- Dock: a floating pill, items equal width, a highlight slides behind the chosen one. */
+.dock { position: fixed; z-index: 20; left: 0; right: 0; bottom: 0; padding: 0 max(12px, env(safe-area-inset-left)) var(--dock-gap, max(1rem, calc(env(safe-area-inset-bottom) - .75rem))) max(12px, env(safe-area-inset-right)); pointer-events: none; }
+.dock .pill { position: relative; pointer-events: auto; max-width: 31rem; margin: 0 auto; display: grid; grid-template-columns: repeat(4, 1fr);
+  padding: 4px; border-radius: 999px; background: var(--solid); border: 1px solid var(--hair); box-shadow: var(--dock-shadow); }
+.dock .hl { position: absolute; top: 4px; bottom: 4px; width: calc((100% - 8px) / 4); left: calc(4px + (100% - 8px) / 4 * var(--i, 0));
+  border-radius: 999px; background: color-mix(in srgb, var(--accent) 14%, transparent); transition: left .3s ease-out; }
+.dock button { position: relative; min-height: 52px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border-radius: 999px; color: var(--ink2); font-size: 10px; font-weight: 600; line-height: 1.1; }
+.dock button svg { width: 22px; height: 22px; }
+.dock button[aria-current="page"] { color: var(--accent); }
+.dock button:active:not(:disabled) { transform: scale(.94); }
+.dock .tapped { background-image: none !important; }
+/* Content blurs and fades out under the dock. */
+.underlay { position: fixed; z-index: 19; left: 0; right: 0; bottom: 0; height: calc(var(--dock-h, 60px) + max(1rem, calc(env(safe-area-inset-bottom) - .75rem)) + 34px); pointer-events: none;
+  background: linear-gradient(to top, color-mix(in srgb, var(--canvas) 75%, transparent), transparent);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  -webkit-mask-image: linear-gradient(to top, #000 45%, transparent); mask-image: linear-gradient(to top, #000 45%, transparent); }
+@media (prefers-reduced-transparency: reduce) {
+  .underlay { -webkit-backdrop-filter: none; backdrop-filter: none; background: linear-gradient(to top, var(--canvas) 50%, transparent); }
+}
+
+/* ---- Logo */
+.logo { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 8px 0 6px; }
+.logo svg { width: 58px; height: 50px; flex: none; }
+.logo h1 { margin: 0; font: 800 40px/1 var(--num); letter-spacing: -.03em; }
+.lede { text-align: center; margin: 0 0 18px; }
+
+/* ---- Setup */
+.group { padding: 16px; margin-bottom: 14px; }
+.note { margin: 10px 0 0; font-size: 14px; color: var(--ink2); }
+#roster, #saves { list-style: none; margin: 8px 0 0; padding: 0; }
+#roster li, #add, #saves li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; }
+#roster input, #add input { flex: 1; min-width: 0; border: 0; background: none; padding: 12px 0; outline: none; font-size: 17px; }
+#roster input:focus-visible, #add input:focus-visible { box-shadow: inset 0 -2px 0 var(--accent); }
+#roster .seat { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); font: 700 13px var(--num); color: var(--ink2); flex: none; }
+.circle { width: 44px; height: 44px; padding: 7px; background-clip: content-box; border-radius: 50%; font-size: 20px; line-height: 1; flex: none; display: grid; place-items: center; }
+.circle.remove { background-color: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.circle.add { background-color: var(--accent); color: #fff; }
+#savedGroup[open] summary { margin-bottom: 4px; }
+#savedGroup .count { display: inline-block; width: 2.2em; height: .9em; vertical-align: -1px; margin-left: 6px; }
+#saves li.loading { min-height: 59px; }
+.resume { flex: 1; min-width: 0; min-height: 58px; padding: 9px 0; text-align: left; }
+.resume strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume span { display: block; font-size: 14px; color: var(--ink2); }
+.resume:active:not(:disabled) { transform: none; opacity: .6; }
+#saves .btn.danger { flex: none; }
+details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
+#modeSeg { margin-top: 12px; }
+#startHint { text-align: center; }
+
+/* ---- Game header: player chips, pause and undo. */
+.bar { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+#chips { flex: 1; min-width: 0; display: flex; gap: 6px; overflow-x: auto; padding: 2px; margin: -2px; }
+.chip { flex: 1 1 auto; min-width: 0; max-width: 160px; min-height: 44px; padding: 0 10px; border-radius: 999px; background: var(--fill);
+  display: flex; align-items: center; justify-content: center; gap: 5px; font-weight: 600; font-size: 15px; }
+.chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip b { font: 700 13px var(--num); color: var(--ink2); }
+.chip[aria-pressed="true"] { background: var(--ink); color: var(--canvas); }
+.chip[aria-pressed="true"] b { color: inherit; opacity: .7; }
+.chip.mover::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); flex: none; }
+.chip[aria-pressed="true"].mover::before { background: var(--canvas); }
+.round { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; flex: none; color: var(--ink); }
+.round svg { width: 22px; height: 22px; }
+.round:disabled { opacity: 1; }
+.round:disabled svg { opacity: .35; }
+#status { margin: 0 0 10px; min-height: 22px; font-size: 15px; font-weight: 600; color: var(--ink2); }
+#status strong { color: var(--ink); }
+
+/* ---- Dice tray */
+#tray { padding: 12px; margin-bottom: 12px; border-radius: 22px; }
+.tray-head { display: flex; align-items: center; gap: 10px; }
+.sum { display: flex; align-items: baseline; gap: 8px; flex: 1; min-width: 0; }
+.sum span { font-size: 14px; font-weight: 600; color: var(--ink2); }
+#sum { font: 800 34px/1 var(--num); letter-spacing: -.02em; min-width: 1.3em; font-variant-numeric: tabular-nums; }
+#sum.pop { animation: pop .3s ease-out; }
+@keyframes pop { 40% { transform: scale(1.18); } }
+#trayToggle svg { transition: transform .3s ease; }
+#tray.compact #trayToggle svg { transform: rotate(180deg); }
+#turnMsg { margin: 8px 0 0; font-size: 15px; min-height: 21px; }
+#dice { --h: 19px; display: flex; justify-content: space-between; gap: 6px; padding: 12px 2px 10px; }
+#tray.compact #dice { --h: 12px; padding: 8px 2px 4px; }
+.slot { width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; flex: none; }
+.slot.gone { border-radius: 24%; border: 2px dashed color-mix(in srgb, var(--lane) 55%, transparent); }
+.slot.gone .die { display: none; }
+.die { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .75s cubic-bezier(.2, .8, .25, 1); }
+/* No edge line and no back faces: the owner saw a thin outline round settled dice. Once a die settles only its front
+   face stays visible, so there is no seam to see; while it spins the faces are solid, with no inset stroke. */
+.face { position: absolute; inset: 0; border-radius: 24%; background: var(--die-bg, var(--die)); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: 18%; place-items: center; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.face i { width: calc(var(--h) * .42); height: calc(var(--h) * .42); border-radius: 50%; }
+.face i.pip { background: var(--pip-c, var(--pip)); }
+.face:nth-child(1) { transform: translateZ(var(--h)); }
+.face:nth-child(2) { transform: rotateY(180deg) translateZ(var(--h)); }
+.face:nth-child(3) { transform: rotateY(90deg) translateZ(var(--h)); }
+.face:nth-child(4) { transform: rotateY(-90deg) translateZ(var(--h)); }
+.face:nth-child(5) { transform: rotateX(90deg) translateZ(var(--h)); }
+.face:nth-child(6) { transform: rotateX(-90deg) translateZ(var(--h)); }
+.die.settled .face:not(.front) { visibility: hidden; }
+.slot.c .face { --pip-c: #fff; background: var(--lane); }
+.slot.idle { opacity: .4; }
+.tray-actions { display: flex; gap: 8px; margin-top: 6px; }
+.tray-actions .btn { flex: 1; min-height: 50px; }
+#roll { font-size: 19px; }
+#pass[hidden] + * { flex: 1; }
+
+/* ---- Scoresheet: four lanes, eleven numbers and a lock each, on one line. */
+/* The lanes reach 6px into the side gutters so each cell gets about 27px at 375px wide. */
+.lanes { display: grid; gap: 7px; margin: 0 -6px; }
+.lane { --lane: var(--red); display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; padding: 3px; border-radius: 13px; background: var(--lane);
+  box-shadow: inset 0 -2px 0 rgb(0 0 0 / .14); }
+.lane.closed { filter: grayscale(1); opacity: .62; }
+.lane.pickable { cursor: pointer; }
+.lane.pickable .cell { pointer-events: none; }
+.cell { position: relative; min-width: 0; height: 50px; border-radius: 8px; background: var(--cell); color: var(--cell-ink);
+  font: 800 clamp(15px, 4.4vw, 24px)/1 var(--num); letter-spacing: -.05em; display: grid; place-items: center;
+  box-shadow: 0 1px 0 rgb(0 0 0 / .12); font-variant-numeric: tabular-nums; }
+.cell:active:not(:disabled) { transform: scale(.92); }
+.cell:disabled { opacity: 1; cursor: default; }
+/* A bold X across a crossed cell; the number fades under it. */
+.cell.x .n { opacity: .3; }
+.cell.x::after { content: ""; position: absolute; inset: 6px 3px; background: var(--cross);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 5l14 14M19 5L5 19' stroke='%23000' stroke-width='4.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 5l14 14M19 5L5 19' stroke='%23000' stroke-width='4.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+.cell.x.pop::after { animation: cross .22s ease-out; }
+@keyframes cross { from { transform: scale(.4); opacity: 0; } }
+/* Skipped: dimmed and struck through, never usable again. */
+.cell.skip { background: color-mix(in srgb, var(--cell) 55%, transparent); color: color-mix(in srgb, var(--cell-ink) 45%, transparent); box-shadow: none; }
+.cell.skip::before { content: ""; position: absolute; left: 22%; right: 22%; top: 50%; height: 2px; border-radius: 2px; background: currentColor; transform: rotate(-55deg); }
+/* Digital: while someone chooses, their legal cells keep full strength with a ring; the rest step back. */
+.choosing .cell:not(.legal):not(.x):not(.skip) { opacity: .55; }
+.cell.legal { box-shadow: inset 0 0 0 3px var(--cell-ink), 0 2px 6px rgb(0 0 0 / .25); }
+.cell.lock svg { width: 58%; max-width: 20px; height: auto; }
+.cell.lock small { position: absolute; bottom: 4px; left: 0; right: 0; text-align: center; font: 700 10px/1 var(--num); letter-spacing: 0; color: var(--ink2); }
+.cell.lock.held { background: color-mix(in srgb, var(--cell) 70%, var(--lane)); }
+.lane.red { --lane: var(--red); } .lane.yellow { --lane: var(--yellow); } .lane.green { --lane: var(--green); } .lane.blue { --lane: var(--blue); }
+
+/* ---- Points table, penalties, total */
+.panel { margin-top: 12px; padding: 12px; border-radius: 18px; }
+.caption { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.points { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; text-align: center; font: 600 12px/1 var(--num); font-variant-numeric: tabular-nums; }
+.points span { padding: 5px 0; border-radius: 6px; background: var(--fill); }
+.points span:nth-child(-n+12) { color: var(--ink2); font-size: 11px; background: none; }
+.pen { display: flex; align-items: center; gap: 8px; margin-top: 12px; }
+.pen h3 { margin: 0; font-size: 15px; font-weight: 600; flex: 1; }
+.pen .boxes { display: flex; gap: 6px; }
+.pbox { position: relative; width: 44px; height: 44px; border-radius: 10px; border: 2px solid var(--hair); background: var(--cell); }
+.pbox.on::after { content: ""; position: absolute; inset: 7px; background: var(--danger);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 5l14 14M19 5L5 19' stroke='%23000' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 5l14 14M19 5L5 19' stroke='%23000' stroke-width='4' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
+.pbox:disabled { opacity: 1; }
+.pen .each { font-size: 13px; color: var(--ink2); white-space: nowrap; }
+.eq { display: flex; align-items: center; gap: 3px; margin-top: 12px; font: 700 15px var(--num); color: var(--ink2); }
+.eq .t { flex: 1 1 0; min-width: 0; height: 44px; border-radius: 10px; display: grid; place-items: center; color: var(--ink); font: 800 18px var(--num); font-variant-numeric: tabular-nums;
+  border: 2px solid var(--c, var(--hair)); background: color-mix(in srgb, var(--c, var(--fill)) 14%, var(--cell)); }
+.eq .total { flex: 1.6 1 0; height: 52px; border: 0; background: var(--ink); color: var(--canvas); font-size: 24px; display: flex; flex-direction: column; gap: 1px; }
+.eq .total small { font: 600 10px/1 var(--text); opacity: .75; }
+
+/* ---- Standings (Scores tab and results) */
+.standings { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.standings li { padding: 14px 16px; border-radius: 20px; display: grid; grid-template-columns: 30px minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+.rank { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--ink2); font: 700 15px var(--num); }
+.standings li.first .rank { background: var(--accent); color: #fff; }
+.standings .who { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.standings .tot { font: 800 28px/1 var(--num); font-variant-numeric: tabular-nums; }
+.subs { grid-column: 2 / 4; display: flex; flex-wrap: wrap; gap: 5px; }
+.subs span { min-width: 38px; padding: 4px 8px; border-radius: 8px; text-align: center; font: 700 14px var(--num); background: color-mix(in srgb, var(--c, var(--danger)) 16%, transparent); color: var(--ink); }
+.empty { color: var(--ink2); text-align: center; padding: 30px 0; }
+#resultsHead { text-align: center; margin: 4px 0 16px; }
+#resultsHead h2 { font: 800 30px/1.15 var(--num); }
+#resultsHead p { margin: 6px 0 0; color: var(--ink2); }
+.stack { display: grid; gap: 10px; margin-top: 16px; }
+
+/* ---- Rules and settings pages */
+.rules { padding: 16px 18px; }
+.rules ol, .rules ul { margin: 0; padding-left: 20px; }
+.rules li + li { margin-top: 8px; }
+.rules h2 { margin: 14px 0 8px; }
+.rules h2:first-child { margin-top: 0; }
+.appearance { display: flex; align-items: center; gap: 12px; }
+.appearance .segmented { flex: 1; }
+.set h3 { margin: 16px 0 8px; font-size: 15px; font-weight: 600; color: var(--ink2); }
+.set h3:first-child { margin-top: 0; }
+.set .btn { width: 100%; }
+.set .stack { margin-top: 0; }
+
+/* ---- Big lane picker */
+#picker .big { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; padding: 8px; border-radius: 18px; background: var(--lane); }
+#picker .cell { height: 60px; font-size: 26px; }
+#picker h2 { display: flex; align-items: center; gap: 10px; }
+#picker h2::before { content: ""; width: 14px; height: 14px; border-radius: 50%; background: var(--lane); }
+
+/* Tablets and desktops: centred and roomier. */
+@media (min-width: 700px) {
+  .app { max-width: 720px; }
+  .cell { height: 62px; border-radius: 10px; font-size: 26px; }
+  .lane { gap: 5px; padding: 6px; border-radius: 16px; }
+  .lanes { margin: 0; }
+  #dice { --h: 26px; justify-content: center; gap: 22px; }
+  #tray.compact #dice { --h: 16px; }
+  .points { font-size: 14px; }
+}
+/* Wide screens: the tray sits beside the sheet. */
+@media (min-width: 1040px) {
+  .app:has(#playTab:not([hidden]) #gamePage:not([hidden]) .table.digital) { max-width: 1040px; }
+  .table.digital { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 16px; align-items: start; }
+  .table.digital #tray { order: 2; position: sticky; top: 16px; margin: 0; }
+  .table.digital #dice { --h: 19px; justify-content: space-between; gap: 6px; }
+}
+/* Phone in landscape: sheet on the left, tray on the right. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .app { max-width: 980px; padding-top: max(10px, env(safe-area-inset-top)); }
+  #setupPage { columns: 2; column-gap: 14px; }
+  #setupPage > * { break-inside: avoid; }
+  #setupPage > .logo, #setupPage > .lede { column-span: all; }
+  .table.digital { display: grid; grid-template-columns: minmax(0, 1fr) 250px; gap: 12px; align-items: start; }
+  .table.digital #tray { order: 2; position: sticky; top: 10px; margin: 0; }
+  .cell { height: 40px; font-size: 19px; }
+  .lanes { gap: 5px; }
+  #dice { --h: 15px; padding: 8px 2px 6px; }
+  #turnMsg { margin-top: 4px; font-size: 14px; }
+  .bar { margin-bottom: 6px; }
+  /* A lower dock: icon beside its label. */
+  .app { --dock-h: 46px; }
+  .dock button { min-height: 44px; flex-direction: row; gap: 6px; font-size: 12px; }
+  .dock button svg { width: 20px; height: 20px; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- Play: start screen, game, results -->
+  <main id="playTab" class="tab">
+    <section id="setupPage" class="page">
+      <div class="logo">
+        <svg viewBox="0 0 58 50" aria-hidden="true">
+          <g transform="rotate(-14 19 29)"><rect x="4" y="14" width="30" height="30" rx="8" fill="var(--red)"/>
+            <circle cx="12" cy="22" r="3" fill="#fff"/><circle cx="19" cy="29" r="3" fill="#fff"/><circle cx="26" cy="36" r="3" fill="#fff"/></g>
+          <g transform="rotate(12 41 19)"><rect x="27" y="4" width="28" height="28" rx="7.5" fill="var(--blue)"/>
+            <circle cx="34" cy="11" r="2.8" fill="#fff"/><circle cx="48" cy="11" r="2.8" fill="#fff"/><circle cx="34" cy="25" r="2.8" fill="#fff"/><circle cx="48" cy="25" r="2.8" fill="#fff"/></g>
+        </svg>
+        <h1>DiceLanes</h1>
+      </div>
+      <p class="lede">Cross off numbers in four coloured lanes. The longer a lane, the more it scores.</p>
+
+      <details class="glass group" id="savedGroup" hidden>
+        <summary id="savedSummary">Saved games</summary>
+        <p class="note" id="savedNote" role="status" hidden></p>
+        <ul id="saves"></ul>
+      </details>
+
+      <section class="glass group">
+        <h2 id="modeTitle">Dice</h2>
+        <div class="segmented" id="modeSeg" role="group" aria-labelledby="modeTitle">
+          <button value="physical">Physical dice</button>
+          <button value="digital">Digital dice</button>
+        </div>
+        <p class="note" id="modeNote"></p>
+      </section>
+
+      <section class="glass group">
+        <h2>Players</h2>
+        <ul id="roster"></ul>
+        <form id="add">
+          <input id="newName" maxlength="20" placeholder="Add a player" aria-label="New player name" autocomplete="off" enterkeyhint="done">
+          <button class="circle add" aria-label="Add player">+</button>
+        </form>
+        <p class="note" id="rosterNote"></p>
+      </section>
+
+      <button class="btn primary" id="start">Start game</button>
+      <p class="note" id="startHint" hidden>Add a player to start.</p>
+    </section>
+
+    <section id="gamePage" class="page" hidden>
+      <div class="bar">
+        <div id="chips" role="group" aria-label="Show sheet for"></div>
+        <button class="round glass" id="pause" aria-label="Pause and save">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 6v12M15 6v12"/></svg>
+        </button>
+        <button class="round glass" id="undo" aria-label="Undo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 4 9l4 4"/><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H10"/></svg>
+        </button>
+      </div>
+
+      <div id="results" hidden>
+        <div id="resultsHead"><h2 id="resultsTitle"></h2><p id="resultsWhy"></p></div>
+        <ol class="standings" id="finalList"></ol>
+        <div class="stack">
+          <button class="btn primary" id="again">Play again</button>
+          <button class="btn" id="fresh">New game</button>
+        </div>
+      </div>
+
+      <div id="board">
+        <p id="status" role="status"></p>
+        <div class="table" id="table">
+          <section id="tray" class="glass" aria-label="Dice">
+            <div class="tray-head">
+              <div class="sum"><span id="sumLabel">White sum</span><strong id="sum" aria-live="polite"></strong></div>
+              <button class="round" id="trayToggle" aria-expanded="true" aria-label="Smaller dice">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 15 6-6 6 6"/></svg>
+              </button>
+            </div>
+            <div id="dice"></div>
+            <p id="turnMsg"></p>
+            <div class="tray-actions">
+              <button class="btn primary" id="roll">Roll</button>
+              <button class="btn" id="pass">Pass</button>
+            </div>
+          </section>
+          <div>
+            <div class="lanes" id="lanes"></div>
+            <section class="panel glass" aria-label="Score">
+              <p class="caption">Points per lane, by crosses</p>
+              <div class="points" id="points"></div>
+              <div class="pen">
+                <h3 id="penTitle">Penalties</h3>
+                <div class="boxes" id="penBoxes" role="group" aria-labelledby="penTitle"></div>
+                <span class="each">−5 each</span>
+              </div>
+              <div class="eq" id="eq" aria-live="polite"></div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <main id="scoresTab" class="tab page" hidden>
+    <h1>Scores</h1>
+    <p class="lede" id="scoresLede" style="text-align: left"></p>
+    <ol class="standings" id="scoreList"></ol>
+  </main>
+
+  <main id="rulesTab" class="tab page" hidden>
+    <h1>Rules</h1>
+    <section class="glass rules">
+      <h2>The sheet</h2>
+      <ul>
+        <li>Four lanes: red and yellow run 2 to 12, green and blue run 12 to 2.</li>
+        <li>Cross numbers off from left to right only. Anything you skip is gone for good.</li>
+        <li>The last number in a lane (12 or 2) needs five crosses in that lane first. Crossing it also takes the lock, one more cross, and closes that colour for everyone.</li>
+      </ul>
+      <h2>A turn with digital dice</h2>
+      <ol>
+        <li>The active player rolls six dice: two white, red, yellow, green and blue.</li>
+        <li>Everyone, starting with the active player, may cross off the sum of the two white dice in any lane.</li>
+        <li>Then the active player may also cross off one white die plus one coloured die, in that colour's lane.</li>
+        <li>If the active player crossed nothing at all this turn, they take a penalty.</li>
+      </ol>
+      <p class="note">Several players can lock the same colour with the white sum. It closes once everyone has chosen. A closed colour's die leaves the game.</p>
+      <h2>With your own dice</h2>
+      <p class="note" style="margin-top: 0">Play the same turns at the table and tap what you cross. Tap a lock to close a colour another player locked away from this device.</p>
+      <h2>Scoring</h2>
+      <ul>
+        <li>Each lane scores by its crosses: 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78.</li>
+        <li>Each penalty is minus 5.</li>
+        <li>The game ends when someone takes a fourth penalty or two colours are locked.</li>
+      </ul>
+    </section>
+  </main>
+
+  <main id="settingsTab" class="tab page" hidden>
+    <h1>Settings</h1>
+    <section class="glass group set">
+      <h3 id="themeTitle">Appearance</h3>
+      <div class="appearance">
+        <div class="segmented" id="themeSeg" role="group" aria-labelledby="themeTitle">
+          <button value="system">System</button>
+          <button value="light">Light</button>
+          <button value="dark">Dark</button>
+        </div>
+        <svg class="theme-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1"/>
+          <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(45 12 12)"/>
+          <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(90 12 12)"/>
+          <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(135 12 12)"/>
+          <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(180 12 12)"/>
+          <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(225 12 12)"/>
+          <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(270 12 12)"/>
+          <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(315 12 12)"/>
+          <circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>
+          <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor" stroke="none"/>
+        </svg>
+      </div>
+      <h3 id="hapticsTitle">Haptics</h3>
+      <div class="segmented" id="hapticsSeg" role="group" aria-labelledby="hapticsTitle">
+        <button value="on">On</button>
+        <button value="off">Off</button>
+      </div>
+      <h3 id="pickerTitle">Big lane picker</h3>
+      <div class="segmented" id="pickerSeg" role="group" aria-labelledby="pickerTitle">
+        <button value="off">Off</button>
+        <button value="on">On</button>
+      </div>
+      <p class="note">Tap a lane to open it large, with bigger numbers to tap. Always on for screens under 360 pixels wide.</p>
+    </section>
+    <section class="glass group set" id="gameSettings">
+      <h3>This game</h3>
+      <div class="stack">
+        <button class="btn" id="pause2">Pause and save</button>
+        <button class="btn" id="restart">Restart with the same players</button>
+        <button class="btn danger" id="newGame">New game</button>
+      </div>
+      <p class="note" id="setNote" role="status"></p>
+    </section>
+    <section class="glass group">
+      <div class="account" id="account" hidden><h3 style="margin: 0; font-size: 15px; color: var(--ink2)">Account</h3></div>
+      <a class="btn" href="../index.html" style="display: grid; place-items: center; margin-top: 10px">All games</a>
+    </section>
+  </main>
+</div>
+
+<div class="underlay" aria-hidden="true"></div>
+<nav class="dock" aria-label="DiceLanes">
+  <div class="pill" id="dockPill">
+    <span class="hl" aria-hidden="true"></span>
+    <button data-tab="play">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="4"/><circle cx="9" cy="9" r=".9" fill="currentColor"/><circle cx="15" cy="15" r=".9" fill="currentColor"/><circle cx="15" cy="9" r=".9" fill="currentColor"/><circle cx="9" cy="15" r=".9" fill="currentColor"/></svg>
+      Play
+    </button>
+    <button data-tab="scores">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 20V11M12 20V4M18 20v-6"/></svg>
+      Scores
+    </button>
+    <button data-tab="rules">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6"/></svg>
+      Rules
+    </button>
+    <button data-tab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+      Settings
+    </button>
+  </div>
+</nav>
+
+<dialog class="sheet glass" id="picker" aria-labelledby="pickerName">
+  <div>
+    <h2 id="pickerName"></h2>
+    <p id="pickerNote"></p>
+    <div class="big" id="pickerCells"></div>
+    <button class="btn" id="pickerDone">Done</button>
+  </div>
+</dialog>
+
+<template id="xIcon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></template>
+<template id="lockIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path class="shackle" d="M8 11V8a4 4 0 0 1 8 0v3"/></svg></template>
+<template id="openIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 7.7-1.5"/></svg></template>
+
+<script src="../config.js"></script>
+<script src="../platform.js"></script>
+<script type="module" src="ui/app.js"></script>
+</body>
+</html>
