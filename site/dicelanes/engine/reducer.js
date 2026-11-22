@@ -57,7 +57,7 @@ function step(g, a) {
       const p = g.players[a.player];
       if (g.mode === 'digital') {
         if (!p || t.phase !== 'choose' || a.player !== t.active || t.done[a.player] || !!t.picks[a.player].penalty === !!a.add) return false;
-        t.picks[a.player] = { ...t.picks[a.player], penalty: !!a.add };
+        t.picks[a.player] = a.add ? { ...noPicks(), penalty: true } : { ...t.picks[a.player], penalty: false }; // ticking clears the picks
         return true;
       }
       if (!p) return false;
@@ -87,10 +87,10 @@ function step(g, a) {
         next = { ...cur, [a.kind]: null };
       } else if (a.kind === 'white') {
         if (!isLane(a.lane)) return false;
-        next = { ...cur, white: a.lane };
+        next = { ...cur, white: a.lane, penalty: false };
       } else if (a.kind === 'colour') {
         if (a.player !== t.active || !isLane(a.lane) || (a.die !== 0 && a.die !== 1)) return false;
-        next = { ...cur, colour: { lane: a.lane, die: a.die } };
+        next = { ...cur, colour: { lane: a.lane, die: a.die }, penalty: false };
       } else return false;
       if (JSON.stringify(next) === JSON.stringify(cur) || !applyPicks(g.players[a.player], g.closed, t.dice, next)) return false;
       t.picks[a.player] = next;
@@ -178,7 +178,7 @@ export function validState(g) {
       const k = t.picks[p];
       // penalty may be missing in saves from before it existed; it reads as false
       if (!k || !(k.white === null || isLane(k.white)) || !(k.penalty === undefined || typeof k.penalty === 'boolean')) return false;
-      if (Object.keys(k).some(x => !['white', 'colour', 'penalty'].includes(x)) || (k.penalty && p !== t.active)) return false;
+      if (Object.keys(k).some(x => !['white', 'colour', 'penalty'].includes(x)) || (k.penalty && (p !== t.active || k.white !== null || k.colour !== null))) return false;
       if (t.done[p] && !canEnd(g, p)) return false;
       if (k.colour !== null && (p !== t.active || !k.colour || !isLane(k.colour.lane) || ![0, 1].includes(k.colour.die))) return false;
       if (!applyPicks(g.players[p], g.closed, t.dice, k)) return false;

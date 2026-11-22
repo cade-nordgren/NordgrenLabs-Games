@@ -217,16 +217,21 @@ test('the roller cannot end the turn with nothing, but can with only a penalty',
   assert.deepEqual(g.players.map(p => p.penalties), [1, 0], 'resolve applies the penalty');
 });
 
-test('a penalty may go with picks, and only the roller may take one', () => {
+test('a pick and a penalty never stand together, and only the roller may take one', () => {
   let g = rolled(dig(), [1, 2], [1, 1, 1, 1]);
   assert.equal(reduce(g, pen(1)), g, 'Ben is not rolling');
-  g = act(g, tap(g, 0, R, 3));
-  g = act(g, pen(0)); // voluntary, alongside a legal pick
-  g = act(g, tap(g, 0, R, 3));
-  g = act(g, tap(g, 0, Y, 3));
-  assert.deepEqual(g.turn.picks[0], { white: Y, colour: null, penalty: true }, 'picks and swaps keep the penalty');
+  g = act(g, tap(g, 0, R, 3)); // white red 3
+  g = act(g, tap(g, 0, Y, 2)); // colour yellow 1+1
+  g = act(g, pen(0)); // voluntary, even with legal picks: clears the picks
+  assert.deepEqual(g.turn.picks[0], { white: null, colour: null, penalty: true });
+  g = act(g, tap(g, 0, Y, 3)); // a pick unticks the penalty
+  assert.deepEqual(g.turn.picks[0], { white: Y, colour: null, penalty: false });
+  g = act(g, pen(0));
+  g = act(g, { type: 'pick', player: 0, kind: 'colour', lane: G, die: 1 }); // the old pick action too
+  assert.deepEqual(g.turn.picks[0], { white: null, colour: { lane: G, die: 1 }, penalty: false });
+  g = act(g, pen(0));
   g = act(act(g, done(0)), done(1));
-  assert.deepEqual(g.players[0].marks[Y], [indexOf(Y, 3)]);
+  assert.deepEqual(g.players[0].marks, [[], [], [], []], 'resolve never sees both');
   assert.equal(g.players[0].penalties, 1);
   assert.equal(reduce(g, pen(0)), g, 'not between rolls');
 });
@@ -324,6 +329,7 @@ test('serialise, validate and restore round trip', () => {
     { ...back, turn: { ...back.turn, done: [true, true] } },
     { ...back, turn: { ...back.turn, picks: [back.turn.picks[0], { ...back.turn.picks[1], penalty: true }] } },
     { ...back, turn: { ...back.turn, picks: [{ ...back.turn.picks[0], penalty: 'yes' }, back.turn.picks[1]] } },
+    { ...back, turn: { ...back.turn, picks: [{ white: R, colour: null, penalty: true }, back.turn.picks[1]] } },
     { ...back, turn: { ...back.turn, done: [true, true].map((d, i) => i === 0) } },
   ];
   for (const b of bad) assert.equal(validState(b), false, JSON.stringify(b)?.slice(0, 80));
