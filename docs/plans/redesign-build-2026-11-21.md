@@ -130,3 +130,7 @@ real saves in it, signed-in saves on the deployed site.
   damage"), read from the card's own dice line. A card right after a press of Roll elsewhere (the roll card for a
   test, the giant spider's number picker) tumbles at once instead of asking twice. Esc and a swipe do nothing until the
   dice land. Display only: no roll moved or changed.
+- Hero bar for every game (2026-11-22, canvas "Game board"): under the status bar, the solo hero or, with 2 to 4
+  players, whoever's turn it is: their seal, name (with the player's name in a shared game), gold, HP bar, the four
+  stats, and an Items button for that hero. The same public facts as the Heroes panel (D25). Map buttons on phones are
+  the design's 40px, and on a map too short for all five they wrap into a second column instead of being cut off.

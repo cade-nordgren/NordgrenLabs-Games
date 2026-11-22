@@ -12,7 +12,7 @@ import { SUNSET } from '../engine/clock.js';
 import { BEATS } from '../engine/combat.js';
 import { validateContent, contentIndex, contentStatus, bannerLines, APP_LABEL, chamberName, theChamber, chamberCards } from '../content/schema.js';
 import { mountBoard, resetView, chamberRoom, actionSquare, cellInfo, sideWord, svg, place, tileWords, towerAt, markGlyph, sideGlyph, towerGlyph, entryGlyph, blockedGlyph } from './board.js';
-import { lines, entries, dragonStatus, collectWords, forcedMoveWords, cardText, monsterText, fightRowModel, soloStripModel, expr,
+import { lines, entries, dragonStatus, collectWords, forcedMoveWords, cardText, monsterText, fightRowModel, soloStripModel, STAT_SHORT, expr,
  undoLabel, exchangeWords, lastWords, revealWords, itemText, rotationRingWords, DIR, STAT, CHOICE, REACTION, PLACEMENT, FACE, deckWord, towerName, conditionWords, namedSteps, choiceSteps } from './words.js';
 import { rollDice } from './dice.js';
 import { actionCards, cardQueue, cardSpeech, latestTurn, canContinue, OUTCOME_TAG } from './results.js';
@@ -1701,23 +1701,41 @@ function renderTable(v) {
   board.settle(); // spec v12 fix 5: frame the map now it is laid out, not only when a ResizeObserver callback (a frame) comes
 }
 
-// Solo only (owner, 2026-11-19): the hero's HP, stats and gold in one line under the status bar, so a phone need not
-// scroll to the Heroes panel; a tap opens the Items sheet. Its height comes out of the map, not the dock.
+// The hero bar (design canvas "Game board"; solo since 2026-11-19, every game since 2026-11-22): under the status bar,
+// the solo hero or the hero whose turn it is, with their seal, name, HP, the four stats and gold, so a phone need not
+// scroll to the Heroes panel; Items opens that hero's items. Public facts only (D25). Its height comes out of the map.
+const BAG_ICON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M6 8h12l1 12H5z M9 8V6a3 3 0 0 1 6 0v2 M9 13h6"/></svg>';
 function soloStrip(v) {
-  const m = soloStripModel(v, content(), nameOf);
-  if (!m) return null;
-  const b = el('button', 'glass herostrip');
-  b.setAttribute('aria-label', m.label);
-  b.onclick = () => openItems(0);
+  const g = S.game, seat = g.heroes.length === 1 ? 0 : g.activeSeat, h = v.heroes[seat];
+  if (!h) return null;
+  const def = contentIndex(content()).heroes.get(h.heroId), left = Math.max(0, h.hp);
+  const gold = h.held.reduce((sum, inst) => sum + (cardDef(content(), inst).gold || 0), 0);
+  const keys = ['STR', 'AGI', 'ARM', 'LCK'];
+  const b = el('div', 'glass herostrip herobar');
+  b.setAttribute('role', 'group');
+  b.setAttribute('aria-label', `${nameOf(seat)}, ${def.name}: ${left} of ${h.hpStart} HP, ${keys.map(k => `${STAT[k]} ${def.stats[k]}`).join(', ')}, gold ${gold}`);
+  const seal = el('span', 'seal', String(seat + 1));
+  seal.setAttribute('aria-hidden', 'true');
+  const info = el('span', 'hb-info'), top = el('span', 'hb-top'), low = el('span', 'hb-low');
+  info.setAttribute('aria-hidden', 'true'); // the group's label says it all
+  const coin = el('span', 'gold');
+  coin.append(el('b', '', String(gold)));
+  top.append(el('strong', '', g.heroes.length === 1 ? def.name : `${nameOf(seat)} · ${def.name}`), coin);
   const hp = el('span', 'herohp'), bar = el('span', 'hp'), fill = el('i');
-  fill.style.width = `${Math.min(100, 100 * m.hp.left / m.hp.max)}%`;
+  fill.style.width = `${Math.min(100, 100 * left / h.hpStart)}%`;
   bar.append(fill);
-  hp.append(bar, `${m.hp.left}/${m.hp.max}`);
+  hp.append(bar, `${left}/${h.hpStart}`);
   const stats = el('span', 'stats');
-  for (const s of m.stats) { const x = el('span', '', `${s.short} `); x.append(el('b', '', String(s.value))); stats.append(x); }
-  const gold = el('span', 'gold', 'Gold ');
-  gold.append(el('b', '', String(m.gold)));
-  b.append(hp, stats, gold);
+  for (const k of keys) { const x = el('span', '', `${STAT_SHORT[k]} `); x.append(el('b', '', String(def.stats[k]))); stats.append(x); }
+  low.append(hp, stats);
+  info.append(top, low);
+  const items = el('button', 'hb-items');
+  items.type = 'button';
+  items.innerHTML = BAG_ICON;
+  items.append(el('span', '', 'Items'));
+  items.setAttribute('aria-label', `Show ${nameOf(seat)}'s items`);
+  items.onclick = () => openItems(seat);
+  b.append(seal, info, items);
   return b;
 }
 

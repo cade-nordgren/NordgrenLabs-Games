@@ -730,6 +730,23 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 }
 </style>
 <style id="keep-skin">
+#table .map-tools { gap: 5px; } /* five 40px buttons fit a short map, as on the design canvas */
+@media (orientation: portrait) and (max-width: 819.98px), (max-height: 540px) and (orientation: landscape) { #table .map-tools { flex-wrap: wrap-reverse; max-height: calc(100% - 12px); align-content: flex-start; } } /* a map too short for five: a second column to the left */
+/* The hero bar as on the design canvas (2026-11-22): seal, name and gold, then HP and stats, an Items button. */
+.herostrip.herobar { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 5px 5px 5px 7px; min-height: 0; cursor: default; }
+.herobar .seal { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font: 400 16px 'IM Fell English SC', Georgia, serif; color: #F6EBD6; background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%); box-shadow: 0 0 0 2px #DAA24C; }
+.herobar .hb-info { min-width: 0; display: grid; gap: 3px; }
+.herobar .hb-top { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; min-width: 0; }
+.herobar .hb-top strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 400 17px/1.1 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+.herobar .gold { flex: none; display: inline-flex; align-items: center; gap: 4px; font-size: 15px; }
+.herobar .gold::before { content: ''; width: 13px; height: 13px; border-radius: 50%; background: #DAA24C; box-shadow: inset 0 0 0 2px #8A5A1C; }
+.herobar .hb-low { display: flex; align-items: center; gap: 4px 8px; flex-wrap: wrap; font-size: 13px; color: #CDBFAE; white-space: nowrap; }
+.herobar .herohp { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; color: #EEE4CF; font-variant-numeric: lining-nums; }
+.herobar .herohp .hp { width: 36px; }
+.herobar .stats { display: flex; gap: 6px; letter-spacing: -.01em; }
+.herobar .stats b { color: #EEE4CF; }
+.herobar .hb-items { flex: none; width: 52px; height: 46px; border-radius: 10px; border: 1px solid #5D5A3A; background: #1D1E1B; color: #EEE4CF; display: grid; place-items: center; align-content: center; gap: 1px; padding: 0; font-size: 12px; cursor: pointer; }
+.herobar .hb-items:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 2px; }
 /* Press to roll (owner): the design's sum line once the dice land. */
 #roll p.sumline { margin: 0 0 2px; font: 600 22px/1.2 'EB Garamond', Georgia, serif; font-variant-numeric: lining-nums; color: #7E1F2A; text-align: left; }
 #roll[data-kind="monster"] p.sumline { color: #F0B5B9; }
@@ -927,7 +944,7 @@ dialog.sheet .sheet-x { background: transparent; box-shadow: inset 0 0 0 1px #9C
 .board-wrap .torch-in { stop-color: #F2B35A; stop-opacity: .32; }
 .board-wrap .torch-out { stop-color: #F2B35A; stop-opacity: 0; }
 .map-tools .btn { border-radius: 999px; background: rgba(29, 30, 27, .92); color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; }
-#table .map-tools .btn { width: 44px; height: 44px; border-radius: 22px; background: rgba(29, 30, 27, .92); color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A, 0 2px 6px rgba(0, 0, 0, .4); font-size: 24px; min-width: 0; padding: 0; display: grid; place-items: center; }
+#table .map-tools .btn { width: 40px; height: 40px; border-radius: 20px; background: rgba(29, 30, 27, .92); color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A, 0 2px 6px rgba(0, 0, 0, .4); font-size: 24px; min-width: 0; padding: 0; display: grid; place-items: center; }
 #table .map-tools .ico { display: block; width: 22px; height: 22px; } /* round icon buttons at every size (owner: the zoom, fit and centre icons) */
 #table .map-tools .tool-text { display: none; }
 .statusbar { background: transparent; border-color: transparent; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
