@@ -170,10 +170,10 @@ function showWalk(next, mv) {
     art, poses: { [mv.seat]: 'walk' }, moveFrom: { seat: mv.seat, from: mv.from }, lairArt: S.mode === 'fixture' ? null : `art/dragon-${v.dragon.awake ? 'awake' : 'asleep'}.webp` });
   return true;
 }
-// The hand-over (owner play-test): when the turn passes to another player, a short banner says whose turn ended and
-// whose begins, over the table that has already moved on (Continue still goes on at once, spec v12 fix 5).
+// The hand-over (owner play-test): when the turn passes to another player, a short banner on the board says whose turn
+// it is now, over the table that has already moved on (Continue still goes on at once, spec v12 fix 5).
 let turnSeen = null;
-function turnBanner(g) {
+function turnBanner(g, board) {
   const k = g.status === 'playing' && g.seats.length > 1 ? g.activeSeat : null;
   const was = turnSeen;
   turnSeen = k;
@@ -181,8 +181,11 @@ function turnBanner(g) {
   let b = document.getElementById('turnBanner');
   if (!b) { b = el('div', 'turnbanner'); b.id = 'turnBanner'; b.setAttribute('aria-hidden', 'true'); document.body.append(b); }
   const seal = el('span', 'seal', String(k + 1));
-  b.replaceChildren(seal, el('span', 'tb-words'));
-  b.lastChild.append(el('small', '', `${nameOf(was)}'s turn is over`), el('strong', '', `${nameOf(k)}'s turn`));
+  b.replaceChildren(seal, el('strong', 'tb-words', `${nameOf(k)}'s turn`)); // one line: whose turn it is (owner)
+  // On the board's top edge, not mid-screen, so it does not cover the play (owner).
+  const r = board.getBoundingClientRect();
+  b.style.left = `${r.left + r.width / 2}px`;
+  b.style.top = `${Math.max(r.top, 0) + 10}px`;
   b.classList.remove('show');
   void b.offsetWidth; // restart the animation
   b.classList.add('show');
@@ -1742,8 +1745,8 @@ function renderTable(v) {
   side.append(dock, fold);
   grid.append(bp, side);
   out.push(grid);
-  turnBanner(g);
   $('table').replaceChildren(...out);
+  turnBanner(g, bp);
   boardApi = board;
   board.settle(); // spec v12 fix 5: frame the map now it is laid out, not only when a ResizeObserver callback (a frame) comes
 }
