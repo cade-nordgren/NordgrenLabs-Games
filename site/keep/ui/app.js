@@ -2000,14 +2000,29 @@ function inspect(c) {
 
 // ---- Results: escapees by gold, shared top gold wins together (D01); none means the keep wins. Dead and
 // inside at sunset are listed apart (owner tower and sunset ruling).
+function resultsArt(lost) {
+  const glow = lost ? '#A72D38' : '#DAA24C';
+  const stars = lost ? '' : '<g fill="#F6EBD6"><circle cx="40" cy="40" r="1.2"/><circle cx="96" cy="70" r="0.9"/><circle cx="150" cy="28" r="1.1"/><circle cx="250" cy="52" r="1"/><circle cx="320" cy="30" r="1.3"/><circle cx="356" cy="86" r="0.9"/><circle cx="210" cy="96" r="0.8"/></g>';
+  const end = lost
+    ? '<rect x="196" y="172" width="5" height="9" fill="#C2434F"/><rect x="152" y="206" width="4" height="7" fill="#C2434F"/>'
+    : '<path d="M0 300 C120 286 220 288 390 276 V300 Z" fill="#1A1814"/><g transform="translate(300 252)" fill="#0E0D0B"><circle cx="0" cy="-22" r="5"/><path d="M-6 -16 h12 l3 22 h-6 l-3 -12 l-3 12 h-6 z"/><circle cx="11" cy="-10" r="7" fill="#DAA24C" stroke="#0E0D0B" stroke-width="2"/></g>';
+  return `<svg class="r-art" viewBox="0 0 390 300" preserveAspectRatio="xMidYMax slice" aria-hidden="true"><defs><radialGradient id="rglow" cx=".5" cy=".9" r=".7"><stop offset="0" stop-color="${glow}" stop-opacity=".8"/><stop offset="1" stop-color="${glow}" stop-opacity="0"/></radialGradient></defs>`
+    + `<rect width="390" height="300" fill="url(#rglow)"/>${stars}`
+    + '<path fill="#0E0D0B" d="M0 300V250h40V238h10v-8h8v8h10v12h46V196h-6V182h8v6h8v-6h8v6h8v-6h8v14h-6v54h18V214h-5V202h7v5h7v-5h7v5h7v-5h7v12h-5v36h30V160h-7V146h9v7h8v-7h9v7h8v-7h9v14h-7v90h34V226h8v-8h8v8h8v24h56v50z"/>'
+    + `${end}</svg>`;
+}
 function renderResults(v) {
   const g = S.game, r = g.result, c = content();
   const hero = e => `${nameOf(e.seat)}, ${contentIndex(c).heroes.get(e.heroId).name}`;
-  // Results (design canvas): the keep at dusk over the outcome, darker and redder when the keep wins.
-  const scene = el('div', `r-scene${r.castleWins ? ' lost' : ''}`), art = document.querySelector('#title .tl-art');
-  if (art) scene.append(art.cloneNode(true));
-  const out = [scene, el('h1', r.castleWins ? 'lost' : '', r.castleWins ? 'The keep wins' : `${listOf(r.winners.map(nameOf))} ${r.winners.length > 1 ? 'share the win' : 'wins'}`)];
-  out.push(el('p', 'lede', r.castleWins ? 'Nobody escaped before sunset.' : r.shared ? 'Equal top gold among those who escaped: a shared win.' : 'Most gold among those who escaped.'));
+  // Results (design canvas "Results"): the keep at nightfall, the title up in the sky. Someone escaped: stars, a gold
+  // glow and a figure carrying gold away. The keep wins: a blood-red sky and lit windows. Decoration only.
+  const lost = !!r.castleWins;
+  const scene = el('div', `r-scene${lost ? ' lost' : ''}`), head = el('div', 'r-head');
+  scene.insertAdjacentHTML('beforeend', resultsArt(lost));
+  head.append(el('h1', lost ? 'lost' : r.winners.length > 1 ? 'shared' : '', lost ? 'The keep wins' : `${listOf(r.winners.map(nameOf))} ${r.winners.length > 1 ? 'share the win' : 'wins'}`),
+    el('p', 'lede', lost ? 'Nobody escaped before sunset.' : r.shared ? 'Equal top gold among those who escaped: a shared win.' : 'Most gold among those who escaped.'));
+  scene.append(head);
+  const out = [scene];
   // Each row as on the design canvas: the seat's seal, who, what became of them, and the gold on the right.
   const row = (e, status, gold = null) => ({ seat: e.seat, who: hero(e), status, gold, win: r.winners.includes(e.seat) });
   const group = (title, rows, tag = 'ul', kind = '') => {

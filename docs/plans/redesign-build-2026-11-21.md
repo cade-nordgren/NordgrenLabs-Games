@@ -161,3 +161,6 @@ real saves in it, signed-in saves on the deployed site.
   drawn from a test game (the card put on top of the room deck in a copy of a scenario save). All show whole and
   matched to the right card; the troll and fallen warrior crops were trimmed of a sliver of the sheet's border and the
   bat's wing.
+- Results scene (2026-11-22, canvas "Results"): the keep at nightfall in place of the start screen's keep at dusk, with
+  the title and its line up in the sky. Someone escaped: a night sky with stars, a gold glow and a small figure carrying
+  gold away. The keep wins: a blood-red sky and two lit red windows. A shared win's longer title is set smaller.
