@@ -7,7 +7,7 @@ An original lane-crossing dice game for one to five players, at `site/dicelanes/
 ```
 site/dicelanes/index.html            markup and CSS (lane colours, sheet, tray, dock), loads ui/app.js as a module
 site/dicelanes/engine/lanes.js       lanes, points table, score, standings
-site/dicelanes/engine/moves.js       canMark, skipped cells, applyPicks and pickOptions for the simultaneous digital turn
+site/dicelanes/engine/moves.js       canMark, skipped cells, applyPicks, pickOptions, pickedCells and cellChoice for the digital turn
 site/dicelanes/engine/reducer.js     newGame, reduce(state, action), resolve, seeded PRNG, end check, validState
 site/dicelanes/engine/history.js     snapshot undo, cleanHist for stored histories
 site/dicelanes/ui/app.js             state, autosave, saves, rendering, wiring
@@ -35,7 +35,7 @@ State is plain JSON:
 
 `picks` and `done` hold one entry per player during `choose` and are empty otherwise.
 
-Marks are cell indices 0 to 10, strictly increasing, so "left to right only" and "skipped is gone" fall out of one comparison with the newest mark. Actions: `mark`, `penalty`, `close` (physical); `roll`, `pick` (player, kind `white` with a lane, or kind `colour` with a lane and die 0 or 1, active player only), `unpick` (player, kind) and `done` (player, value true or false to reopen) for digital. A pick is accepted only when the player's whole pick still applies: white first, then colour, each against the sheet left by the one before. The roll resolves itself when the last player taps Done (`resolve`). `reduce` returns the same object for an illegal action, which is how the UI and tests tell.
+Marks are cell indices 0 to 10, strictly increasing, so "left to right only" and "skipped is gone" fall out of one comparison with the newest mark. Actions: `mark`, `penalty`, `close` (physical); `roll`, `pick` (player, kind `white` with a lane, or kind `colour` with a lane and die 0 or 1, active player only), `unpick` (player, kind) and `done` (player, value true or false to reopen) for digital. A pick is accepted only when the player's whole pick still applies: white first, then colour, each against the sheet left by the one before. The roll resolves itself when the last player taps Done (`resolve`). The UI sends `choose` (player, lane, index) for every tap on a cell; `cellChoice` decides what it means: take back a pick, add a legal one, or swap. `reduce` returns the same object for an illegal action, which is how the UI and tests tell.
 
 ## Rule readings
 
@@ -43,6 +43,7 @@ Marks are cell indices 0 to 10, strictly increasing, so "left to right only" and
 - Digital turns are simultaneous: after a roll every player chooses in any order on the one device (tap a chip to switch sheets) and taps Done; picks are tentative and changeable until then, and Done can be reopened before the roll resolves. After a Done the sheet switches to the next player still choosing, as a convenience.
 - Every pick is checked against the colours closed before the roll. Colours locked on the roll close only when it resolves, so several players can lock the same colour on one roll, with the white sum or the active player's colour pick. Reading: the active player's colour pick is not blocked by another player's tentative lock in that colour on the same roll; both count.
 - The active player's two picks apply white first, then colour; they may tap them in either order as long as that result is legal. A cell both picks could reach goes to the kind not used yet, white first.
+- Once the active player has a pick, a cell that is legal on its own but not beside that pick (it would need a second pick of the same kind, or break the white-first order) shows as a swap: muted with a dashed ring. Tapping it puts it in and drops what conflicts, keeping as many picks as possible; on a tie it becomes the white pick. Owner's example (whites 1 and 2, red 1): with red 2 picked as a colour, red 3 is a swap; tapping it makes red 3 the white pick and red 2 a swap. A non-active player has one pick, which a tap on another legal cell simply moves.
 - A penalty goes only to the active player, only when they picked nothing.
 - Digital: the end (a fourth penalty, or two closed colours) is checked when the roll resolves. Physical: at once.
 - A closed colour rolls no die from then on; the tray shows its slot as an empty outline.
@@ -52,8 +53,9 @@ Marks are cell indices 0 to 10, strictly increasing, so "left to right only" and
 
 ## UI
 
-- Bank's menu circle top right, with the Undo circle under it during a game. Items: Scores, Rules, Settings (sheets), Pause and save, Restart, New game. Content keeps clear of the circles (header inset in portrait, right gutter in phone landscape).
-- Digital: chips show the roller (dot) and who is done (check). The selected player's legal cells keep full strength with a ring, the rest step back, and tentative picks show an accent X with a ring; tap a pick again to take it back. The tray's main button is Done for that player (Done, take a penalty for the active player with no picks), or Change once they are done.
+- Bank's menu circle top right, with the Undo circle under it during a game. In a game: Scores, Exit, New game, Restart, Rules, Settings. On the start screen: Games, Rules, Settings. Exit is Bank's End game sheet (Save and exit, End or Exit without saving, Keep playing or Back to scores). New game is a sheet (Save and start new, Start new without saving, Keep playing) that starts straight into a fresh game with the same players and mode. Restart takes two taps mid-game. The results screen offers Play again and Change players.
+- Digital layout: the dice tray (white sum, dice, Roll or Done) is the top element, narrowed so the two circles sit to its right; chips are under it. No helper line. Phone landscape and 1040px and up: the tray moves to a right column. Own dice: chips at the top beside the circles.
+- Digital: chips show the roller (dot) and who is done (check). The selected player's legal cells keep full strength with a ring, swaps are muted with a dashed ring, everything else steps further back, and tentative picks show an accent X with a ring; tap a pick again to take it back. The tray's main button is Done for that player (Done, take a penalty for the active player with no picks), or Change once they are done.
 - Physical: a tap always crosses off. The big lane picker (setting, and always under 360px wide) applies to digital dice only: a lane opens in a sheet as two rows of six with 60px cells.
 - Destructive actions (New game, Restart, delete a save) use two taps in place, never a dialog.
 - Dice: no inset edge line, `backface-visibility: hidden`, a perspective per die, and once a roll ends only the front face stays visible, so nothing shows round the edge.
