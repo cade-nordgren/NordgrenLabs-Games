@@ -730,6 +730,21 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 }
 </style>
 <style id="keep-skin">
+/* Owner play-test, round 2 (2026-11-22): a pit you can see (the well, a trapdoor), rubble as a heap of stones, the
+   rotating room round like a cul-de-sac, and the dead left lying where they fell, greyed. */
+.board-wrap .pit-rim { fill: #5E5B48; stroke: var(--wall); stroke-width: 3; }
+.board-wrap .pit { fill: #050504; stroke: #24231C; stroke-width: 3; }
+.board-wrap .stone { fill: #6E6B55; stroke: var(--wall); stroke-width: 3; }
+.board-wrap .round-out { fill: #12120F; }
+.board-wrap .round-wall { fill: none; stroke: var(--wall); stroke-width: 6; }
+.token.dead { filter: grayscale(1) brightness(.75); }
+.token.dead .token-disc { stroke-dasharray: 3 4; }
+/* The room card scrolls inside its frame (owner play-test: the ambush card's Continue sat over the bottom border), and
+   a creature's picture is a little shorter on an upright phone so the card mostly fits. */
+#roll[open] { display: flex; flex-direction: column; overflow: hidden; }
+#roll[open] > div { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 6px; }
+#roll[open] > div { grid-auto-rows: max-content; } /* nothing squeezed: the card scrolls instead */
+@media (orientation: portrait) and (max-width: 819.98px) { #roll[open] .cardart.pic img { max-height: 40dvh; } }
 /* The turn hand-over banner (owner play-test, 2026-11-22): whose turn ended, whose begins, for two seconds. */
 .turnbanner { position: fixed; z-index: 30; left: 50%; top: 50%; translate: -50% -50%; display: none; align-items: center; gap: 12px; padding: 12px 20px 12px 14px; border-radius: 14px;
   background: rgba(29, 30, 27, .94); box-shadow: inset 0 0 0 1px #DAA24C, 0 0 24px rgba(218, 162, 76, .35), 0 12px 30px rgba(0, 0, 0, .6); color: #EEE4CF; pointer-events: none; }
@@ -1076,7 +1091,7 @@ dialog.sheet .sheet-x { background: transparent; box-shadow: inset 0 0 0 1px #9C
 .board-wrap .target { fill: rgba(218, 162, 76, .16); stroke: #DAA24C; stroke-width: 5; stroke-dasharray: 16 10; animation: tgt-pulse 1.6s ease-in-out infinite; }
 @keyframes tgt-pulse { 0%, 100% { fill: rgba(218, 162, 76, .1); } 50% { fill: rgba(218, 162, 76, .34); } }
 .board-wrap .torch { pointer-events: none; mix-blend-mode: screen; }
-.board-wrap .torch-in { stop-color: #F2B35A; stop-opacity: .32; }
+.board-wrap .torch-in { stop-color: #F7BE66; stop-opacity: .55; } /* owner play-test: the torchlight shows well on the darker ground */
 .board-wrap .torch-out { stop-color: #F2B35A; stop-opacity: 0; }
 .map-tools .btn { border-radius: 999px; background: rgba(29, 30, 27, .92); color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; }
 #table .map-tools .btn { width: 40px; height: 40px; border-radius: 20px; background: rgba(29, 30, 27, .92); color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A, 0 2px 6px rgba(0, 0, 0, .4); font-size: 24px; min-width: 0; padding: 0; display: grid; place-items: center; }
@@ -1152,8 +1167,8 @@ body::before { background:
   radial-gradient(60vmax 50vmax at 50% 100%, rgba(218, 162, 76, .10), transparent 60%); }
 /* The board: mossy stone floors, ink walls, gold targets, dark unexplored squares. */
 :root .board-wrap, :root[data-theme] .board-wrap, :root:not([data-theme]) .board-wrap {
-  --floor: #8A8870; --wall: #000; --fog-bg: #5C5D50; --fog-line: rgba(20, 20, 16, .35); --tower: #C9BB9C; --keep: #5A5948; --door: #9C6A2E; --chamber: #DAA24C;
-  --dot-black: #1A1A17; --dot-red: #C2434F; --dot-yellow: #DAA24C; --dot-blue: #7FA8D8; --target: #DAA24C; --focus: #FFE2A6; --off-bg: #47483E; --off-line: rgba(20, 20, 16, .3); } /* owner play-test 2026-11-22: a lighter ground so the black walls stand out */
+  --floor: #8A8870; --wall: #000; --fog-bg: #2F302A; --fog-line: rgba(20, 20, 16, .35); --tower: #C9BB9C; --keep: #5A5948; --door: #9C6A2E; --chamber: #DAA24C;
+  --dot-black: #1A1A17; --dot-red: #C2434F; --dot-yellow: #DAA24C; --dot-blue: #7FA8D8; --target: #DAA24C; --focus: #FFE2A6; --off-bg: #262721; --off-line: rgba(20, 20, 16, .3); } /* owner play-test 2026-11-22: a lighter ground so the black walls stand out */
 :root .statusbar, :root[data-theme] .statusbar, :root:not([data-theme]) .statusbar { --sun-fill: #DAA24C; }
 /* Type: IM Fell English SC for titles and labels, EB Garamond for reading. */
 main h1, .panel > h2, dialog.sheet h2, #outcome h2, #cover h2 { font-family: 'IM Fell English SC', Georgia, serif; font-weight: 400; letter-spacing: 0; }

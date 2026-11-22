@@ -127,7 +127,7 @@ function act(a) {
   const added = next.log.slice(prev.log.length);
   const multi = next.seats.length > 1;
   const ex = added.find(e => e.kind === 'exchange');
-  S.reveal = multi && ex ? { seat: prev.encounter.seat, hero: ex.hero, monster: ex.monster, heroDmg: ex.heroDmg, monsterDmg: ex.monsterDmg } : null;
+  S.reveal = multi && ex ? { seat: prev.encounter.seat, hero: ex.hero, monster: ex.monster, heroDmg: ex.heroDmg, monsterDmg: ex.monsterDmg, enc: view(prev, c, viewer).encounter } : null;
   const priv = added.find(e => (e.kind === 'draw' || e.kind === 'retain') && e.private !== undefined && e.deck !== 'MONSTER');
   // Spec v12 fix 4: after a wake the cards just drawn are gone, so no private card screen; the wake card says why.
   const woke = added.some(e => e.kind === 'dragon-wakes');
@@ -202,10 +202,13 @@ function encounterOutcome(prev, added) {
   const end = added.find(e => e.kind === 'encounter-end');
   const died = added.some(e => e.kind === 'death' && e.seat === seat);
   const killed = added.some(e => e.kind === 'monster-dead') || end?.outcome === 'monster-killed';
+  // The monster by the name the fight showed (the room card's type, public), never a plain "monster" at the end.
+  const pv = view(prev, content(), solo() ? 0 : viewer);
+  const foe = capital(pv.encounter ? fightRowModel(pv, seat, pv.encounter, nameOf, content()).who.split(' against ').pop() : 'the monster');
   const said = [];
   if (died) said.push(`${nameOf(seat)} dies.`);
-  if (killed) said.push(died ? 'The monster is dead too.' : 'The monster is dead.');
-  else if (end?.outcome === 'monster-fled') said.push('The monster flees.');
+  if (killed) said.push(died ? `${foe} is dead too.` : `${foe} is dead.`);
+  else if (end?.outcome === 'monster-fled') said.push(`${foe} flees.`);
   else if (end?.outcome === 'hero-fled' && !died) said.push(`${nameOf(seat)} gets away.`);
   if (!said.length) return null;
   // One line of what follows, from the public log: the flight, the next turn or the end of the game.
@@ -329,6 +332,11 @@ const KIND_ICON = {
   monster: 'M12 3c-4 0-6 3.5-6 8v10h12V11c0-4.5-2-8-6-8z M8.5 21l1.2-4.5h4.6l1.2 4.5 M9 11.5c1-.8 5-.8 6 0',
   empty: 'M5 21V5h14v16 M3 21h18 M9 21v-6h6v6',
 };
+// A trap that leaves a pit or rubble shows it on its card (owner play-test), read from the card's own title.
+const TRAP_ICON = [
+  [/trapdoor|pit/i, 'M3 15.5c0-2 4-3.5 9-3.5s9 1.5 9 3.5-4 3.5-9 3.5-9-1.5-9-3.5z M7 15.5c0-1 2.2-1.8 5-1.8s5 .8 5 1.8 M5 12.5L7 4h9l-2 8.5 M9.5 7.5h3'],
+  [/ceiling|collapse|rubble/i, 'M3 20h18 M4 20l1.5-3.5 3.5-1 2 2.5-.5 2 M10.5 20l1-4 4-1.5 3 2.5.5 3 M8 15.5l1-3.5 3.5-.5 1.5 2.5-2 2.5 M3 4h18 M8 4l1 2.5-1.5 2 M15 4l-.8 2 1.3 1.5 M12 8.5v1.5 M17 10v1'],
+];
 // The owner's creature drawings (Enemy redesigns, Set A, 2026-11-21), matched by the public name the card or fight uses
 // (the owner's own content names); test data shows none of them.
 const CREATURE_ART = [[/skeleton|bones/i, 's11'], [/troll/i, 's10'], [/\borc\b/i, 's12'], [/\belf\b/i, 's09'], [/spider/i, 'spider'], [/\bbats?\b/i, 'bats'], [/fallen warrior/i, 'fallen-warrior']];
@@ -384,7 +392,8 @@ function drawCard(card, i, n) {
     } else if (kind && !scene) {
       const art = el('div', `cardart kind-${kind}`);
       art.setAttribute('aria-hidden', 'true');
-      art.innerHTML = `<svg viewBox="0 0 24 24" width="72" height="72" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><path d="${KIND_ICON[kind]}"/></svg>`;
+      const icon = TRAP_ICON.find(([re]) => re.test(card.title))?.[1] || KIND_ICON[kind];
+      art.innerHTML = `<svg viewBox="0 0 24 24" width="72" height="72" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><path d="${icon}"/></svg>`;
       body.push(art);
     }
   }
@@ -423,9 +432,11 @@ function drawCard(card, i, n) {
   // Press to roll (owner): the dice wait unrolled; Roll takes the place of Continue until they land. Nothing changes
   // in play: the engine rolled already, the dice only show it.
   rollDice(dice, card.dice.map(x => ({ value: '?', sides: sides(x) })), { animate: false });
+  const needs = card.dice.filter(x => x.need).map(x => el('p', 'need', x.need)); // what a test needs, before the roll
+  dice.after(...needs);
   const go = el('button', 'btn primary', `Roll ${card.dice.length === 1 ? `the ${card.dice[0].die}` : 'the dice'}`);
   ok.hidden = true;
-  go.onclick = () => { go.remove(); ok.hidden = false; $('rollTitle').focus(); tumble(); };
+  go.onclick = () => { go.remove(); needs.forEach(n => n.remove()); ok.hidden = false; $('rollTitle').focus(); tumble(); };
   $('rollBtns').replaceChildren(go, ok);
   go.focus();
 }
@@ -1457,7 +1468,7 @@ function renderPrompt(v, la, targets) {
     // The two letters large, one sentence, Continue; the fight row above and History below.
     p = fightPanel('Reveal');
     p.classList.add('reveal'); // compact: the cards and Continue fit without scrolling
-    p.append(fightRow(v, last.seat, enc));
+    p.append(fightRow(v, last.seat, enc || last.enc)); // the fight just ended: the monster as it was shown
     const vs = el('div', 'vs');
     const side = (who, letter) => { const d = el('div'); d.append(el('span', '', letter), el('small', '', who)); return d; };
     vs.append(side(nameOf(last.seat), last.hero), el('small', '', 'against'), side('Monster', last.monster));

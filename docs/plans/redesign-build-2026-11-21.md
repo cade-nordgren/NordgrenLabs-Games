@@ -181,3 +181,16 @@ real saves in it, signed-in saves on the deployed site.
     begins; Continue still goes on at once (spec v12 fix 5).
   - Heroes fighting each other was asked about: the rules have no hero-against-hero combat (R100 "No PvP", and R27
     keeps one hero per ordinary room), so nothing was added.
+- Owner play-test, round 2 (2026-11-22), display only, no rule changes:
+  - Board: the ground darker again (between the first two tries) and the torchlight stronger, so it reads.
+  - Pits and rubble: the well is a dark pit in a stone rim; rubble is a heap of stones; a hero who fell through a
+    trapdoor stands in the middle of a pit until they climb out. The Trapdoor and Ceiling collapses cards show a pit
+    and fallen stones as their picture.
+  - The rotating room is drawn round, like a cul-de-sac: dark corners, a short way in on each open side.
+  - A monster keeps the room card's name and picture to the end: the two-player reveal after the last exchange, and
+    the fight's end card ("The Skeleton is dead.", "The Orc flees."). Only the public type is used, never the
+    secret monster card.
+  - The room card scrolls inside its frame, so Continue never sits over the bottom border; a creature's picture is a
+    little shorter on an upright phone, still whole.
+  - Dead heroes stay on the board where they fell, lying down and greyed, and the square says "(dead)".
+  - Every test card shows what it needs before the roll ("To pass: 4 or less on the D12 (Agility 4).").

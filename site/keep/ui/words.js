@@ -489,7 +489,9 @@ export function rollWords(e, rest, ctx) {
       if (!t) return { text: `${head}.`, tag: 'none' };
       const [rolled, needed] = testWords(t), after = TEST_RESULT[t.reason]?.[t.pass ? 0 : 1];
       const dies = !t.pass && near.some(x => x.kind === 'death');
-      return { text: `${rolled} ${needed} ${t.pass ? 'Pass.' : 'Fail.'}${after ? ` ${after}` : ''}`, tag: t.pass ? 'success' : dies ? 'death' : 'failure' };
+      const mods = (Array.isArray(t.modifiers) ? t.modifiers : []).filter(m => m.value).map(m => `${m.value < 0 ? '-' : '+'} ${Math.abs(m.value)}${m.source ? ` (${m.source})` : ''}`);
+      return { text: `${rolled} ${needed} ${t.pass ? 'Pass.' : 'Fail.'}${after ? ` ${after}` : ''}`, tag: t.pass ? 'success' : dies ? 'death' : 'failure',
+        need: `To pass: ${t.target} or less on the ${e.die} (${STAT[t.stat] || t.stat} ${t.target})${mods.length ? `, the roll ${mods.join(' ')}` : ''}.` };
     }
     case 'dark-exit': {
       const d = near.find(x => x.kind === 'dark-exit'), b = near.find(x => x.kind === 'dark-blocked');

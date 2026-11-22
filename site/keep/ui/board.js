@@ -2,7 +2,7 @@
 // comes from the engine's own board helpers (BoardDefinition first) and the targets the caller passes
 // are legal actions from the engine. Pointer events and CSS transforms; nothing depends on hover.
 import { squareKind, sideAt, edgeKind, edgeKey, neighbour, key } from '../engine/board.js';
-import { isActive, ESCAPED } from '../engine/heroes.js';
+import { isActive, ESCAPED, DEAD } from '../engine/heroes.js';
 import { contentIndex, chamberName } from '../content/schema.js';
 
 const NS = 'http://www.w3.org/2000/svg';
@@ -76,8 +76,8 @@ export function cellInfo(v, content, c, names = []) {
   else if (def) what = `revealed ${tileWords(def)}${def.mark !== 'none' ? `, ${def.mark} mark` : ''}, entry dot ${DIR[inst.entrySide]}`;
   else what = left ? 'unexplored, will reveal a tile' : 'unexplored, no tiles left';
   const sides = SIDES.map(side => ({ side, word: sideWord(v, content, c, side) }));
-  const occupants = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED) && h.coord.x === c.x && h.coord.y === c.y)
-    .map(h => `${names[h.seat] ?? `Seat ${h.seat + 1}`}${h.status === ESCAPED ? ' (escaped)' : ''}`);
+  const occupants = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED || h.status === DEAD) && h.coord.x === c.x && h.coord.y === c.y)
+    .map(h => `${names[h.seat] ?? `Seat ${h.seat + 1}`}${h.status === ESCAPED ? ' (escaped)' : h.status === DEAD ? ' (dead)' : ''}`);
   return { title: capital(place(c)), kind, what, sides, occupants };
 }
 
@@ -109,18 +109,28 @@ export function markGlyph(g, mark, cx, cy) {
   if (mark === 'blue') svg('path', { d: `M${cx + 4} ${cy - 15}a15 15 0 1 0 11 24a12 12 0 1 1-11-24z`, class: cls }, g);
 }
 
-function specialGlyph(g, special, cx, cy) {
-  if (special === 'well') {
-    svg('circle', { cx, cy, r: 24, class: 'glyph' }, g);
-    svg('circle', { cx, cy, r: 13, class: 'pit' }, g);
-  }
+function specialGlyph(g, special, cx, cy, open = []) {
+  if (special === 'well') pitGlyph(g, cx, cy, 30);
   if (special === 'rotating') {
-    svg('path', { d: `M${cx + 20} ${cy}a20 20 0 1 1-6-14`, class: 'glyph', fill: 'none' }, g);
-    svg('path', { d: `M${cx + 16} ${cy - 24}l0 12-12 0`, class: 'glyph', fill: 'none' }, g);
+    // A round room (owner): dark corners outside the circle, a short way in on each open side, the turn arrow inside.
+    svg('path', { d: `M2 2H98V98H2Z M${cx - 40} ${cy}a40 40 0 1 0 80 0a40 40 0 1 0-80 0Z`, class: 'round-out', 'fill-rule': 'evenodd' }, g);
+    svg('circle', { cx, cy, r: 40, class: 'round-wall' }, g);
+    for (const s of open) {
+      const way = svg('g', { transform: `rotate(${{ N: 0, E: 90, S: 180, W: 270 }[s]} ${cx} ${cy})` }, g);
+      svg('rect', { x: cx - 18, y: 2, width: 36, height: 16, class: 'floor' }, way);
+      svg('path', { d: `M${cx - 18} 2V${cy - 35.7}M${cx + 18} 2V${cy - 35.7}`, class: 'round-wall' }, way);
+    }
+    svg('path', { d: `M${cx + 18} ${cy}a18 18 0 1 1-5-12.5`, class: 'glyph', fill: 'none' }, g);
+    svg('path', { d: `M${cx + 14} ${cy - 22}l0 11-11 0`, class: 'glyph', fill: 'none' }, g);
   }
   if (special === 'rubble') {
-    for (const [dx, dy, r] of [[-12, 8, 9], [9, 10, 8], [0, -8, 8], [16, -10, 5]]) svg('circle', { cx: cx + dx, cy: cy + dy, r, class: 'stone' }, g);
+    for (const [dx, dy, r] of [[-22, 14, 11], [-2, 18, 12], [20, 12, 10], [-14, -4, 10], [8, -6, 11], [26, -12, 7], [-26, -18, 6], [-4, -22, 8]]) svg('circle', { cx: cx + dx, cy: cy + dy, r, class: 'stone' }, g);
   }
+}
+// A pit: a dark hole in a stone rim (the well, and a hero who fell through a trapdoor).
+function pitGlyph(g, cx, cy, r) {
+  svg('circle', { cx, cy, r, class: 'pit-rim' }, g);
+  svg('circle', { cx, cy, r: r * 0.74, class: 'pit' }, g);
 }
 
 // [x1, y1, x2, y2] in the group's units; kind wall, door or gate; extra: fixed (printed on the board) or fallen.
@@ -283,7 +293,7 @@ export function mountBoard(host, opts) {
   svg('rect', { x: -M, y: -M, width: W, height: H, class: 'dusk' }, root);
 
   const ix = contentIndex(content);
-  const heroes = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED));
+  const heroes = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED || h.status === DEAD)); // the dead stay where they fell (owner)
   const figs = [];
   for (let y = 0; y < bd.height; y++) {
     const row = svg('g', { role: 'row' }, root);
@@ -320,7 +330,7 @@ export function mountBoard(host, opts) {
       } else if (inst) {
         const def = ix.tiles.get(inst.defId);
         svg('rect', { x: 2, y: 2, width: 96, height: 96, rx: 4, class: 'floor' }, g);
-        if (def.special !== 'none') specialGlyph(g, def.special, 50, 50);
+        if (def.special !== 'none') specialGlyph(g, def.special, 50, 50, SIDES.filter(s => sideAt(v, content, c, s) !== 'wall'));
         if (def.mark !== 'none') def.special !== 'none' ? markGlyph(g, def.mark, 26, 28) : markGlyph(g, def.mark, 50, 50);
         entryGlyph(g, inst.entrySide);
       } else {
@@ -342,9 +352,11 @@ export function mountBoard(host, opts) {
       // room mark still shows.
       const long = w >= h, along = (i, n) => (long ? w : h) / 2 + (i - (n - 1) / 2) * 42;
       here.forEach((h, i) => {
+        const pit = h.conditions?.some(k => k.id === 'trapdoor'); // fell through a trapdoor: in the middle of a pit
         const off = kind === 'center' && ch.cells.length > 1 ? (long ? [along(i, here.length), 72] : [72, along(i, here.length)])
-          : here.length === 1 ? [72, 72] : [[30, 30], [70, 30], [30, 70], [70, 70]][i % 4];
-        const tg = svg('g', { class: `token seat-${h.seat}${h.status === ESCAPED ? ' escaped' : ''}${h.seat === v.activeSeat ? ' active' : ''}`, transform: `translate(${off[0]} ${off[1]})`, 'aria-hidden': 'true' }, g);
+          : here.length === 1 ? (pit ? [50, 56] : [72, 72]) : [[30, 30], [70, 30], [30, 70], [70, 70]][i % 4];
+        if (pit) pitGlyph(g, off[0], off[1], here.length === 1 ? 38 : 26);
+        const tg = svg('g', { class: `token seat-${h.seat}${h.status === ESCAPED ? ' escaped' : ''}${h.status === DEAD ? ' dead' : ''}${h.seat === v.activeSeat ? ' active' : ''}`, transform: `translate(${off[0]} ${off[1]})`, 'aria-hidden': 'true' }, g);
         svg('circle', { r: here.length === 1 ? 19 : 16, class: 'token-disc' }, tg); // off centre, so the room mark still shows
         svg('text', { y: 7, 'text-anchor': 'middle', class: 'token-num' }, tg).textContent = h.seat + 1;
         // The owner's hero art stands on this seal like a miniature; drawn later on its own top layer (figs below).
