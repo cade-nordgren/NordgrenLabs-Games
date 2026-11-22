@@ -564,7 +564,7 @@ export function contentStatus(own, fx, mode = 'mixed') {
       : `Start is off until the content is complete: ${n ? `${n} content ${n === 1 ? 'error' : 'errors'} to fix` : [report.lines[gap], ...report.pending.filter(p => p.category === report.categories[gap].key).map(p => p.message)].join('; ')}.`,
     confirm: toConfirm(own),
     flagged: flaggedByStatus(own),
-    play: mixedAllowed ? (syntheticCategories(mixed).length ? `Play-test is on: your ${report.categories.reduce((s, c) => s + c.defined, 0)} written slots plus NON-AUTHENTIC fill-in.` : `Play-test is on: all ${report.categories.reduce((s, c) => s + c.defined, 0)} slots are your own entries, still draft (no fill-in).`)
+    play: mixedAllowed ? (syntheticCategories(mixed).length ? `Play-test is on: your ${report.categories.reduce((s, c) => s + c.defined, 0)} written slots plus NON-AUTHENTIC fill-in.` : `Play-test is on: all ${report.categories.reduce((s, c) => s + c.defined, 0)} slots are your own entries, ${report.fullStartAllowed ? 'all approved' : 'still draft'} (no fill-in).`)
       : !written ? 'Play-test is off until you write some entries.'
       : n ? `Play-test is off until the ${n} content ${n === 1 ? 'error is' : 'errors are'} fixed.`
       : `Play-test is off: ${mixReport.errors[0]?.message || 'a slot has nothing in it'}.`,

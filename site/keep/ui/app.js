@@ -839,6 +839,7 @@ function renderTitle() {
   $('startReason').textContent = REPORT.fullStartAllowed ? '' : STATUS.start;
   $('fixtures').disabled = !FX_REPORT.fixturePlayable;
   $('mixed').disabled = !STATUS.mixedAllowed;
+  $('mixed').hidden = REPORT.fullStartAllowed; // everything approved (spec v14): Start game is the way in
   $('mixedReason').textContent = STATUS.play;
   drawSaves();
 }
@@ -2123,7 +2124,7 @@ const openSetup = mode => { setupMode = mode; $('setupReason').textContent = '';
 $('start').onclick = () => openSetup('original');
 $('fixtures').onclick = () => openSetup('fixture');
 $('mixed').onclick = () => openSetup('mixed');
-$('setupBack').onclick = () => { setupMode = null; render(); $('mixed').focus(); };
+$('setupBack').onclick = () => { setupMode = null; render(); ($('start').hidden ? $('mixed') : $('start')).focus(); };
 $('setupGo').onclick = () => newGame(setupMode);
 const toggleMore = (id, btn) => { const open = $(id).hidden; $(id).hidden = !open; $(btn).setAttribute('aria-expanded', open); };
 $('howBtn').onclick = () => toggleMore('howto', 'howBtn');
