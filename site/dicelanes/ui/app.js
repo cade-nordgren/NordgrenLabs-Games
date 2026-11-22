@@ -337,7 +337,8 @@ function paintCell(b, l, i) {
   const skip = !lock && isSkipped(sheet, l, i);
   // Digital: pick (an accent X), legal (ring), swap (muted, dashed ring: tapping it replaces what conflicts), none.
   const choice = g.mode === 'digital' && choosingNow() ? cellChoice(g, S.sel, l, i).state : 'none';
-  const t = g.turn, shownPick = !!t && t.phase === 'choose' && !rolling && pickedCells(t.dice, t.picks[S.sel]).some(c => c.lane === l && c.index === (i));
+  const t = g.turn, mine = t && t.phase === 'choose' && !rolling ? pickedCells(t.dice, t.picks[S.sel]).find(c => c.lane === l && c.index === i) : null;
+  const shownPick = !!mine;
   const wasX = b.classList.contains('x');
   b.classList.toggle('x', marked);
   b.classList.toggle('pop', marked && !wasX && popMarks);
@@ -345,6 +346,9 @@ function paintCell(b, l, i) {
   b.classList.toggle('legal', choice === 'legal');
   b.classList.toggle('swap', choice === 'swap');
   b.classList.toggle('pick', shownPick);
+  // A tentative X shows which dice made it: styled like a white die for the white sum, the lane's colour for white plus colour.
+  b.classList.toggle('pw', mine?.kind === 'white');
+  b.classList.toggle('pc', mine?.kind === 'colour');
   b.classList.toggle('held', lock && marked);
   let label;
   if (lock) {
@@ -356,7 +360,7 @@ function paintCell(b, l, i) {
     if (b.firstChild?.textContent !== String(lane.nums[i])) b.replaceChildren(el('span', 'n', lane.nums[i]));
     label = `${lane.name} ${lane.nums[i]}` + (marked ? ', crossed' : skip ? ', skipped' : '');
   }
-  if (shownPick) label += ', picked, tap to take back';
+  if (shownPick) label += `, picked with ${mine.kind === 'white' ? 'the white dice' : `a white and the ${lane.name.toLowerCase()} die`}, tap to take back`;
   else if (choice === 'swap') label += ', conflicts with a pick, tap to swap';
   b.setAttribute('aria-label', label);
   let can;
@@ -505,9 +509,11 @@ function renderTray() {
 }
 
 async function roll() {
-  if (rolling || !change({ type: 'roll' })) return;
-  const d = S.g.turn.dice;
+  if (rolling) return;
+  // rolling goes up before the change renders, or that render would set the new faces at once (a flash before the spin)
   rolling = true;
+  if (!change({ type: 'roll' })) { rolling = false; return; }
+  const d = S.g.turn.dice;
   buzz([8, 40, 8]);
   render();
   await Promise.all(dieEls.map(({ die }, k) => {
@@ -579,72 +585,96 @@ function renderResults() {
   $('resultsWhy').textContent = endReason(g) === 'penalties'
     ? `${g.players.length === 1 ? 'A' : `${listOf(fourth)} took a`} fourth penalty.`
     : `Two colours are locked: ${listOf(LANES.filter((_, l) => g.closed[l]).map(l => l.name.toLowerCase()))}.`;
-  if (revealing) return; // the count is running; leave its cards alone
-  const cards = revealCards(g);
-  if (revealPending && !still()) { revealPending = false; runReveal(g, cards); return; }
+  if (revealing) return; // the count is running; leave its rows alone
+  const rows = revealRows(g);
+  if (revealPending && !still()) { revealPending = false; runReveal(g, rows); return; }
   revealPending = false;
-  finishReveal(g, cards);
+  finishReveal(g, rows);
 }
 
-// ---- End of game reveal: one card per player shaped like the score line, counted up colour by colour for everyone
-// at once (red, yellow, green, blue, penalties, then totals), then the winner glows. Tap anywhere or Skip to jump.
-function revealCards(g) {
+// ---- Finish screen: one row per player (rank, name, red + yellow + green + blue - penalties = total), which is also
+// the ranking. On the move that ends the game it counts up one column at a time for everyone at once, 1 s a column
+// with the counting box white, then a 0.5 s beat in which the rows re-sort by the score so far. Tap or Skip to jump.
+const COLS = 6, COUNT_MS = 1000, BEAT_MS = 500;
+function revealRows(g) {
   return g.players.map((p, i) => {
-    const card = el('div', 'rcard glass'), eq = el('div', 'eq');
+    const row = el('li', 'rrow glass'), eq = el('div', 'eq');
     const box = (c, label) => { const b = el('span', 't', '0'); if (c) b.style.setProperty('--c', c); b.setAttribute('aria-label', label); return b; };
-    const parts = LANES.map(l => box(`var(--${l.id})`, l.name)), pen = box(null, 'Penalties'), total = el('span', 't total');
-    total.append(el('small', '', 'Total'), el('b', '', '0'));
-    eq.append(parts[0], '+', parts[1], '+', parts[2], '+', parts[3], '−', pen, '=', total);
-    card.append(el('p', 'rname', p.name), eq);
-    return { card, boxes: [...parts, pen, total.lastChild], target: (({ lanes, penalty, total }) => [...lanes, penalty, total])(score(p)), i };
+    const parts = LANES.map(l => box(`var(--${l.id})`, l.name)), pen = box(null, 'Penalties'), total = box(null, 'Total');
+    total.classList.add('total');
+    const op = t => el('i', 'op', t);
+    eq.append(parts[0], op('+'), parts[1], op('+'), parts[2], op('+'), parts[3], op('−'), pen, op('='), total);
+    const rank = el('span', 'rank', '');
+    row.append(rank, el('span', 'who', p.name), eq);
+    const { lanes, penalty, total: sum } = score(p);
+    return { row, rank, boxes: [...parts, pen, total], target: [...lanes, penalty, sum], i };
   });
 }
-const showBox = (c, ph, v) => { c.boxes[ph].textContent = ph === 4 ? (v ? `−${v}` : '0') : v; };
-function finishReveal(g, cards) {
-  $('reveal').replaceChildren(...cards.map(c => c.card));
-  const best = Math.max(...cards.map(c => c.target[5]));
-  cards.forEach(c => {
-    c.target.forEach((v, ph) => showBox(c, ph, v));
-    const win = c.target[5] === best;
-    c.card.classList.toggle('win', win);
-    c.card.classList.toggle('dim', !win && g.players.length > 1);
+const showBox = (r, col, v) => { r.boxes[col].textContent = col === 4 ? (v ? `−${v}` : '0') : v; };
+// Score from the columns counted so far (penalties subtract; the total column is the total).
+const soFar = (r, cols) => cols >= COLS ? r.target[5] : r.target.slice(0, Math.min(cols, 4)).reduce((a, b) => a + b, 0) - (cols > 4 ? r.target[4] : 0);
+// Puts the rows in order of the score so far (ties keep seating order), sliding them there (FLIP), and updates ranks.
+function placeRows(rows, cols, slide) {
+  const list = $('reveal'), before = new Map(rows.map(r => [r, r.row.getBoundingClientRect().top]));
+  const sorted = [...rows].sort((a, b) => soFar(b, cols) - soFar(a, cols) || a.i - b.i);
+  list.append(...sorted.map(r => r.row));
+  sorted.forEach(r => { r.rank.textContent = cols ? 1 + rows.filter(o => soFar(o, cols) > soFar(r, cols)).length : ''; });
+  if (!slide || still()) return;
+  for (const r of rows) {
+    const dy = before.get(r) - r.row.getBoundingClientRect().top;
+    if (dy) r.row.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 400, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+  }
+}
+function finishReveal(g, rows) {
+  $('reveal').replaceChildren(...rows.map(r => r.row));
+  const best = Math.max(...rows.map(r => r.target[5]));
+  rows.forEach(r => {
+    r.target.forEach((v, col) => showBox(r, col, v));
+    r.boxes.forEach(b => b.classList.remove('now', 'mute'));
+    const win = r.target[5] === best;
+    r.row.classList.toggle('win', win);
+    r.row.classList.toggle('dim', !win && g.players.length > 1);
+    r.rank.classList.toggle('first', win);
   });
+  placeRows(rows, COLS, false);
   $('resultsTitle').textContent = winnersLine(g);
   $('skip').hidden = true;
   $('after').hidden = false;
-  standingsList($('finalList'), g);
 }
-async function runReveal(g, cards) {
+async function runReveal(g, rows) {
   const my = ++revealToken;
   revealing = true;
-  $('reveal').replaceChildren(...cards.map(c => c.card));
+  $('reveal').replaceChildren(...rows.map(r => r.row));
+  rows.forEach(r => r.boxes.forEach(b => b.classList.add('mute')));
   $('resultsTitle').textContent = 'Final count';
   $('skip').hidden = false;
   $('after').hidden = true;
   const live = () => my === revealToken;
   const wait = ms => new Promise(r => setTimeout(r, ms));
-  await wait(350);
-  for (let ph = 0; ph < 6 && live(); ph++) {
+  await wait(400);
+  for (let col = 0; col < COLS && live(); col++) {
     buzz(6);
-    // Every box ticks up one point at a time at a shared pace, so each phase lands in about 1.4 seconds.
-    const max = Math.max(1, ...cards.map(c => Math.abs(c.target[ph])));
+    rows.forEach(r => { r.boxes[col].classList.remove('mute'); r.boxes[col].classList.add('now'); });
+    // Every box ticks up one point at a time at a shared pace, so the column lands in exactly COUNT_MS.
+    const max = Math.max(1, ...rows.map(r => Math.abs(r.target[col])));
     await new Promise(done => {
       const t0 = performance.now();
-      const tick = now => {
+      const tick = () => {
         if (!live()) return done();
-        const p = Math.min(1, (now - t0) / 1400), v = Math.floor(p * max);
-        cards.forEach(c => showBox(c, ph, Math.sign(c.target[ph]) * Math.min(Math.abs(c.target[ph]), v)));
-        p < 1 ? next() : done();
+        const p = Math.min(1, (performance.now() - t0) / COUNT_MS), v = Math.floor(p * max);
+        rows.forEach(r => showBox(r, col, Math.sign(r.target[col]) * Math.min(Math.abs(r.target[col]), v)));
+        p < 1 ? setTimeout(tick, 16) : done(); // timers, so the count still finishes in a background tab
       };
-      // Timers rather than animation frames, so the count still finishes in a background tab.
-      const next = () => setTimeout(() => tick(performance.now()), 16);
-      next();
+      tick();
     });
-    await wait(ph === 4 ? 450 : 250); // a longer beat before the totals
+    if (!live()) return;
+    rows.forEach(r => { r.boxes[col].classList.remove('now'); r.boxes[col].classList.add('mute'); });
+    placeRows(rows, col + 1, true);
+    await wait(BEAT_MS);
   }
   if (!live()) return;
   revealing = false;
-  finishReveal(g, cards);
+  finishReveal(g, rows);
   buzz([10, 60, 10]);
 }
 function skipReveal() {

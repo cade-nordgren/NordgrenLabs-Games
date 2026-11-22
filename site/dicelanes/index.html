@@ -174,13 +174,21 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 .choosing .cell:not(.legal):not(.x):not(.skip):not(.pick):not(.swap) { opacity: .45; }
 .cell.legal { box-shadow: inset 0 0 0 3px var(--cell-ink), 0 2px 6px rgb(0 0 0 / .25); }
 .choosing .cell.swap { opacity: .72; box-shadow: none; outline: 2px dashed var(--cell-ink); outline-offset: -5px; }
-/* A tentative pick: an X in the accent colour with a ring, until the player taps Done. */
+/* A tentative pick: an X with a ring until the player ends their turn (coloured by its dice, below). */
 .cell.pick { box-shadow: inset 0 0 0 3px var(--accent), 0 2px 6px rgb(0 0 0 / .25); }
 .cell.pick .n { opacity: .3; }
 .cell.pick::after { content: ""; position: absolute; inset: 6px 3px; background: var(--accent);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 5l14 14M19 5L5 19' stroke='%23000' stroke-width='4.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M5 5l14 14M19 5L5 19' stroke='%23000' stroke-width='4.2' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 .choosing .cell.pick { opacity: 1; }
+/* White-sum pick: the cell becomes a white die of this theme (--die fill, --pip X). White plus colour: an X in the
+   lane's colour, a shade darker on light cells so yellow stays legible. Marks turn into the normal X on resolve. */
+.cell.pick.pw { background: var(--die); color: var(--pip); box-shadow: 0 2px 6px rgb(0 0 0 / .25); }
+.cell.pick.pw::after { background: var(--pip); }
+.cell.pick.pw small { color: var(--pip); }
+.cell.pick.pc { --xc: color-mix(in srgb, var(--lane) 78%, #000); box-shadow: inset 0 0 0 3px var(--xc), 0 2px 6px rgb(0 0 0 / .25); }
+.cell.pick.pc::after { background: var(--xc); }
+:root[data-theme="dark"] .cell.pick.pc { --xc: var(--lane); }
 /* The last number and its lock share one wider cell: number, a small lock beside it, the n/5 hint under them. */
 .cell.lock { display: flex; align-items: center; justify-content: center; gap: 1px; }
 .cell.lock:has(small) { padding-bottom: 10px; }
@@ -231,17 +239,27 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 #resultsHead h2 { font: 800 30px/1.15 var(--num); }
 #resultsHead p { margin: 6px 0 0; color: var(--ink2); }
 /* End of game reveal: one score line per player, counted up; the winner glows, the rest step back. */
-.reveal { display: grid; gap: 10px; cursor: pointer; }
-.rcard { padding: 10px 12px 12px; border-radius: 20px; transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease; }
-.rcard .rname { margin: 0 0 6px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.rcard .eq { margin-top: 0; }
-.rcard .t { font-variant-numeric: tabular-nums; }
-.rcard .total b { font: inherit; }
-.rcard.dim { opacity: .5; filter: grayscale(.7); }
-.rcard.win { box-shadow: 0 0 0 3px var(--accent), 0 8px 28px color-mix(in srgb, var(--accent) 45%, transparent); animation: glow 1.8s ease-in-out infinite; }
+.reveal { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; cursor: pointer; }
+/* One line per player: rank, name, then the score line. Boxes shrink with the screen so five players fit at 320. */
+.rrow { --b: clamp(25px, 8.4vw, 40px); display: grid; grid-template-columns: 26px minmax(0, 1fr) auto; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 18px; transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease; }
+.rrow .rank { width: 26px; height: 26px; font-size: 14px; }
+.rrow .rank.first { background: var(--accent); color: #fff; }
+.rrow .who { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rrow .eq { margin: 0; gap: 2px; font-size: 12px; }
+.rrow .t { flex: none; width: var(--b); height: 36px; border-width: 1.5px; border-radius: 9px; font: 800 clamp(13px, 3.9vw, 18px)/1 var(--num); font-variant-numeric: tabular-nums;
+  transition: background-color .2s, color .2s, border-color .2s, box-shadow .2s; }
+.rrow .t.total { display: grid; place-items: center; width: calc(var(--b) * 1.25); height: 40px; font-size: clamp(15px, 4.6vw, 21px); }
+/* While counting: the column being counted is solid white with a thin edge in its colour; the rest are grey. */
+.rrow .t.mute { background: var(--fill); border-color: transparent; color: var(--ink2); }
+.rrow .t.now { background: #fff; color: #1d1d1f; border-color: var(--c, #8e8e93); box-shadow: 0 2px 10px rgb(0 0 0 / .18); }
+/* Phones: the + and = signs give way to the names; the colours carry the meaning. */
+@media (max-width: 419px) { .rrow .op { display: none; } .rrow { gap: 6px; padding: 8px; } }
+.rrow.dim { opacity: .5; filter: grayscale(.7); }
+.rrow.win { box-shadow: 0 0 0 3px var(--accent), 0 8px 28px color-mix(in srgb, var(--accent) 45%, transparent); animation: glow 1.8s ease-in-out infinite; }
 @keyframes glow { 50% { box-shadow: 0 0 0 3px var(--accent), 0 10px 46px color-mix(in srgb, var(--accent) 80%, transparent); } }
 #skip { display: block; margin: 14px auto 0; }
-.rank-cap { margin: 18px 0 8px; }
+#after .stack { margin-top: 16px; }
 .stack { display: grid; gap: 10px; margin-top: 16px; }
 
 /* ---- Rules, scores and settings sheets */
@@ -406,11 +424,9 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 
       <div id="results" hidden>
         <div id="resultsHead"><h2 id="resultsTitle"></h2><p id="resultsWhy"></p></div>
-        <div class="reveal" id="reveal"></div>
+        <ol class="reveal" id="reveal" aria-label="Ranking"></ol>
         <button class="btn" id="skip" hidden>Skip</button>
         <div id="after">
-          <p class="caption rank-cap">Ranking</p>
-          <ol class="standings" id="finalList"></ol>
           <div class="stack">
             <button class="btn primary" id="again">Play again</button>
             <button class="btn" id="players">Change players</button>
