@@ -1,4 +1,4 @@
-// Dusk Keep content kit: check, report on and add to the owner's content files. No dependencies.
+// Dragon's Keep content kit: check, report on and add to the owner's content files. No dependencies.
 // Guide: docs/content-kit/README.md. Run from the repo root:
 //   node tools/keep-content.js check            every slot's count, then each error by id; exits 1 on errors
 //   node tools/keep-content.js report           the content status the title screen shows
@@ -40,7 +40,7 @@ async function load() {
 
 if (cmd === 'check' || cmd === 'report') {
   const s = contentStatus(await load(), FIXTURES);
-  console.log(`Dusk Keep content ${cmd}: ${relative(process.cwd(), dir) || '.'}`);
+  console.log(`Dragon's Keep content ${cmd}: ${relative(process.cwd(), dir) || '.'}`);
   if (cmd === 'report') console.log(s.note);
   s.report.categories.forEach((c, i) => {
     console.log(s.lines[i]);

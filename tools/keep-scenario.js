@@ -1,4 +1,4 @@
-// Dusk Keep developer scenarios: prepared positions for checking rare screens in a browser, with nothing added to the
+// Dragon's Keep developer scenarios: prepared positions for checking rare screens in a browser, with nothing added to the
 // shipped game. Each scenario is built by driving the real reducer on the owner content in play-test mode ("Play-test my
 // content", the same content object app.js uses) after setup, with the needed card put on top of its deck, tiles placed
 // from the tile bag and heroes moved, as the Node tests do. Dice are never scripted: the seed is searched until the hinted

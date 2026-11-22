@@ -1,4 +1,4 @@
-// Dusk Keep frontend (system 10). A projection of the engine: it dispatches legal actions to
+// Dragon's Keep frontend (system 10). A projection of the engine: it dispatches legal actions to
 // reduce() and renders view(game, content, seat) for whoever is looking. No rules live here.
 import FIXTURES from '../content/fixtures/fixtures.js';
 import ORIGINAL from '../content/original/index.js';
@@ -461,7 +461,7 @@ const newId = () => crypto.randomUUID?.() ?? '10000000-1000-4000-8000-1000000000
 function saveTitle(g) {
   const n = g.seats.length;
   const when = g.status === 'over' ? 'finished' : g.status === 'setup' ? 'setting up' : `sun ${g.sun}`;
-  return `Dusk Keep, ${n} ${n === 1 ? 'player' : 'players'}, ${when}${g.banner ? `, ${g.banner}` : ''}`;
+  return `Dragon's Keep, ${n} ${n === 1 ? 'player' : 'players'}, ${when}${g.banner ? `, ${g.banner}` : ''}`;
 }
 // put() writes to this browser at once and uploads in the background for a signed-in person.
 async function saveGame() {

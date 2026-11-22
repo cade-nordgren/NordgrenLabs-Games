@@ -1,4 +1,4 @@
-// Dusk Keep soak exposure counts: random legal play on the owner content (play-test mode), the same seeds and
+// Dragon's Keep soak exposure counts: random legal play on the owner content (play-test mode), the same seeds and
 // action picker as the catalogue soak in tests/keep/catalogue.test.js, counting how often the treasure chamber and
 // the dragon deck were actually reached. Developer script, outside the published site. Run from the repo root:
 //   node tools/keep-soak.js [games]        (default 600)
