@@ -194,3 +194,8 @@ real saves in it, signed-in saves on the deployed site.
     little shorter on an upright phone, still whole.
   - Dead heroes stay on the board where they fell, lying down and greyed, and the square says "(dead)".
   - Every test card shows what it needs before the roll ("To pass: 4 or less on the D12 (Agility 4).").
+- Fonts packed with the game (2026-11-22, owner): EB Garamond, IM Fell English SC and MedievalSharp as woff2 files in
+  site/keep/fonts/ (Latin and Latin Extended, about 350 KB, the two most used preloaded), each with its SIL Open Font
+  License; the game no longer calls Google Fonts.
+- Starting-tower map as the game board (2026-11-22, owner): the board's frame, hatched squares with dark gaps, the
+  black outer wall, stone towers with the board's keep (the chosen one gold), the lair picture.

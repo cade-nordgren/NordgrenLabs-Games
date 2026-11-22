@@ -868,7 +868,8 @@ function setupHead(n, step) {
 // on their outer sides (a gold beacon until picked, gold when picked), a seal for each player already starting there,
 // and the lair tile with the owner's sleeping dragon. For the pointer: the tower buttons below are the keyboard and
 // screen reader way, so the map is hidden from readers and its buttons take no Tab stop.
-const TOWER_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M6 21V9h12v12z M5 9V5h2.5v2h2V5h3v2h2V5H17v4 M10.5 21v-4a1.5 1.5 0 0 1 3 0v4"/></svg>';
+// The tower as the game board draws it (board.js towerGlyph), so the starting map matches the table (owner, 2026-11-22).
+const TOWER_ICON = '<svg viewBox="0 0 100 100" aria-hidden="true"><path class="tk" d="M28 72V38h8v-8h8v8h12v-8h8v8h8v34z"/><path class="tg" d="M44 72V58a6 6 0 0 1 12 0v14z"/></svg>';
 function towerMap(g, c, la, sel, pick) {
   const bd = c.board, frame = el('div', 'tmap'), grid = el('div', 'tgrid'), ch = chamberRoom(bd);
   frame.setAttribute('aria-hidden', 'true');
