@@ -30,7 +30,17 @@ try {
 } catch {}
 const savePrefs = () => { try { localStorage.setItem(PREFS, JSON.stringify(prefs)); } catch {} };
 // Only after a real tap: Chrome logs an error for vibrate() before any user activation.
-const buzz = p => { if (prefs.haptics === 'on' && navigator.userActivation?.hasBeenActive !== false) navigator.vibrate?.(p); };
+// iPhone Safari has no vibrate(); since iOS 18 toggling a switch checkbox gives one system tick, so tap a hidden one.
+// shortcut: iOS gets one tick for any pattern, and only inside a tap; revisit if Safari ships vibrate().
+const tick = () => {
+  const label = document.createElement('label'), input = document.createElement('input');
+  input.type = 'checkbox'; input.setAttribute('switch', ''); label.ariaHidden = 'true'; label.style.display = 'none';
+  label.append(input); document.head.append(label); label.click(); label.remove();
+};
+const buzz = p => {
+  if (prefs.haptics !== 'on' || navigator.userActivation?.hasBeenActive === false) return;
+  if (navigator.vibrate) navigator.vibrate(p); else tick();
+};
 const narrow = matchMedia('(max-width: 359px)');
 // Digital only: with your own dice a tap always crosses off.
 const pickerOn = () => S.g?.mode === 'digital' && (prefs.picker === 'on' || narrow.matches);
@@ -371,6 +381,20 @@ function paintCell(b, l, i) {
   b.disabled = !can;
 }
 
+// Closed lanes sink below the open ones (each group in its usual order), sliding there (FLIP) when the order changes.
+function placeLanes(g) {
+  const want = [...laneEls.filter((_, l) => !g.closed[l]), ...laneEls.filter((_, l) => g.closed[l])];
+  const box = $('lanes');
+  if (want.every((row, k) => box.children[k] === row)) return;
+  const before = new Map(laneEls.map(r => [r, r.getBoundingClientRect().top]));
+  box.append(...want);
+  if (still() || box.offsetParent === null) return;
+  for (const r of laneEls) {
+    const dy = before.get(r) - r.getBoundingClientRect().top;
+    if (dy) r.animate([{ transform: `translateY(${dy}px)` }, { transform: 'none' }], { duration: 500, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+  }
+}
+
 // ---- Rendering
 function render() {
   save();
@@ -455,6 +479,7 @@ function renderGame() {
 
   const picker = pickerOn();
   $('lanes').classList.toggle('choosing', digital && choosingNow());
+  placeLanes(g);
   laneEls.forEach((row, l) => {
     row.classList.toggle('closed', g.closed[l]);
     row.classList.toggle('pickable', picker);
