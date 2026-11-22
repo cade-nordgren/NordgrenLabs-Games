@@ -15,23 +15,47 @@ export const isSkipped = (sheet, l, i) => i < newest(sheet, l) && !sheet.marks[l
 
 export const whiteSum = dice => dice.w[0] + dice.w[1];
 
-// Phase 1: cells player p may mark with the white sum. Closures from this same phase are not applied yet.
-export function whiteMoves(g, p) {
-  if (g.turn?.phase !== 'white' || g.turn.chooser !== p) return [];
-  const v = whiteSum(g.turn.dice);
-  return LANES.map((_, l) => ({ lane: l, index: indexOf(l, v) })).filter(m => canMark(g.players[p], g.closed, m.lane, m.index));
+// A player's tentative picks for this roll: { white: lane or null, colour: { lane, die } or null }. Only the active
+// player may pick a colour. Picks apply white first, then colour, each against the sheet as it stands after the one
+// before; closures from this roll wait for the resolve, so every pick checks the colours closed before the roll.
+export const noPicks = () => ({ white: null, colour: null });
+export const hasPicks = pick => pick.white != null || pick.colour != null;
+
+export function applyPicks(sheet, closed, dice, pick) {
+  const s = { marks: sheet.marks.map(m => [...m]), locks: [...sheet.locks] }, locked = [];
+  const put = (l, value) => {
+    const i = indexOf(l, value);
+    if (!canMark(s, closed, l, i)) return false;
+    s.marks[l].push(i);
+    if (i === LAST) { s.locks[l] = true; locked.push(l); }
+    return true;
+  };
+  if (pick.white != null && !put(pick.white, whiteSum(dice))) return null;
+  if (pick.colour) {
+    const c = dice.c[pick.colour.lane], w = dice.w[pick.colour.die];
+    if (c == null || w == null || !put(pick.colour.lane, w + c)) return null;
+  }
+  return { marks: s.marks, locks: s.locks, locked };
 }
 
-// Phase 2: cells the active player may mark with one white die plus that lane's coloured die.
-export function colourMoves(g) {
-  if (g.turn?.phase !== 'colour') return [];
-  const sheet = g.players[g.turn.active], out = [];
+// Every pick player p could make now, as the whole pick it would leave: [{ lane, index, kind, pick }].
+// A cell already picked is not listed (tapping it again takes the pick back).
+export function pickOptions(g, p) {
+  const t = g.turn;
+  if (t?.phase !== 'choose' || t.done[p]) return [];
+  const cur = t.picks[p], out = [];
+  const tryPick = (kind, lane, value, pick) => {
+    const index = indexOf(lane, value);
+    if (index < 0 || out.some(o => o.lane === lane && o.index === index && o.kind === kind)) return;
+    if (applyPicks(g.players[p], g.closed, t.dice, pick)) out.push({ lane, index, kind, pick });
+  };
   LANES.forEach((_, l) => {
-    const c = g.turn.dice.c[l];
-    if (c == null) return;
-    g.turn.dice.w.forEach((w, die) => {
-      const index = indexOf(l, w + c);
-      if (canMark(sheet, g.closed, l, index) && !out.some(m => m.lane === l && m.index === index)) out.push({ lane: l, index, die });
+    if (cur.white !== l) tryPick('white', l, whiteSum(t.dice), { ...cur, white: l });
+    if (p !== t.active || t.dice.c[l] == null) return;
+    t.dice.w.forEach((w, die) => {
+      if (cur.colour?.lane === l && cur.colour.die === die) return;
+      if (cur.colour?.lane === l && indexOf(l, w + t.dice.c[l]) === indexOf(l, t.dice.w[cur.colour.die] + t.dice.c[l])) return;
+      tryPick('colour', l, w + t.dice.c[l], { ...cur, colour: { lane: l, die } });
     });
   });
   return out;

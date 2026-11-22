@@ -1,7 +1,7 @@
 // The whole game as a serialisable reducer: reduce(state, action) returns a new state, or the same state object when
 // the action is not legal now. State is plain JSON, so it can be autosaved, undone by snapshot, or sent over a wire.
 import { LANES, LAST, MAX_PENALTIES, LOCKS_TO_END, MAX_PLAYERS, MARKS_BEFORE_LAST, emptySheet } from './lanes.js';
-import { canMark, indexOf, whiteSum } from './moves.js';
+import { canMark, applyPicks, noPicks, hasPicks } from './moves.js';
 
 // Seeded PRNG (mulberry32) kept in state, so undo then roll again gives the same dice: no fishing for a better roll.
 export function rand(g) {
@@ -18,8 +18,9 @@ export function newGame({ mode, names, seed }) {
     players: names.map(emptySheet),
     closed: [false, false, false, false],
     status: 'playing',
-    // Digital only. phase: roll, white (everyone, from the active player on), colour (active player), over.
-    turn: mode === 'digital' ? { n: 1, active: 0, phase: 'roll', dice: null, chooser: null, marked: false, pending: [] } : null,
+    // Digital only. phase: roll, choose (everyone picks at once, each taps Done), over. picks and done are per player
+    // during choose and empty otherwise.
+    turn: mode === 'digital' ? { n: 1, active: 0, phase: 'roll', dice: null, picks: [], done: [] } : null,
   };
 }
 
@@ -30,18 +31,16 @@ export const endReason = g =>
 function checkEnd(g) {
   if (!endReason(g)) return;
   g.status = 'over';
-  if (g.turn) { g.turn.phase = 'over'; g.turn.chooser = null; }
+  if (g.turn) g.turn.phase = 'over';
 }
 
-// Marks a cell already known to be legal. The last number also takes the lock; closeNow false defers the closure
-// (phase 1, where several players may lock the same colour at once).
-function mark(g, p, l, i, closeNow) {
+// Physical: marks a cell already known to be legal. The last number also takes the lock and closes the colour.
+function mark(g, p, l, i) {
   const sheet = g.players[p];
   sheet.marks[l].push(i);
   if (i !== LAST) return;
   sheet.locks[l] = true;
-  if (closeNow) g.closed[l] = true;
-  else if (!g.turn.pending.includes(l)) g.turn.pending.push(l);
+  g.closed[l] = true;
 }
 
 const isLane = l => Number.isInteger(l) && l >= 0 && l < 4;
@@ -51,7 +50,7 @@ function step(g, a) {
   switch (a?.type) {
     case 'mark': { // physical: any player, any legal cell
       if (g.mode !== 'physical' || !g.players[a.player] || !canMark(g.players[a.player], g.closed, a.lane, a.index)) return false;
-      mark(g, a.player, a.lane, a.index, true);
+      mark(g, a.player, a.lane, a.index);
       break;
     }
     case 'penalty': { // physical: add one or take one back
@@ -70,33 +69,33 @@ function step(g, a) {
       if (g.mode !== 'digital' || t.phase !== 'roll') return false;
       const w = [d6(g), d6(g)];
       t.dice = { w, c: LANES.map((_, l) => g.closed[l] ? null : d6(g)) }; // closed colours roll no die
-      Object.assign(t, { phase: 'white', chooser: t.active, marked: false, pending: [] });
+      Object.assign(t, { phase: 'choose', picks: g.players.map(noPicks), done: g.players.map(() => false) });
       return true; // nothing to check: a roll ends nothing
     }
-    case 'white': { // phase 1, for the player whose choice it is; lane null passes
-      if (g.mode !== 'digital' || t.phase !== 'white') return false;
-      if (a.lane != null) {
-        const i = isLane(a.lane) ? indexOf(a.lane, whiteSum(t.dice)) : -1;
-        if (!canMark(g.players[t.chooser], g.closed, a.lane, i)) return false;
-        mark(g, t.chooser, a.lane, i, false);
-        if (t.chooser === t.active) t.marked = true;
-      }
-      t.chooser = (t.chooser + 1) % n;
-      if (t.chooser === t.active) resolveWhite(g);
-      return true; // the end is checked once the turn resolves
+    case 'pick': // one player's tentative pick: kind white (anyone) or colour (active player, with die 0 or 1)
+    case 'unpick': {
+      if (g.mode !== 'digital' || t.phase !== 'choose' || !g.players[a.player] || t.done[a.player]) return false;
+      const cur = t.picks[a.player];
+      let next;
+      if (a.type === 'unpick') {
+        if (a.kind !== 'white' && a.kind !== 'colour') return false;
+        next = { ...cur, [a.kind]: null };
+      } else if (a.kind === 'white') {
+        if (!isLane(a.lane)) return false;
+        next = { ...cur, white: a.lane };
+      } else if (a.kind === 'colour') {
+        if (a.player !== t.active || !isLane(a.lane) || (a.die !== 0 && a.die !== 1)) return false;
+        next = { ...cur, colour: { lane: a.lane, die: a.die } };
+      } else return false;
+      if (JSON.stringify(next) === JSON.stringify(cur) || !applyPicks(g.players[a.player], g.closed, t.dice, next)) return false;
+      t.picks[a.player] = next;
+      return true;
     }
-    case 'colour': { // phase 2, active player: one white die plus one coloured die; lane null passes
-      if (g.mode !== 'digital' || t.phase !== 'colour') return false;
-      let marked = false;
-      if (a.lane != null) {
-        const c = isLane(a.lane) ? t.dice.c[a.lane] : null, w = t.dice.w[a.die];
-        if (c == null || w == null) return false;
-        const i = indexOf(a.lane, w + c);
-        if (!canMark(g.players[t.active], g.closed, a.lane, i)) return false;
-        mark(g, t.active, a.lane, i, true);
-        marked = true;
-      }
-      endTurn(g, marked);
+    case 'done': { // a player is finished choosing (value false reopens); once everyone is, the roll resolves
+      const value = a.value !== false;
+      if (g.mode !== 'digital' || t.phase !== 'choose' || !g.players[a.player] || t.done[a.player] === value) return false;
+      t.done[a.player] = value;
+      if (t.done.every(Boolean)) resolve(g);
       return true;
     }
     default: return false;
@@ -105,22 +104,24 @@ function step(g, a) {
   return true;
 }
 
-// After everyone has chosen in phase 1, colours locked during it close for everyone, before the active player's phase 2.
-export function resolveWhite(g) {
-  for (const l of g.turn.pending) g.closed[l] = true;
-  Object.assign(g.turn, { pending: [], chooser: null, phase: 'colour' });
-}
-
-function endTurn(g, markedNow) {
-  const t = g.turn;
-  if (!t.marked && !markedNow) g.players[t.active].penalties++; // only the active player, only with no mark at all
-  t.chooser = null;
-  t.phase = 'roll';
+// Everyone is done: picks become marks, every colour locked this roll closes (several players may lock the same one),
+// the active player takes a penalty if they picked nothing, then the end check, then the next player's roll.
+export function resolve(g) {
+  const t = g.turn, locked = new Set();
+  g.players.forEach((p, i) => {
+    const r = applyPicks(p, g.closed, t.dice, t.picks[i]);
+    if (!r) return; // cannot happen for a validated state; never mark anything illegal
+    p.marks = r.marks;
+    p.locks = r.locks;
+    r.locked.forEach(l => locked.add(l));
+  });
+  for (const l of locked) g.closed[l] = true;
+  if (!hasPicks(t.picks[t.active])) g.players[t.active].penalties = Math.min(MAX_PENALTIES, g.players[t.active].penalties + 1);
+  Object.assign(t, { phase: 'roll', picks: [], done: [] });
   checkEnd(g);
   if (g.status === 'over') return;
   t.active = (t.active + 1) % g.players.length;
   t.n++;
-  t.marked = false;
 }
 
 export function reduce(g, a) {
@@ -146,19 +147,26 @@ export function validState(g) {
         const m = p.marks[l];
         if (!Array.isArray(m) || !m.every((i, k) => isInt(i, 0, LAST) && (k === 0 || i > m[k - 1]))) return false;
         if (p.locks[l] !== m.includes(LAST) || (p.locks[l] && m.length < MARKS_BEFORE_LAST + 1)) return false;
-        if (p.locks[l] && !g.closed[l] && !t?.pending?.includes(l)) return false;
+        if (p.locks[l] && !g.closed[l]) return false;
       }
     }
     if (g.mode === 'physical') return t === null;
-    if (!t || !isInt(t.n, 1, 1e6) || !isInt(t.active, 0, g.players.length - 1) || typeof t.marked !== 'boolean') return false;
-    if (!['roll', 'white', 'colour', 'over'].includes(t.phase) || (t.phase === 'over') !== (g.status === 'over')) return false;
-    if (!Array.isArray(t.pending) || !t.pending.every(isLane) || (t.pending.length && t.phase !== 'white')) return false;
-    if (t.phase === 'white' ? !isInt(t.chooser, 0, g.players.length - 1) : t.chooser !== null) return false;
+    const n = g.players.length;
+    if (!t || !isInt(t.n, 1, 1e6) || !isInt(t.active, 0, n - 1)) return false;
+    if (!['roll', 'choose', 'over'].includes(t.phase) || (t.phase === 'over') !== (g.status === 'over')) return false;
     if (t.dice !== null) {
       const d = t.dice;
       if (!d || !Array.isArray(d.w) || d.w.length !== 2 || !d.w.every(x => isInt(x, 1, 6))) return false;
       if (!Array.isArray(d.c) || d.c.length !== 4 || !d.c.every(x => x === null || isInt(x, 1, 6))) return false;
-    } else if (t.phase === 'white' || t.phase === 'colour') return false;
+    } else if (t.phase === 'choose') return false;
+    if (t.phase !== 'choose') return Array.isArray(t.picks) && !t.picks.length && Array.isArray(t.done) && !t.done.length;
+    if (!isBools(t.done, n) || t.done.every(Boolean) || !Array.isArray(t.picks) || t.picks.length !== n) return false;
+    for (let p = 0; p < n; p++) {
+      const k = t.picks[p];
+      if (!k || Object.keys(k).length !== 2 || !(k.white === null || isLane(k.white))) return false;
+      if (k.colour !== null && (p !== t.active || !k.colour || !isLane(k.colour.lane) || ![0, 1].includes(k.colour.die))) return false;
+      if (!applyPicks(g.players[p], g.closed, t.dice, k)) return false;
+    }
     return true;
   } catch {
     return false;
