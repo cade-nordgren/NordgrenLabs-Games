@@ -218,6 +218,11 @@ export function frameView(s0, c, cells, room) {
 // The treasure chamber: one cell, or two adjacent cells that are one room. Drawn as one tile at the first (top
 // left) cell, which is also its one tap and keyboard target; the other cell's key maps to it. chamber: the view's
 // `chamber` ({ cells, bounds, seats }, D39) when given, else the BoardDefinition's center cells.
+// The board's lair tile art, original to this game (design canvas, "Dragon art, draft", the board tile).
+const LAIR_ART = `<defs><radialGradient id="dubg" cx="0.5" cy="0.6" r="0.6"><stop offset="0" stop-color="#6A4416"></stop><stop offset="1" stop-color="#2A1C10"></stop></radialGradient><linearGradient id="dug" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#F6CF7A"></stop><stop offset="1" stop-color="#9A6A22"></stop></linearGradient><linearGradient id="dub" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3F5418"></stop><stop offset="1" stop-color="#7E9438"></stop></linearGradient></defs><rect width="68" height="34" fill="url(#dubg)"></rect><path d="M20 17L30 4.5L40 15Q35 12.5 31 16Q26 13.5 20 17Z" fill="#A72D38" stroke="#120D07" stroke-width="0.7" stroke-linejoin="round"></path><path d="M30 4.5L26 16M30 4.5L33 15" stroke="#2E3B1A" stroke-width="0.8" fill="none"></path><path d="M9 31C7 23 15 16 27 15C38 14 45 16 49 20C52 17 56 16 58 18L56 24L50 28L52 31Z" fill="url(#dub)" stroke="#120D07" stroke-width="0.7" stroke-linejoin="round"></path><path d="M44 25C48 24 51 22 52 21" stroke="#A72D38" stroke-width="1.6" fill="none" stroke-linecap="round"></path><path d="M24 15.4l1.4 -2.6l1.2 2.4ZM42 16.2l1.6 -2.4l0.8 2.8ZM48 18.4l1.8 -2l0.4 2.6Z" fill="#A72D38" stroke="#120D07" stroke-width="0.4"></path><path d="M51 18.6C54 15.6 59 15.8 62 18L66.4 19.8C67 21.6 65.6 22.8 63 22.8L54 23.6Z" fill="#5E7A2A" stroke="#120D07" stroke-width="0.7" stroke-linejoin="round"></path><path d="M53 17.4L46.6 13L55.4 16.4Z" fill="#EDE0BE" stroke="#120D07" stroke-width="0.4"></path><path d="M56.6 19.4q1.6 1.2 3.2 0" stroke="#F6CF7A" stroke-width="0.7" fill="none" stroke-linecap="round"></path><path d="M2 34C12 26 28 24 38 25C50 25 60 28 67 34Z" fill="url(#dug)" stroke="#6E4A17" stroke-width="0.6"></path><path d="M12 30C5 31 2 26 5 22.5" stroke="#3F5418" stroke-width="2.6" fill="none" stroke-linecap="round"></path><path d="M5.2 23.2L2.6 21.4L5.6 17.4L8.2 21.6Z" fill="#A72D38" stroke="#120D07" stroke-width="0.4"></path><circle cx="30" cy="28" r="0.9" fill="#FFF4D6"></circle><circle cx="46" cy="30" r="0.7" fill="#FFF4D6"></circle><rect x="0.75" y="0.75" width="66.5" height="32.5" fill="none" stroke="#DAA24C" stroke-width="1.5"></rect>`;
+// The hero figures' size switch, kept per device (display only).
+const FIG_KEY = 'nl-keep-figures';
+let figSmall = (() => { try { return localStorage.getItem(FIG_KEY) === 'small'; } catch { return false; } })();
 export function chamberRoom(bd, chamber = null) {
   const cs = chamber?.cells || bd.center || [];
   const xs = cs.map(t => t.x), ys = cs.map(t => t.y);
@@ -263,6 +268,13 @@ export function mountBoard(host, opts) {
   };
   pat('fog', 'fog-bg', 'fog-line');
   pat('off', 'off-bg', 'off-line');
+  // Stone floors and the torchlight round the hero (design canvas): drawing only.
+  const stone = svg('pattern', { id: 'stone', width: 50, height: 50, patternUnits: 'userSpaceOnUse' }, defs);
+  svg('rect', { width: 50, height: 50, class: 'stone-bg' }, stone);
+  svg('path', { d: 'M0 25H50M25 0V25M12 25V50M37 25V50', class: 'stone-line' }, stone);
+  const torch = svg('radialGradient', { id: 'torch' }, defs);
+  svg('stop', { offset: '0', class: 'torch-in' }, torch);
+  svg('stop', { offset: '1', class: 'torch-out' }, torch);
   svg('rect', { x: -M, y: -M, width: W, height: H, class: 'offboard' }, root);
   // The dusk vignette (its strength follows the sun, index.html): under the squares, so only the margin and gaps darken.
   const vg = svg('radialGradient', { id: 'vignette', r: '71%' }, defs);
@@ -272,6 +284,7 @@ export function mountBoard(host, opts) {
 
   const ix = contentIndex(content);
   const heroes = v.heroes.filter(h => h && h.coord && (isActive(h) || h.status === ESCAPED));
+  const figs = [];
   for (let y = 0; y < bd.height; y++) {
     const row = svg('g', { role: 'row' }, root);
     for (let x = 0; x < bd.width; x++) {
@@ -291,6 +304,10 @@ export function mountBoard(host, opts) {
       } else if (kind === 'center') {
         // One outline around the whole room, no line between its squares, one label or chest a little above the middle.
         svg('rect', { x: 2, y: 2, width: w - 4, height: h - 4, rx: 4, class: v.board.chamberPlaced ? 'chamber' : 'reserved' }, g);
+        // The owner's own dragon scene (opts.lairArt: asleep, or awake while it is awake); test data keeps the drawn draft.
+        // Decoration only; the label and chest say what it is.
+        if (opts.lairArt) svg('image', { href: opts.lairArt, x: 4, y: 4, width: w - 8, height: h - 8, preserveAspectRatio: 'xMidYMid slice', class: 'lair-art', 'aria-hidden': 'true' }, g);
+        else svg('svg', { x: 4, y: 4, width: w - 8, height: h - 8, viewBox: '0 0 68 34', preserveAspectRatio: 'xMidYMid slice', class: 'lair-art', 'aria-hidden': 'true' }, g).innerHTML = LAIR_ART;
         const lx = w / 2, ly = ch.cells.length > 1 && w >= h ? 36 : h / 2;
         if (v.board.chamberPlaced) chestGlyph(g, lx, ly);
         else {
@@ -330,6 +347,8 @@ export function mountBoard(host, opts) {
         const tg = svg('g', { class: `token seat-${h.seat}${h.status === ESCAPED ? ' escaped' : ''}${h.seat === v.activeSeat ? ' active' : ''}`, transform: `translate(${off[0]} ${off[1]})`, 'aria-hidden': 'true' }, g);
         svg('circle', { r: here.length === 1 ? 19 : 16, class: 'token-disc' }, tg); // off centre, so the room mark still shows
         svg('text', { y: 7, 'text-anchor': 'middle', class: 'token-num' }, tg).textContent = h.seat + 1;
+        // The owner's hero art stands on this seal like a miniature; drawn later on its own top layer (figs below).
+        if (opts.art?.[h.seat]) figs.push({ seat: h.seat, x: x * C + off[0], y: y * C + off[1], shared: here.length > 1, active: h.seat === v.activeSeat });
       });
       if (t) svg('rect', { x: 5, y: 5, width: w - 10, height: h - 10, rx: 9, class: 'target' }, g);
       svg('rect', { x: 3, y: 3, width: w - 6, height: h - 6, rx: 10, class: 'focusring' }, g);
@@ -424,6 +443,21 @@ export function mountBoard(host, opts) {
   ro = new ResizeObserver(settle);
   ro.observe(view);
 
+  // ---- Hero figures (the owner's art): one top layer over every square, so no wall, mark or fog line crosses them, and
+  // pointer-events none, so a tap or click always reaches the square underneath. Off their turn a figure fits inside its
+  // square; the active hero stands taller. The Figures tool makes every figure small (remembered on this device).
+  if (home) svg('circle', { cx: home.x * C + C / 2, cy: home.y * C + C / 2, r: C * 2.6, fill: 'url(#torch)', class: 'torch', 'aria-hidden': 'true' }, root);
+  if (figs.length) {
+    const layer = svg('g', { class: 'figures', 'aria-hidden': 'true' }, root);
+    for (const f of figs) {
+      const ht = f.shared ? 44 : f.active ? 92 : 58, pose = opts.poses?.[f.seat];
+      const fg = svg('g', { transform: `translate(${f.x} ${f.y})` }, layer);
+      const sz = svg('g', { class: `fig-size${f.active && !f.shared ? ' big' : ''}` }, fg);
+      svg('image', { href: opts.art[f.seat], x: -ht * 0.34, y: -ht - 4, width: ht * 0.68, height: ht, preserveAspectRatio: 'xMidYMax meet', class: `token-art${f.active ? ' active' : ''}${pose ? ` pose-${pose}` : ''}` }, sz);
+    }
+  }
+  wrap.classList.toggle('figs-small', figs.length > 0 && figSmall);
+
   // ---- Tools: buttons, so they work by touch, mouse and keyboard alike.
   const middle = () => { const [vw, vh] = size(); return [vw / 2, vh / 2]; };
   // icon: an SVG path drawn in place of the text where the tools float over the map (phone portrait, CSS).
@@ -443,6 +477,13 @@ export function mountBoard(host, opts) {
   tool('+', 'Zoom in', () => zoomAt(1.4, ...middle()));
   tool('Fit board', `Fit board: all ${bd.width * bd.height} squares`, fit, 'M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5');
   if (home) tool('Centre on hero', 'Centre on the hero', () => frame(fitScale() * 2),'M12 2v4M12 18v4M2 12h4M18 12h4M17 12a5 5 0 1 1-10 0a5 5 0 1 1 10 0');
+  if (figs.length) {
+    tool('Figures', '', () => setFigSmall(!figSmall), 'M12 3.5a2.5 2.5 0 1 1 0 5a2.5 2.5 0 1 1 0-5M7.5 20.5v-5a4.5 4.5 0 0 1 9 0v5M4 20.5h16');
+    const fb = tools.lastChild;
+    const say = () => { fb.setAttribute('aria-label', figSmall ? 'Hero figures: small. Make them full size' : 'Hero figures: full size. Make them small'); fb.setAttribute('aria-pressed', figSmall); };
+    const setFigSmall = on => { figSmall = on; try { localStorage.setItem(FIG_KEY, on ? 'small' : 'full'); } catch {} wrap.classList.toggle('figs-small', on); say(); };
+    say();
+  }
   if (opts.tilesLeft !== undefined) {
     const s = document.createElement('span');
     s.className = 'tiles';

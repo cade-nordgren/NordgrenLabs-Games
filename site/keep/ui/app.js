@@ -284,12 +284,52 @@ function tryAct(a) {
 // consequence, then the tagged result lines and Continue. One card after another in the engine's order; the table
 // stays held until the last Continue. Public in multiplayer (built from the public view), so nothing hidden shows.
 const tagChip = tag => el('span', `tag tag-${tag}`, OUTCOME_TAG[tag]);
+const KIND_WORD = { trap: 'Trap', treasure: 'Treasure', item: 'Item', monster: 'Monster', empty: 'Room' };
+const KIND_ICON = {
+  trap: 'M6 19c-2 0-3-1.5-2-3s3-2 6-2 7-1 7-4-3-4-6-4-5 1.5-4.5 3 M10.5 5c.8-1.6 3-2 4.2-.8 M14.7 4.2l1.6-.8 M14.7 4.2l1.3 1.1 M6 19h11c2 0 3-1 3-2.5',
+  treasure: 'M4 4c0 7 3.5 11 8 11s8-4 8-11 M6 9.5l1 .5 M18 9.5l-1 .5 M9 13l.8.7 M15 13l-.8.7 M12 15v2 M10 17h4l-2 4z',
+  item: 'M10 3h4 M10.5 3v5L6 18a2 2 0 0 0 2 3h8a2 2 0 0 0 2-3l-4.5-10V3 M7.5 14.5h9 M12 11v1 M10 17.5h.01 M14 18h.01',
+  monster: 'M12 3c-4 0-6 3.5-6 8v10h12V11c0-4.5-2-8-6-8z M8.5 21l1.2-4.5h4.6l1.2 4.5 M9 11.5c1-.8 5-.8 6 0',
+  empty: 'M5 21V5h14v16 M3 21h18 M9 21v-6h6v6',
+};
+const goldOf = card => [...card.what, ...card.results.map(r => r.text)].map(t => /(\d[\d,]*) gold\b/.exec(t)?.[1]).find(Boolean) || null;
+function cardKind(card) {
+  const tags = new Set([...card.dice, ...card.results].map(x => x.tag)), lines = card.results.map(r => r.text);
+  if (lines.some(t => /monster/i.test(t)) && tags.has('action')) return 'monster';
+  if (goldOf(card)) return 'treasure';
+  if (tags.has('item')) return 'item';
+  if (tags.has('damage') || tags.has('death')) return 'trap';
+  if (lines.some(t => /empty|Nothing is found/.test(t))) return 'empty';
+  return null;
+}
 function drawCard(card, i, n) {
   const d = $('roll');
   $('rollTitle').textContent = card.title;
   const body = [];
   if (n > 1) body.push(el('p', 'count', `${i + 1} of ${n}`));
-  for (const w of card.what) body.push(el('p', 'what', w));
+  // The owner's dragon scenes: awake on the wake and dragon fire cards, asleep when the dragon card lets it sleep (read from the card's own words).
+  const scene = card.title === 'The dragon wakes!' || card.title === 'Dragon fire' ? 'dragon-awake' : card.results.some(r => /^Dragon card: asleep/.test(r.text)) ? 'dragon-asleep' : null;
+  // The design's card face (display only, read from the card's own words): the deck as a label, the kind as a tag, a
+  // picture of the kind, the gold on a plate, and the card's edge in the kind's colour.
+  const deck = /^[A-Z][a-z ]*cards?$/.test(card.what[0] || '') ? card.what[0] : null;
+  const kind = cardKind(card);
+  d.dataset.kind = deck ? kind || '' : '';
+  if (deck) {
+    const head = el('div', 'cardhead');
+    head.append(el('span', 'deck', deck));
+    if (kind) head.append(el('span', `kindtag kind-${kind}`, KIND_WORD[kind]));
+    body.push(head);
+    if (kind && !scene) {
+      const art = el('div', `cardart kind-${kind}`);
+      art.setAttribute('aria-hidden', 'true');
+      art.innerHTML = `<svg viewBox="0 0 24 24" width="72" height="72" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><path d="${KIND_ICON[kind]}"/></svg>`;
+      body.push(art);
+    }
+  }
+  if (scene) { const img = el('img', 'cardscene'); img.src = `art/${scene}.webp`; img.alt = scene === 'dragon-awake' ? 'The dragon awake, breathing fire over its hoard' : 'The dragon asleep on its hoard'; body.push(img); }
+  for (const w of deck ? card.what.slice(1) : card.what) body.push(el('p', 'what', w));
+  const gold = kind === 'treasure' && goldOf(card);
+  if (gold) { const g = el('p', 'goldplate'); g.setAttribute('aria-hidden', 'true'); g.append(el('b', '', gold), ' gold'); body.push(g); } // the words above say it
   const dice = el('div'), out = el('div', 'outcome');
   for (const x of card.dice) { const p = el('p', 'tagged'); p.append(tagChip(x.tag), ' ', x.text); out.append(p); }
   if (card.results.length) {
@@ -356,10 +396,11 @@ function newGame(mode) {
   const seed = crypto.getRandomValues(new Uint32Array(1))[0];
   let game;
   try { game = createGame({ players, seed, content: CONTENT[mode], rules: { soloCombat: S.soloCombat } }); } catch (err) {
-    $('startReason').textContent = err.message;
+    $('setupReason').textContent = err.message;
     return;
   }
   Object.assign(S, { mode, game, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null, dusk: [] });
+  setupMode = null;
   viewer = players.length === 1 ? 0 : null;
   outcome = null;
   resetView();
@@ -368,6 +409,7 @@ function newGame(mode) {
 }
 
 function toTitle() {
+  setupMode = null;
   Object.assign(S, { mode: null, game: null, hist: [], saveId: null, createdAt: null, seen: 0, reveal: null, peek: null, dusk: [] });
   $('dusk').hidden = true;
   viewer = null;
@@ -379,6 +421,9 @@ function toTitle() {
 }
 
 // ---- Saves through NL.saves.
+// randomUUID exists only on https and localhost; a phone testing over the home network (plain http) gets the same
+// version 4 shape from getRandomValues, which works everywhere.
+const newId = () => crypto.randomUUID?.() ?? '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, c => (c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))).toString(16));
 function saveTitle(g) {
   const n = g.seats.length;
   const when = g.status === 'over' ? 'finished' : g.status === 'setup' ? 'setting up' : `sun ${g.sun}`;
@@ -389,7 +434,7 @@ async function saveGame() {
   const g = S.game;
   if (g.status === 'over') throw new Error('A finished game is not saved');
   const now = new Date().toISOString();
-  if (!S.saveId) Object.assign(S, { saveId: crypto.randomUUID(), createdAt: now }); // before any await, so a double tap updates one record
+  if (!S.saveId) Object.assign(S, { saveId: newId(), createdAt: now }); // before any await, so a double tap updates one record
   if (!S.createdAt) S.createdAt = (await NL.saves.get(S.saveId).catch(() => null))?.createdAt || now;
   persist();
   // The server keeps 256 KB per save: the newest undo steps that fit go with it, so undo survives a resume.
@@ -594,6 +639,8 @@ function render() {
   keepAwake(screen === 'draft' || screen === 'table');
   document.querySelector('.app').classList.toggle('wide', screen !== 'title');
   document.querySelector('.app').classList.toggle('table', screen === 'table');
+  document.querySelector('.app').classList.toggle('title', screen === 'title');
+  document.querySelector('.app').classList.remove('dfirst'); // renderDraft sets it again for Who goes first
   // Spec v2 #12: the banner names exactly which categories are synthetic.
   $('banner').hidden = !g?.banner;
   $('bannerText').textContent = g?.banner || '';
@@ -650,8 +697,19 @@ function refocus(onCell) {
 }
 
 // ---- Title and setup
+// The start screen picks how to play; the player names step follows it (design canvas). Not saved: a reload starts
+// on the start screen again.
+let setupMode = null;
+const SETUP_CHIP = { mixed: 'Play-test', fixture: 'Test data', original: '' };
 const showCount = NL.segmented($('countSeg'), v => { S.count = +v; render(); });
-const showSolo = NL.segmented($('soloSeg'), v => { S.soloCombat = v; render(); });
+const showSolo = NL.segmented($('soloSeg'), v => { S.soloCombat = v; persist(); showSoloSetting(); });
+// Solo combat lives in Settings (design canvas); it is set when a game is created, so a change applies to new games.
+function showSoloSetting() {
+  showSolo(S.soloCombat);
+  $('soloNote').textContent = `${S.soloCombat === 'target'
+    ? 'The original solo fight: throw the combat die at the printed target and enter where it lands.'
+    : 'Digital variant, not an original rule: you pick A, B or C and the computer picks for the monster.'} Applies to new games.`;
+}
 const showTheme = NL.segmented($('themeSeg'), v => { NL.theme.set(v); showTheme(v); });
 NL.menu($('menu'));
 NL.account($('account'));
@@ -679,18 +737,18 @@ function renderTitle() {
       return li;
     }));
   }
-  $('soloBox').hidden = S.count !== 1;
-  showSolo(S.soloCombat);
-  $('soloNote').textContent = S.soloCombat === 'target'
-    ? 'The original solo fight: throw the combat die at the printed target and enter where it lands.'
-    : 'Digital variant, not an original rule: you pick A, B or C and the computer picks for the monster.';
+  showSoloSetting();
+  $('title').classList.toggle('setup', !!setupMode);
+  $('tlMenu').hidden = !!setupMode;
+  $('setup').hidden = !setupMode;
+  $('setupChip').textContent = SETUP_CHIP[setupMode] || '';
   $('statusNote').textContent = STATUS.note;
   $('status').replaceChildren(...REPORT.categories.map((c, i) => {
     const li = el('li');
     li.append(el('span', '', c.label), el('span', '', STATUS.lines[i].slice(c.label.length + 1)));
     return li;
   }));
-  $('start').disabled = !REPORT.fullStartAllowed;
+  $('start').disabled = $('start').hidden = !REPORT.fullStartAllowed;
   $('startReason').textContent = REPORT.fullStartAllowed ? '' : STATUS.start;
   $('fixtures').disabled = !FX_REPORT.fixturePlayable;
   $('mixed').disabled = !STATUS.mixedAllowed;
@@ -699,6 +757,9 @@ function renderTitle() {
 }
 
 // ---- Draft: first player, heroes clockwise, rings counterclockwise, towers.
+// The rebuilt setup screens' top line, and their brass button at the bottom (design canvas).
+function setupHead(n) { const h = el('div', 'dhead'); h.append(el('span', '', `Setting up · ${n} of 5`)); return h; }
+function brassBar(button) { const b = el('div', 'dbar'); b.append(button); return b; }
 function panel(title, text) {
   const p = el('section', 'glass panel');
   p.append(el('h2', '', title));
@@ -714,6 +775,87 @@ function choice(label, sub, onclick, cls = '') {
 }
 const pendingText = (value, what) => (value === undefined || value === null || value === '' || (Array.isArray(value) && !value.length) ? el('span', 'pending', `${what} pending`) : null);
 
+// The ring and tower pickers' pieces (design canvas).
+let ringSel = { seat: null, id: null }, towerSel = { seat: null, tower: null };
+const RING_GEMS = ['#A72D38', '#DAA24C', '#A4BE64', '#C9D3D6'];
+function ringWords(r, c) {
+  if (r.text || r.power) return { when: '', what: r.text || r.power };
+  const said = shownEffectText(r, chamberName(c)).replace(/ Then the ring is gone\.$/, '').replace(/^Once only, /, '');
+  const k = said.indexOf(': ');
+  return k < 0 ? { when: '', what: capital(said) } : { when: capital(said.slice(0, k)), what: capital(said.slice(k + 2)) };
+}
+function ringArt(gem) {
+  const s = svg('svg', { viewBox: '0 0 56 56', width: 56, height: 56, 'aria-hidden': 'true', class: 'dring-art' });
+  svg('ellipse', { cx: 28, cy: 35, rx: 15, ry: 11, fill: 'none', stroke: '#7A5A22', 'stroke-width': 6 }, s);
+  svg('ellipse', { cx: 28, cy: 35, rx: 15, ry: 11, fill: 'none', stroke: '#E2B865', 'stroke-width': 3 }, s);
+  svg('path', { d: 'M22 24 L28 15 L34 24 L28 28 Z', fill: gem, stroke: '#3B2A16', 'stroke-width': 1.2, 'stroke-linejoin': 'round' }, s);
+  svg('path', { d: 'M24.5 23 L28 17.5 L29.5 20 Z', fill: '#fff', opacity: .55 }, s);
+  return s;
+}
+// The hero picker's pieces (design canvas). Emblems stand in for portraits until hero art exists (def.art).
+let heroSel = { seat: null, id: null };
+// The owner's own hero art (Set A, 2026-11-21), one image per hero of the owner's content; test data has none.
+const heroArt = id => (S.mode !== 'fixture' && /^HERO_[1-8]$/.test(id || '') ? `art/heroes/${id.toLowerCase()}.webp` : null);
+function heroImg(def, cls) {
+  const img = el('img', cls);
+  img.src = heroArt(def.id);
+  img.alt = '';
+  img.decoding = 'async';
+  return img;
+}
+// The board figures' poses (display only): read from what the last action logged, plus a fight in progress and the dead.
+function heroPoses(g, v) {
+  const poses = {};
+  for (const e of v.log.filter(x => x.seq > S.seen)) {
+    if (!Number.isInteger(e.seat)) continue;
+    if (e.kind === 'move' || e.kind === 'forced-move') poses[e.seat] = 'walk';
+    else if (e.kind === 'flight') poses[e.seat] = 'flee';
+    else if (e.kind === 'test' && /well|rubble/.test(e.reason || '')) poses[e.seat] = 'jump';
+    else if (e.kind === 'damage' && e.amount > 0) poses[e.seat] = 'hurt';
+  }
+  const enc = g.encounter;
+  // A fight in progress: whatever just happened plays first, then the fighting stance holds until it is over.
+  if (enc && Number.isInteger(enc.seat)) poses[enc.seat] = poses[enc.seat] && poses[enc.seat] !== 'fight' ? `${poses[enc.seat]}-fight` : 'fight';
+  g.heroes.forEach((h, i) => { if (h?.status === 'DEAD') poses[i] = 'down'; });
+  return poses;
+}
+const EMBLEM = {
+  knight: 'M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z M12 8v8 M9 11h6',
+  warrior: 'M5 21L15 7 M12 3c4.5 0 8 3.5 8 8-3 0-5-1.5-6-3 M12 3c-1 2 0 4 2 5',
+  hunter: 'M7 3c6 3 6 15 0 18 M7 3v18 M4 12h15 M16 9l3 3-3 3',
+  'warrior-monk': 'M12 5v17 M9 21h6 M12 2a2 2 0 1 1 0 4 2 2 0 1 1 0-4 M8 9h8'
+};
+const EMBLEM_ANY = 'M5 13a7 7 0 0 1 14 0v6H5z M9 13v6 M15 13v6 M5 13h14';
+function heroEmblem(def, size) {
+  const s = svg('svg', { viewBox: '0 0 24 24', width: size, height: size, fill: 'none', stroke: 'currentColor', 'stroke-width': size > 30 ? 1.4 : 1.6, 'stroke-linecap': 'round', 'stroke-linejoin': 'round', 'aria-hidden': 'true' });
+  svg('path', { d: EMBLEM[(def.class || '').toLowerCase()] || EMBLEM_ANY }, s);
+  return s;
+}
+function heroDetail(def) {
+  const card = el('section', 'dcard dhero-card'), top = el('div', 'dh-top'), portrait = el('div', 'dh-portrait'), info = el('div', 'dh-info');
+  card.setAttribute('aria-label', def.name || def.id);
+  portrait.append(heroArt(def.id) ? heroImg(def, 'dh-art') : heroEmblem(def, 46));
+  const hp = el('p', 'dh-hp'), heart = svg('svg', { viewBox: '0 0 24 24', 'aria-hidden': 'true' });
+  svg('path', { d: 'M12 21s-7-4.5-9.3-9A5.2 5.2 0 0 1 12 6.3 5.2 5.2 0 0 1 21.3 12C19 16.5 12 21 12 21z', fill: '#A72D38' }, heart);
+  hp.append(heart, el('b', '', String(def.hp ?? 'pending')), el('span', '', 'hit points'));
+  info.append(el('h2', '', def.name || def.id), el('p', 'dh-class', def.class ? capital(def.class) : 'Class pending'), hp);
+  if (def.specialWeaponId) info.append(el('span', 'dh-tag', `Special weapon: ${(content().specialWeapons || []).find(w => w.id === def.specialWeaponId)?.name || 'pending'}`));
+  top.append(portrait, info);
+  const dl = el('dl', 'dh-stats');
+  for (const k of ['STR', 'AGI', 'ARM', 'LCK']) {
+    const v = def.stats?.[k], cell = el('div'), row = el('div', 'dh-row'), pips = el('div', 'dh-pips');
+    row.append(el('dt', '', STAT[k]), el('dd', '', String(v ?? 'pending')));
+    pips.setAttribute('aria-hidden', 'true');
+    for (let i = 0; i < 12; i++) pips.append(el('i', Number.isInteger(v) && i < v ? 'on' : ''));
+    cell.append(row, pips);
+    dl.append(cell);
+  }
+  const eq = el('p', 'dh-eq');
+  eq.append(el('span', '', 'Carries '), def.equipment?.length ? def.equipment.join(', ') : 'equipment pending');
+  card.append(top, dl, eq);
+  if (def.text) card.append(el('p', 'dh-text', def.text));
+  return card;
+}
 function heroCard(def, extra) {
   const box = el('div');
   box.append(el('strong', '', def.name || def.id));
@@ -744,23 +886,37 @@ let firstRolled = false; // just rolled: the dice tumble on the next draw
 let firstWait = false; // the result shows on its own until "Pick heroes"
 function renderDraft(v) {
   const g = S.game, c = content(), la = legalActions(g, c);
-  const out = [el('h1', '', 'Setting up')];
   const { step } = g.setup;
   const seat = la[0].seat;
+  // Who goes first (design canvas): its own calm stone screen. The later setup steps keep their look until rebuilt.
+  const first = step === 'first-player' || (firstWait && step === 'heroes');
+  const look = first || ['heroes', 'rings', 'towers'].includes(step); // the rebuilt setup screens
+  $('draft').classList.toggle('dfirst', look);
+  document.querySelector('.app').classList.toggle('dfirst', look);
+  const out = first
+    ? [setupHead(2), el('h1', '', 'Who goes first?'), el('p', 'dsub', 'Everyone rolls a D12. The highest goes first; tied highest roll again.')]
+    : step === 'heroes'
+      ? [setupHead(3), el('h1', '', `${nameOf(seat)}, pick your hero`), el('p', 'dsub', 'Heroes are picked clockwise from the first player.')]
+      : step === 'rings'
+        ? [setupHead(4), el('h1', '', `${nameOf(seat)}, pick your ring`), el('p', 'dsub', 'Rings go counterclockwise, starting with the last hero pick. Each works once, then it is gone.')]
+        : step === 'towers'
+          ? [setupHead(5), el('h1', '', `${nameOf(seat)}, pick your starting tower`)]
+          : [el('h1', '', 'Setting up')];
   if (step === 'first-player') {
-    const p = panel('Who goes first', 'Everyone rolls a D12. The highest goes first; tied highest roll again.');
+    const card = el('section', 'dcard');
+    card.setAttribute('aria-label', 'Dice');
     const dice = el('div', 'tapdice');
     rollDice(dice, g.seats.map(s => ({ value: '?', label: s.name })), { animate: false });
     const go = () => { firstRolled = firstWait = true; act(la[0]); };
     dice.onclick = go; // the Roll button is the keyboard and screen reader way
-    const ch = el('div', 'choices');
-    ch.append(choice('Roll', `${g.seats.length} D12s`, go, 'primary'));
-    p.append(dice, ch);
-    out.push(p);
+    card.append(dice);
+    out.push(card, brassBar(choice('Roll', `${g.seats.length} D12s, or tap the dice`, go, 'primary')));
   } else if (firstWait && step === 'heroes') {
     // Every player's die, rerolls for a tie included, landing on what the engine rolled: animated once, just
-    // after the roll, and the result said once it has landed.
-    const p = panel('Who goes first');
+    // after the roll, and the result said once it has landed. The dice show each roll, so the words below them
+    // say only who goes first and the order (owner, design review); readers still hear every roll.
+    const card = el('section', 'dcard');
+    card.setAttribute('aria-label', 'Dice');
     const dice = el('div'), seen = new Set();
     const items = g.log.filter(e => e.kind === 'roll' && /^first player, seat \d+$/.test(e.reason)).map(e => {
       const s = +e.reason.split(' ').pop(), again = seen.has(s);
@@ -768,14 +924,21 @@ function renderDraft(v) {
       return { value: e.value, label: again ? `${nameOf(s)}, again` : nameOf(s) };
     });
     const tie = items.some(x => x.label.endsWith(', again'));
+    const n = g.seats.length, inOrder = g.seats.map((_, k) => nameOf((g.firstSeat + k) % n));
     const res = el('p', 'firstres', `${nameOf(g.firstSeat)} goes first.`);
-    const rolls = el('p', '', `${firstRolls(g)}.${tie ? ' Tied highest rolled again.' : ''}`);
-    const order = el('p', '', `Order of play, clockwise: ${listOf(g.seats.map((_, k) => nameOf((g.firstSeat + k) % g.seats.length)))}.`);
-    const ch = el('div', 'choices');
-    ch.append(choice('Pick heroes', null, () => { firstWait = false; render(); }, 'primary'));
-    p.append(dice, res, rolls, order, ch);
-    const shown = [res, rolls, order, ch];
-    out.push(p);
+    const tieNote = tie ? el('p', 'dsub', 'Tied highest rolled again.') : null;
+    const order = el('div', 'dorder'), ol = el('ol');
+    order.append(el('h2', '', 'Order of play, clockwise'), ol);
+    inOrder.forEach((name, k) => {
+      const li = el('li'), num = el('span', 'seal', String(k + 1));
+      num.setAttribute('aria-hidden', 'true');
+      li.append(num, name);
+      ol.append(li);
+    });
+    const bar = brassBar(choice('Pick heroes', null, () => { firstWait = false; render(); }, 'primary'));
+    card.append(dice);
+    const shown = [res, tieNote, order, bar].filter(Boolean);
+    out.push(card, ...shown);
     const animate = firstRolled;
     firstRolled = false;
     if (animate) for (const x of shown) x.style.visibility = 'hidden';
@@ -783,56 +946,100 @@ function renderDraft(v) {
     return rollDice(dice, items, { animate }).then(() => {
       if (!animate) return;
       for (const x of shown) x.style.visibility = '';
-      say(`${res.textContent} ${rolls.textContent} ${order.textContent}`);
-      p.querySelector('.choice')?.focus();
+      say(`${res.textContent} ${firstRolls(g)}.${tie ? ' Tied highest rolled again.' : ''} Order of play, clockwise: ${listOf(inOrder)}.`);
+      bar.querySelector('.choice')?.focus();
     });
   } else {
     firstWait = false; // past the hero step (an undo, or another device): the picker as usual
     const n = g.seats.length;
-    if (n > 1) out.push(el('p', 'firstline', `${nameOf(g.firstSeat)} goes first. Order: ${g.seats.map((_, k) => nameOf((g.firstSeat + k) % n)).join(', ')}.`));
+    if (n > 1 && !look) out.push(el('p', 'firstline', `${nameOf(g.firstSeat)} goes first. Order: ${g.seats.map((_, k) => nameOf((g.firstSeat + k) % n)).join(', ')}.`));
   }
   if (step === 'heroes') {
-    const p = panel(`${nameOf(seat)}, pick your hero`, 'Heroes are picked clockwise from the first player.');
-    const ch = el('div', 'choices grid2');
-    ch.id = 'draftList';
+    // Pick, then confirm (design canvas): the selected hero's card, the list, then Choose. A taken hero cannot be picked.
+    const avail = c.heroes.filter(def => la.some(x => x.heroId === def.id));
+    if (heroSel.seat !== seat || !avail.some(d => d.id === heroSel.id)) heroSel = { seat, id: avail[0]?.id ?? null };
+    const sel = c.heroes.find(d => d.id === heroSel.id);
+    if (sel) out.push(heroDetail(sel));
+    const list = el('div', 'dheroes');
+    list.id = 'draftList';
+    list.setAttribute('role', 'group');
+    list.setAttribute('aria-label', 'Heroes');
     for (const def of c.heroes) {
-      const a = la.find(x => x.heroId === def.id);
-      const takenBy = g.seats.find(s => s.heroId === def.id);
-      const b = el('button', 'choice');
-      b.append(heroCard(def, takenBy ? `Taken by ${takenBy.name}` : null));
+      const a = la.find(x => x.heroId === def.id), takenBy = g.seats.find(s => s.heroId === def.id);
+      const b = el('button', 'dhero'), badge = el('span', 'badge'), t = el('span', 'dhero-t');
+      b.type = 'button';
+      badge.append(heroArt(def.id) ? heroImg(def, 'dh-face') : heroEmblem(def, 20));
+      const sub = takenBy ? `Taken by ${takenBy.name}` : [def.class && capital(def.class), Number.isInteger(def.hp) && `${def.hp} HP`].filter(Boolean).join(' · ');
+      t.append(el('strong', '', def.name || def.id), el('small', '', sub));
+      b.append(badge, t);
+      b.setAttribute('aria-pressed', def.id === heroSel.id);
+      b.setAttribute('aria-label', [def.name || def.id, def.class, takenBy ? `taken by ${takenBy.name}` : Number.isInteger(def.hp) && `${def.hp} hit points`].filter(Boolean).join(', '));
       b.disabled = !a;
-      if (a) b.onclick = () => act(a);
-      ch.append(b);
+      if (a) b.onclick = () => { heroSel = { seat, id: def.id }; render(); $('draftList')?.querySelector('[aria-pressed="true"]')?.focus(); };
+      list.append(b);
     }
-    p.append(ch);
-    out.push(p);
+    out.push(list);
+    const pick = la.find(x => x.heroId === heroSel.id);
+    const bar = brassBar(choice(`Choose ${sel ? sel.name || sel.id : 'a hero'}`, null, () => { if (pick) act(pick); }, 'primary'));
+    bar.append(...undoHere(v, false));
+    out.push(bar);
   }
   if (step === 'rings') {
-    const p = panel(`${nameOf(seat)}, pick your ring`, 'Rings go counterclockwise, starting with the last hero pick.');
-    const ch = el('div', 'choices');
-    for (const r of c.rings) {
-      const a = la.find(x => x.ringId === r.id);
-      const takenBy = g.seats.find(s => s.ringId === r.id);
-      const said = r.text || r.power || shownEffectText(r, chamberName(c)).replace(/\.$/, '');
-      const b = choice(r.name || r.id, takenBy ? `${said}. Taken by ${takenBy.name}.` : said, a ? () => act(a) : null);
+    // Pick, then confirm (design canvas). The wording is the game's own ring text, split into when and what.
+    const avail = c.rings.filter(r => la.some(x => x.ringId === r.id));
+    if (ringSel.seat !== seat || !avail.some(r => r.id === ringSel.id)) ringSel = { seat, id: avail[0]?.id ?? null };
+    const list = el('div', 'drings');
+    list.setAttribute('role', 'group');
+    list.setAttribute('aria-label', 'Rings');
+    c.rings.forEach((r, i) => {
+      const a = la.find(x => x.ringId === r.id), takenBy = g.seats.find(s => s.ringId === r.id);
+      const { when, what } = ringWords(r, c);
+      const b = el('button', 'dring'), body = el('span', 'dring-t'), head = el('span', 'dring-h');
+      b.type = 'button';
+      head.append(el('strong', '', r.name || r.id), el('small', '', takenBy ? `Taken by ${takenBy.name}` : 'Once only'));
+      body.append(head);
+      if (when) body.append(el('em', '', when));
+      body.append(el('span', '', what));
+      b.append(ringArt(RING_GEMS[i % RING_GEMS.length]), body);
+      b.setAttribute('aria-pressed', r.id === ringSel.id);
       b.disabled = !a;
-      ch.append(b);
-    }
-    p.append(ch);
-    out.push(p);
+      if (a) b.onclick = () => { ringSel = { seat, id: r.id }; render(); $('draft').querySelector('.dring[aria-pressed="true"]')?.focus(); };
+      list.append(b);
+    });
+    out.push(list);
+    const sel = c.rings.find(r => r.id === ringSel.id), pick = la.find(x => x.ringId === ringSel.id);
+    const bar = brassBar(choice(`Take the ${sel ? sel.name || sel.id : 'ring'}`, null, () => { if (pick) act(pick); }, 'primary'));
+    bar.append(...undoHere(v, false));
+    out.push(bar);
   }
   if (step === 'towers') {
-    const p = panel(`${nameOf(seat)}, pick your starting tower`, 'Towers are picked clockwise from the first player and may be shared.');
-    const wrap = el('div', 'board-wrap');
-    boardApi = mountBoard(wrap, { v, content: c, names: g.seats.map(s => s.name), onInspect: inspect, targets: la.map(a => ({ ...c.board.towers[a.tower], label: `Start in the ${towerName(c, a.tower)}`, pick: () => act(a) })) });
-    p.append(wrap);
-    const ch = el('div', 'choices grid2');
-    for (const a of la) ch.append(choice(capital(towerName(c, a.tower)), null, () => act(a)));
-    p.append(ch);
-    out.push(p);
+    // Pick, then confirm (design canvas): tap a tower on the board or a button, then Start. Towers may be shared.
+    if (towerSel.seat !== seat || !la.some(a => a.tower === towerSel.tower)) towerSel = { seat, tower: la[0]?.tower ?? null };
+    const pickTower = t => { towerSel = { seat, tower: t }; render(); $('draft').querySelector('.dtower[aria-pressed="true"]')?.focus(); };
+    const card = el('div', 'dmap'), wrap = el('div', 'board-wrap');
+    boardApi = mountBoard(wrap, { v, content: c, names: g.seats.map(s => s.name), onInspect: inspect, targets: la.map(a => ({ ...c.board.towers[a.tower], label: `Start in the ${towerName(c, a.tower)}`, pick: () => pickTower(a.tower) })) });
+    card.append(wrap);
+    out.push(card);
+    const list = el('div', 'dtowers');
+    list.setAttribute('role', 'group');
+    list.setAttribute('aria-label', 'Starting tower');
+    for (const a of la) {
+      const here = g.seats.filter((s, i) => g.heroes[i]?.startTower === a.tower).map(s => s.name);
+      const b = el('button', 'dtower');
+      b.type = 'button';
+      b.append(el('strong', '', capital(towerName(c, a.tower))), el('small', '', here.length ? `${listOf(here)} ${here.length > 1 ? 'start' : 'starts'} here` : 'Empty'));
+      b.setAttribute('aria-pressed', a.tower === towerSel.tower);
+      b.onclick = () => pickTower(a.tower);
+      list.append(b);
+    }
+    out.push(list);
+    const pick = la.find(x => x.tower === towerSel.tower);
+    const bar = brassBar(choice(`Start in the ${pick ? towerName(c, pick.tower) : 'tower'}`, null, () => { if (pick) act(pick); }, 'primary'));
+    bar.append(...undoHere(v, false));
+    out.push(bar);
   }
-  if (step !== 'first-player') out.find(x => x.matches('section.panel'))?.append(...undoHere(v, false)); // under the pick
-  if (step !== 'first-player') {
+  if (!look) out.find(x => x.matches('section.panel'))?.append(...undoHere(v, false)); // under the pick
+  if (!look) {
     const p = panel('Picks so far');
     const ul = el('ul');
     for (const s of g.seats) {
@@ -934,7 +1141,18 @@ function fightPanel(title, tag) {
 // and (spec v4) in the solo player's view once revealed; the engine strips them from every other view.
 function fightRow(v, seat, enc) {
   const row = el('div', 'fightrow'), f = fightRowModel(v, seat, enc, nameOf, content());
-  row.append(el('span', 'who', f.who));
+  // The design's monster banner (decoration; the line after it says the same for readers): a shape in the dark, the
+  // public monster name, and its HP only where the engine shows it.
+  const foe = f.who.slice(f.who.lastIndexOf(' against ') + 9).replace(/^the /, '');
+  const ban = el('div', 'foe');
+  ban.setAttribute('aria-hidden', 'true');
+  ban.innerHTML = FOE_ART;
+  const cap = el('div', 'foecap'), nm = el('div');
+  nm.append(el('span', 'kindtag', 'Monster'), el('strong', '', foe.charAt(0).toUpperCase() + foe.slice(1)));
+  cap.append(nm);
+  if (!f.monster) cap.append(el('span', 'secret', 'Its HP is secret')); // where it is shown, the hearts follow in the row
+  ban.append(cap);
+  row.append(ban, el('span', 'who', f.who));
   const hp = el('span', 'herohp'), bar = el('span', 'hp'), fill = el('i');
   fill.style.width = `${Math.min(100, 100 * f.hero.left / f.hero.max)}%`;
   bar.append(fill);
@@ -945,6 +1163,10 @@ function fightRow(v, seat, enc) {
   if (f.monster) row.append(hpMeter(f.monster.left, f.monster.max, f.monster.label));
   return row;
 }
+const FOE_ART = `<svg viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet"><defs><radialGradient id="foeglow" cx=".5" cy=".55" r=".5"><stop offset="0" stop-color="#A72D38" stop-opacity=".55"/><stop offset="1" stop-color="#A72D38" stop-opacity="0"/></radialGradient></defs>
+<circle cx="100" cy="66" r="70" fill="url(#foeglow)"/><path d="M100 16C76 16 66 40 66 64 66 88 60 104 50 122H150C140 104 134 88 134 64 134 40 124 16 100 16Z" fill="#0E0E0C" stroke="#3A3A33"/>
+<path d="M100 34C87 34 81 45 81 58 81 71 90 79 100 79 110 79 119 71 119 58 119 45 113 34 100 34Z" fill="#040404"/><g fill="#A4BE64"><ellipse cx="93" cy="58" rx="3" ry="1.3"/><ellipse cx="107" cy="58" rx="3" ry="1.3"/></g>
+<path d="M140 84C160 74 168 54 163 32 158 53 149 67 132 76Z" fill="#8F897C" stroke="#C9BB9C"/></svg>`;
 function lastLine(v, enc) {
   const x = enc.combat?.exchanges?.at(-1);
   return x ? el('p', 'last', `Last: ${lastWords(x, viewer === enc.seat ? 'you' : nameOf(enc.seat))}`) : null;
@@ -1062,6 +1284,19 @@ function numberPicker(v, pend, legal) {
   return p;
 }
 
+// The owner's dragon scene over the lair prompt (design canvas "Dragon's Lair"): asleep, or awake while it stays awake,
+// with the chamber's name and the wake odds the status bar already shows. Decoration: the prompt says it all in words.
+function lairScene(v, c) {
+  const f = el('div', `lairscene${v.dragon.awake ? ' awake' : ''}`);
+  f.setAttribute('aria-hidden', 'true');
+  const img = el('img');
+  img.src = `art/dragon-${v.dragon.awake ? 'awake' : 'asleep'}.webp`;
+  img.alt = '';
+  const cap = el('div', 'laircap');
+  cap.append(el('span', 'lairname', capital(chamberName(c))), el('span', 'lairodds', v.dragon.awake ? 'Awake' : `${v.dragon.odds.awake} in ${v.dragon.odds.remaining}`));
+  f.append(img, cap);
+  return f;
+}
 function renderPrompt(v, la, targets) {
   const g = S.game, c = content();
   const name = nameOf(g.activeSeat);
@@ -1114,6 +1349,7 @@ function renderPrompt(v, la, targets) {
         : panel('Keep moving?', 'You may go on this turn, or stop here.');
       const why = g.phase === 'CHOOSE_EXIT' && keepMovingWhy(v);
       if (why) p.append(el('p', 'why', why));
+      if (S.mode !== 'fixture' && (by('COLLECT').length || v.collectUnavailable)) p.append(lairScene(v, c));
       // Phone first: moves are the lit squares on the map (their labels carry the reason); only other actions are buttons.
       for (const a of by('MOVE')) {
         const m = moveInfo(g, a);
@@ -1129,15 +1365,15 @@ function renderPrompt(v, la, targets) {
         const r = ringOfSeat(a.seat), edge = a.dir && exitFor(g, c, a.seat, a.dir, a.from || null).edge;
         ch.append(choice(`Use ${r.name}`, a.dir ? `${edge === 'door' ? 'Open the door' : 'Lift the portcullis'} to the ${DIR[a.dir]} and go through, with no door card or test. The ring is then gone.` : r.text || shownEffectText(r, chamberName(c)), () => act(a)));
       }
-      for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a)));
+      for (const a of by('SEARCH')) ch.append(choice('Search the room', 'Draw a room search card instead of moving', () => act(a), 'brief'));
       if (!by('SEARCH').length && typeof v.searchUnavailable === 'string' && v.searchUnavailable) ch.append(el('p', 'muted', `Can't search here: ${v.searchUnavailable.replace(/\.$/, '')}.`));
       for (const a of by('COLLECT')) ch.append(choice('Stay and collect', collectWords(v, c), () => act(a), 'primary'));
       if (v.collectUnavailable) ch.append(el('p', 'muted', `Can't collect: ${v.collectUnavailable.replace(/\.$/, '')}.`));
       // D42: across the well, the near side needs a jump back (chamber cards may be dropped first).
       for (const a of by('WELL_JUMP')) ch.append(choice('Jump back across', `Agility test on the D12 plus ${hero.treasury.length} ${chamberCards(c, hero.treasury.length)} against ${heroDef(hero).stats.AGI}. A failed jump is death.`, () => tryAct(a)));
       for (const a of by('WELL_DISCARD')) ch.append(choice(`Drop ${chamberCards(c, 1)} ${hero.treasury.indexOf(a.card) + 1}`, viewer === g.activeSeat ? `${cardDef(c, a.card).name}, ${cardDef(c, a.card).gold || 0} gold` : 'Check which with Show my cards', () => act(a)));
-      for (const a of by('STOP')) ch.append(inTower ? choice('Stop in the tower', 'End your turn here, not escaped', () => act(a)) : choice('Stop here', 'End your turn', () => act(a)));
-      for (const a of by('FORCED_SKIP')) ch.append(choice('No way on', 'The turn passes', () => act(a)));
+      for (const a of by('STOP')) ch.append(inTower ? choice('Stop in the tower', 'End your turn here, not escaped', () => act(a), 'brief') : choice('Stop here', 'End your turn', () => act(a), 'brief'));
+      for (const a of by('FORCED_SKIP')) ch.append(choice('No way on', 'The turn passes', () => act(a), 'brief'));
       break;
     }
     case 'TURN_START': {
@@ -1211,7 +1447,7 @@ function renderPrompt(v, la, targets) {
         const own = a.choice === 'special' && !a.item;
         const label = a.choice !== 'special' ? CHOICE[a.choice] : own && weapon?.verb ? weapon.verb : `Use ${a.item ? cardDef(c, a.item).name : weapon?.name || 'your special weapon'}`;
         const sub = own && left !== null ? `${left} ${unitWord(weapon, left)} left. ${SUB.special}` : SUB[a.choice] || null;
-        ch.append(choice(label, sub, () => act(a), a.choice === 'attack' ? 'primary' : ''));
+        ch.append(choice(label, sub, () => act(a), a.choice === 'attack' ? 'primary enc-attack' : `enc-${a.choice}`)); // design canvas: Attack red, Wait gold
       }
       for (const a of by('USE_RING')) ch.append(choice(`Use ${ringOfSeat(a.seat).name}`, 'The monster flees. The ring is then gone.', () => act(a)));
       p.append(ch, tools());
@@ -1305,6 +1541,9 @@ function renderPrompt(v, la, targets) {
     why.setAttribute('aria-hidden', 'true');
     p.append(why);
   }
+  // The design's move panel: the plain buttons (search, stop, items) small and two across after the ones that need words.
+  const brief = [...ch.children].filter(b => b.classList.contains('brief'));
+  if (brief.length) { const row = el('div', 'briefrow'); row.append(...brief); ch.append(row); }
   if (!p.contains(ch) && ch.children.length) p.append(ch);
   return p;
 }
@@ -1339,7 +1578,9 @@ function renderTable(v) {
   // Centre on hero follows whoever is looking: the viewer's own hero on a private screen, the active one at the table.
   const vh = viewer !== null && g.heroes[viewer];
   const homeSeat = vh?.coord && isActive(vh) ? viewer : g.activeSeat;
+  const art = Object.fromEntries(g.seats.map((s, i) => [i, heroArt(s.heroId)]).filter(([, u]) => u));
   const board = mountBoard(host, { v, content: c, names: g.seats.map(s => s.name), targets: S.peek || S.reveal ? [] : targets, home: g.heroes[homeSeat].coord, homeSeat, onInspect: inspect, onNear: near, tilesLeft: v.board.tileBag,
+    art, poses: heroPoses(g, v), lairArt: S.mode === 'fixture' ? null : `art/dragon-${v.dragon.awake ? 'awake' : 'asleep'}.webp`,
     onFocusTarget: t => { if (t && $('moveWhy')) $('moveWhy').textContent = t.label; } });
 
   // The dock holds the prompt and what just happened; on a phone in portrait it sits under the board, latest
@@ -1554,7 +1795,7 @@ function itemsButton(v, seat, cls) {
   const name = () => S.game.seats[seat].name;
   const sub = usable ? `${usable} usable now` : 'Nothing usable now';
   let b;
-  if (cls === 'choice') b = choice('Items', `${name()}'s inventory: ${sub.toLowerCase()}`, () => openItems(seat));
+  if (cls === 'choice') b = choice(usable ? `Items, ${usable} usable` : 'Items', `${name()}'s inventory: ${sub.toLowerCase()}`, () => openItems(seat), 'brief');
   else { b = el('button', 'btn', usable ? `Items, ${usable} usable` : 'Items'); b.onclick = () => openItems(seat); }
   b.setAttribute('aria-label', `Show ${name()}'s items, ${sub.toLowerCase()}`);
   return b;
@@ -1566,14 +1807,17 @@ function openItems(seat) {
   const g = S.game, v = view(g, content(), viewer), inv = v.heroes[seat].inventory;
   $('itemsTitle').textContent = `${nameOf(seat)}'s items`;
   const out = [];
+  // The design's gold plate: the gold in the treasure this sheet lists (the same public cards the hero bar adds up).
+  const gold = Array.isArray(inv.treasure) ? inv.treasure.reduce((n, x) => n + (x.gold || 0), 0) : 0;
+  if (gold) { const gp = el('p', 'goldplate'); gp.append(el('b', '', gold.toLocaleString('en')), ' gold carried'); out.push(gp); }
   for (const [k, title] of ITEM_GROUPS) {
-    out.push(el('h3', '', title || capital(chamberCards(content()))));
+    out.push(el('h3', `grp-${k}`, title || capital(chamberCards(content()))));
     const list = k === 'ring' ? (inv.ring ? [inv.ring] : []) : inv[k];
     const spent = k === 'ring' && g.heroes[seat].ringUsed && ringOfSeat(seat);
-    if (spent) { out.push(el('p', 'meta', `${spent.name}: used, removed from play`)); continue; }
+    if (spent) { out.push(el('p', 'meta spent', `${spent.name}: used, removed from play`)); continue; }
     if (typeof list === 'number') { out.push(el('p', 'meta', list ? `${list} ${list === 1 ? 'card' : 'cards'}, kept secret by ${nameOf(seat)}` : 'None')); continue; }
     if (!list.length) { out.push(el('p', 'meta', 'None')); continue; }
-    const ul = el('ul', 'inv');
+    const ul = el('ul', `inv inv-${k}`);
     for (const item of list) {
       const li = el('li');
       li.append(el('strong', '', item.name || item.id || 'Unnamed'));
@@ -1591,7 +1835,8 @@ function openItems(seat) {
         b.onclick = () => { $('items').close(); tryAct(a); };
         li.append(b);
       }
-      if (!acts.length) li.append(el('span', 'meta', `Not usable now: ${item.reason || 'its card does not allow it'}`));
+      if (!acts.length) li.append(el('span', 'meta why', `Not usable now: ${item.reason || 'its card does not allow it'}`));
+      else li.classList.add('usable');
       ul.append(li);
     }
     out.push(ul);
@@ -1650,22 +1895,39 @@ function inspect(c) {
 function renderResults(v) {
   const g = S.game, r = g.result, c = content();
   const hero = e => `${nameOf(e.seat)}, ${contentIndex(c).heroes.get(e.heroId).name}`;
-  const out = [el('h1', '', r.castleWins ? 'The keep wins' : `${listOf(r.winners.map(nameOf))} ${r.winners.length > 1 ? 'share the win' : 'wins'}`)];
+  // Results (design canvas): the keep at dusk over the outcome, darker and redder when the keep wins.
+  const scene = el('div', `r-scene${r.castleWins ? ' lost' : ''}`), art = document.querySelector('#title .tl-art');
+  if (art) scene.append(art.cloneNode(true));
+  const out = [scene, el('h1', r.castleWins ? 'lost' : '', r.castleWins ? 'The keep wins' : `${listOf(r.winners.map(nameOf))} ${r.winners.length > 1 ? 'share the win' : 'wins'}`)];
   out.push(el('p', 'lede', r.castleWins ? 'Nobody escaped before sunset.' : r.shared ? 'Equal top gold among those who escaped: a shared win.' : 'Most gold among those who escaped.'));
-  const group = (title, rows, tag = 'ul') => {
+  // Each row as on the design canvas: the seat's seal, who, what became of them, and the gold on the right.
+  const row = (e, status, gold = null) => ({ seat: e.seat, who: hero(e), status, gold, win: r.winners.includes(e.seat) });
+  const group = (title, rows, tag = 'ul', kind = '') => {
     if (!rows.length) return;
     const p = panel(title);
+    if (kind) p.classList.add(`r-${kind}`);
     const l = el(tag);
-    for (const t of rows) l.append(el('li', '', t));
+    for (const t of rows) {
+      if (typeof t === 'string') { l.append(el('li', 'none', t)); continue; }
+      const li = el('li', t.win ? 'win' : '');
+      const seal = el('span', 'seal', String(t.seat + 1));
+      seal.setAttribute('aria-hidden', 'true');
+      const words = el('span', 'words');
+      words.append(el('strong', '', t.who), el('span', '', t.status));
+      li.append(seal, words);
+      if (t.gold !== null) { const g = el('span', 'gold'); g.append(el('b', '', String(t.gold)), ' gold'); li.append(g); }
+      l.append(li);
+    }
     p.append(l);
     out.push(p);
   };
-  group('Escaped', r.escaped.length ? r.escaped.map(e => `${hero(e)}: ${e.gold} gold${Number.isInteger(e.escapeSun) ? (e.escapeSun >= SUNSET ? ', escaped at sunset' : `, escaped on sun ${e.escapeSun}`) : ''}${r.winners.includes(e.seat) ? ', winner' : ''}`) : ['Nobody'], 'ol');
+  const when = e => (Number.isInteger(e.escapeSun) ? (e.escapeSun >= SUNSET ? 'Escaped at sunset' : `Escaped on sun ${e.escapeSun}`) : 'Escaped');
+  group('Escaped', r.escaped.length ? r.escaped.map(e => row(e, `${when(e)}${r.winners.includes(e.seat) ? ', winner' : ''}`, e.gold)) : ['Nobody'], 'ol', 'escaped');
   const dead = r.others.filter(e => e.status === 'DEAD');
   const inside = r.others.filter(e => e.status !== 'DEAD' && e.endResult === 'INSIDE_AT_SUNSET');
-  group('Dead', dead.map(e => `${hero(e)}: died in the keep`));
-  group('Inside at sunset', inside.map(e => `${hero(e)}: ${e.status === 'IN_TOWER_NOT_ESCAPED' ? 'in a tower, never chose Escape' : 'still in the keep'}, ${e.gold} gold not counted`));
-  group('Other', r.others.filter(e => !dead.includes(e) && !inside.includes(e)).map(e => `${hero(e)}: ${STATUS_WORD[e.status] || e.status}`));
+  group('Dead', dead.map(e => row(e, 'Died in the keep')), 'ul', 'dead');
+  group('Inside at sunset', inside.map(e => row(e, `${e.status === 'IN_TOWER_NOT_ESCAPED' ? 'In a tower, never chose Escape' : 'Still in the keep'}, ${e.gold} gold not counted`)), 'ul', 'inside');
+  group('Other', r.others.filter(e => !dead.includes(e) && !inside.includes(e)).map(e => row(e, STATUS_WORD[e.status] || e.status)));
   const again = el('div', 'again');
   const go = el('button', 'btn primary', 'Return to menu');
   go.onclick = toTitle;
@@ -1677,9 +1939,16 @@ function renderResults(v) {
 }
 
 // ---- Wiring
-$('start').onclick = () => newGame('original');
-$('fixtures').onclick = () => newGame('fixture');
-$('mixed').onclick = () => newGame('mixed');
+const openSetup = mode => { setupMode = mode; $('setupReason').textContent = ''; render(); window.scrollTo(0, 0); $('setupTitle').focus(); };
+$('start').onclick = () => openSetup('original');
+$('fixtures').onclick = () => openSetup('fixture');
+$('mixed').onclick = () => openSetup('mixed');
+$('setupBack').onclick = () => { setupMode = null; render(); $('mixed').focus(); };
+$('setupGo').onclick = () => newGame(setupMode);
+const toggleMore = (id, btn) => { const open = $(id).hidden; $(id).hidden = !open; $(btn).setAttribute('aria-expanded', open); };
+$('howBtn').onclick = () => toggleMore('howto', 'howBtn');
+$('builderBtn').onclick = () => toggleMore('builder', 'builderBtn');
+$('setBtn').onclick = () => $('settingsBtn').click();
 $('undo').onclick = undo;
 // Exit, as in Bank: Save and exit, Exit without saving, or Keep playing (Esc and a backdrop tap keep playing too).
 // On the results there is nothing to save: Return to menu (the title) or Back to results.
@@ -1717,6 +1986,7 @@ for (const d of document.querySelectorAll('dialog')) {
 }
 const showDebug = NL.segmented($('debugSeg'), v => { prefs.debugLog = v === 'on'; savePrefs(); showDebug(v); }); // only the Event log reads it, so no re-render
 $('settingsBtn').onclick = () => {
+  showSoloSetting();
   showTheme(NL.theme.get());
   showDebug(prefs.debugLog ? 'on' : 'off');
   const rules = S.game?.rules || DEFAULT_RULES;
