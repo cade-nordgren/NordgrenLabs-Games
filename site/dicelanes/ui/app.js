@@ -260,8 +260,9 @@ LANES.forEach((lane, l) => {
   row.setAttribute('role', 'group');
   row.setAttribute('aria-label', `${lane.name} lane`);
   cellEls[l] = [];
-  for (let i = 0; i < 12; i++) {
-    const b = el('button', i === 11 ? 'cell lock' : 'cell');
+  // Ten numbers, then the last number and its lock in one wider cell (index LAST): crossing it counts twice.
+  for (let i = 0; i <= LAST; i++) {
+    const b = el('button', i === LAST ? 'cell lock' : 'cell');
     b.onclick = () => tapCell(l, i);
     row.append(b);
     cellEls[l].push(b);
@@ -303,10 +304,11 @@ const dieEls = SLOTS.map(([id, name], k) => {
 function tapCell(l, i) {
   const g = S.g;
   if (!g || g.status !== 'playing') return;
-  const idx = i === 11 ? LAST : i, p = S.sel;
+  const idx = i, p = S.sel;
   let ok = false;
   if (g.mode === 'physical') {
-    if (i === 11 && !canMark(g.players[p], g.closed, l, LAST)) ok = change({ type: 'close', lane: l });
+    // The last cell below five marks closes (or reopens) the colour as locked by someone away from this device.
+    if (i === LAST && !canMark(g.players[p], g.closed, l, LAST)) ok = change({ type: 'close', lane: l });
     else ok = change({ type: 'mark', player: p, lane: l, index: idx });
   } else {
     if (!choosingNow()) return;
@@ -318,12 +320,12 @@ function tapCell(l, i) {
 const choosingNow = () => { const t = S.g?.turn; return !!t && !rolling && S.g.status === 'playing' && t.phase === 'choose' && !t.done[S.sel]; };
 
 function paintCell(b, l, i) {
-  const g = S.g, sheet = g.players[S.sel], lane = LANES[l], lock = i === 11, playing = g.status === 'playing';
-  const marked = lock ? sheet.locks[l] : sheet.marks[l].includes(i);
+  const g = S.g, sheet = g.players[S.sel], lane = LANES[l], lock = i === LAST, playing = g.status === 'playing';
+  const marked = sheet.marks[l].includes(i);
   const skip = !lock && isSkipped(sheet, l, i);
   // Digital: pick (an accent X), legal (ring), swap (muted, dashed ring: tapping it replaces what conflicts), none.
-  const choice = g.mode === 'digital' && choosingNow() ? cellChoice(g, S.sel, l, lock ? LAST : i).state : 'none';
-  const t = g.turn, shownPick = !!t && t.phase === 'choose' && !rolling && pickedCells(t.dice, t.picks[S.sel]).some(c => c.lane === l && c.index === (lock ? LAST : i));
+  const choice = g.mode === 'digital' && choosingNow() ? cellChoice(g, S.sel, l, i).state : 'none';
+  const t = g.turn, shownPick = !!t && t.phase === 'choose' && !rolling && pickedCells(t.dice, t.picks[S.sel]).some(c => c.lane === l && c.index === (i));
   const wasX = b.classList.contains('x');
   b.classList.toggle('x', marked);
   b.classList.toggle('pop', marked && !wasX && popMarks);
@@ -335,9 +337,9 @@ function paintCell(b, l, i) {
   let label;
   if (lock) {
     const closed = g.closed[l], left = MARKS_BEFORE_LAST - sheet.marks[l].length;
-    b.replaceChildren(tpl(closed || marked ? 'lockIcon' : 'openIcon'));
-    if (!closed && left > 0) b.append(el('small', '', `${sheet.marks[l].length}/${MARKS_BEFORE_LAST}`));
-    label = `${lane.name} lock` + (marked ? ', locked by this player' : closed ? ', closed' : left > 0 ? `, needs ${left} more` : ', ready');
+    b.replaceChildren(el('span', 'n', lane.nums[i]), tpl(closed || marked ? 'lockIcon' : 'openIcon'));
+    if (!closed && !marked && left > 0) b.append(el('small', '', `${sheet.marks[l].length}/${MARKS_BEFORE_LAST}`));
+    label = `${lane.name} ${lane.nums[i]} and lock` + (marked ? ', crossed, locked by this player' : closed ? ', closed' : left > 0 ? `, needs ${left} more marks` : ', ready');
   } else {
     if (b.firstChild?.textContent !== String(lane.nums[i])) b.replaceChildren(el('span', 'n', lane.nums[i]));
     label = `${lane.name} ${lane.nums[i]}` + (marked ? ', crossed' : skip ? ', skipped' : '');
@@ -347,7 +349,7 @@ function paintCell(b, l, i) {
   b.setAttribute('aria-label', label);
   let can;
   if (!playing) can = false;
-  else if (g.mode === 'physical') can = canMark(sheet, g.closed, l, lock ? LAST : i) || (lock && !g.players.some(p => p.locks[l]));
+  else if (g.mode === 'physical') can = canMark(sheet, g.closed, l, i) || (lock && !g.players.some(p => p.locks[l]));
   else can = choice !== 'none';
   b.disabled = !can;
 }
@@ -507,10 +509,10 @@ function doneTap() {
   if (change({ type: 'done', player: S.sel, value: !t.done[S.sel] })) buzz(8);
 }
 
-// ---- Big lane picker: one lane, large, in order: the first six, then the rest and the lock.
+// ---- Big lane picker: one lane, large, in order: the first six, then the next four and the last number with its lock.
 let pickLane = 0;
-const bigCells = Array.from({ length: 12 }, (_, i) => {
-  const b = el('button', i === 11 ? 'cell lock' : 'cell');
+const bigCells = Array.from({ length: LAST + 1 }, (_, i) => {
+  const b = el('button', i === LAST ? 'cell lock' : 'cell');
   b.onclick = () => tapCell(pickLane, i);
   $('pickerCells').append(b);
   return b;
