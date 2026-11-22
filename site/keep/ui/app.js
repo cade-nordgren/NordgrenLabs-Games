@@ -292,6 +292,10 @@ const KIND_ICON = {
   monster: 'M12 3c-4 0-6 3.5-6 8v10h12V11c0-4.5-2-8-6-8z M8.5 21l1.2-4.5h4.6l1.2 4.5 M9 11.5c1-.8 5-.8 6 0',
   empty: 'M5 21V5h14v16 M3 21h18 M9 21v-6h6v6',
 };
+// The owner's creature drawings (Enemy redesigns, Set A, 2026-11-21), matched by the public name the card or fight uses
+// (the owner's own content names); test data shows none of them.
+const CREATURE_ART = [[/skeleton|bones/i, 's11'], [/troll/i, 's10'], [/\borc\b/i, 's12'], [/\belf\b/i, 's09'], [/spider/i, 'spider'], [/\bbats?\b/i, 'bats'], [/fallen warrior/i, 'fallen-warrior']];
+const creatureArt = name => (S.mode === 'fixture' ? null : CREATURE_ART.find(([re]) => re.test(name || ''))?.[1] ?? null);
 const goldOf = card => [...card.what, ...card.results.map(r => r.text)].map(t => /(\d[\d,]*) gold\b/.exec(t)?.[1]).find(Boolean) || null;
 function cardKind(card) {
   const tags = new Set([...card.dice, ...card.results].map(x => x.tag)), lines = card.results.map(r => r.text);
@@ -319,7 +323,16 @@ function drawCard(card, i, n) {
     head.append(el('span', 'deck', deck));
     if (kind) head.append(el('span', `kindtag kind-${kind}`, KIND_WORD[kind]));
     body.push(head);
-    if (kind && !scene) {
+    const pic = creatureArt(card.title);
+    if (pic && !scene) {
+      const art = el('div', `cardart pic kind-${kind || 'none'}`);
+      art.setAttribute('aria-hidden', 'true');
+      const img = el('img', `pic-${pic}`);
+      img.src = `art/monsters/${pic}.webp`;
+      img.alt = '';
+      art.append(img);
+      body.push(art);
+    } else if (kind && !scene) {
       const art = el('div', `cardart kind-${kind}`);
       art.setAttribute('aria-hidden', 'true');
       art.innerHTML = `<svg viewBox="0 0 24 24" width="72" height="72" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"><path d="${KIND_ICON[kind]}"/></svg>`;
@@ -758,7 +771,68 @@ function renderTitle() {
 
 // ---- Draft: first player, heroes clockwise, rings counterclockwise, towers.
 // The rebuilt setup screens' top line, and their brass button at the bottom (design canvas).
-function setupHead(n) { const h = el('div', 'dhead'); h.append(el('span', '', `Setting up · ${n} of 5`)); return h; }
+// The setup wizard's head (owner, 2026-11-21): Back, and a five-step progress bar in place of "Setting up · n of 5".
+const SETUP_STEPS = ['Players', 'Who goes first', 'Heroes', 'Rings', 'Starting tower'];
+function setupProgress(n) {
+  const bar = el('div', 'dprog');
+  bar.setAttribute('role', 'progressbar');
+  bar.setAttribute('aria-label', 'Setting up');
+  bar.setAttribute('aria-valuemin', '1');
+  bar.setAttribute('aria-valuemax', String(SETUP_STEPS.length));
+  bar.setAttribute('aria-valuenow', String(n));
+  bar.setAttribute('aria-valuetext', `Step ${n} of ${SETUP_STEPS.length}: ${SETUP_STEPS[n - 1]}`);
+  SETUP_STEPS.forEach((_, i) => bar.append(el('i', i + 1 < n ? 'on' : i + 1 === n ? 'now' : '')));
+  return bar;
+}
+function setupHead(n, step) {
+  const h = el('div', 'dhead'), back = el('button', 'dback');
+  back.type = 'button';
+  back.innerHTML = '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg>';
+  back.setAttribute('aria-label', canUndo() ? `Back: ${undoLabel(S.hist.at(-1), S.game, content(), nameOf)}` : step === 'heroes' && !firstWait ? 'Back to who goes first' : 'Back to player names');
+  back.onclick = () => draftBack(step);
+  h.append(back, setupProgress(n));
+  return h;
+}
+// The starting-tower map (design canvas): the keep as a plain grid, the four towers as buttons in their corners, walled
+// on their outer sides (a gold beacon until picked, gold when picked), a seal for each player already starting there,
+// and the lair tile with the owner's sleeping dragon. For the pointer: the tower buttons below are the keyboard and
+// screen reader way, so the map is hidden from readers and its buttons take no Tab stop.
+const TOWER_ICON = '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M6 21V9h12v12z M5 9V5h2.5v2h2V5h3v2h2V5H17v4 M10.5 21v-4a1.5 1.5 0 0 1 3 0v4"/></svg>';
+function towerMap(g, c, la, sel, pick) {
+  const bd = c.board, frame = el('div', 'tmap'), grid = el('div', 'tgrid'), ch = chamberRoom(bd);
+  frame.setAttribute('aria-hidden', 'true');
+  grid.style.setProperty('--cols', bd.width);
+  grid.style.setProperty('--rows', bd.height);
+  const at = (node, x, y) => { node.style.setProperty('--x', x); node.style.setProperty('--y', y); return node; };
+  const lair = at(el('div', 'tlair'), ch.x0, ch.y0);
+  lair.style.setProperty('--w', ch.cols);
+  lair.style.setProperty('--h', ch.rows);
+  if (S.mode !== 'fixture') { const img = el('img'); img.src = 'art/dragon-asleep.webp'; img.alt = ''; lair.append(img); }
+  lair.append(el('span', '', capital(chamberName(c))));
+  grid.append(lair);
+  for (const a of la) {
+    const t = bd.towers[a.tower];
+    const b = at(el('button', `ttower t-${t.y ? 's' : 'n'}${t.x ? 'e' : 'w'}${a.tower === sel ? ' on' : ''}`), t.x, t.y);
+    b.type = 'button';
+    b.tabIndex = -1;
+    b.innerHTML = TOWER_ICON;
+    g.seats.forEach((s, i) => { if (g.heroes[i]?.startTower === a.tower) b.append(el('span', 'seal', String(i + 1))); });
+    b.onclick = () => pick(a.tower);
+    grid.append(b);
+  }
+  frame.append(grid);
+  return frame;
+}
+// Back, one step at a time: take back the last pick where the undo rules allow it; else the hero step goes back to
+// the first-player result, and that (or the roll itself) back to the player names, starting the setup over.
+function draftBack(step) {
+  if (canUndo()) return undo();
+  if (step === 'heroes' && !firstWait) { firstWait = true; return render(); }
+  const mode = S.mode;
+  firstWait = false;
+  toTitle();
+  openSetup(mode);
+}
 function brassBar(button) { const b = el('div', 'dbar'); b.append(button); return b; }
 function panel(title, text) {
   const p = el('section', 'glass panel');
@@ -894,13 +968,13 @@ function renderDraft(v) {
   $('draft').classList.toggle('dfirst', look);
   document.querySelector('.app').classList.toggle('dfirst', look);
   const out = first
-    ? [setupHead(2), el('h1', '', 'Who goes first?'), el('p', 'dsub', 'Everyone rolls a D12. The highest goes first; tied highest roll again.')]
+    ? [setupHead(2, step), el('h1', '', 'Who goes first?'), el('p', 'dsub', 'Everyone rolls a D12. The highest goes first; tied highest roll again.')]
     : step === 'heroes'
-      ? [setupHead(3), el('h1', '', `${nameOf(seat)}, pick your hero`), el('p', 'dsub', 'Heroes are picked clockwise from the first player.')]
+      ? [setupHead(3, step), el('h1', '', `${nameOf(seat)}, pick your hero`), el('p', 'dsub', 'Heroes are picked clockwise from the first player.')]
       : step === 'rings'
-        ? [setupHead(4), el('h1', '', `${nameOf(seat)}, pick your ring`), el('p', 'dsub', 'Rings go counterclockwise, starting with the last hero pick. Each works once, then it is gone.')]
+        ? [setupHead(4, step), el('h1', '', `${nameOf(seat)}, pick your ring`), el('p', 'dsub', 'Rings go counterclockwise, starting with the last hero pick. Each works once, then it is gone.')]
         : step === 'towers'
-          ? [setupHead(5), el('h1', '', `${nameOf(seat)}, pick your starting tower`)]
+          ? [setupHead(5, step), el('h1', '', `${nameOf(seat)}, pick your starting tower`)]
           : [el('h1', '', 'Setting up')];
   if (step === 'first-player') {
     const card = el('section', 'dcard');
@@ -981,7 +1055,6 @@ function renderDraft(v) {
     out.push(list);
     const pick = la.find(x => x.heroId === heroSel.id);
     const bar = brassBar(choice(`Choose ${sel ? sel.name || sel.id : 'a hero'}`, null, () => { if (pick) act(pick); }, 'primary'));
-    bar.append(...undoHere(v, false));
     out.push(bar);
   }
   if (step === 'rings') {
@@ -1009,17 +1082,13 @@ function renderDraft(v) {
     out.push(list);
     const sel = c.rings.find(r => r.id === ringSel.id), pick = la.find(x => x.ringId === ringSel.id);
     const bar = brassBar(choice(`Take the ${sel ? sel.name || sel.id : 'ring'}`, null, () => { if (pick) act(pick); }, 'primary'));
-    bar.append(...undoHere(v, false));
     out.push(bar);
   }
   if (step === 'towers') {
     // Pick, then confirm (design canvas): tap a tower on the board or a button, then Start. Towers may be shared.
     if (towerSel.seat !== seat || !la.some(a => a.tower === towerSel.tower)) towerSel = { seat, tower: la[0]?.tower ?? null };
     const pickTower = t => { towerSel = { seat, tower: t }; render(); $('draft').querySelector('.dtower[aria-pressed="true"]')?.focus(); };
-    const card = el('div', 'dmap'), wrap = el('div', 'board-wrap');
-    boardApi = mountBoard(wrap, { v, content: c, names: g.seats.map(s => s.name), onInspect: inspect, targets: la.map(a => ({ ...c.board.towers[a.tower], label: `Start in the ${towerName(c, a.tower)}`, pick: () => pickTower(a.tower) })) });
-    card.append(wrap);
-    out.push(card);
+    out.push(towerMap(g, c, la, towerSel.tower, pickTower));
     const list = el('div', 'dtowers');
     list.setAttribute('role', 'group');
     list.setAttribute('aria-label', 'Starting tower');
@@ -1035,7 +1104,6 @@ function renderDraft(v) {
     out.push(list);
     const pick = la.find(x => x.tower === towerSel.tower);
     const bar = brassBar(choice(`Start in the ${pick ? towerName(c, pick.tower) : 'tower'}`, null, () => { if (pick) act(pick); }, 'primary'));
-    bar.append(...undoHere(v, false));
     out.push(bar);
   }
   if (!look) out.find(x => x.matches('section.panel'))?.append(...undoHere(v, false)); // under the pick
@@ -1146,7 +1214,9 @@ function fightRow(v, seat, enc) {
   const foe = f.who.slice(f.who.lastIndexOf(' against ') + 9).replace(/^the /, '');
   const ban = el('div', 'foe');
   ban.setAttribute('aria-hidden', 'true');
-  ban.innerHTML = FOE_ART;
+  const pic = creatureArt(foe);
+  if (pic) { const img = el('img', `foeart pic-${pic}`); img.src = `art/monsters/${pic}.webp`; img.alt = ''; ban.append(img); ban.classList.add('pic'); }
+  else ban.innerHTML = FOE_ART;
   const cap = el('div', 'foecap'), nm = el('div');
   nm.append(el('span', 'kindtag', 'Monster'), el('strong', '', foe.charAt(0).toUpperCase() + foe.slice(1)));
   cap.append(nm);
@@ -2000,6 +2070,31 @@ $('settingsBtn').onclick = () => {
   $('settings').showModal();
 };
 $('settingsDone').onclick = () => $('settings').close();
+// Every drawer closes with a swipe down from the top of its content (owner, 2026-11-21). It does what Esc does, so each
+// sheet's own cancel and close handling decides (a result card waits for its dice, then shows the next card).
+function swipeAway(d) {
+  let y0 = null, dy = 0;
+  const reset = () => { d.style.transition = 'transform .2s ease'; d.style.transform = ''; y0 = null; dy = 0; };
+  d.addEventListener('touchstart', e => { if (e.touches.length === 1 && d.scrollTop <= 0) { y0 = e.touches[0].clientY; dy = 0; d.style.transition = 'none'; } }, { passive: true });
+  d.addEventListener('touchmove', e => {
+    if (y0 === null) return;
+    dy = e.touches[0].clientY - y0;
+    if (dy <= 0) { d.style.transform = ''; return; } // an upward drag scrolls the content as usual
+    e.preventDefault();
+    d.style.transform = `translateY(${dy}px)`;
+  }, { passive: false });
+  d.addEventListener('touchend', () => {
+    if (y0 === null) return;
+    const far = dy > Math.min(120, d.offsetHeight / 4);
+    reset();
+    if (!far) return;
+    const ev = new Event('cancel', { cancelable: true });
+    d.dispatchEvent(ev);
+    if (!ev.defaultPrevented && d.open) d.close();
+  });
+  d.addEventListener('touchcancel', reset);
+}
+document.querySelectorAll('dialog.sheet').forEach(swipeAway);
 // The roll card: a tap outside or Esc backs out before a voluntary roll. A result card is acknowledged with Continue
 // (Enter or Space on it) or Esc, which shows the next card and never skips one; a tap outside does nothing, nor mid-roll.
 $('roll').onclick = e => { if (e.target === $('roll') && $('roll').dataset.mode === 'ask') $('roll').close(); };

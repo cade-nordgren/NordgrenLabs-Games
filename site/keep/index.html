@@ -730,6 +730,67 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 }
 </style>
 <style id="keep-skin">
+/* The owner's creature drawings (2026-11-21), always whole (owner: "use the whole image for each character"). On a card
+   the drawing runs the card's width at its own shape; in a fight it stands whole at the banner's right, the name at the
+   left. Phone landscape: the card goes side by side, the drawing on the left at the drawer's height. */
+.fightrow .foe.pic { height: 165px; }
+.fightrow .foe .foeart { position: absolute; top: 0; right: 0; height: 100%; width: auto; max-width: 62%; object-fit: contain; border-left: 1px solid #3D3F38; }
+.fightrow .foe.pic .foecap { z-index: 1; right: auto; max-width: 44%; flex-direction: column; align-items: flex-start; gap: 6px; }
+.fightrow .foe.pic .foecap strong { font-size: 26px; }
+#roll .cardart.pic { height: auto; overflow: hidden; padding: 0; display: block; box-shadow: inset 0 0 0 1px #3B2F22; background: #1E201C; }
+#roll .cardart.pic img { display: block; width: 100%; height: auto; max-height: 56dvh; object-fit: contain; }
+@media (orientation: portrait) and (max-width: 819.98px) { dialog.sheet { max-height: calc(100dvh - 12px); } }
+@media (max-height: 540px) and (orientation: landscape) {
+  .fightrow .foe.pic { height: 120px; }
+  .fightrow .foe.pic .foecap strong { font-size: 20px; }
+  #roll:has(.cardart.pic) { width: min(100% - 24px, 760px); max-height: calc(100dvh - 16px); }
+  #roll:has(.cardart.pic) > div { grid-template-columns: minmax(0, 42%) minmax(0, 1fr); column-gap: 16px; align-items: start; }
+  #roll:has(.cardart.pic) > div > *, #roll:has(.cardart.pic) #rollBody > * { grid-column: 2; }
+  #roll:has(.cardart.pic) #rollBody > .cardart.pic { grid-column: 1; grid-row: 1 / span 12; position: sticky; top: 0; }
+  #roll .cardart.pic img { max-height: calc(100dvh - 48px); }
+}
+/* Setup as a wizard (owner, 2026-11-21): Back on every step and a five-step progress bar in place of "n of 5". */
+.dprog { flex: 1; min-width: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 5px; }
+.dprog i { height: 6px; border-radius: 3px; background: rgba(238, 228, 207, .16); }
+.dprog i.on { background: #B9812F; }
+.dprog i.now { background: #DAA24C; box-shadow: 0 0 8px rgba(218, 162, 76, .7); }
+#title .tl-setuphead .dprog { margin: 0 4px; }
+#draft.dfirst .dhead { gap: 12px; }
+#draft.dfirst .dback { flex: none; width: 44px; height: 44px; border-radius: 22px; border: 1px solid rgba(238, 228, 207, .35); background: rgba(37, 39, 36, .55); color: #EEE4CF; display: grid; place-items: center; cursor: pointer; }
+#draft.dfirst .dback:focus-visible { outline: 2px solid #FFE2A6; outline-offset: 3px; }
+/* The starting-tower map as on the design canvas (rebuilt 2026-11-21): a cream frame round a plain 32px grid, tower
+   buttons in the corners overhanging inward, walled on their outer sides, a gold beacon until picked; red seals; the
+   lair tile with the owner's dragon. */
+#draft.dfirst .tmap { --c: min(32px, calc((100vw - 56px) / 10)); align-self: center; padding: 6px; border-radius: 6px; background: #EEE4CF; box-shadow: inset 0 0 0 2px #EEE4CF, inset 0 0 0 3px #3B2F22, 0 6px 18px rgba(0, 0, 0, .45); }
+@media (min-width: 900px) { #draft.dfirst .tmap { --c: 38px; } }
+#draft.dfirst .tgrid { position: relative; width: calc(var(--c) * var(--cols)); height: calc(var(--c) * var(--rows)); background-color: #1E201C;
+  background-image: radial-gradient(circle at 50% 50%, rgba(130, 127, 71, .10) 0%, rgba(0, 0, 0, .35) 100%), repeating-linear-gradient(0deg, rgba(164, 190, 100, .12) 0 1px, transparent 1px var(--c)), repeating-linear-gradient(90deg, rgba(164, 190, 100, .12) 0 1px, transparent 1px var(--c)); }
+#draft.dfirst .tlair { position: absolute; left: calc(var(--c) * var(--x)); top: calc(var(--c) * var(--y)); width: calc(var(--c) * var(--w)); height: calc(var(--c) * var(--h)); box-sizing: border-box; overflow: hidden;
+  border: 1px solid #DAA24C; background: radial-gradient(circle at 50% 50%, #5A3A14 0%, #2A1C10 100%); box-shadow: 0 0 14px rgba(218, 162, 76, .45); display: grid; place-items: center; }
+#draft.dfirst .tlair img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+#draft.dfirst .tlair span { position: relative; font: 400 11px/1 'IM Fell English SC', Georgia, serif; color: #F6E3B5; text-align: center; text-shadow: 0 0 3px #000, 0 1px 2px #000, 0 0 6px #000; }
+#draft.dfirst .ttower { position: absolute; left: calc(var(--c) * var(--x)); top: calc(var(--c) * var(--y)); width: calc(var(--c) + 6px); height: calc(var(--c) + 6px); box-sizing: border-box; padding: 0; border: 0 solid #C9BB9C; border-radius: 2px;
+  display: grid; place-items: center; cursor: pointer; background: #3D3F38; color: #EEE4CF; animation: t-beacon 1.8s ease-in-out infinite; }
+#draft.dfirst .ttower.t-nw { border-top-width: 3px; border-left-width: 3px; }
+#draft.dfirst .ttower.t-ne { border-top-width: 3px; border-right-width: 3px; margin-left: -6px; }
+#draft.dfirst .ttower.t-sw { border-bottom-width: 3px; border-left-width: 3px; margin-top: -6px; }
+#draft.dfirst .ttower.t-se { border-bottom-width: 3px; border-right-width: 3px; margin-left: -6px; margin-top: -6px; }
+#draft.dfirst .ttower.on { animation: none; background: #DAA24C; color: #2A1A06; box-shadow: 0 0 16px 4px rgba(218, 162, 76, .7); }
+#draft.dfirst .ttower .seal { position: absolute; right: -6px; bottom: -6px; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 400 12px 'IM Fell English SC', Georgia, serif; color: #F6EBD6;
+  background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%); border: 1px solid #F6EBD6; }
+#draft.dfirst .ttower .seal + .seal { right: 10px; }
+#draft.dfirst .ttower .seal + .seal + .seal { right: 26px; }
+#draft.dfirst > h1 { font-size: 26px; line-height: 1.1; } /* as on the design canvas */
+#draft.dfirst .dbar .choice.primary { position: relative; padding-right: 48px; }
+#draft.dfirst .dbar .choice.primary::after { content: ''; position: absolute; right: 22px; top: 50%; width: 10px; height: 10px; margin-top: -6px; border-right: 2.5px solid #2A1A06; border-top: 2.5px solid #2A1A06; transform: rotate(45deg); } /* the design's next arrow */
+@keyframes t-beacon { 0%, 100% { box-shadow: 0 0 0 2px #DAA24C, 0 0 6px 2px rgba(218, 162, 76, .35); } 50% { box-shadow: 0 0 0 2px #DAA24C, 0 0 14px 5px rgba(218, 162, 76, .6); } }
+@media (prefers-reduced-motion: reduce) { #draft.dfirst .ttower:not(.on) { animation: none; box-shadow: 0 0 0 2px #DAA24C, 0 0 10px 3px rgba(218, 162, 76, .5); } }
+/* Drawers on a phone held upright: bottom sheets, full width, with a grab bar; swipe down to close (app.js). */
+@media (orientation: portrait) and (max-width: 819.98px) {
+  dialog.sheet { width: 100%; margin: auto 0 0; border-radius: 18px 18px 0 0; max-height: calc(100dvh - 40px); padding-bottom: env(safe-area-inset-bottom); }
+  dialog.sheet > div::before { content: ''; justify-self: center; width: 42px; height: 5px; margin: -12px 0 2px; border-radius: 3px; background: rgba(59, 47, 34, .3); order: -10; }
+  #roll[data-kind="monster"] > div::before { background: rgba(238, 228, 207, .3); }
+}
 /* Results rows as on the design canvas: the seat's seal, the player and hero, what became of them, the gold large on the
    right; the title and its line centred over the keep. */
 #results > h1, #results > .lede { text-align: center; }
@@ -1135,7 +1196,7 @@ dialog.sheet .segmented button[aria-pressed="true"] { color: #EEE4CF; }
     <section class="tl-panel tl-setup" id="setup" aria-labelledby="setupTitle" hidden>
       <div class="tl-setuphead">
         <button type="button" class="tl-back" id="setupBack" aria-label="Back to the start screen"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
-        <span>Setting up · 1 of 5</span>
+        <div class="dprog" role="progressbar" aria-label="Setting up" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" aria-valuetext="Step 1 of 5: Players"><i class="now"></i><i></i><i></i><i></i><i></i></div>
         <span class="tl-chip" id="setupChip"></span>
       </div>
       <h2 id="setupTitle" tabindex="-1">Who enters the keep?</h2>

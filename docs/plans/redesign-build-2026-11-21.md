@@ -100,3 +100,27 @@ real saves in it, signed-in saves on the deployed site.
   the display face, Rules in play and the debug log (under Builder tools) folded away, and a brass Done. Results rows
   show the seat's seal, the player and hero, what became of them and the gold large on the right; the title and its
   line are centred over the keep; See the event log is an outlined button.
+- Setup wizard (2026-11-21, owner): a five-step progress bar replaces "Setting up · n of 5", and every step has Back.
+  Back takes back the last pick where the undo rules allow it (it replaces the separate undo buttons on setup); with no
+  pick to take back, the hero step goes back to the first-player result, and that (or the roll) back to the player
+  names, which starts the setup over with the same names. Continue and the brass buttons are Next.
+- Starting tower (owner: "I like the artifact one better", then "the towers seem offset"): its own map, built to the
+  canvas, in place of the game board: a cream frame round a plain 32px grid, the four towers as buttons in the corners,
+  walled on their outer sides, a gold beacon until picked and gold when picked, a red seal per player starting there,
+  and the lair tile with the owner's sleeping dragon. The map is for the pointer; the tower buttons below stay the
+  keyboard and screen reader way. Setup titles are 26px and the gold Next buttons carry the canvas's arrow.
+- Drawers (owner: "all drawer screens should be pulldown/swipe awayable"): on a phone held upright every sheet is a
+  full-width bottom sheet with a grab bar, and a swipe down from the top of its content closes it. A swipe does what Esc
+  does, so each sheet's own handling decides: a result card ignores it until its dice land, then it acts as Continue.
+- The Dragon's Lair prompt stays as built (owner: better than the canvas).
+- The owner's creature drawings (2026-11-21, "Enemy Redesigns, Option Set A"), in `site/keep/art/monsters/` (about
+  390 KB): the four fight monsters by type (`s09` dark elf, `s10` mountain troll, `s11` skeleton, `s12` orc) and the
+  giant spider, vampire bats and fallen warrior cards. Cropped as rectangles from inside each drawing (the pale ones
+  share the parchment's colour, so no cut-out), without the sheet's name labels; the game keeps its own names. They head
+  the fight panel's monster banner and the creature's result card (Bones uses the skeleton), matched by the card's or
+  fight's public name (`CREATURE_ART` in `ui/app.js`), each with its own focus point. Test data shows none of them.
+  Display only. The crop script is `cut_monsters.py` in the session scratch folder.
+  Owner, same day: "use the whole image for each character". Nothing is cropped further: on a card the drawing runs
+  the card's width at its own shape (drawers on an upright phone may now reach 12px from the top, and scroll), in a
+  fight it stands whole at the banner's right with the name at the left, and in phone landscape a picture card goes
+  side by side, the drawing on the left at the drawer's height.
