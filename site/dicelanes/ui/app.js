@@ -338,27 +338,28 @@ function paintCell(b, l, i) {
   // Digital: pick (an accent X), legal (ring), swap (muted, dashed ring: tapping it replaces what conflicts), none.
   const choice = g.mode === 'digital' && choosingNow() ? cellChoice(g, S.sel, l, i).state : 'none';
   const t = g.turn, mine = t && t.phase === 'choose' && !rolling ? pickedCells(t.dice, t.picks[S.sel]).find(c => c.lane === l && c.index === i) : null;
-  const shownPick = !!mine;
+  // Coloured only while the player is still choosing; once they end their turn the pick shows as a plain X.
+  const shownPick = !!mine && !t.done[S.sel], ended = !!mine && !shownPick;
   const wasX = b.classList.contains('x');
-  b.classList.toggle('x', marked);
-  b.classList.toggle('pop', marked && !wasX && popMarks);
+  b.classList.toggle('x', marked || ended);
+  b.classList.toggle('pop', (marked || ended) && !wasX && popMarks);
   b.classList.toggle('skip', skip);
   b.classList.toggle('legal', choice === 'legal');
   b.classList.toggle('swap', choice === 'swap');
   b.classList.toggle('pick', shownPick);
   // A tentative X shows which dice made it: styled like a white die for the white sum, the lane's colour for white plus colour.
-  b.classList.toggle('pw', mine?.kind === 'white');
-  b.classList.toggle('pc', mine?.kind === 'colour');
-  b.classList.toggle('held', lock && marked);
+  b.classList.toggle('pw', shownPick && mine.kind === 'white');
+  b.classList.toggle('pc', shownPick && mine.kind === 'colour');
+  b.classList.toggle('held', lock && (marked || ended));
   let label;
   if (lock) {
     const closed = g.closed[l], left = MARKS_BEFORE_LAST - sheet.marks[l].length;
-    b.replaceChildren(el('span', 'n', lane.nums[i]), tpl(closed || marked ? 'lockIcon' : 'openIcon'));
+    b.replaceChildren(el('span', 'n', lane.nums[i]), tpl(closed || marked || ended ? 'lockIcon' : 'openIcon'));
     if (!closed && !marked && left > 0) b.append(el('small', '', `${sheet.marks[l].length}/${MARKS_BEFORE_LAST}`));
-    label = `${lane.name} ${lane.nums[i]} and lock` + (marked ? ', crossed, locked by this player' : closed ? ', closed' : left > 0 ? `, needs ${left} more marks` : ', ready');
+    label = `${lane.name} ${lane.nums[i]} and lock` + (marked || ended ? ', crossed, locked by this player' : closed ? ', closed' : left > 0 ? `, needs ${left} more marks` : ', ready');
   } else {
     if (b.firstChild?.textContent !== String(lane.nums[i])) b.replaceChildren(el('span', 'n', lane.nums[i]));
-    label = `${lane.name} ${lane.nums[i]}` + (marked ? ', crossed' : skip ? ', skipped' : '');
+    label = `${lane.name} ${lane.nums[i]}` + (marked || ended ? ', crossed' : skip ? ', skipped' : '');
   }
   if (shownPick) label += `, picked with ${mine.kind === 'white' ? 'the white dice' : `a white and the ${lane.name.toLowerCase()} die`}, tap to take back`;
   else if (choice === 'swap') label += ', conflicts with a pick, tap to swap';
