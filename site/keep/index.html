@@ -45,7 +45,7 @@ body::before {
 #draft.dfirst .d12 { --die: #FBF6EA; --pip: #2E2A22; --accent: #DAA24C; } /* the approved dice colours: gold result face, in both themes */
 #draft.dfirst { width: 100%; max-width: 440px; margin: 0 auto; flex: 1; display: flex; flex-direction: column; gap: 14px; }
 #draft.dfirst .dhead { min-height: 44px; display: flex; align-items: center; padding-right: 58px; color: #BDB5A4; font-size: 15px; }
-#draft.dfirst > h1 { margin: 2px 0 0; font: 400 30px/1.1 'IM Fell English SC', Georgia, serif; letter-spacing: 0; color: #EEE4CF; }
+#draft.dfirst h1 { margin: 2px 0 0; font: 400 30px/1.1 'IM Fell English SC', Georgia, serif; letter-spacing: 0; color: #EEE4CF; }
 #draft.dfirst .dsub { margin: 0; font-size: 17px; line-height: 1.45; color: #D6CCB8; }
 #draft.dfirst .dcard { border-radius: 12px; padding: 18px 12px 14px; background: #EEE4CF; box-shadow: inset 0 0 0 3px #EEE4CF, inset 0 0 0 4px #9C8A66, 0 6px 18px rgba(0, 0, 0, .4); }
 #draft.dfirst .dcard .dice { padding: 4px 0; }
@@ -957,7 +957,7 @@ dialog.sheet .btn:not(.primary):not(.danger):not(.undo-here) { background: trans
   background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%); border: 1px solid #F6EBD6; }
 #draft.dfirst .ttower .seal + .seal { right: 10px; }
 #draft.dfirst .ttower .seal + .seal + .seal { right: 26px; }
-#draft.dfirst > h1 { font-size: 26px; line-height: 1.1; } /* as on the design canvas */
+#draft.dfirst h1 { font-size: 26px; line-height: 1.1; } /* as on the design canvas */
 #draft.dfirst .dbar .choice.primary { position: relative; padding-right: 48px; }
 #draft.dfirst .dbar .choice.primary::after { content: ''; position: absolute; right: 22px; top: 50%; width: 10px; height: 10px; margin-top: -6px; border-right: 2.5px solid #2A1A06; border-top: 2.5px solid #2A1A06; transform: rotate(45deg); } /* the design's next arrow */
 @keyframes t-beacon { 0%, 100% { box-shadow: 0 0 0 2px #DAA24C, 0 0 6px 2px rgba(218, 162, 76, .35); } 50% { box-shadow: 0 0 0 2px #DAA24C, 0 0 14px 5px rgba(218, 162, 76, .6); } }
@@ -1271,10 +1271,43 @@ dialog.sheet .segmented button[aria-pressed="true"] { color: #EEE4CF; }
 :root[data-theme="dark"] #log li.turnlog + li.turnlog { border-top-color: #4A4434; }
 :root[data-theme="dark"] #log li.turnlog h3, :root[data-theme="dark"] #log .loglines li { color: #EEE4CF; }
 :root[data-theme="dark"] #log li.turnlog h3 span, :root[data-theme="dark"] #log .loglines small { color: #BDB5A4; }
+/* Setup in phone landscape (owner, 2026-11-22: "the game setup screens are not optimized for landscape"): two columns.
+   Player names: the title and help on the left, the count, names and Continue on the right. The picks (twoCols in
+   app.js): the heading and card on the left, the choices and the button on the right, each scrolling on its own.
+   Portrait keeps one column: the column wrappers are display: contents there. */
+#draft.dfirst .dcol { display: contents; }
+@media (max-height: 540px) and (orientation: landscape) { /* the same query as the table's; worded apart so spec-v12's static check still finds the table block */
+  #title.setup .tl-setup { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-auto-rows: min-content; gap: 12px 32px; align-content: start; width: 100%; max-width: 980px; margin-inline: auto; box-sizing: border-box; }
+  #title.setup .tl-setup > * { max-width: none; margin-inline: 0; grid-column: 2; }
+  #title.setup .tl-setup > .tl-setuphead { grid-column: 1 / -1; grid-row: 1; }
+  #title.setup .tl-setup > h2 { grid-column: 1; grid-row: 2; margin-top: 0; }
+  #title.setup .tl-setup > .tl-sub { grid-column: 1; grid-row: 3; align-self: start; }
+  #title.setup .tl-setup > h3 { grid-row: 2; align-self: end; margin: 0; }
+  #title.setup .tl-setup > .segmented { grid-row: 3; }
+  #title.setup .tl-setup > #names { grid-row: 4; }
+  #title.setup .tl-setup > #setupGo { grid-column: 1; grid-row: 4; align-self: start; margin-top: 0; } /* in view with four names too */
+  #title.setup .tl-setup > .note { grid-column: 1; grid-row: 5; }
+  #title.setup .tl-setup #names li { padding: 6px 0; }
+  .app.dfirst { height: 100dvh; min-height: 0; box-sizing: border-box; padding-bottom: 0; }
+  #draft.dfirst { max-width: 980px; flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 28px; }
+  #draft.dfirst .dcol { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  #draft.dfirst .dcol-r { padding-top: 54px; padding-bottom: 0; } /* clear of the menu circle; the button bar keeps its own bottom space */
+  #draft.dfirst .dhead { padding-right: 0; }
+  /* Rings have no card on the left: the heading across the top and the four rings two by two under it. */
+  #draft.dfirst:has(.drings) { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  #draft.dfirst:has(.drings) .dcol-l { gap: 6px; padding-bottom: 0; overflow: visible; }
+  #draft.dfirst:has(.drings) .dhead { padding-right: 58px; }
+  #draft.dfirst:has(.drings) .dcol-r { padding-top: 10px; }
+  #draft.dfirst .drings { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  #draft.dfirst .dring { min-height: 0; padding: 10px 12px; }
+  #draft.dfirst .tmap { --c: min(32px, calc((100dvh - 170px) / 10)); } /* the whole starting map in view */
+  #draft.dfirst h1 { font-size: 22px; }
+  #draft.dfirst .dring-art { width: 46px; height: 46px; }
+}
 </style>
 </head>
 <body>
-<div class="app">
+<div class="app title"><!-- title look from the first paint, before the scripts load (owner: it opened boxed, then snapped) -->
   <nav class="menu" id="menu" aria-label="Dragon's Keep">
     <button class="menu-trigger glass" aria-controls="menuItems">
       <svg class="bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
@@ -1385,8 +1418,8 @@ dialog.sheet .segmented button[aria-pressed="true"] { color: #EEE4CF; }
         <p class="note" id="savedNote" role="status" hidden></p>
         <ul id="saves"></ul>
       </details>
-      <button type="button" class="tl-plate" id="mixed"><span><strong>Play-test my content</strong><small>Uses your draft cards and heroes</small></span><svg viewBox="0 0 24 24" fill="none" stroke="#5E7A2A" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l3 6 6 3-6 3-3 6-3-6-6-3 6-3z"/></svg></button>
-      <button type="button" class="tl-plate" id="start" hidden><span><strong>Start game</strong><small>Every content category is approved</small></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+      <button type="button" class="tl-plate" id="mixed" hidden><span><strong>Play-test my content</strong><small>Uses your draft cards and heroes</small></span><svg viewBox="0 0 24 24" fill="none" stroke="#5E7A2A" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l3 6 6 3-6 3-3 6-3-6-6-3 6-3z"/></svg></button>
+      <button type="button" class="tl-plate" id="start"><span><strong>Start game</strong><small>Every content category is approved</small></span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
       <p class="tl-lock" id="startReason"></p>
       <nav class="tl-links" aria-label="More">
         <button type="button" id="howBtn" aria-expanded="false" aria-controls="howto">How to play</button>

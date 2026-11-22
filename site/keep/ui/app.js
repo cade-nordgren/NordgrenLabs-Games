@@ -1092,7 +1092,7 @@ function renderDraft(v) {
     const animate = firstRolled;
     firstRolled = false;
     if (animate) for (const x of shown) x.style.visibility = 'hidden';
-    $('draft').replaceChildren(...out);
+    $('draft').replaceChildren(...twoCols(out));
     return rollDice(dice, items, { animate }).then(() => {
       if (!animate) return;
       for (const x of shown) x.style.visibility = '';
@@ -1194,7 +1194,14 @@ function renderDraft(v) {
     p.append(ul);
     out.push(p);
   }
-  $('draft').replaceChildren(...out);
+  $('draft').replaceChildren(...(look ? twoCols(out) : out));
+}
+// Phone landscape (owner, 2026-11-22): the heading and card in one column, the choices and the button in the other.
+// In portrait the two columns are display: contents, so the screen stays one column.
+function twoCols(out) {
+  const left = el('div', 'dcol dcol-l'), right = el('div', 'dcol dcol-r');
+  for (const x of out) (x.matches('.dheroes, .drings, .dtowers, .dbar, .firstres, .dorder') ? right : left).append(x);
+  return [left, right];
 }
 
 // Why the hero may go on (the Keep moving prompt): the latest 'may-continue' entry the engine logged this turn.
