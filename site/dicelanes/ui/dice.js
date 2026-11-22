@@ -20,29 +20,31 @@ export function mountDie(slot) {
 }
 
 // Turns a die to value v; spin > 0 adds whole turns for a roll. Resolves once it has settled.
+// The die remembers its angles (die._rx, die._ry): a roll turns on from where it rests to an angle that equals the
+// new face's pose modulo 360, so it never jumps to the new face before spinning and always lands square on it.
 export function showDie(die, v, spin = 0, k = 0) {
   for (const f of die.children) f.classList.toggle('front', +f.dataset.v === v);
-  const [x, y] = SHOW[v];
-  const turns = still() ? 0 : spin;
-  const dir = k % 2 ? -1 : 1;
-  const target = `perspective(320px) rotateX(${x + 360 * turns * dir}deg) rotateY(${y + 360 * (turns + (k % 3)) * -dir}deg)`;
-  if (!turns) {
+  const [x, y] = SHOW[v], my = die._t = (die._t || 0) + 1; // a newer call makes an older one's settle step a no-op
+  const pose = () => `perspective(320px) rotateX(${die._rx}deg) rotateY(${die._ry}deg)`;
+  if (!spin || still()) {
+    die._rx = x; die._ry = y;
     die.style.transition = 'none';
-    die.style.transform = target;
+    die.style.transform = pose();
     die.classList.add('settled');
     void die.offsetWidth;
     die.style.transition = '';
     return Promise.resolve();
   }
+  // The angle congruent to `to` nearest `from`, then `turns` whole turns further in direction d.
+  const land = (from, to, turns, d) => to + 360 * Math.round((from - to) / 360) + d * 360 * turns;
+  const dir = k % 2 ? -1 : 1;
+  die._rx = land(die._rx ?? x, x, spin, dir);
+  die._ry = land(die._ry ?? y, y, spin + (k % 3), -dir);
   die.classList.remove('settled');
-  // Start from a plain pose each roll, so the cube always travels the full turns and lands exactly.
-  die.style.transition = 'none';
-  die.style.transform = `perspective(320px) rotateX(${x}deg) rotateY(${y}deg)`;
-  void die.offsetWidth;
-  die.style.transition = '';
-  die.style.transform = target;
-  // Hide the side faces only once the turn has really ended (a background tab can stall the transition).
-  const settle = e => { if (e.target === die) { die.classList.add('settled'); die.removeEventListener('transitionend', settle); } };
-  die.addEventListener('transitionend', settle);
+  die.style.transform = pose();
+  // Side faces hide only once this turn has ended (transitionend, or a fallback if the tab stalled the transition).
+  const settle = () => { if (die._t === my) die.classList.add('settled'); };
+  die.addEventListener('transitionend', e => { if (e.target === die) settle(); }, { once: true });
+  setTimeout(settle, 1200);
   return new Promise(done => setTimeout(done, 780));
 }
