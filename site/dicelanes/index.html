@@ -226,6 +226,8 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 /* ---- Rules, scores and settings sheets */
 .rules ol, .rules ul { margin: 0 0 4px; padding-left: 20px; color: var(--ink2); font-size: 15px; }
 .rules li + li { margin-top: 6px; }
+/* iPhone-style grabber: sheets drag down to dismiss (ui/app.js). */
+dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--ink2); opacity: .35; margin: -12px 0 2px; }
 .appearance { display: flex; align-items: center; gap: 12px; }
 .appearance .segmented { flex: 1; }
 #scoresSheet .standings li { background: var(--fill); box-shadow: none; border: 0; }
