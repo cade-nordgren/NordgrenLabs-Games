@@ -730,6 +730,32 @@ dialog.sheet p.why { color: var(--ink); font-weight: 600; }
 }
 </style>
 <style id="keep-skin">
+/* Heroes panel and map key (2026-11-22): stone hero cards with the owner's portraits and red seals, crimson HP,
+   gold with a coin; the map key folded like the Settings sections, in two columns. */
+#heroes ul { display: grid; gap: 10px; }
+#heroes li { border-top: 0; padding: 10px 12px; border-radius: 12px; background: #2A2B26; box-shadow: inset 0 0 0 1px #3D3F38; grid-template-columns: 56px minmax(0, 1fr); gap: 4px 12px; }
+#heroes li.active { background: #2E2C24; box-shadow: inset 0 0 0 2px #DAA24C, 0 0 12px rgba(218, 162, 76, .25); border-radius: 12px; }
+#heroes .havatar { position: relative; width: 56px; height: 56px; border-radius: 50%; overflow: visible; background: radial-gradient(circle at 50% 35%, #3A3423 0%, #1D1E1B 100%); box-shadow: inset 0 0 0 1px #5D5A3A; }
+#heroes .havatar .hface { display: block; width: 56px; height: 56px; border-radius: 50%; object-fit: cover; object-position: 50% 6%; }
+#heroes .havatar .pawn { position: absolute; right: -4px; bottom: -4px; width: 24px; height: 24px; border: 0; font: 400 13px 'IM Fell English SC', Georgia, serif; color: #F6EBD6;
+  background: radial-gradient(circle at 35% 30%, #C2434F 0%, #A72D38 55%, #7C1F28 100%) !important; box-shadow: 0 0 0 2px #1A1A17; }
+#heroes .havatar .pawn:only-child { inset: 0; margin: auto; width: 34px; height: 34px; font-size: 16px; }
+#heroes li.active .havatar .pawn { box-shadow: 0 0 0 2px #DAA24C; }
+#heroes .name { font: 400 18px/1.15 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+#heroes .stats { display: flex; flex-wrap: wrap; gap: 4px 6px; margin: 4px 0; }
+#heroes .stats span { padding: 1px 8px; border-radius: 999px; font-size: 13px; color: #CDBFAE; background: rgba(238, 228, 207, .06); box-shadow: inset 0 0 0 1px #4A4A40; }
+#heroes .hp { height: 7px; border-radius: 4px; background: #45231F; margin: 4px 0 6px; }
+#heroes .hp i { background: linear-gradient(90deg, #A72D38, #D2484F); }
+#heroes .meta { font-size: 14px; line-height: 1.4; color: #BDB5A4; }
+#heroes .meta.room { color: #F0C27A; }
+#heroes .btn { min-height: 40px; padding: 0 14px; border-radius: 10px; background: #1D1E1B; color: #EEE4CF; box-shadow: inset 0 0 0 1px #5D5A3A; font: 400 15px 'IM Fell English SC', Georgia, serif; }
+#table details > summary { display: flex; align-items: center; justify-content: space-between; min-height: 32px; cursor: pointer; list-style: none; font: 400 19px 'IM Fell English SC', Georgia, serif; color: #EEE4CF; }
+#table details > summary::-webkit-details-marker { display: none; }
+#table details > summary::after { content: ''; width: 9px; height: 9px; margin-right: 6px; border-right: 2px solid #DAA24C; border-bottom: 2px solid #DAA24C; transform: rotate(45deg); transition: transform .2s; }
+#table details[open] > summary::after { transform: rotate(-135deg); }
+#table .key { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 12px; font-size: 13px; line-height: 1.25; color: #CDBFAE; }
+#table .key span { align-items: center; }
+#table .key svg { width: 28px; height: 28px; box-shadow: inset 0 0 0 1px #3D3F38; }
 #table .map-tools { gap: 5px; } /* five 40px buttons fit a short map, as on the design canvas */
 @media (orientation: portrait) and (max-width: 819.98px), (max-height: 540px) and (orientation: landscape) { #table .map-tools { flex-wrap: wrap-reverse; max-height: calc(100% - 12px); align-content: flex-start; } } /* a map too short for five: a second column to the left */
 /* The hero bar as on the design canvas (2026-11-22): seal, name and gold, then HP and stats, an Items button. */

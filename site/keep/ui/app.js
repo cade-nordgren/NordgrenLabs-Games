@@ -1857,6 +1857,10 @@ function heroesPanel(v) {
     const li = el('li', seat === g.activeSeat ? 'active' : '');
     const pawn = el('span', 'pawn', seat + 1);
     pawn.style.background = `var(--seat${seat})`;
+    const avatar = el('span', 'havatar'); // the owner's portrait (test data: the seal alone)
+    avatar.setAttribute('aria-hidden', 'true');
+    if (heroArt(h.heroId)) avatar.append(heroImg(def, 'hface'));
+    avatar.append(pawn);
     const body = el('div');
     body.append(el('div', 'name', `${g.seats[seat].name}, ${def.name}`));
     const stats = el('div', 'stats');
@@ -1888,7 +1892,7 @@ function heroesPanel(v) {
       b.onclick = () => { S.peek = { seat, from: null }; render(); };
       body.append(b);
     }
-    li.append(pawn, body);
+    li.append(avatar, body);
     ul.append(li);
   }
   p.append(ul);

@@ -134,3 +134,6 @@ real saves in it, signed-in saves on the deployed site.
   players, whoever's turn it is: their seal, name (with the player's name in a shared game), gold, HP bar, the four
   stats, and an Items button for that hero. The same public facts as the Heroes panel (D25). Map buttons on phones are
   the design's 40px, and on a map too short for all five they wrap into a second column instead of being cut off.
+- Heroes panel and map key (2026-11-22): each hero a stone card with the owner's portrait in a circle and a red seal
+  (gold-ringed, with a gold edge on the card, for the hero whose turn it is), stats as chips, crimson HP, muted detail
+  lines, dark buttons. The map key and other folds on the table open with the Settings chevron, the key in two columns.
