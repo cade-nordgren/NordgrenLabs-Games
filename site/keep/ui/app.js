@@ -2118,7 +2118,9 @@ $('settingsDone').onclick = () => $('settings').close();
 function swipeAway(d) {
   let y0 = null, dy = 0;
   const reset = () => { d.style.transition = 'transform .2s ease'; d.style.transform = ''; y0 = null; dy = 0; };
-  d.addEventListener('touchstart', e => { if (e.touches.length === 1 && d.scrollTop <= 0) { y0 = e.touches[0].clientY; dy = 0; d.style.transition = 'none'; } }, { passive: true });
+  // Only from the top of the content: inside a list that has scrolled (the event log), a drag scrolls it instead.
+  const atTop = t => { for (let n = t; n && n !== d.parentNode; n = n.parentElement) if (n.scrollTop > 0) return false; return true; };
+  d.addEventListener('touchstart', e => { if (e.touches.length === 1 && atTop(e.target)) { y0 = e.touches[0].clientY; dy = 0; d.style.transition = 'none'; } }, { passive: true });
   d.addEventListener('touchmove', e => {
     if (y0 === null) return;
     dy = e.touches[0].clientY - y0;

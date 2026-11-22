@@ -137,3 +137,7 @@ real saves in it, signed-in saves on the deployed site.
 - Heroes panel and map key (2026-11-22): each hero a stone card with the owner's portrait in a circle and a red seal
   (gold-ringed, with a gold edge on the card, for the hero whose turn it is), stats as chips, crimson HP, muted detail
   lines, dark buttons. The map key and other folds on the table open with the Settings chevron, the key in two columns.
+- Smaller sheets (2026-11-22): secondary buttons in every drawer are outlined (Close, Keep playing, Back); the event log
+  shows each turn as a headed group (player and hero, round on the right); a square's sides are chips in two columns;
+  How to play has gold bullets and Builder tools an outlined button. Swipe-away fix: a drag inside a list that has
+  scrolled (the event log) scrolls it; only from the top does a swipe close the drawer.
