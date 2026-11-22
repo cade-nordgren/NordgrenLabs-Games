@@ -157,3 +157,7 @@ real saves in it, signed-in saves on the deployed site.
   "What just happened" panel is gone at every size (it was already hidden on an upright phone); the menu's Event log
   button opens the whole log. The results screen keeps its "See the event log" shortcut to the same sheet. Spec v12's
   dock-order CSS for #latest stays and simply matches nothing.
+- Creature drawings checked in play (2026-11-22): dark elf, orc, mountain troll, vampire bats and fallen warrior each
+  drawn from a test game (the card put on top of the room deck in a copy of a scenario save). All show whole and
+  matched to the right card; the troll and fallen warrior crops were trimmed of a sliver of the sheet's border and the
+  bat's wing.
