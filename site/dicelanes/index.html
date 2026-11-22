@@ -308,13 +308,44 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   #setupPage { columns: 2; column-gap: 14px; }
   #setupPage > * { break-inside: avoid; }
   #setupPage > .logo, #setupPage > .lede { column-span: all; }
-  #gamePage.digital { display: grid; grid-template-columns: minmax(0, 1fr) 250px; grid-template-areas: "head tray" "board tray"; column-gap: 12px; align-items: start; }
-  #gamePage.digital #tray { grid-area: tray; position: sticky; top: 10px; margin: 0; }
-  #gamePage.digital .head { grid-area: head; }
-  #gamePage.digital #board { grid-area: board; }
-  .cell { height: 40px; font-size: 19px; }
+  /* Lanes on the left; the score card (under the tray with digital dice) on the right, so a game fits one screen. The
+     board's wrappers step aside (display: contents) so the lanes and the card are grid items of the page. */
+  #gamePage { --side: clamp(236px, 34vw, 272px); display: grid; grid-template-columns: minmax(0, 1fr) var(--side); column-gap: 12px; align-items: start;
+    grid-template-areas: "head panel" "lanes panel"; grid-template-rows: auto 1fr; }
+  #gamePage.digital { grid-template-areas: "head tray" "lanes tray" "lanes panel"; grid-template-rows: auto auto 1fr; }
+  #board:not([hidden]), #board .table, #board .table > div { display: contents; }
+  #gamePage .head { grid-area: head; }
+  #gamePage #lanes { grid-area: lanes; }
+  #gamePage #tray { grid-area: tray; margin: 0; }
+  #gamePage .panel { grid-area: panel; margin: 0; padding: 10px 12px; }
+  #gamePage.digital .panel { margin-top: 8px; }
+  #results { grid-column: 1 / -1; }
+  /* Finish list: five shorter rows and the two buttons side by side, so the whole ranking fits one screen. */
+  #resultsHead { margin-bottom: 8px; }
+  #resultsHead h2 { font-size: 22px; }
+  #resultsHead p { margin-top: 2px; font-size: 14px; }
+  .reveal { gap: 5px; }
+  .rrow { padding-block: 5px; }
+  .rrow .t { height: 30px; }
+  .rrow .t.total { height: 32px; }
+  #after .stack { margin-top: 10px; display: flex; gap: 8px; }
+  #after .stack .btn { flex: 1; margin: 0; min-height: 44px; }
+  /* Four lanes share the height under the chips (95px: chips, gaps and the bottom gutter; 12px: a lane's padding). */
+  .cell { height: clamp(40px, min(calc((100dvh - 95px) / 4 - 12px), 7.5vw), 50px); font-size: 19px; }
   .lanes { gap: 5px; }
-  #dice { --h: 15px; padding: 8px 2px 6px; }
+  /* Six dice and five 4px gaps across the tray's inner width (side minus 28px of padding). */
+  #dice, #gamePage.digital #dice { --h: min(17px, calc((var(--side) - 48px) / 12)); justify-content: space-between; gap: 4px; padding: 6px 2px 4px; }
+  #tray.compact #dice { --h: 12px; }
+  .tray-actions .btn { min-height: 42px; }
+  #gamePage .panel .caption { display: none; } /* the 1x to 12x headers say what the table is */
+  .points { font-size: 11px; }
+  .points span:nth-child(-n+12) { font-size: 9px; letter-spacing: -.02em; }
+  .pen { margin-top: 8px; gap: 6px; }
+  .pen h3 { flex-basis: 100%; font-size: 14px; }
+  .pbox { width: 34px; height: 34px; }
+  #eq { margin-top: 8px; gap: 2px; font-size: 12px; }
+  #eq .t { height: 38px; font-size: 15px; border-radius: 8px; }
+  #eq .total { height: 44px; font-size: 20px; }
 
 }
 </style>
@@ -501,12 +532,13 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <li>Everyone chooses at once, in any order. Tap a name to switch sheets.</li>
       <li>Anyone may cross off the sum of the two white dice in any lane.</li>
       <li>The active player may also cross off one white die plus one coloured die, in that colour's lane. The white sum counts first.</li>
-      <li>Picks can change until that player taps End turn. A greyed number with a dashed ring is ruled out by a pick; tap it to swap it in. When everyone has ended their turn, the crosses go on.</li>
+      <li>Picks can change until that player taps End turn. A greyed number with a dashed ring is ruled out by a pick; tap it to swap it in. While a pick is waiting it shows which dice made it: a white-die cell for the white sum, an X in the lane's colour for a white plus that coloured die. Once that player ends their turn it becomes a plain X, and when everyone has ended their turn, the crosses go on.</li>
       <li>The active player may tick a penalty box at any time during the turn, and must end the turn with at least one cross or a penalty. Other players never take penalties.</li>
     </ol>
     <p>Several players can lock the same colour on one roll. A colour locked on a roll closes once everyone is done, and its die leaves the game.</p>
     <h3>With your own dice</h3>
     <p>Play the same turns at the table and tap what you cross. Tapping a lane's last cell (the 12 or 2 with the lock) before it has five crosses closes that colour as locked by another player away from this device; tap it again to reopen.</p>
+    <p>The app can't see your dice, so it can't tell a white-sum cross from a white-plus-colour cross. Every tap puts down the plain X straight away, with no dice colours.</p>
     <h3>Scoring</h3>
     <ul>
       <li>Each lane scores by its crosses: 1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 66, 78.</li>
