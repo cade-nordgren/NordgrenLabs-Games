@@ -15,6 +15,13 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
 <link rel="stylesheet" href="style.css">
+<style>
+/* Settings sheet. Near-solid like the game menus: the list behind is glass too, and glass over glass was muddy.
+   It sits closer to the bottom edge than the shared sheet: the full home-indicator inset left a wide gap under it. */
+dialog.sheet { --glass: var(--glass-menu); margin-bottom: max(12px, env(safe-area-inset-bottom) - 14px); }
+/* Grab bar: sheets swipe down to close (platform.js). */
+dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--ink2); opacity: .35; margin: -12px 0 2px; }
+</style>
 </head>
 <body>
 <div class="app">
@@ -67,8 +74,7 @@
     </div>
   </main>
 </div>
-<!-- Near-solid like the game menus: the list behind is glass too, and glass over glass was muddy. -->
-<dialog class="sheet glass" id="settings" style="--glass: var(--glass-menu)" aria-labelledby="settingsTitle">
+<dialog class="sheet glass" id="settings" aria-labelledby="settingsTitle">
   <div>
     <h2 id="settingsTitle">Settings</h2>
     <h3 id="themeTitle">Appearance</h3>
