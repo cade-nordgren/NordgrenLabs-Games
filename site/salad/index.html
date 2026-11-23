@@ -345,6 +345,7 @@ dialog h2:focus { outline: none; }
 /* ---- Sheets */
 /* Sheets open over the busy table: near-solid glass so they stay readable. */
 dialog.sheet { --glass: var(--glass-menu); --glass-strong: var(--solid); }
+dialog.sheet > div { grid-template-columns: minmax(0, 1fr); } /* a wide demo row must not widen the sheet past the screen */
 dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--ink2); opacity: .35; margin: -12px 0 2px; }
 .appearance { display: flex; align-items: center; gap: 12px; }
 .appearance .segmented { flex: 1; }
@@ -381,12 +382,12 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 .howto li + li { margin-top: 4px; }
 .ex { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border-radius: 14px; background: radial-gradient(ellipse at 50% 45%, #27704a, #1d5a39); color: #fff; font-size: 14px; font-weight: 600; --k: .8; }
 .ex .c.sm { --w: 38px; }
-.demo { border-radius: 20px; padding: 12px; background: radial-gradient(ellipse at 50% 45%, #27704a, #1d5a39); color: #fff; display: grid; gap: 8px; --glass: rgba(255, 255, 255, .92); --ink: #1d1d1f; }
+.demo { grid-template-columns: minmax(0, 1fr); border-radius: 20px; padding: 12px; background: radial-gradient(ellipse at 50% 45%, #27704a, #1d5a39); color: #fff; display: grid; gap: 8px; --glass: rgba(255, 255, 255, .92); --ink: #1d1d1f; }
 .demo .dtrick { display: flex; justify-content: center; gap: 12px; min-height: 100px; align-items: flex-end; }
 .demo .dtrick .spot { position: static; transform: none; }
 .demo .hrow { padding-top: 14px; flex-wrap: nowrap; }
-.demo .hrow .c { --w: 44px; } .demo .hrow .c + .c { margin-left: -16px; }
-.demo .msg { margin: 0; font-size: 15px; font-weight: 600; min-height: 42px; text-align: center; }
+.demo .hrow .c { --w: 44px; } .demo .hrow .c + .c { margin-left: -22px; } /* thirteen cards fit a 375px phone */
+.demo .msg { margin: 0; font-size: 15px; font-weight: 600; min-height: 42px; text-align: center; color: #fff; } /* not the sheet's grey: about 2:1 on the felt */
 .cutrows { display: grid; gap: 10px; }
 .cutrow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
 .cutrow .spot { position: static; transform: none; }
