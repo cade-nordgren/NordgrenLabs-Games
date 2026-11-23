@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { LANES, POINTS, LAST, triangular, score, standings, emptySheet } from '../../site/dicelanes/engine/lanes.js';
-import { canMark, isSkipped, pickOptions, cellChoice, indexOf } from '../../site/dicelanes/engine/moves.js';
-import { newGame, reduce, validState, endReason } from '../../site/dicelanes/engine/reducer.js';
-import { record, undo, cleanHist } from '../../site/dicelanes/engine/history.js';
+import { LANES, POINTS, LAST, triangular, score, standings, emptySheet } from '../../site/crossix/engine/lanes.js';
+import { canMark, isSkipped, pickOptions, cellChoice, indexOf } from '../../site/crossix/engine/moves.js';
+import { newGame, reduce, validState, endReason } from '../../site/crossix/engine/reducer.js';
+import { record, undo, cleanHist } from '../../site/crossix/engine/history.js';
 
 const R = 0, Y = 1, G = 2, B = 3;
 const phys = (names = ['Ana']) => newGame({ mode: 'physical', names, seed: 1 });

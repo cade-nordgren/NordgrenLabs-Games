@@ -1,4 +1,4 @@
-// DiceLanes screens. All rules live in ../engine; this file dispatches actions and draws state.
+// Crossix screens. All rules live in ../engine; this file dispatches actions and draws state.
 import { LANES, LAST, POINTS, MARKS_BEFORE_LAST, MAX_PENALTIES, MAX_PLAYERS, score, standings } from '../engine/lanes.js';
 import { canMark, isSkipped, cellChoice, pickedCells, canEnd, whiteSum } from '../engine/moves.js';
 import { newGame, reduce, validState, endReason } from '../engine/reducer.js';
@@ -20,7 +20,7 @@ const MODE_WORD = { physical: 'Physical dice', digital: 'Digital dice' };
 const newSeed = () => crypto.getRandomValues(new Uint32Array(1))[0] | 0;
 
 // ---- Per-browser preferences (not game state).
-const PREFS = 'nl-dicelanes-prefs';
+const PREFS = 'nl-crossix-prefs';
 let prefs = { haptics: 'on', picker: 'off', scores: 'live' }; // scores: live (while playing) or end (hidden until the end)
 try {
   const p = JSON.parse(localStorage.getItem(PREFS));
@@ -47,7 +47,7 @@ const pickerOn = () => S.g?.mode === 'digital' && (prefs.picker === 'on' || narr
 
 // ---- State, autosaved on every render. It belongs to whoever was signed in (owner), so a game in progress never
 // shows to the next person on this browser.
-const KEY = 'nl-dicelanes-v1';
+const KEY = 'nl-crossix-v1';
 const fresh = () => ({ v: 1, owner: NL.person(), names: [], mode: 'physical', g: null, hist: [], saveId: null, createdAt: null, sel: 0, compact: false });
 let S = fresh();
 const me = NL.identity();
@@ -157,7 +157,7 @@ async function saveGame() {
   if (!S.saveId) Object.assign(S, { saveId: crypto.randomUUID(), createdAt: now }); // before any await, so a double tap updates one record
   if (!S.createdAt) S.createdAt = (await NL.saves.get(S.saveId).catch(() => null))?.createdAt || now;
   return NL.saves.put({
-    schemaVersion: 1, id: S.saveId, game: 'dicelanes', personPublicId: NL.person(),
+    schemaVersion: 1, id: S.saveId, game: 'crossix', personPublicId: NL.person(),
     title: listOf(S.g.players.map(p => p.name)), status: S.g.status === 'over' ? 'finished' : 'in_progress',
     createdAt: S.createdAt, updatedAt: now,
     state: { g: S.g, hist: S.hist.slice(-SAVE_CAP), sel: S.sel },
@@ -167,7 +167,7 @@ async function saveGame() {
 async function saveNow(noteEl) {
   let saved;
   try { saved = await saveGame(); } catch { noteEl.textContent = 'Could not save on this device.'; return false; }
-  shown = NL.saves.cached('dicelanes') || [saved, ...(shown || []).filter(x => x.id !== saved.id)];
+  shown = NL.saves.cached('crossix') || [saved, ...(shown || []).filter(x => x.id !== saved.id)];
   loadingSaves = false;
   return true;
 }
@@ -187,12 +187,12 @@ function saveStatus(g) {
   return `${MODE_WORD[g.mode]}${g.turn ? `, turn ${g.turn.n}` : ''}`;
 }
 
-let shown = NL.saves.cached('dicelanes'), loadingSaves = !shown, savesNote = '';
+let shown = NL.saves.cached('crossix'), loadingSaves = !shown, savesNote = '';
 const newestFirst = (a, b) => b.updatedAt.localeCompare(a.updatedAt);
 const NOT_SYNCED = { save_limit: 'Not synced: 200 saves is the limit, delete one', too_large: 'Not synced: too large to upload', refused: 'Not synced: the server refused it' };
 async function refreshSaves() {
   try {
-    shown = await NL.saves.list('dicelanes');
+    shown = await NL.saves.list('crossix');
     savesNote = '';
   } catch {
     savesNote = shown ? 'Could not reach the server. Showing the last known list.' : 'Could not load saved games.'; // never invent an empty list
@@ -201,7 +201,7 @@ async function refreshSaves() {
   drawSaves();
 }
 addEventListener('nl-saves', () => { if (!S.g) refreshSaves(); });
-const OPEN_KEY = 'nl-dicelanes-saved-open';
+const OPEN_KEY = 'nl-crossix-saved-open';
 try { $('savedGroup').open = sessionStorage.getItem(OPEN_KEY) === '1'; } catch {}
 $('savedGroup').ontoggle = () => { try { sessionStorage.setItem(OPEN_KEY, $('savedGroup').open ? '1' : '0'); } catch {} };
 
@@ -813,4 +813,4 @@ narrow.addEventListener('change', render);
 fixSel();
 render();
 if (!S.g) refreshSaves();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { scope: '/dicelanes/' }).catch(() => {});
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { scope: '/crossix/' }).catch(() => {});

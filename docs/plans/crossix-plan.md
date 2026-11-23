@@ -1,20 +1,20 @@
-# DiceLanes plan and notes
+# Crossix plan and notes
 
-An original lane-crossing dice game for one to five players, at `site/dicelanes/`. One game, two modes, one scoresheet, one engine, one saved state.
+An original lane-crossing dice game for one to five players, at `site/crossix/`. One game, two modes, one scoresheet, one engine, one saved state.
 
 ## Files
 
 ```
-site/dicelanes/index.html            markup and CSS (lane colours, sheet, tray, dock), loads ui/app.js as a module
-site/dicelanes/engine/lanes.js       lanes, points table, score, standings
-site/dicelanes/engine/moves.js       canMark, skipped cells, applyPicks, pickOptions, pickedCells and cellChoice for the digital turn
-site/dicelanes/engine/reducer.js     newGame, reduce(state, action), resolve, seeded PRNG, end check, validState
-site/dicelanes/engine/history.js     snapshot undo, cleanHist for stored histories
-site/dicelanes/ui/app.js             state, autosave, saves, rendering, wiring
-site/dicelanes/ui/dice.js            CSS 3D dice
-site/dicelanes/manifest.webmanifest  home-screen app scoped to /dicelanes/
-site/dicelanes/sw.js                 offline cache
-tests/dicelanes/engine.test.js       node --test "tests/dicelanes/*.test.js"
+site/crossix/index.html            markup and CSS (lane colours, sheet, tray, dock), loads ui/app.js as a module
+site/crossix/engine/lanes.js       lanes, points table, score, standings
+site/crossix/engine/moves.js       canMark, skipped cells, applyPicks, pickOptions, pickedCells and cellChoice for the digital turn
+site/crossix/engine/reducer.js     newGame, reduce(state, action), resolve, seeded PRNG, end check, validState
+site/crossix/engine/history.js     snapshot undo, cleanHist for stored histories
+site/crossix/ui/app.js             state, autosave, saves, rendering, wiring
+site/crossix/ui/dice.js            CSS 3D dice
+site/crossix/manifest.webmanifest  home-screen app scoped to /crossix/
+site/crossix/sw.js                 offline cache
+tests/crossix/engine.test.js       node --test "tests/crossix/*.test.js"
 ```
 
 ## Sheet
@@ -62,7 +62,7 @@ Marks are cell indices 0 to 10, strictly increasing, so "left to right only" and
 
 ## Known gaps
 
-- Icons reuse the site's `/icons/`; DiceLanes has no icon of its own yet.
+- Icons reuse the site's `/icons/`; Crossix has no icon of its own yet.
 - The service worker serves the cached page even after sign-out until the next fetch; the API stays gated.
 - Online multiplayer is not built; the reducer is ready for it (state and actions are JSON).
 

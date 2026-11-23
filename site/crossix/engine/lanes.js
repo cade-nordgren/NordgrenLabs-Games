@@ -1,4 +1,4 @@
-// DiceLanes constants and scoring. Pure: no DOM, no state beyond what is passed in.
+// Crossix constants and scoring. Pure: no DOM, no state beyond what is passed in.
 
 const UP = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 const DOWN = [...UP].reverse();
