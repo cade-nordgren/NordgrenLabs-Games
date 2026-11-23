@@ -6,10 +6,11 @@
 import { allowedDecks, MAX_DECKS, MAX_PLAYERS } from '../site/bomb/engine/cards.js';
 import { createGame, reduce, checkState } from '../site/bomb/engine/reducer.js';
 import { viewFor } from '../site/bomb/engine/view.js';
+import { DECKS } from '../site/decks/decks.js';
 import { readBody } from './saves.js';
 
-// Same order and ids as the plan's table of card styles.
-export const STYLES = ['cobalt', 'scarlet', 'forest', 'tangerine', 'violet', 'teal', 'rose', 'gold', 'indigo', 'slate',
+// Same order and ids as the client's styles (site/bomb/ui/styles.js): the picture decks, then the twelve colours.
+export const STYLES = [...DECKS.map(d => d.id), 'cobalt', 'scarlet', 'forest', 'tangerine', 'violet', 'teal', 'rose', 'gold', 'indigo', 'slate',
   'sky', 'lime'];
 // The free plan allows 50 D1 queries per request: a poll makes at most hold / interval + 4. Tests shorten both.
 export const timing = { hold: 20000, interval: 700 };

@@ -1,9 +1,13 @@
 // Card styles and the colours Bomb draws with. Pure data plus the contrast maths, so tests/bomb/contrast.test.js can
 // check every pairing; index.html carries the same theme values in CSS (the test compares them).
 
-// Twelve backs: a colour plus its own pattern (.p-<pattern> in index.html). The colour is that player's colour
-// everywhere; ink is the text colour on it (white or dark), whichever passes 4.5:1.
-export const STYLES = [
+import { DECKS } from '../../decks/decks.js';
+
+// A player's style: one of the picture decks (site/decks; its own back on that player's cards, listed first so new
+// players get a deck), or one of twelve colours with its own pattern (.p-<pattern> in index.html). The colour is that
+// player's colour everywhere; ink is the text colour on it (white or dark), whichever passes 4.5:1.
+const DECK_STYLES = DECKS.map(d => ({ id: d.id, name: d.name, pattern: 'deck', hex: d.color, ink: '#ffffff', deck: d.id }));
+export const COLOR_STYLES = [
   { id: 'cobalt', name: 'Cobalt', pattern: 'stripes', hex: '#1f6fd6', ink: '#ffffff' },
   { id: 'scarlet', name: 'Scarlet', pattern: 'dots', hex: '#d42f3a', ink: '#ffffff' },
   { id: 'forest', name: 'Forest', pattern: 'diamonds', hex: '#1c7f3e', ink: '#ffffff' },
@@ -17,9 +21,10 @@ export const STYLES = [
   { id: 'sky', name: 'Sky', pattern: 'rings', hex: '#1f93c9', ink: '#1d1d1f' },
   { id: 'lime', name: 'Lime', pattern: 'plaid', hex: '#62970f', ink: '#1d1d1f' },
 ];
+export const STYLES = [...DECK_STYLES, ...COLOR_STYLES];
 export const style = id => STYLES.find(s => s.id === id) || null;
-export const styleLabel = s => `${s.name} ${s.pattern}`;
-// The first style nobody holds; null when all twelve are taken (never, with six players at most).
+export const styleLabel = s => s.deck ? s.name : `${s.name} ${s.pattern}`;
+// The first style nobody holds; null when all are taken (never, with six players at most).
 export const freeStyle = taken => STYLES.find(s => !taken.includes(s.id))?.id ?? null;
 
 // Theme colours as solid values. Glass is translucent, so it is given here as the colour it settles to over the canvas

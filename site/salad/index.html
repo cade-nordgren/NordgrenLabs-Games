@@ -143,8 +143,11 @@ input.text:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 6
 .c .art { position: absolute; right: calc(var(--w) * .07); bottom: calc(var(--w) * .07); width: 60%; height: 70%; }
 .c .art .frame { stroke-opacity: .35; }
 .c.back { background-color: var(--pc); background-image: var(--pat); background-size: var(--pat-size, auto); background-position: center;
-  box-shadow: inset 0 0 0 calc(var(--w) * .06) var(--pc), inset 0 0 0 calc(var(--w) * .085) var(--ring, rgba(255, 255, 255, .75)), 0 3px 10px rgba(0, 0, 0, .22); }
+  box-shadow: inset 0 0 0 calc(var(--w) * var(--fr1)) var(--pc), inset 0 0 0 calc(var(--w) * var(--fr2)) var(--ring, rgba(255, 255, 255, .75)), 0 3px 10px rgba(0, 0, 0, .22); }
+:root, [data-back] { --fr1: .06; --fr2: .085; }
 [data-back="image"] { --pat: var(--back-img); --pat-size: cover; }
+/* A picture deck's own back (site/decks) is a whole printed card: no colour frame. */
+[data-back="deck"] { --pat: var(--back-img); --pat-size: 100% 100%; --fr1: 0; --fr2: 0; }
 /* Back colours and patterns (canvas: CardBacks). */
 :root, [data-back-color="felt"] { --pc: #1d5a39; }
 [data-back-color="cobalt"] { --pc: #1f6fd6; } [data-back-color="tangerine"] { --pc: #cf6900; } [data-back-color="forest"] { --pc: #1c7f3e; }
@@ -178,6 +181,10 @@ input.text:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 6
 .c.no.r { color: var(--dim-red); }
 .c.win { box-shadow: 0 0 0 3px var(--win), 0 6px 18px rgba(0, 0, 0, .35); }
 .c.pen { box-shadow: 0 0 0 3px var(--pen), 0 6px 18px rgba(0, 0, 0, .35); }
+/* A picture deck's card (site/decks) covers the drawn one; too small to read as .xs, so those stay drawn. */
+.c > .pic { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; pointer-events: none; }
+.c:has(> .pic):not(.xs) > :not(.pic) { visibility: hidden; }
+.c.xs > .pic { display: none; }
 .c.xs { --w: 21px; } .c.xs .m, .c.xs .art { display: none; } .c.xs .i { top: 2px; left: 3px; font-size: 11px; } .c.xs .i small { font-size: 9px; margin: 0; }
 .c.sm { --w: calc(44px * var(--k)); }
 .c.md { --w: calc(62px * var(--k)); }

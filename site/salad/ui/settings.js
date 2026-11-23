@@ -1,7 +1,7 @@
 // Settings sheet (spec section 22): appearance through the shared theme code, cards, table, gameplay, audio and
 // accessibility. Everything here is a preference on this device only (localStorage nl-salad-*); room settings are the
 // host's, in the lobby.
-import { prefs, setPref, backImage, setBackImage, TABLES, FACES, BACK_COLORS, PATTERNS } from './prefs.js';
+import { prefs, setPref, backImage, setBackImage, deckBack, TABLES, FACES, BACK_COLORS, PATTERNS } from './prefs.js';
 import { cardEl, backEl, backImageFrom } from './cards.js';
 import { $, el, seg } from './dom.js';
 import { sound } from './sound.js';
@@ -46,10 +46,10 @@ export function openSettings(view) {
     b.setAttribute('aria-pressed', prefs.face === f.id);
     const pv = el('span', 'pv');
     pv.dataset.face = f.id;
-    pv.append(cardEl('d1-QH'), cardEl('d1-KS'));
+    pv.append(cardEl('d1-QH', 'span', f.id), cardEl('d1-KS', 'span', f.id));
     pv.querySelectorAll('.c').forEach(c => c.classList.add('sm'));
     b.append(pv, f.name);
-    b.onclick = () => { set('face', f.id); drawFaces(); };
+    b.onclick = () => { set('face', f.id); set('deckBack', 'on'); drawFaces(); drawBacks(); drawPresets(); drawPreview(); };
     return b;
   }));
   drawFaces();
@@ -78,8 +78,8 @@ export function openSettings(view) {
       b.type = 'button';
       b.style.background = hex;
       b.setAttribute('aria-label', name);
-      b.setAttribute('aria-pressed', prefs.backColor === id && prefs.backImage !== 'on');
-      b.onclick = () => { set('backColor', id); set('backImage', 'off'); drawBacks(); drawPresets(); drawPreview(); };
+      b.setAttribute('aria-pressed', prefs.backColor === id && prefs.backImage !== 'on' && !deckBack());
+      b.onclick = () => { set('backColor', id); set('backImage', 'off'); set('deckBack', 'off'); drawBacks(); drawPresets(); drawPreview(); };
       return b;
     }));
     patterns.replaceChildren(...PATTERNS.map(([id, name]) => {
@@ -87,19 +87,19 @@ export function openSettings(view) {
       b.type = 'button';
       b.setAttribute('aria-label', name);
       b.title = name;
-      b.setAttribute('aria-pressed', prefs.backPattern === id && prefs.backImage !== 'on');
-      b.onclick = () => { set('backPattern', id); set('backImage', 'off'); drawBacks(); drawPresets(); drawPreview(); };
+      b.setAttribute('aria-pressed', prefs.backPattern === id && prefs.backImage !== 'on' && !deckBack());
+      b.onclick = () => { set('backPattern', id); set('backImage', 'off'); set('deckBack', 'off'); drawBacks(); drawPresets(); drawPreview(); };
       return b;
     }));
   };
   const drawPresets = () => presets.replaceChildren(...PRESETS.map(([name, c, p]) => {
     const b = el('button'), pv = el('span', 'pv');
     b.type = 'button';
-    b.setAttribute('aria-pressed', prefs.backColor === c && prefs.backPattern === p && prefs.backImage !== 'on');
+    b.setAttribute('aria-pressed', prefs.backColor === c && prefs.backPattern === p && prefs.backImage !== 'on' && !deckBack());
     pv.dataset.backColor = c; pv.dataset.back = p;
     pv.append(backEl());
     b.append(pv, name);
-    b.onclick = () => { set('backColor', c); set('backPattern', p); set('backImage', 'off'); drawBacks(); drawPresets(); drawPreview(); };
+    b.onclick = () => { set('backColor', c); set('backPattern', p); set('backImage', 'off'); set('deckBack', 'off'); drawBacks(); drawPresets(); drawPreview(); };
     return b;
   }));
   drawPresets();

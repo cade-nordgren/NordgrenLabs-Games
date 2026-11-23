@@ -7,7 +7,7 @@ import { STYLES, style, styleLabel, freeStyle } from './styles.js';
 import { toggle, keepPlayable, canPlaySel, readGame, decksFor, listOf, plural, minutes, MAX_NAME,
   choosingSeat, leavers, firstLine } from './logic.js';
 import { $, el, still, say, back, toast, handoffScreen, chooseScreen, waitScreen, tableScreen,
-  snapshot, animate, clearFlyers, resultsScreen, stopResults } from './screens.js';
+  snapshot, animate, clearFlyers, resultsScreen, stopResults, DECKS, cardDeck, setCardDeck, face } from './screens.js';
 import { createNet, browserAuth, reasonText } from './net.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -310,14 +310,14 @@ $('forget').onclick = () => { forgetRoom(); render(); };
 let onStyle = null;
 function openStyles(current, others, pick, who) {
   onStyle = pick;
-  $('styleNote').textContent = `${who}. The colour on the back is that player's colour.`;
+  $('styleNote').textContent = `${who}. A deck puts its own back on that player's cards; a colour is that player's colour.`;
   $('styleGrid').replaceChildren(...STYLES.map(s => {
     const by = others.find(o => o.style === s.id);
     const b = el('button', 'opt'), c = back(s.id);
     b.setAttribute('aria-pressed', s.id === current);
     b.disabled = !!by && s.id !== current;
     b.setAttribute('aria-label', `${styleLabel(s)}${by ? `, taken by ${by.name || 'another player'}` : ''}${s.id === current ? ', chosen' : ''}`);
-    b.append(c, el('b', '', s.name), el('small', '', by ? `Taken: ${by.name || 'player'}` : s.pattern));
+    b.append(c, el('b', '', s.name), el('small', '', by ? `Taken: ${by.name || 'player'}` : s.deck ? 'picture back' : s.pattern));
     if (s.id === current) { const t = el('span', 'tick'); t.append(tpl('tickIcon')); b.append(t); }
     b.onclick = () => { onStyle?.(s.id); $('styleSheet').close(); };
     return b;
@@ -649,7 +649,18 @@ $('leaveYes').onclick = async () => {
 };
 $('leaveNo').onclick = () => $('leaveSheet').close();
 $('rulesBtn').onclick = () => $('rulesSheet').showModal();
-$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); $('settingsSheet').showModal(); };
+// Card faces on this device (one-deck games): Bomb's own drawn cards or a picture deck, each shown as its queen of hearts.
+function showDecks() {
+  $('deckGrid').replaceChildren(...[{ id: '', name: 'Standard' }, ...DECKS].map(d => {
+    const b = el('button', 'opt'), on = cardDeck() === d.id;
+    b.type = 'button';
+    b.setAttribute('aria-pressed', on);
+    b.append(face({ rank: 12, suit: 'H' }, { art: d.id }), el('b', '', d.name));
+    b.onclick = () => { setCardDeck(d.id); showDecks(); render(); };
+    return b;
+  }));
+}
+$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); showDecks(); $('settingsSheet').showModal(); };
 $('rulesDone').onclick = () => $('rulesSheet').close();
 $('settingsDone').onclick = () => $('settingsSheet').close();
 for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };

@@ -1,12 +1,12 @@
 // Bomb offline: precache the game, serve from the cache at once and refresh the copy in the background, so one-phone
 // play works offline after the first visit. Online rooms (/api) always go to the network.
 // Bump VERSION whenever FILES changes or on a release; old caches are deleted on activate.
-const VERSION = 'bomb-v3';
+const VERSION = 'bomb-v4';
 const FILES = [
   './', 'manifest.webmanifest',
   'ui/app.js', 'ui/screens.js', 'ui/logic.js', 'ui/styles.js', 'ui/net.js',
   'engine/cards.js', 'engine/reducer.js', 'engine/view.js',
-  '../style.css', '../platform.js', '../config.js',
+  '../style.css', '../platform.js', '../config.js', '../decks/decks.js',
   '/icons/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/apple-touch-icon.png',
 ];
 

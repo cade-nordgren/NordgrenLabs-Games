@@ -1,3 +1,5 @@
+import { DECKS, deckOf, backUrl } from '../../decks/decks.js';
+
 // Table themes (the room's shared default, overridable per device) and card face themes. Unknown ids fall back to felt.
 export const TABLES = [
   { id: 'felt', name: 'Classic Green Felt', a: '#27704a', b: '#1d5a39' },
@@ -12,6 +14,7 @@ export const tableOf = id => TABLES.find(t => t.id === id) || TABLES[0];
 export const FACES = [
   { id: 'classic', name: 'Classic' }, { id: 'minimal', name: 'Minimal Modern' }, { id: 'lux', name: 'Dark Luxury' },
   { id: 'vintage', name: 'Vintage' }, { id: 'nordic', name: 'Nordic' }, { id: 'sig', name: 'NordgrenLabs Signature' },
+  ...DECKS, // the shared picture decks (site/decks): their own faces and back
 ];
 export const BACK_COLORS = [
   ['felt', 'Felt', '#1d5a39'], ['cobalt', 'Cobalt', '#1f6fd6'], ['tangerine', 'Tangerine', '#cf6900'], ['forest', 'Forest', '#1c7f3e'],
@@ -23,10 +26,11 @@ export const PATTERNS = [['diamonds', 'Diamonds'], ['stripes', 'Stripes'], ['wav
 // Per-device preferences (cosmetic and comfort only; never game state). localStorage nl-salad-prefs, checked on read.
 const KEY = 'nl-salad-prefs';
 const CHOICES = {
-  face: ['classic', 'minimal', 'lux', 'vintage', 'nordic', 'sig'],
+  face: FACES.map(f => f.id),
   backColor: ['felt', 'cobalt', 'tangerine', 'forest', 'violet', 'teal', 'rose', 'gold', 'scarlet', 'slate', 'sky', 'ink'],
   backPattern: ['diamonds', 'stripes', 'waves', 'crosshatch', 'dots', 'plain'],
   backImage: ['off', 'on'],
+  deckBack: ['on', 'off'], // a picture deck's own back; picking a colour, pattern or picture turns it off
   table: ['room', 'felt', 'charcoal', 'navy', 'wood', 'light', 'dark', 'sig'],
   size: ['m', 's', 'l'],
   contrast: ['off', 'on'],
@@ -69,6 +73,9 @@ export const still = () => prefs.motion === 'reduced' || reduceMq.matches;
 // Animation length scaled by the speed setting; 0 when motion is reduced.
 export const dur = ms => still() ? 0 : Math.round(ms * { normal: 1, slow: 1.6, fast: 0.55 }[prefs.speed]);
 
+// The back picture of the chosen picture deck, while its back is on; else null.
+export const deckBack = () => prefs.deckBack === 'on' ? backUrl(prefs.face) : null;
+
 // Cosmetic classes on <html>, read by the page's CSS.
 export function apply() {
   const d = document.documentElement;
@@ -76,9 +83,11 @@ export function apply() {
   d.dataset.size = prefs.size;
   d.classList.toggle('hc', prefs.contrast === 'on');
   d.classList.toggle('still', still());
-  const img = prefs.backImage === 'on' && backImage();
+  // Your own picture wins, then a picture deck's back, then the colour and pattern.
+  const own = prefs.backImage === 'on' && backImage(), deck = !own && deckBack();
+  const img = own || deck;
   d.style.setProperty('--back-img', img ? `url("${img}")` : 'none');
-  d.dataset.back = img ? 'image' : prefs.backPattern;
+  d.dataset.back = own ? 'image' : deck ? 'deck' : prefs.backPattern;
   d.dataset.backColor = prefs.backColor;
 }
 reduceMq.addEventListener('change', apply);

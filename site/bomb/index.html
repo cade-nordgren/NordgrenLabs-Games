@@ -113,6 +113,12 @@ button.card[aria-disabled="true"] { cursor: default; }
 .back::after { content: ""; position: absolute; left: 50%; top: 50%; width: calc(var(--w) * .22); height: calc(var(--w) * .22); translate: -50% -50%; border-radius: 50%;
   background: rgba(255, 255, 255, .9); box-shadow: 0 0 0 calc(var(--w) * .05) var(--pc), 0 0 0 calc(var(--w) * .075) rgba(255, 255, 255, .6); }
 .back.deck { --pc: var(--deck); }
+/* Picture decks (site/decks): the picture covers the drawn card; mini cards are too small for it and stay drawn. */
+.card > .pic { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; pointer-events: none; }
+.card:has(> .pic):not(.mini) > :not(.pic) { visibility: hidden; }
+.card.mini > .pic { display: none; }
+.back.pic-back { background: var(--img) center / 100% 100%; box-shadow: 0 2px 8px rgba(0, 0, 0, .16); }
+.back.pic-back::after { display: none; }
 .slot-empty { border: 2px dashed var(--hair); background: none; box-shadow: none; }
 /* Patterns: one per style, white over the style's colour, so styles differ by more than colour. */
 .p-stripes { background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, .24) 0 3px, transparent 3px 9px); }
@@ -482,7 +488,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
             <input id="newName" maxlength="20" placeholder="Add a player" aria-label="New player name" autocomplete="off" enterkeyhint="done">
             <button class="circle add" aria-label="Add player">+</button>
           </form>
-          <p class="note">Tap a card to pick its style. The colour on the back is that player's colour.</p>
+          <p class="note">Tap a card to pick a deck or a colour. Each player's cards show their own back.</p>
         </section>
         <section class="glass group">
           <div class="decks">
@@ -757,6 +763,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
         <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor" stroke="none"/>
       </svg>
     </div>
+    <h3 id="deckTitle">Cards</h3>
+    <div class="styles" id="deckGrid" role="group" aria-labelledby="deckTitle"></div>
     <p>Game saves on this phone stay in this browser's storage. Anyone with the phone and developer tools could read them, hidden cards included.</p>
     <div class="account" id="account" hidden><h3>Account</h3></div>
     <button class="btn" id="settingsDone">Done</button>
