@@ -51,6 +51,12 @@
 [hidden] { display: none !important; }
 /* iOS otherwise enlarges text when the phone turns to landscape. */
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+/* iPhone home-screen app only: with the translucent status bar WebKit lays the page out one status bar short, so sheets and
+   anything else pinned to the bottom floated that far above the edge. A document taller than that short viewport makes
+   WebKit grow it to the full screen. Not testable off the device: check on an iPhone after touching this. */
+@supports (-webkit-touch-callout: none) { @media (display-mode: standalone) {
+  html { min-height: calc(100% + env(safe-area-inset-top)); }
+} }
 body {
   margin: 0; background: var(--canvas); color: var(--ink);
   font: 17px/1.4 var(--text); -webkit-font-smoothing: antialiased;
