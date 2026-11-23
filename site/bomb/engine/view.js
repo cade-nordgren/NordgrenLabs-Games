@@ -7,7 +7,7 @@ export function viewFor(g, seat = null) {
   const me = Number.isInteger(seat) && seat >= 0 && seat < g.players.length ? seat : null;
   const p = me === null ? null : g.players[me];
   return structuredClone({
-    v: g.v, phase: g.phase, decks: g.decks, first: g.first, draws: g.draws,
+    v: g.v, phase: g.phase, decks: g.decks, first: g.first, firstWhy: g.firstWhy ?? null,
     turn: g.turn, pending: g.pending, winner: g.winner, turns: g.turns,
     deck: g.deck.length, removed: g.removed.length,
     pile: g.pile, required: required(g.pile), streak: streak(g.pile),

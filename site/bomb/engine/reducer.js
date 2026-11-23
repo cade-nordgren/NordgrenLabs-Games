@@ -1,6 +1,6 @@
 // Bomb rules: a pure, serialisable reducer. reduce(state, action) returns a new state, or the same state object when
 // the action is not legal now. All shuffling happens in createGame; play itself has no randomness.
-import { SUITS, RANKS, fullDeck, allowedDecks, defaultDecks, canPlay, streak, shuffle } from './cards.js';
+import { RANKS, fullDeck, allowedDecks, defaultDecks, canPlay, streak, shuffle } from './cards.js';
 
 export const HAND = 5, TABLE = 4, DEAL = 9;
 
@@ -10,29 +10,28 @@ export function createGame({ players, decks = defaultDecks(players), seed }) {
   if (!allowedDecks(players).length) throw new Error('Bomb needs 2 to 6 players.');
   if (!allowedDecks(players).includes(decks)) throw new Error(`${players} players cannot use ${decks} deck(s).`);
   const g = {
-    v: 1, rng: seed | 0, decks, phase: 'choose', first: 0, draws: [], turn: 0, pending: null, winner: null, turns: 0,
+    v: 1, rng: seed | 0, decks, phase: 'choose', first: 0, firstWhy: null, turn: 0, pending: null, winner: null, turns: 0,
     deck: [], pile: [], removed: [], players: Array.from({ length: players }, player), last: null,
   };
-  Object.assign(g, drawForFirst(players, shuffle(fullDeck(decks), g), g));
   g.deck = shuffle(fullDeck(decks), g);
-  g.turn = g.first;
   for (const p of g.players) { p.down = g.deck.splice(0, TABLE); p.hand = g.deck.splice(0, DEAL); }
   return g;
 }
 
-// Draw for first: everyone draws one card, the highest rank starts and only those tied for highest draw again.
-// Drawn cards stay out until the shoe cannot serve a round, then everything is reshuffled. Exported for tests.
-export function drawForFirst(players, shoe, g) {
-  const draws = [];
-  let out = [], left = [...Array(players).keys()];
-  while (left.length > 1) {
-    if (shoe.length < left.length) { shoe = shuffle(shoe.concat(out), g); out = []; }
-    const round = left.map(seat => { const c = shoe.pop(); out.push(c); return { seat, rank: c.rank, suit: c.suit }; });
-    draws.push(round);
-    const top = Math.max(...round.map(d => d.rank));
-    left = round.filter(d => d.rank === top).map(d => d.seat);
+// Who goes first, from the five-card hands once everyone has chosen: most 3s; those tied compare 4s, then 5s and on
+// up, 2 last. Identical hands (several decks) are settled by the game's seeded rng. why: the deciding rank, how many
+// the starter held, and whether the players still in it had matched on some lower rank; rank null means the rng.
+export const FIRST_ORDER = [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 2];
+export function pickFirst(players, g) {
+  let left = players.map((_, i) => i), tied = false;
+  for (const rank of FIRST_ORDER) {
+    const count = seat => players[seat].hand.filter(c => c.rank === rank).length;
+    const most = Math.max(...left.map(count));
+    left = left.filter(seat => count(seat) === most);
+    if (left.length === 1) return { first: left[0], firstWhy: { rank, count: most, tied } };
+    if (most) tied = true;
   }
-  return { first: left[0], draws };
+  return { first: shuffle(left, g)[0], firstWhy: { rank: null, count: 0, tied: true } };
 }
 
 // For tests and prepared scenarios: a play-phase state from card codes ('QH' is deck 0, 'QH1' deck 1, '10S').
@@ -50,7 +49,7 @@ export function layout({ decks = 1, players, pile = [], deck = [], turn = 0 }) {
   };
   const slots = (codes = []) => [...codes, null, null, null, null].slice(0, TABLE).map(take);
   const g = {
-    v: 1, rng: 0, decks, phase: 'play', first: turn, draws: [], turn, pending: null, winner: null, turns: 0,
+    v: 1, rng: 0, decks, phase: 'play', first: turn, firstWhy: null, turn, pending: null, winner: null, turns: 0,
     deck: deck.map(take), pile: pile.map(take), removed: [], last: null,
     players: players.map(p => ({ ...player(), ready: true, hand: (p.hand ?? []).map(take), up: slots(p.up), down: slots(p.down) })),
   };
@@ -77,7 +76,8 @@ export const mustPickUp = (g, seat) =>
 
 const nextSeat = (g, seat) => (seat + 1) % g.players.length;
 
-// Cards already moved off the player land on the pile: bomb, refill, then win or pending Next Turn.
+// Cards already moved off the player land on the pile: bomb, refill, then win, go again (a 2 or a bomb: the turn stays
+// with them, nothing pending) or pending Next Turn.
 function land(g, seat, cards, from) {
   const p = g.players[seat];
   g.pile.push(...cards);
@@ -87,8 +87,8 @@ function land(g, seat, cards, from) {
   let drew = 0;
   while (p.hand.length < HAND && g.deck.length) { p.hand.push(g.deck.shift()); drew++; }
   g.last = { seat, type: 'play', from, cards, bomb, drew };
-  if (cardsLeft(p)) g.pending = { next: bomb ? seat : nextSeat(g, seat) };
-  else { g.phase = 'over'; g.winner = seat; }
+  if (!cardsLeft(p)) { g.phase = 'over'; g.winner = seat; }
+  else if (!bomb && cards[0].rank !== 2) g.pending = { next: nextSeat(g, seat) };
 }
 
 function takePile(g, seat) {
@@ -116,7 +116,7 @@ const ACTIONS = {
   confirm(g, { seat }) {
     if (g.phase !== 'choose' || !isSeat(g, seat) || g.players[seat].ready || g.players[seat].up.length !== TABLE) return false;
     g.players[seat].ready = true;
-    if (g.players.every(p => p.ready)) { g.phase = 'play'; g.turn = g.first; }
+    if (g.players.every(p => p.ready)) { Object.assign(g, pickFirst(g.players, g)); g.phase = 'play'; g.turn = g.first; }
     return true;
   },
   play(g, { seat, ids }) {
@@ -211,13 +211,15 @@ export function checkState(g) {
     const left = g.players.map(cardsLeft);
     if (g.phase === 'play') {
       if (g.winner !== null || left.includes(0)) fail('a player with no cards should have won.');
+      // A pending next equal to turn is an older save's bomb: still valid, and 'next' resolves it.
       if (g.pending !== null && (Object.keys(g.pending).join() !== 'next' || !isSeat(g, g.pending.next))) fail('bad pending turn.');
     } else if (!isSeat(g, g.winner) || left[g.winner] || left.filter(x => !x).length !== 1 || g.pending !== null || g.deck.length) {
       fail('bad finished game.');
     }
   }
 
-  if (!Array.isArray(g.draws) || !g.draws.every(r => Array.isArray(r) && r.length &&
-      r.every(d => d && isSeat(g, d.seat) && RANKS.includes(d.rank) && SUITS.includes(d.suit)))) fail('bad draw for first.');
+  // firstWhy is missing in games from before it existed (they carry an unused draws list instead); null while choosing.
+  const w = g.firstWhy;
+  if (w != null && (g.phase === 'choose' || typeof w !== 'object' || !(w.rank === null || RANKS.includes(w.rank)) || !nat(w.count) || typeof w.tied !== 'boolean')) fail('bad first player reason.');
   if (g.last !== null && (typeof g.last !== 'object' || !isSeat(g, g.last.seat) || !['play', 'pickUp', 'failed'].includes(g.last.type))) fail('bad last move.');
 }

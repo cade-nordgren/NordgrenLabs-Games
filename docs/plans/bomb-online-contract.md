@@ -123,7 +123,7 @@ Order of checks: shape (400) → seated (404) → `actionId` already applied for
 | `{ type: 'SET_DECKS', decks }` | host | sets the deck count | `not_host`, `started` |
 | `{ type: 'START' }` | host | deals: `phase` becomes `'game'`, the engine is in `'choose'` | `not_host`, `too_few_players` (fewer than 2 seated), `decks` (not allowed for this many players), `started` |
 | `{ type: 'LEAVE' }` | anyone, `phase: 'lobby'` or `'over'` | frees your seat; later seats move up one, so if the host leaves, seat 1 becomes seat 0 and host. After a finished game the room goes back to the lobby for everyone left (`game: null`, rematch votes discarded, times cleared): the host can `START` again with whoever is left, and others can join by code. The last one out deletes the room. Answer: `{ version, view: null }`; afterwards the room is 404 for you. The others see the seat gone on their next poll | `started` (leaving a game in progress is not supported in this version: just stop polling; the room expires after 24 h idle) |
-| `{ type: 'REMATCH' }` | anyone, `phase: 'over'` | records your vote in `room.rematch`; when every seated player has voted, a new game starts at once with the same seats and decks (new seed, new draw for first), `rematch` back to `[]`, times cleared | `not_over` |
+| `{ type: 'REMATCH' }` | anyone, `phase: 'over'` | records your vote in `room.rematch`; when every seated player has voted, a new game starts at once with the same seats and decks (new seed, new deal; the first player is picked again when everyone has confirmed), `rematch` back to `[]`, times cleared | `not_over` |
 
 **Game actions** (`phase: 'game'`), passed to the engine with your seat filled in by the server:
 
@@ -135,7 +135,7 @@ Order of checks: shape (400) → seated (404) → `actionId` already applied for
 | `{ type: 'playDown', slot: 0..3 }` |
 | `{ type: 'pickUp' }` |
 
-- Card ids must look like engine ids (`'QH1'`, `'10S0'`); other shapes are 400 `action`. `next` is 400 `action`: **never send `next`**. After a `play`, `playDown` or `pickUp`, the server applies the engine's `next` in the same write, so the view you get back already shows the next player's turn (or yours again after a bomb). `game.pending` is therefore always `null` online. To animate, use `game.last`.
+- Card ids must look like engine ids (`'QH1'`, `'10S0'`); other shapes are 400 `action`. `next` is 400 `action`: **never send `next`**. After a `play`, `playDown` or `pickUp`, the server applies the engine's `next` in the same write, so the view you get back already shows the next player's turn (or yours again after a 2 or a bomb, which set nothing pending at all). `game.pending` is therefore always `null` online. To animate, use `game.last`. Once play starts, `game.first` and `game.firstWhy` say who started and why.
 - During the engine's `choose` phase every seat may `arrange` and `confirm` at the same time.
 - 409 reasons: `illegal` (the engine refused it: not your turn, wrong cards...), `not_started` (game action in the lobby), `stale`.
 

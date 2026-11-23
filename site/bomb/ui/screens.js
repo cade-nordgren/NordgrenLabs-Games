@@ -2,7 +2,7 @@
 // Nothing here changes game state; taps call the handlers the caller passes in. Both modes use these same screens.
 import { label } from '../engine/cards.js';
 import { style } from './styles.js';
-import { SUIT, isRed, cardName, sortHand, canPlaySel, playLabel, beatInfo, lastLine, nextLabel, drawPlan, drawFinal,
+import { SUIT, isRed, cardName, sortHand, canPlaySel, playLabel, beatInfo, lastLine, nextLabel, firstLine,
   plural, listOf, rankName } from './logic.js';
 
 export const $ = id => document.getElementById(id);
@@ -61,68 +61,13 @@ export function say(text) {
   $('live').textContent = text;
 }
 
-// ---- Draw for first. Plays the rounds card by card (about 0.35 s each), calls out ties, then the starter.
-let drawToken = 0;
-export function stopDraw() { drawToken++; }
-export function drawScreen(view, people, { animate, onDone }) {
-  const my = ++drawToken, plan = drawPlan(view.draws), final = drawFinal(view.draws), n = people.length;
-  const grid = $('drawGrid');
-  grid.style.setProperty('--cols', n <= 4 ? 2 : 3);
-  const tiles = people.map((p, seat) => {
-    const t = paint(el('section', 'glass tile'), p.style), slot = el('div'), tag = el('span', 'tag');
-    slot.append(back(p.style));
-    t.append(whoChip(p), slot, tag);
-    return { t, slot, tag, seat };
-  });
-  grid.replaceChildren(...tiles.map(x => x.t));
-  const showCard = (seat, d, flip) => {
-    const c = face({ rank: d.rank, suit: d.suit }, { cls: flip ? 'flip' : '' });
-    tiles[seat].slot.replaceChildren(c);
-  };
-  const mark = (seat, result) => {
-    const x = tiles[seat];
-    x.t.className = `glass tile ${result}`;
-    x.tag.className = `tag ${result}`;
-    x.tag.textContent = result === 'tie' ? 'Tie, draw again' : result === 'starts' ? 'Starts' : result === 'out' ? 'Out' : '';
-  };
-  const starter = people[view.first].name;
-  const explain = () => {
-    const last = plan.at(-1), w = last.cards.find(d => d.seat === view.first);
-    const beaten = last.cards.filter(d => d.seat !== view.first).map(d => rankName(d.rank));
-    return `${rankName(w.rank)} beats ${listOf([...new Set(beaten)])}.${plan.length > 1 ? ` After ${plural(plan.length - 1, 'tie')}.` : ''}`;
-  };
-  const end = () => {
-    if (my !== drawToken) return;
-    for (const [seat, f] of Object.entries(final)) { showCard(+seat, f, false); mark(+seat, f.result === 'starts' ? 'starts' : 'out'); }
-    const s = $('drawSummary');
-    s.replaceChildren(el('strong', '', `${starter} starts`), explain());
-    $('drawSkip').hidden = true;
-    $('drawGo').hidden = false;
-    onDone?.();
-  };
-  $('drawSummary').textContent = '';
-  $('drawSkip').hidden = !animate;
-  $('drawGo').hidden = animate;
-  if (!animate) return end();
-  (async () => {
-    await wait(350);
-    for (const r of plan) {
-      if (r.round > 0) {
-        $('drawSummary').textContent = `Tie. ${listOf(r.cards.map(d => people[d.seat].name))} draw again.`;
-        for (const d of r.cards) { tiles[d.seat].slot.replaceChildren(back(people[d.seat].style)); mark(d.seat, 'tie'); }
-        await wait(700);
-      }
-      for (const d of r.cards) {
-        if (my !== drawToken) return;
-        showCard(d.seat, d, true);
-        await wait(380);
-      }
-      if (my !== drawToken) return;
-      for (const d of r.cards) mark(d.seat, r.winner === d.seat ? 'starts' : r.tied?.includes(d.seat) ? 'tie' : 'out');
-      if (r.tied) { $('drawSummary').textContent = `Tie between ${listOf(r.tied.map(s => people[s].name))}. Draw again.`; await wait(1100); }
-    }
-    end();
-  })();
+// A short note over the table for a few seconds (online: who goes first).
+let toastTimer = 0;
+export function toast(text) {
+  clearTimeout(toastTimer);
+  $('toast').textContent = text;
+  $('toast').hidden = !text;
+  if (text) toastTimer = setTimeout(() => { $('toast').hidden = true; }, 4500);
 }
 
 // ---- Handoff: no cards at all, only public counts.
@@ -138,13 +83,19 @@ export function handoffScreen(view, people, seat, { choosing, from }) {
     const b = beatInfo(view);
     $('handStats').replaceChildren(stat(pv.hand, `in ${p.name}'s hand`), stat(b.rank, 'to beat'));
   }
+  // The first turn of a game: say who starts and why (public: it names a rank count, never a card).
+  $('handWhy').textContent = !choosing && view.turns === 0 ? firstLine(view, people.map(q => q.name), null) : '';
+  $('handWhy').hidden = !$('handWhy').textContent;
   $('handNote').textContent = `${p.name} taps when holding the phone. This screen also shows after a refresh.`;
 }
 
 // ---- Face-up choice. picks: four ids or null (table positions); on: the position picked to swap, or null.
-export function chooseScreen(view, people, seat, ui, { onPick, onSlot, onConfirm, online, waitingNames }) {
+export function chooseScreen(view, people, seat, ui, { onPick, onSlot, onConfirm, online, waitingNames, desc }) {
   const p = people[seat], you = view.you, mine = view.players[seat];
-  const nine = sortHand([...you.hand, ...(mine.up || [])]);
+  const nine = sortHand([...you.hand, ...(mine.up || [])], desc);
+  // Where each card was before this redraw, so a card that changed table spots slides there (FLIP).
+  const rects = sel => new Map([...document.querySelectorAll(sel)].map(e => [e.dataset.id, e.getBoundingClientRect()]));
+  const wasTable = rects('#chooseTable [data-id]'), wasNine = rects('#chooseNine [data-id]');
   const byId = new Map(nine.map(c => [c.id, c]));
   paint($('choosePage'), p.style);
   const pill = $('choosePill');
@@ -170,6 +121,12 @@ export function chooseScreen(view, people, seat, ui, { onPick, onSlot, onConfirm
     return s;
   });
   $('chooseTable').replaceChildren(...table);
+  if (!still()) for (const e of document.querySelectorAll('#chooseTable [data-id]')) {
+    const was = wasTable.get(e.dataset.id) || wasNine.get(e.dataset.id), now = e.getBoundingClientRect();
+    if (!was?.width || (Math.abs(was.left - now.left) < 1 && Math.abs(was.top - now.top) < 1)) continue;
+    e.animate([{ transform: `translate(${was.left - now.left}px, ${was.top - now.top}px)`, zIndex: 2 }, { transform: 'none', zIndex: 2 }],
+      { duration: 320, easing: 'cubic-bezier(.2, .8, .2, 1)' });
+  }
   const count = ui.picks.filter(Boolean).length;
   $('chooseNine').replaceChildren(...nine.map(c => {
     const b = face(c, { button: true }), on = ui.picks.includes(c.id);
@@ -202,7 +159,8 @@ export function waitScreen(view, people, me) {
 }
 
 // ---- The table.
-// ctx: { view, people, me (viewer seat), online, sel: [card], info, onCard, onSlot, onPlay, onPick, onNext }
+// ctx: { view, people, me (viewer seat), online, sel: [card], info, desc (hand high to low), onCard, onSlot, onPlay,
+// onPick, onNext, onSort }
 export function tableScreen(ctx) {
   const { view, people, me, online } = ctx, you = view.you, mp = view.players[me], person = people[me];
   const myTurn = view.phase === 'play' && view.turn === me && !view.pending;
@@ -283,7 +241,10 @@ export function tableScreen(ctx) {
 
   // Your hand, sorted, in a tray that overlaps cards only when they do not fit.
   avatar($('handAvSmall'), person);
-  const hand = sortHand(you.hand), tray = $('tray'), keep = tray.scrollLeft;
+  const hand = sortHand(you.hand, ctx.desc), tray = $('tray'), keep = tray.scrollLeft;
+  $('sortBtn').replaceChildren(el('span', '', ctx.desc ? 'High first' : 'Low first'));
+  $('sortBtn').setAttribute('aria-label', `Hand order: ${ctx.desc ? 'high to low' : 'low to high'}. Change`);
+  $('sortBtn').onclick = ctx.onSort;
   // Cards just drawn or picked up are the newest at the end of the engine's hand list: mark them with a dot.
   const got = view.last?.seat === me ? (view.last.type === 'play' ? view.last.drew : view.last.count) : 0;
   const fresh = new Set(got ? you.hand.slice(-got).map(c => c.id) : []);
@@ -299,7 +260,7 @@ export function tableScreen(ctx) {
   $('handTitleSmall').textContent = `${person.name} · your hand · ${hand.length}`;
   const overflow = tray.scrollWidth > tray.clientWidth + 2;
   $('handCount').textContent = ctx.sel.length ? `${ctx.sel.length} selected` : fresh.size && view.last.type === 'play' ? `drew ${view.last.drew}`
-    : fresh.size ? `took ${fresh.size}` : overflow ? 'sorted · swipe' : '';
+    : fresh.size ? `took ${fresh.size}` : overflow ? 'swipe' : '';
 
   // Status and actions.
   const words = statusLine(ctx, myTurn);
@@ -354,7 +315,7 @@ function fitTray(tray, count) {
 
 function statusLine(ctx, myTurn) {
   const { view, people, me } = ctx, you = view.you;
-  const said = lastLine(view, people.map(p => p.name), me);
+  const said = lastLine(view, people.map(p => p.name), me) || (view.turns === 0 ? firstLine(view, people.map(p => p.name), me) : '');
   let ask = '';
   if (view.pending) ask = '';
   else if (myTurn) {
@@ -366,7 +327,8 @@ function statusLine(ctx, myTurn) {
   return [said, ask].filter(Boolean).join(' ');
 }
 
-// ---- Animations for the latest move: card to pile, reset pulse, BOMB!, pile to hand, face-down flip. Skipped under
+// ---- Animations for the latest move: card to pile, reset pulse, BOMB!, pile to hand, face-down flip, and the refill
+// from the deck to the hand (alongside the play, so the new cards are hidden only about half a second). Skipped under
 // reduced motion. snap: rects taken from the table before it was redrawn.
 export function snapshot() {
   if ($('tablePage').hidden) return null;
@@ -410,8 +372,25 @@ export async function animate(prev, view, snap, me) {
     if (l.from === 'down' && l.seat === me && snap.slots[downSlot()]) return centreOf(snap.slots[downSlot()]);
     return centreOf(seatRect(l.seat));
   };
-  const flips = [];
+  const flips = [], drawn = [], draws = [];
   try {
+    if (l.type === 'play' && l.drew) {
+      // Backs travel from the deck to the new cards (your hand) or to the player's panel (anyone else, online).
+      const deck = centreOf($('deckStack').getBoundingClientRect()), dw = $('deckStack').getBoundingClientRect().width;
+      const ends = l.seat === me ? view.you.hand.slice(-l.drew).map(c => $('tray').querySelector(`[data-id="${c.id}"]`)).filter(Boolean) : [];
+      const panel = document.querySelector(`#opps [data-seat="${l.seat}"]`);
+      ends.forEach(e => { e.style.visibility = 'hidden'; drawn.push(e); });
+      const legs = l.seat === me ? ends.map(e => [centreOf(e.getBoundingClientRect()), e.getBoundingClientRect().width])
+        : panel ? Array.from({ length: l.drew }, () => [centreOf(panel.getBoundingClientRect()), dw]) : [];
+      legs.forEach(([to, w], k) => {
+        const f = flyer(null, to, w);
+        drawn.push(f);
+        draws.push(go(f, deck, to, { delay: 50 + k * 50 }).catch(() => {}).then(() => {
+          f.remove();
+          if (ends[k]) ends[k].style.visibility = '';
+        }));
+      });
+    }
     if (l.type === 'play') {
       const real = [...$('pile').querySelectorAll('[data-id]')].filter(e => l.cards.some(c => c.id === e.dataset.id));
       real.forEach(e => { e.style.visibility = 'hidden'; });
@@ -466,8 +445,10 @@ export async function animate(prev, view, snap, me) {
           { duration: 420, delay: k * 40, easing: 'cubic-bezier(.4, 0, .2, 1)', fill: 'both' }).finished;
       }));
     }
+    await Promise.all(draws);
   } finally {
     flips.forEach(f => f.remove());
+    drawn.forEach(e => { if (e.classList.contains('fly')) e.remove(); else e.style.visibility = ''; });
   }
 }
 
