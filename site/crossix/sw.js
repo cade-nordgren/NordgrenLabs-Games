@@ -1,6 +1,6 @@
 // Crossix offline: precache the game, serve from the cache at once and refresh the copy in the background.
 // Bump VERSION whenever FILES changes; old caches are deleted on activate.
-const VERSION = 'crossix-v3';
+const VERSION = 'crossix-v4';
 const FILES = [
   './', 'manifest.webmanifest',
   'ui/app.js', 'ui/dice.js', '../bomb/ui/net.js',

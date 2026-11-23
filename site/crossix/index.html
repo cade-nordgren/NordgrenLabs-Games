@@ -328,8 +328,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 }
 /* Wide screens: the tray sits beside the sheet, still clear of the circles. */
 @media (min-width: 1040px) {
-  .app:has(#gamePage.digital:not([hidden])) { max-width: 1100px; }
-  #gamePage.digital { display: grid; grid-template-columns: minmax(0, 1fr) 300px; grid-template-areas: "head tray" "board tray"; column-gap: 16px; align-items: start; }
+  .app:has(#gamePage.digital:not([hidden])) { max-width: 1180px; }
+  #gamePage.digital { display: grid; grid-template-columns: minmax(0, 1fr) 360px; grid-template-areas: "head tray" "board tray"; column-gap: 16px; align-items: start; }
   #gamePage.digital #tray { grid-area: tray; position: sticky; top: 16px; }
   #gamePage.digital .head { grid-area: head; }
   #gamePage.digital #board { grid-area: board; }
@@ -460,8 +460,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <section class="glass group">
         <h2 id="modeTitle">Play</h2>
         <div class="segmented" id="modeSeg" role="group" aria-labelledby="modeTitle">
-          <button value="physical">Physical dice</button>
-          <button value="digital">Digital dice</button>
+          <button value="physical">Physical</button>
+          <button value="digital">Digital</button>
           <button value="online">Online</button>
         </div>
         <p class="note" id="modeNote"></p>
