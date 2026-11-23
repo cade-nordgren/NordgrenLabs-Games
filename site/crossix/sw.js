@@ -1,6 +1,6 @@
-// DiceLanes offline: precache the game, serve from the cache at once and refresh the copy in the background.
+// Crossix offline: precache the game, serve from the cache at once and refresh the copy in the background.
 // Bump VERSION whenever FILES changes; old caches are deleted on activate.
-const VERSION = 'dicelanes-v22';
+const VERSION = 'crossix-v1';
 const FILES = [
   './', 'manifest.webmanifest',
   'ui/app.js', 'ui/dice.js',
@@ -9,7 +9,7 @@ const FILES = [
   '/icons/favicon.svg', '/icons/icon-192.png', '/icons/icon-512.png', '/apple-touch-icon.png',
 ];
 
-// Cloudflare redirects /dicelanes/index.html to /dicelanes/, and Safari refuses to show a page from a service worker
+// Cloudflare redirects /crossix/index.html to /crossix/, and Safari refuses to show a page from a service worker
 // whose response is marked redirected. So the page is cached under the folder URL, and anything stored is a clean copy.
 const clean = res => res.redirected ? new Response(res.body, { status: res.status, statusText: res.statusText, headers: res.headers }) : res;
 
@@ -21,9 +21,10 @@ self.addEventListener('install', e => {
   }))).then(() => self.skipWaiting()));
 });
 
+// 'dicelanes-' is the game's offline copy from before it was renamed.
 self.addEventListener('activate', e => {
   e.waitUntil(caches.keys()
-    .then(keys => Promise.all(keys.filter(k => k.startsWith('dicelanes-') && k !== VERSION).map(k => caches.delete(k))))
+    .then(keys => Promise.all(keys.filter(k => (k.startsWith('crossix-') && k !== VERSION) || k.startsWith('dicelanes-')).map(k => caches.delete(k))))
     .then(() => self.clients.claim()));
 });
 
