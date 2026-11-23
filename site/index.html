@@ -21,22 +21,29 @@
   <main style="padding-top: calc(env(safe-area-inset-top) + 52px)">
     <h1>Games</h1>
     <p class="lede">From NordgrenLabs.</p>
+    <div class="segmented" id="filter" role="group" aria-label="Show games" style="margin-bottom: 14px">
+      <button value="all" aria-pressed="true">All</button>
+      <button value="dice" aria-pressed="false">Dice</button>
+      <button value="card" aria-pressed="false">Cards</button>
+      <button value="online" aria-pressed="false" aria-label="Online only">Online</button>
+    </div>
     <div class="games">
-      <div class="glass tile">
+      <div class="glass tile" data-kind="dice">
         <a href="bank/index.html">Bank</a>
         <button class="info" aria-expanded="false" aria-controls="about-0" aria-label="About Bank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-0" hidden>A push-your-luck dice game for two or more. Bring your own dice or roll on screen.</p>
       </div>
-      <div class="glass tile">
+      <div class="glass tile" data-kind="dice">
         <a href="crossix/index.html">Crossix</a>
         <button class="info" aria-expanded="false" aria-controls="about-1" aria-label="About Crossix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-1" hidden>Cross off numbers in four coloured lanes, for one to five players. Keep score for your own dice or roll on screen.</p>
       </div>
-      <div class="glass tile">
+      <div class="glass tile" data-kind="online">
         <a href="keep/index.html">Dragon's Keep</a>
         <button class="info" aria-expanded="false" aria-controls="about-2" aria-label="About Dragon's Keep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-2" hidden>Explore a keep, grab gold and reach a tower before sunset, for one to four players on one device.</p>
       </div>
+      <p class="empty" hidden>No games here yet.</p>
     </div>
     <div class="account" id="account" style="margin-top: 24px" hidden></div>
   </main>
@@ -45,6 +52,17 @@
 <script src="platform.js"></script>
 <script>
 NL.account(document.getElementById('account'));
+// Filter by kind (data-kind on each card, space separated); remembered on this device.
+const tiles = [...document.querySelectorAll('.tile')], empty = document.querySelector('.games .empty');
+const showKind = NL.segmented(document.getElementById('filter'), k => pick(k));
+function pick(k) {
+  for (const t of tiles) t.hidden = k !== 'all' && !t.dataset.kind.split(' ').includes(k);
+  empty.hidden = tiles.some(t => !t.hidden);
+  showKind(k);
+  try { localStorage.setItem('nl-games-filter', k); } catch (e) {}
+}
+let saved = 'all'; try { saved = localStorage.getItem('nl-games-filter') || 'all'; } catch (e) {}
+pick(document.querySelector(`#filter button[value="${saved}"]`) ? saved : 'all');
 // The "i" opens that game's description inside its card.
 for (const b of document.querySelectorAll('.tile .info')) b.addEventListener('click', () => {
   const open = b.getAttribute('aria-expanded') !== 'true';
