@@ -1,6 +1,6 @@
 // DiceLanes offline: precache the game, serve from the cache at once and refresh the copy in the background.
 // Bump VERSION whenever FILES changes; old caches are deleted on activate.
-const VERSION = 'dicelanes-v21';
+const VERSION = 'dicelanes-v22';
 const FILES = [
   './', 'manifest.webmanifest',
   'ui/app.js', 'ui/dice.js',
