@@ -648,14 +648,14 @@ const panels = [0, 1].map(i => {
 });
 let shownScores = [null, null];
 function renderPanels(g) {
-  const hide = hideCounts(), turn = g.pending ? null : g.active, next = g.pending ? g.pending.next : null;
+  // The mover keeps the highlight until Next turn is pressed; the next player only gets a quiet tag.
+  const hide = hideCounts(), turn = g.active, next = g.pending ? g.pending.next : null;
   panels.forEach((c, i) => {
     const pl = g.players[i];
     tint(c.p, pl.color);
     tint(c.m, pl.color).textContent = pl.marker;
     c.name.textContent = pl.name;
     c.p.classList.toggle('active', turn === i && g.status === 'playing');
-    c.p.classList.toggle('next', next === i);
     c.tag.textContent = next === i ? 'Up next' : '';
     const v = hide ? '–' : String(g.scores[i]);
     c.n.classList.toggle('hid', hide);

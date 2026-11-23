@@ -5,6 +5,7 @@ The owner's specification, recorded as given (lightly condensed only in formatti
 ## Owner rulings in session (2026-11-23)
 
 - **Online play: local first, online later.** Games has no room or live-sync infrastructure (the Worker only stores saves). Build the full local two-player game now. Keep the engine a pure serialisable reducer so online rooms can replay and validate the same actions on the server later; online rooms are a separate follow-up with its own plan. Do not build any online UI that does nothing; the menu and setup must not offer online yet.
+- **Online shelved (owner, 2026-11-23):** "Let's not make online rooms for now. Local only". The comparison is kept in `docs/plans/dots-online-plan.md`, marked shelved.
 - **Move the line until Next Turn (owner, 2026-11-23):** "Let the active user click to move their line until Next Turn is done. Keep the dotted options while the user is choosing." This replaces the lock in 5.2 and 5.8: after a line, tapping another open line moves it there (boxes and score follow the new line), the dotted guides stay, and Next Turn confirms. The last line of the game still goes straight to the results.
 - Dots and Boxes is a folk game (public domain rules), like Bank. Name "Dots and Boxes" is the generic name.
 
