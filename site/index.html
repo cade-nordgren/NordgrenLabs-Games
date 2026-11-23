@@ -15,65 +15,61 @@
 <link rel="manifest" href="/manifest.webmanifest">
 <script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
 <link rel="stylesheet" href="style.css">
+<style>
+/* Settings sheet. Near-solid like the game menus: the list behind is glass too, and glass over glass was muddy. */
+dialog.sheet { --glass: var(--glass-menu); }
+/* Grab bar: sheets swipe down to close (platform.js). */
+dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--ink2); opacity: .35; margin: -12px 0 2px; }
+</style>
 </head>
 <body>
 <div class="app">
-  <div class="menu">
-    <button class="menu-trigger glass" id="settingsBtn" aria-label="Settings" aria-haspopup="dialog">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
-    </button>
-  </div>
-  <main style="padding-top: calc(env(safe-area-inset-top) + 52px)">
-    <h1>Games</h1>
+  <main style="padding-top: calc(env(safe-area-inset-top) + 12px)">
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+      <h1>Games</h1>
+      <button class="glass" id="settingsBtn" aria-label="Settings" aria-haspopup="dialog" style="flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+    </div>
     <p class="lede">From NordgrenLabs.</p>
+    <button class="btn" id="aboutAll" style="min-height: 32px; padding: 0 12px; font-size: 14px; margin-bottom: 10px">Show descriptions</button>
     <div class="segmented" id="filter" role="group" aria-label="Show games" style="margin-bottom: 14px">
       <button value="all" aria-pressed="true">All</button>
       <button value="cards" aria-pressed="false">Cards</button>
       <button value="dice" aria-pressed="false">Dice</button>
       <button value="other" aria-pressed="false">Other</button>
     </div>
-    <button class="btn" id="aboutAll" style="margin-bottom: 16px">Show descriptions</button>
-    <!-- Groups and the games inside each stay in alphabetical order. -->
-    <div id="groups">
-      <section class="games" data-kind="cards">
-      <h2>Cards</h2>
-      <div class="glass tile">
-        <a href="bomb/index.html">Bomb</a>
-        <button class="info" aria-expanded="false" aria-controls="about-4" aria-label="About Bomb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
-        <p id="about-4" hidden>Shed every card before anyone else, with 2s that reset and 10s that bomb the pile, for two to six players on one phone or online.</p>
-      </div>
-      <div class="glass tile">
-        <a href="salad/index.html">Canadian Salad</a>
-        <button class="info" aria-expanded="false" aria-controls="about-5" aria-label="About Canadian Salad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
-        <p id="about-5" hidden>Six rounds of tricks for 2 to 8 players, each on their own device. Lowest score wins.</p>
-      </div>
-      </section>
-      <section class="games" data-kind="dice">
-      <h2>Dice</h2>
-      <div class="glass tile">
+    <!-- Games stay in alphabetical order; data-kind is cards, dice or other. -->
+    <div class="games">
+      <div class="glass tile" data-kind="dice">
         <a href="bank/index.html">Bank</a>
         <button class="info" aria-expanded="false" aria-controls="about-0" aria-label="About Bank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-0" hidden>A push-your-luck dice game for two or more. Bring your own dice or roll on screen.</p>
       </div>
-      <div class="glass tile">
+      <div class="glass tile" data-kind="cards">
+        <a href="bomb/index.html">Bomb</a>
+        <button class="info" aria-expanded="false" aria-controls="about-4" aria-label="About Bomb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+        <p id="about-4" hidden>Shed every card before anyone else, with 2s that reset and 10s that bomb the pile, for two to six players on one phone or online.</p>
+      </div>
+      <div class="glass tile" data-kind="cards">
+        <a href="salad/index.html">Canadian Salad</a>
+        <button class="info" aria-expanded="false" aria-controls="about-5" aria-label="About Canadian Salad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+        <p id="about-5" hidden>Six rounds of tricks for 2 to 8 players, each on their own device. Lowest score wins.</p>
+      </div>
+      <div class="glass tile" data-kind="dice">
         <a href="crossix/index.html">Crossix</a>
         <button class="info" aria-expanded="false" aria-controls="about-1" aria-label="About Crossix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-1" hidden>Cross off numbers in four coloured lanes, for one to five players. Keep score for your own dice or roll on screen.</p>
       </div>
-      </section>
-      <section class="games" data-kind="other">
-      <h2>Other</h2>
-      <div class="glass tile">
+      <div class="glass tile" data-kind="other">
         <a href="dots/index.html">Dots and Boxes</a>
         <button class="info" aria-expanded="false" aria-controls="about-3" aria-label="About Dots and Boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-3" hidden>Draw lines between dots and close boxes to claim them, for two players on one device. Squares, shapes, triangles and hexagons.</p>
       </div>
-      <div class="glass tile">
+      <div class="glass tile" data-kind="other">
         <a href="keep/index.html">Dragon's Keep</a>
         <button class="info" aria-expanded="false" aria-controls="about-2" aria-label="About Dragon's Keep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-2" hidden>Explore a keep, grab gold and reach a tower before sunset, for one to four players on one device.</p>
       </div>
-      </section>
+      <p class="empty" hidden>No games here yet.</p>
     </div>
   </main>
 </div>
@@ -94,13 +90,12 @@
 <script src="platform.js"></script>
 <script>
 NL.account(document.getElementById('account'));
-// Tabs show one group or all of them; the choice is remembered on this device.
-const groups = [...document.querySelectorAll('#groups section')];
+// Tabs filter the list by kind; the choice is remembered on this device.
+const tiles = [...document.querySelectorAll('.tile')], empty = document.querySelector('.games .empty');
 const showKind = NL.segmented(document.getElementById('filter'), pick);
 function pick(k) {
-  groups.forEach(g => g.hidden = k !== 'all' && g.dataset.kind !== k);
-  // The first group on screen sits flush under the buttons.
-  groups.filter(g => !g.hidden).forEach((g, i) => g.style.marginTop = i ? '24px' : 0);
+  for (const t of tiles) t.hidden = k !== 'all' && t.dataset.kind !== k;
+  empty.hidden = tiles.some(t => !t.hidden);
   showKind(k);
   try { localStorage.setItem('nl-games-filter', k); } catch (e) {}
 }
