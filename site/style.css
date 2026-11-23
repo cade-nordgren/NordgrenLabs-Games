@@ -147,11 +147,12 @@ button:disabled { opacity: .35; cursor: default; }
 .menu .item:disabled svg, .menu .item:disabled span { opacity: .35; }
 
 /* Sheets: a native <dialog> opened with showModal(); the inner div carries the padding so a click on the dialog itself is a backdrop click. */
-dialog.sheet { width: min(100% - 24px, 408px); max-width: none; margin: auto auto calc(var(--sheet-gap) - var(--short, 0px)); padding: 0; color: var(--ink);
+dialog.sheet { width: min(100% - 24px, 408px); max-width: none; margin: auto auto var(--sheet-gap); padding: 0; color: var(--ink);
   /* A little above the bottom edge, less than the whole home-bar inset. --short (platform.js) is how far short of the real
-     screen an iPhone home-screen app has laid the page out; the sheet takes that back so it does not float mid-screen. */
-  --sheet-gap: max(12px, env(safe-area-inset-bottom) - 14px);
-  max-height: calc(100dvh + var(--short, 0px) - max(12px, env(safe-area-inset-top)) - var(--sheet-gap)); overflow: auto; overscroll-behavior: contain; }
+     screen an iPhone home-screen app has laid the page out. Nothing paints below that short viewport (a sheet pushed into
+     it was cut off), and the home bar is inside it, so there the sheet keeps only the 12px. */
+  --sheet-gap: max(12px, env(safe-area-inset-bottom) - 14px - var(--short, 0px));
+  max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - var(--sheet-gap)); overflow: auto; overscroll-behavior: contain; }
 dialog.sheet > div { padding: 22px 18px 18px; display: grid; gap: 10px; }
 dialog.sheet h2 { font-size: 20px; }
 dialog.sheet h3 { margin: 10px 0 0; font-size: 15px; font-weight: 600; color: var(--ink2); }
