@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Dots and Boxes · NordgrenLabs Games</title>
+<meta name="description" content="Draw lines between dots and close boxes, for two players on one device.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Dots">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f2f7">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!-- use-credentials: the Worker gates every file but the root manifest behind the session cookie. -->
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
+<link rel="stylesheet" href="../style.css">
+<style>
+/* Player colours are tokens written by ui/colors.js (--c-<id>-line, -fill, -ink, and --board), measured there. */
+:root { --dot: #1d1d1f; --guide: rgba(60, 60, 67, .2); }
+:root[data-theme="dark"] { --dot: #f5f5f7; --guide: rgba(235, 235, 245, .2); }
+
+/* The menu floats top right, a little below the system bar; content starts at its top edge (as in Bank and Crossix). */
+.menu { top: calc(max(10px, env(safe-area-inset-top)) + 14px); }
+.app { padding-top: calc(max(10px, env(safe-area-inset-top)) + 14px); }
+/* Undo: a second circle right under the menu button during a game, one tap away. Opened, the menu's items start below it. */
+.menu .undo { position: absolute; top: 58px; right: 0; z-index: 1; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center; color: var(--ink); }
+.menu .undo:disabled { opacity: 1; }
+.menu .undo:disabled svg { opacity: .35; }
+.menu.open:has(.undo:not([hidden])) .item { transform: translateY(calc((var(--i) + 1) * 58px)); }
+.menu::before { content: ""; position: fixed; inset: 0; z-index: -1; background: rgba(0, 0, 0, .22); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.menu.open::before { opacity: 1; }
+:root[data-theme="light"] .menu.open .item, :root[data-theme="light"] .menu.open .item span, :root[data-theme="light"] .menu.open .menu-trigger, :root[data-theme="light"] .menu.open .undo { background: var(--solid); box-shadow: 0 0 0 1px rgba(0, 0, 0, .1), 0 4px 14px rgba(0, 0, 0, .14); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+/* ---- Logo */
+.logo { display: flex; align-items: center; gap: 10px; min-height: 48px; padding-right: 58px; margin: 0 0 6px; }
+.logo svg { width: 46px; height: 46px; flex: none; }
+.logo h1 { margin: 0; font: 800 32px/1.05 var(--num); letter-spacing: -.03em; }
+.lede { margin: 0 0 18px; }
+
+/* ---- Setup (copied from Crossix: groups, saved games, round buttons) */
+.group { padding: 16px; margin-bottom: 14px; }
+.note { margin: 10px 0 0; font-size: 14px; color: var(--ink2); }
+.note.bad { color: var(--danger); font-weight: 600; }
+#saves { list-style: none; margin: 8px 0 0; padding: 0; }
+#saves li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; }
+.circle { width: 44px; height: 44px; padding: 7px; background-clip: content-box; border-radius: 50%; font-size: 20px; line-height: 1; flex: none; display: grid; place-items: center; }
+.circle.remove { background-color: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+#savedGroup[open] summary { margin-bottom: 4px; }
+#savedGroup .count { display: inline-block; width: 2.2em; height: .9em; vertical-align: -1px; margin-left: 6px; }
+#saves li.loading { min-height: 59px; }
+.resume { flex: 1; min-width: 0; min-height: 58px; padding: 9px 0; text-align: left; }
+.resume strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume span { display: block; font-size: 14px; color: var(--ink2); }
+.resume:active:not(:disabled) { transform: none; opacity: .6; }
+#saves .btn.danger { flex: none; }
+details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
+
+/* Player cards: a marker preview, the name, the marker, then the colours. */
+.player + .player { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--hair); }
+.prow { display: flex; align-items: center; gap: 10px; }
+.prow label { font-size: 14px; color: var(--ink2); }
+.field { flex: 1; min-width: 0; border: 0; border-radius: 12px; background: var(--fill); padding: 10px 12px; font-size: 17px; outline: none; }
+.field:focus-visible { box-shadow: inset 0 0 0 2px var(--accent); }
+.field.marker { flex: none; width: 56px; text-align: center; font: 800 18px var(--num); }
+.prow + .prow, .prow + .swatches { margin-top: 10px; }
+/* The marker as it shows in a claimed box: the soft fill, the marker ink, a ring in the line colour. */
+.mk { --c: blue; width: 36px; height: 36px; flex: none; border-radius: 10px; display: grid; place-items: center;
+  background: var(--fill-c); color: var(--ink-c); box-shadow: inset 0 0 0 2.5px var(--line-c); font: 800 18px/1 var(--num); }
+.swatches { display: grid; grid-template-columns: repeat(6, 44px); justify-content: space-between; gap: 6px; }
+.sw { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; }
+.sw::before { content: ""; width: 30px; height: 30px; border-radius: 50%; background: var(--line-c); transition: transform .2s var(--spring); }
+.sw[aria-checked="true"]::before { box-shadow: 0 0 0 3px var(--board), 0 0 0 5.5px var(--line-c); transform: scale(.86); }
+/* A colour too close to the other player's: struck through, still tappable, but it will not start a game. */
+.sw.near { position: relative; }
+.sw.near::after { content: ""; position: absolute; left: 10px; right: 10px; top: 50%; height: 2.5px; border-radius: 2px; background: var(--ink); transform: rotate(-45deg); opacity: .55; }
+.sw:active:not(:disabled) { transform: scale(.9); }
+
+/* Board choice on the setup screen. */
+.chosen { display: flex; align-items: center; gap: 14px; }
+.chosen .thumb { width: 64px; height: 64px; flex: none; }
+.chosen div { flex: 1; min-width: 0; }
+.chosen strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chosen span { font-size: 14px; color: var(--ink2); }
+#startHint { text-align: center; }
+svg.thumb polygon { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--ink2); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+
+/* ---- Board picker */
+.pagehead { display: flex; align-items: center; gap: 10px; min-height: 48px; padding-right: 58px; margin-bottom: 12px; }
+.pagehead h2 { font: 700 24px/1.1 var(--num); flex: 1; }
+.back { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); flex: none; }
+.back svg { width: 22px; height: 22px; }
+#bigPreview { padding: 14px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: center; }
+#bigPreview .thumb { grid-column: 1 / -1; width: 100%; height: clamp(120px, 26dvh, 220px); margin-bottom: 8px; }
+#bigPreview strong { font: 700 19px var(--num); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#bigPreview span { grid-column: 1; font-size: 14px; color: var(--ink2); }
+#bigPreview .btn { grid-column: 2; grid-row: 2 / 4; }
+#cats { display: flex; gap: 6px; overflow-x: auto; padding: 2px; margin: 14px -2px 12px; }
+#cats button { flex: none; min-height: 40px; padding: 0 14px; border-radius: 999px; background: var(--fill); font-weight: 600; font-size: 15px; }
+#cats button[aria-pressed="true"] { background: var(--ink); color: var(--canvas); }
+#boardGrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+.bcard { padding: 10px; border-radius: 18px; display: grid; gap: 6px; text-align: left; align-content: start; }
+.bcard .thumb { width: 100%; height: 84px; }
+.bcard strong { font-weight: 600; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bcard span { font-size: 13px; color: var(--ink2); }
+.bcard[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
+.bcard.new { place-items: center; text-align: center; min-height: 140px; color: var(--accent); }
+.bcard.new svg { width: 30px; height: 30px; }
+.pickfoot { position: sticky; bottom: max(12px, env(safe-area-inset-bottom)); }
+
+/* ---- Custom layout editor */
+#cellGrid { display: grid; grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); gap: 3px; touch-action: manipulation; margin: 2px 0; }
+#cellGrid button { aspect-ratio: 1; min-width: 0; border-radius: 6px; background: var(--fill); }
+#cellGrid button[aria-pressed="true"] { background: var(--accent); }
+#cellGrid button:active { transform: scale(.9); }
+.stepper { display: flex; align-items: center; gap: 8px; }
+.stepper span { flex: 1; font-weight: 600; }
+.stepper b { min-width: 2ch; text-align: center; font: 700 17px var(--num); }
+.stepper button { width: 44px; height: 44px; border-radius: 50%; background: var(--fill); font: 600 22px/1 var(--num); }
+.duo { display: flex; gap: 8px; }
+.duo .btn { flex: 1; }
+
+/* ---- First player roll */
+#rollSeg { margin-bottom: 14px; }
+.rcards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rcard { padding: 14px 12px; display: grid; justify-items: center; gap: 10px; text-align: center; border-radius: 22px; transition: box-shadow .3s; }
+.rcard .who { display: flex; align-items: center; gap: 8px; min-width: 0; max-width: 100%; font-weight: 600; }
+.rcard .who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rcard .mk { width: 30px; height: 30px; font-size: 15px; border-radius: 8px; }
+.rcard.win { box-shadow: 0 0 0 3px var(--line-c), var(--shadow); }
+.rcard .btn { width: 100%; }
+.pad { display: grid; grid-template-columns: repeat(3, 44px); gap: 6px; }
+.pad button { height: 44px; border-radius: 12px; background: var(--fill); font: 700 18px var(--num); }
+.pad button[aria-pressed="true"] { background: var(--ink); color: var(--canvas); }
+.pad button[aria-pressed="true"]:disabled { opacity: 1; }
+#rollMsg { margin: 16px 0 12px; text-align: center; font-weight: 600; min-height: 1.4em; }
+#rollMsg .mk { display: inline-grid; width: 24px; height: 24px; font-size: 13px; border-radius: 7px; vertical-align: -6px; margin-right: 6px; }
+.slot { --h: 30px; width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; flex: none; }
+.slot.idle { opacity: .35; }
+.die { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .75s cubic-bezier(.2, .8, .25, 1); }
+.face { position: absolute; inset: 0; border-radius: 24%; background: var(--die); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+  padding: 18%; place-items: center; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.face i { width: calc(var(--h) * .42); height: calc(var(--h) * .42); border-radius: 50%; }
+.face i.pip { background: var(--pip); }
+.face:nth-child(1) { transform: translateZ(var(--h)); }
+.face:nth-child(2) { transform: rotateY(180deg) translateZ(var(--h)); }
+.face:nth-child(3) { transform: rotateY(90deg) translateZ(var(--h)); }
+.face:nth-child(4) { transform: rotateY(-90deg) translateZ(var(--h)); }
+.face:nth-child(5) { transform: rotateX(90deg) translateZ(var(--h)); }
+.face:nth-child(6) { transform: rotateX(-90deg) translateZ(var(--h)); }
+.die.settled .face:not(.front) { visibility: hidden; }
+.stack { display: grid; gap: 10px; margin-top: 16px; }
+
+/* ---- Game: player panels beside the menu and Undo circles (which reach 106px down), the board, then the turn bar. */
+.app:has(#gamePage:not([hidden])) { height: 100dvh; min-height: 0; }
+.app:has(#gamePage.over:not([hidden])) { height: auto; min-height: 100dvh; }
+main { display: contents; }
+#gamePage { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.head { padding-right: 58px; min-height: 106px; margin-bottom: 8px; display: grid; gap: 8px; align-content: start; }
+.pl { --c: blue; display: flex; align-items: center; gap: 10px; min-height: 49px; padding: 6px 14px 6px 7px; border-radius: 999px; background: var(--fill);
+  transition: background-color .25s, box-shadow .25s; }
+.pl .mk { width: 34px; height: 34px; border-radius: 50%; font-size: 16px; }
+.pl .name { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pl .n { font: 800 24px/1 var(--num); font-variant-numeric: tabular-nums; min-width: 1.2em; text-align: right; }
+.pl .n.hid { color: var(--ink2); }
+.pl .n.pop { animation: pop .3s ease-out; }
+@keyframes pop { 40% { transform: scale(1.3); } }
+/* Whose turn it is: a solid ring in their colour and a lighter fill. Up next only shows as a tag until Next turn is pressed. */
+.pl.active { background: var(--solid); box-shadow: 0 0 0 3px var(--line-c), var(--shadow); }
+.pl .tag { font-size: 12px; font-weight: 600; color: var(--ink2); white-space: nowrap; }
+#stage { flex: 1; min-height: 0; display: grid; place-items: center; position: relative; }
+.bwrap { background: var(--board); border-radius: 22px; box-shadow: var(--shadow); display: grid; place-items: center; overflow: hidden; }
+svg.board { display: block; touch-action: none; -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; outline: none; overflow: visible;
+  --lw: clamp(3px, calc(var(--u, 40px) * .085), 7px); }
+svg.board:focus-visible { outline: none; }
+.bwrap:has(svg.board:focus-visible) { box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 60%, transparent), var(--shadow); }
+svg.board polygon { fill: transparent; transition: fill .25s; }
+svg.board polygon.fresh { animation: claim .45s ease-out; }
+@keyframes claim { from { opacity: 0; } }
+svg.board .edge { stroke: transparent; stroke-width: var(--lw); stroke-linecap: round; vector-effect: non-scaling-stroke; }
+svg.board .edge.open { stroke: var(--guide); stroke-width: 1.5px; stroke-dasharray: 2 5; }
+svg.board.locked .edge.open { stroke-dasharray: none; }
+svg.board .edge.drawn { stroke-dasharray: none; }
+svg.board .edge.fresh { animation: draw .22s ease-out; }
+@keyframes draw { from { opacity: .2; } }
+svg.board .preview { stroke-width: var(--lw); stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: .45; pointer-events: none; }
+svg.board .cursor { stroke: var(--accent); stroke-width: calc(var(--lw) + 8px); stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: .35; pointer-events: none; }
+svg.board .dots path { stroke: var(--dot); stroke-width: calc(var(--lw) + 4px); stroke-linecap: round; vector-effect: non-scaling-stroke; }
+svg.board text { font: 800 calc(var(--letter) * 1px) var(--num); font-size: calc(var(--letter) * 1px); text-anchor: middle; dominant-baseline: central; pointer-events: none; }
+svg.board:not(.locked) { cursor: pointer; }
+/* Results: the box being counted gets a ring; boxes not counted yet step back. */
+svg.board polygon.now { stroke: var(--ink); stroke-width: 4px; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
+svg.board .wait { opacity: .35; }
+.turnbar { padding-top: 10px; display: grid; gap: 8px; }
+#msg { margin: 0; min-height: 2.8em; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: 600; font-size: 16px; line-height: 1.4; }
+#msg .mk { display: inline-grid; width: 22px; height: 22px; font-size: 12px; border-radius: 6px; margin-right: 6px; flex: none; }
+#boardName { margin: 0; font-size: 13px; color: var(--ink2); text-align: center; }
+
+/* ---- Results: Crossix's finish list, one row per player, counted up row by row on the board. */
+#results { padding-top: 12px; cursor: pointer; }
+#resultsHead { text-align: center; margin: 0 0 12px; }
+#resultsHead h2 { font: 800 28px/1.15 var(--num); }
+#resultsHead p { margin: 6px 0 0; color: var(--ink2); }
+.reveal { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rrow { display: grid; grid-template-columns: 26px 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px;
+  transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease; }
+.rank { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--ink2); font: 700 14px var(--num); }
+.rank.first { background: var(--line-c); color: #fff; }
+.rrow .mk { width: 34px; height: 34px; border-radius: 50%; font-size: 16px; }
+.rrow .who { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rrow .t { min-width: 56px; height: 42px; padding: 0 10px; border-radius: 11px; display: grid; place-items: center; font: 800 22px/1 var(--num); font-variant-numeric: tabular-nums;
+  background: var(--fill); color: var(--ink); transition: background-color .2s, color .2s, box-shadow .2s; }
+.rrow .t.now { background: #fff; color: #1d1d1f; box-shadow: inset 0 0 0 2px var(--line-c), 0 2px 10px rgb(0 0 0 / .18); }
+.rrow .t.fin { background: var(--ink); color: var(--canvas); }
+.rrow .t.pop { animation: pop .25s ease-out; }
+.rrow.dim { opacity: .5; filter: grayscale(.7); }
+.rrow.win { box-shadow: 0 0 0 3px var(--line-c), 0 8px 28px color-mix(in srgb, var(--line-c) 45%, transparent); animation: glow 1.8s ease-in-out infinite; }
+@keyframes glow { 50% { box-shadow: 0 0 0 3px var(--line-c), 0 10px 46px color-mix(in srgb, var(--line-c) 80%, transparent); } }
+#skip { display: block; margin: 14px auto 0; }
+/* The results board stays clear of the menu and Undo circles. */
+#gamePage.over #stage { flex: none; height: min(46dvh, 92vw); padding-right: 58px; }
+
+/* ---- Sheets (copied from Crossix) */
+.rules p { margin: 0 0 4px; }
+dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--ink2); opacity: .35; margin: -12px 0 2px; }
+.appearance { display: flex; align-items: center; gap: 12px; }
+.appearance .segmented { flex: 1; }
+/* How to play: a picture beside each short topic. */
+.topic { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; align-items: center; padding: 8px 0; border-top: 1px solid var(--hair); }
+.topic h3 { margin: 0 0 2px; color: var(--ink); }
+.topic p { margin: 0; }
+.pic { width: 96px; height: 80px; border-radius: 14px; background: var(--board); display: grid; place-items: center; padding: 6px; overflow: hidden; }
+.pic svg.board { width: 84px; height: 68px; --u: 26px; --lw: 3px; }
+.pic .mini { display: grid; gap: 4px; width: 100%; font: 700 11px var(--num); }
+.pic .mini span { border-radius: 999px; padding: 4px 6px; background: var(--fill); display: flex; justify-content: space-between; color: var(--ink); }
+.pic .mini .go { background: var(--primary); color: #fff; justify-content: center; }
+.pic .mini .go[aria-disabled] { opacity: .4; }
+#tutStage { height: min(46dvh, 320px); display: grid; place-items: center; }
+#tutMsg { min-height: 2.8em; margin: 0; text-align: center; font-weight: 600; color: var(--ink); }
+
+/* Phones upright: the picked board is a compact row (picture beside its name), so the board list starts on the first screen. */
+@media (max-width: 699px) and (orientation: portrait) {
+  #bigPreview { grid-template-columns: 104px minmax(0, 1fr); gap: 2px 14px; padding: 10px 14px 10px 10px; }
+  #bigPreview .thumb { grid-column: 1; grid-row: 1 / span 3; width: 104px; height: 88px; margin: 0; }
+  #bigPreview strong, #bigPreview span { grid-column: 2; align-self: end; }
+  #bigPreview span { align-self: start; }
+  #bigPreview .btn { grid-column: 2; grid-row: 3; justify-self: start; min-height: 40px; padding: 0 16px; }
+}
+/* Tablets: centred and roomier. */
+@media (min-width: 700px) {
+  .app { max-width: 720px; }
+  .head { grid-template-columns: 1fr 1fr; padding-right: 58px; }
+}
+/* Wide screens and phones in landscape: the board on the left, players and the turn controls in a column on the right. */
+@media (min-width: 1000px) and (min-height: 541px), (orientation: landscape) and (max-height: 540px) {
+  .app:has(#gamePage:not([hidden])) { max-width: 1180px; }
+  #gamePage { --side: clamp(236px, 30vw, 340px); display: grid; grid-template-columns: minmax(0, 1fr) var(--side); grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "stage head" "stage gap" "stage bar"; column-gap: 16px; }
+  #gamePage .head { grid-area: head; grid-template-columns: none; padding-right: 0; min-height: 0; margin: 0; }
+  #stage { grid-area: stage; }
+  .turnbar { grid-area: bar; }
+  #results { grid-area: head / head / bar / bar; padding-top: 0; overflow: auto; }
+  #gamePage.over #stage { height: auto; padding-right: 0; }
+  .app:has(#gamePage.over:not([hidden])) { height: 100dvh; }
+}
+@media (min-width: 1000px) and (min-height: 541px) {
+  .app:has(#gamePage:not([hidden])) { padding-bottom: 24px; }
+  #gamePage { padding-right: 58px; }
+  /* Desktop: players and the turn controls sit together, centred beside the board, not split top and bottom. */
+  #gamePage:not(.over) { grid-template-rows: minmax(0, 1fr) auto auto minmax(0, 1fr); grid-template-areas: "stage ." "stage head" "stage bar" "stage ."; row-gap: 18px; }
+  .pagehead, .logo { max-width: none; }
+}
+/* Phone in landscape: everything fits one screen, the content clear of the circles on the right. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .app { max-width: 980px; padding-top: max(10px, env(safe-area-inset-top)); padding-right: calc(max(16px, env(safe-area-inset-right)) + 58px); }
+  .menu.open .item { --col: calc(clamp(0, var(--i) - 3, 1) + clamp(0, var(--i) - 6, 1)); --row: calc(var(--i) - 3 * var(--col));
+    transform: translate(calc(var(--col) * -184px), calc(var(--row) * 58px)); }
+  .menu.open:has(.undo:not([hidden])) .item { transform: translate(calc(var(--col) * -184px), calc((var(--row) + 1) * 58px)); }
+  .logo, .pagehead { padding-right: 0; }
+  #setupPage { columns: 2; column-gap: 14px; }
+  #setupPage > * { break-inside: avoid; }
+  #setupPage > .logo, #setupPage > .lede { column-span: all; }
+  .pl { min-height: 44px; padding-block: 4px; }
+  .pl .mk { width: 30px; height: 30px; }
+  #msg { font-size: 15px; min-height: 2.6em; }
+  .turnbar { padding-top: 6px; gap: 6px; }
+  .turnbar .btn.primary { min-height: 48px; }
+  #boardName { display: none; }
+  #bigPreview .thumb { height: 34dvh; }
+  #rollSeg { margin-bottom: 8px; }
+  .rcard { padding: 8px 10px; gap: 6px; }
+  .slot { --h: 22px; }
+  #rollMsg { margin: 8px 0; }
+  /* Physical dice: the name beside its number pad, and Start game beside Enter the numbers again, so Start game shows without a scroll. */
+  .rcard:has(.pad) { grid-template-columns: minmax(0, 1fr) auto; justify-items: start; align-items: center; }
+  #rollPage { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; align-content: start; }
+  #rollPage > * { grid-column: 1 / -1; }
+  #rollPage > #startGame:has(~ #fixRoll:not([hidden])) { grid-column: 1; }
+  #rollPage > #startGame:not([hidden]) ~ #fixRoll { grid-column: 2; margin-top: 0 !important; }
+  #fixRoll .btn { min-height: 54px; }
+  .pagehead { margin-bottom: 6px; }
+  #resultsHead { margin-bottom: 8px; }
+  #resultsHead h2 { font-size: 22px; }
+  #resultsHead p { margin-top: 2px; font-size: 14px; }
+  .reveal { gap: 6px; }
+  .rrow { padding-block: 5px; }
+  .rrow .t { height: 36px; }
+  #after .stack { margin-top: 10px; display: flex; gap: 8px; }
+  #after .stack .btn { flex: 1; margin: 0; min-height: 44px; font-size: 16px; }
+  #tutStage { height: 52dvh; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="menu" id="menu" aria-label="Dots and Boxes">
+    <button class="menu-trigger glass" aria-controls="menuItems">
+      <svg class="bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <button class="undo glass" id="undo" aria-label="Undo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5 4 9l4 4"/><path d="M4 9h9.5a5.5 5.5 0 0 1 0 11H10"/></svg>
+    </button>
+    <div class="menu-items" id="menuItems">
+      <a class="item glass" id="gamesLink" href="../index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+        <span class="glass">Games</span>
+      </a>
+      <button class="item glass" id="exitBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
+        <span class="glass">Exit</span>
+      </button>
+      <button class="item glass" id="newBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+        <span class="glass">New game</span>
+      </button>
+      <button class="item glass" id="restart" data-keep-open>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>
+        <span class="glass">Restart</span>
+      </button>
+      <button class="item glass" id="rulesBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6"/></svg>
+        <span class="glass">How to play</span>
+      </button>
+      <button class="item glass" id="settingsBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+        <span class="glass">Settings</span>
+      </button>
+    </div>
+  </nav>
+
+  <main>
+    <section id="setupPage" class="page">
+      <div class="logo">
+        <svg viewBox="0 0 46 46" aria-hidden="true">
+          <rect x="7" y="7" width="16" height="16" rx="2" fill="var(--c-blue-fill)"/>
+          <text x="15" y="15.5" text-anchor="middle" dominant-baseline="central" font-size="10" font-weight="800" fill="var(--c-blue-ink)" font-family="ui-rounded, system-ui">A</text>
+          <path d="M7 7h16v16H7z" fill="none" stroke="var(--c-blue-line)" stroke-width="3" stroke-linejoin="round"/>
+          <path d="M23 23h16M23 7h16" fill="none" stroke="var(--c-red-line)" stroke-width="3" stroke-linecap="round"/>
+          <g fill="var(--ink)"><circle cx="7" cy="7" r="3"/><circle cx="23" cy="7" r="3"/><circle cx="39" cy="7" r="3"/><circle cx="7" cy="23" r="3"/><circle cx="23" cy="23" r="3"/><circle cx="39" cy="23" r="3"/><circle cx="7" cy="39" r="3"/><circle cx="23" cy="39" r="3"/><circle cx="39" cy="39" r="3"/></g>
+        </svg>
+        <h1>Dots and Boxes</h1>
+      </div>
+      <p class="lede">Take turns drawing lines between dots. Close a box to claim it and go again. Most boxes wins.</p>
+
+      <details class="glass group" id="savedGroup" hidden>
+        <summary id="savedSummary">Saved games</summary>
+        <p class="note" id="savedNote" role="status" hidden></p>
+        <ul id="saves"></ul>
+      </details>
+
+      <section class="glass group" aria-labelledby="playersTitle">
+        <h2 id="playersTitle">Players</h2>
+        <div id="players"></div>
+        <p class="note" id="playersNote" aria-live="polite"></p>
+      </section>
+
+      <section class="glass group" aria-labelledby="boardTitle">
+        <h2 id="boardTitle">Board</h2>
+        <div class="chosen" id="chosen" style="margin-top: 10px"></div>
+      </section>
+
+      <button class="btn primary" id="toRoll">Roll for who starts</button>
+      <p class="note" id="startHint" hidden></p>
+    </section>
+
+    <section id="boardsPage" class="page" hidden>
+      <div class="pagehead">
+        <button class="back" id="boardsBack" aria-label="Back to setup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <h2 id="boardsTitle">Choose a board</h2>
+      </div>
+      <div class="glass" id="bigPreview" style="border-radius: 22px"></div>
+      <div id="cats" role="group" aria-label="Board types"></div>
+      <div id="boardGrid"></div>
+      <div class="pickfoot"><button class="btn primary" id="useBoard">Use this board</button></div>
+    </section>
+
+    <section id="rollPage" class="page" hidden>
+      <div class="pagehead">
+        <button class="back" id="rollBack" aria-label="Back to setup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <h2>Who goes first?</h2>
+      </div>
+      <div class="segmented" id="rollSeg" role="group" aria-label="Dice">
+        <button value="digital">Digital dice</button>
+        <button value="physical">Physical dice</button>
+      </div>
+      <div class="rcards" id="rcards"></div>
+      <p id="rollMsg" role="status"></p>
+      <button class="btn primary" id="startGame" hidden>Start game</button>
+      <div class="stack" id="fixRoll" hidden style="margin-top: 10px"><button class="btn">Enter the numbers again</button></div>
+    </section>
+
+    <section id="gamePage" class="page" hidden>
+      <div class="head" id="panels" role="group" aria-label="Players"></div>
+      <div id="stage"><div class="bwrap" id="bwrap"></div></div>
+      <p class="sr" id="boardLive" aria-live="polite"></p>
+      <div class="turnbar" id="turnbar">
+        <p id="msg" role="status"></p>
+        <button class="btn primary" id="next">Next turn</button>
+        <p id="boardName"></p>
+      </div>
+      <div id="results" hidden>
+        <div id="resultsHead"><h2 id="resultsTitle"></h2><p id="resultsWhy"></p></div>
+        <ol class="reveal" id="reveal" aria-label="Ranking"></ol>
+        <button class="btn" id="skip" hidden>Skip</button>
+        <div id="after">
+          <div class="stack">
+            <button class="btn primary" id="again">Rematch</button>
+            <button class="btn" id="toNew">New game</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<dialog class="sheet glass" id="endSheet" aria-labelledby="endTitle">
+  <div>
+    <h2 id="endTitle"></h2>
+    <p id="endNote"></p>
+    <button class="btn primary" id="saveExit"></button>
+    <button class="btn danger" id="discard"></button>
+    <button class="btn" id="keep"></button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="rematchSheet" aria-labelledby="rematchTitle">
+  <div>
+    <h2 id="rematchTitle">Rematch</h2>
+    <p>Same players and board, a fresh start.</p>
+    <button class="btn primary" id="rematchRoll">Roll for who starts</button>
+    <button class="btn" id="rematchKeep"></button>
+    <button class="btn" id="rematchCancel">Cancel</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="editSheet" aria-labelledby="editTitle">
+  <div>
+    <h2 id="editTitle">New layout</h2>
+    <p>Tap squares to add or remove them. Every box must join the others.</p>
+    <div class="stepper"><span id="colsLabel">Columns</span><button id="colsDown" aria-label="Fewer columns">−</button><b id="colsN" aria-labelledby="colsLabel"></b><button id="colsUp" aria-label="More columns">+</button></div>
+    <div class="stepper"><span id="rowsLabel">Rows</span><button id="rowsDown" aria-label="Fewer rows">−</button><b id="rowsN" aria-labelledby="rowsLabel"></b><button id="rowsUp" aria-label="More rows">+</button></div>
+    <div id="cellGrid" role="group" aria-label="Squares"></div>
+    <p class="note" id="editCount" aria-live="polite"></p>
+    <input class="field" id="layoutName" maxlength="24" placeholder="Name" aria-label="Layout name" autocomplete="off" enterkeyhint="done">
+    <button class="btn primary" id="layoutSave">Save layout</button>
+    <div class="duo"><button class="btn danger" id="layoutDelete">Delete</button><button class="btn" id="layoutCancel">Cancel</button></div>
+  </div>
+</dialog>
+
+<dialog class="sheet glass rules" id="rulesSheet" aria-labelledby="rulesTitle">
+  <div>
+    <h2 id="rulesTitle">How to play</h2>
+    <p>Two players take turns on one device. The board starts as dots with no lines.</p>
+    <div id="topics"></div>
+    <button class="btn primary" id="tutBtn">Try a short tutorial</button>
+    <button class="btn" id="rulesDone">Done</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="tutSheet" aria-labelledby="tutTitle">
+  <div>
+    <h2 id="tutTitle">Tutorial</h2>
+    <p>A tiny board for practice. Nothing here is saved.</p>
+    <div id="tutStage"></div>
+    <p class="sr" id="tutLive" aria-live="polite"></p>
+    <p id="tutMsg" role="status"></p>
+    <button class="btn primary" id="tutNext">Next turn</button>
+    <button class="btn" id="tutDone">Done</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="settingsSheet" aria-labelledby="settingsTitle">
+  <div>
+    <h2 id="settingsTitle">Settings</h2>
+    <h3 id="themeTitle">Appearance</h3>
+    <div class="appearance">
+      <div class="segmented" id="themeSeg" role="group" aria-labelledby="themeTitle">
+        <button value="system">System</button>
+        <button value="light">Light</button>
+        <button value="dark">Dark</button>
+      </div>
+      <svg class="theme-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(45 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(90 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(135 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(180 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(225 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(270 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(315 12 12)"/>
+        <circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>
+        <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <h3 id="boxTitle">Box count</h3>
+    <div class="segmented" id="boxSeg" role="group" aria-labelledby="boxTitle">
+      <button value="live">Count as you go</button>
+      <button value="hide">Hide until the end</button>
+    </div>
+    <p>Hide until the end keeps both totals out of sight while you play. Claimed boxes still show their colour and letter, and the totals are counted up at the end.</p>
+    <h3 id="hapticsTitle">Haptics</h3>
+    <div class="segmented" id="hapticsSeg" role="group" aria-labelledby="hapticsTitle">
+      <button value="on">On</button>
+      <button value="off">Off</button>
+    </div>
+    <div class="account" id="account" hidden><h3>Account</h3></div>
+    <button class="btn" id="settingsDone">Done</button>
+  </div>
+</dialog>
+
+<template id="xIcon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></template>
+<template id="plusIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></template>
+
+<script src="../config.js"></script>
+<script src="../platform.js"></script>
+<script type="module" src="ui/app.js"></script>
+</body>
+</html>
