@@ -22,6 +22,7 @@
    Colours from the design canvas (docs/plans/salad-canvas/contrast.js), where every pairing is measured. */
 :root {
   --canvas: #f6f3ec; --primary: #0071e3; --felt: #1a6b40; --sub: #55555a;
+  --ink2: #55555a; /* the shared #6e6e73 is about 4.5:1 on cream and under it on the grey fills; the canvas measured #55555a */
   --card: #fff; --red: #c8102e; --blk: #1d1d1f; --dim: #d7d7d2; --dim-ink: #3a3a3c; --dim-red: #9e1a2c;
   --win: #ffd23f; --pen: #d70015; --cell: #fff; --mix: 14%;
   --r1: #1f6fd6; --r2: #d42f3a; --r3: #9046d6; --r4: #3a3a3c; --r5: #c45f00; --r6: #1c7f3e;
@@ -309,7 +310,7 @@ dialog h2:focus { outline: none; }
 .rlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .rrow { display: grid; grid-template-columns: 28px minmax(0, 1fr) repeat(var(--n, 2), 54px) 66px; gap: 8px; align-items: center; padding: 10px; border-radius: 18px;
   transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease; }
-.rank { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--ink2); font: 700 14px var(--num); flex: none; }
+.rank { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--sub); font: 700 14px var(--num); flex: none; }
 .rank.first { background: var(--accent); color: #fff; }
 :root[data-theme="dark"] .rank.first { background: #0071e3; }
 .rrow .who2 { min-width: 0; display: grid; gap: 2px; }
@@ -322,7 +323,7 @@ dialog h2:focus { outline: none; }
 .t.now { background: #fff; color: #1d1d1f; box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
 .t.mute { opacity: .45; }
 .rrow.win { box-shadow: 0 0 0 3px var(--accent), 0 8px 28px color-mix(in srgb, var(--accent) 45%, transparent); }
-.rrow.dim { opacity: .55; filter: grayscale(.6); }
+.rrow.dim { opacity: .72; filter: grayscale(.6); } /* still 4.5:1 for the names in both themes */
 #final .rrow { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 9px 10px; }
 #final .rrow .line { display: flex; align-items: center; gap: 8px; }
 #final .rrow .line strong { flex: 1; font-size: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

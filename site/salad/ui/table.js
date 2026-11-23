@@ -37,10 +37,11 @@ export function renderTable(v) {
   view = v;
   const g = v.game, my = v.you.seat, n = g.players.length;
   if (T.room !== v.room.id) reset(v.room.id);
-  const roundKey = `${g.history.length}:${g.round}:${JSON.stringify(g.cut)}`;
+  // Changes when a round is dealt (next round, or a rematch's new cut), not when one ends.
+  const roundKey = `${g.round}:${JSON.stringify(g.cut)}`;
   const lastKey = g.last ? `${roundKey}:${g.last.n}` : null;
   if (roundKey !== T.roundKey) {
-    if (T.roundKey !== undefined) { T.deal = true; sound('shuffle'); }
+    if (T.roundKey !== undefined && g.phase === 'play') { T.deal = true; sound('shuffle'); }
     T.roundKey = roundKey;
     T.shown = new Set();
     T.sel = null;
