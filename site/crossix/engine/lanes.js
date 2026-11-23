@@ -15,7 +15,8 @@ export const MARKS_BEFORE_LAST = 5; // marks a lane needs before its last number
 export const MAX_PENALTIES = 4;
 export const PENALTY = 5;
 export const LOCKS_TO_END = 2;
-export const MAX_PLAYERS = 5;
+export const MAX_PLAYERS = 5; // on one device (the roster)
+export const MAX_ONLINE = 8; // an online room, one phone each; validState allows up to this
 
 export const triangular = n => n * (n + 1) / 2;
 // Points for 0..12 crosses: 0, 1, 3, 6, ... 78.

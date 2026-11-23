@@ -1,6 +1,6 @@
 # Crossix plan and notes
 
-An original lane-crossing dice game for one to five players, at `site/crossix/`. One game, two modes, one scoresheet, one engine, one saved state.
+An original lane-crossing dice game for one to five players on one device, or two to eight online, at `site/crossix/`. One game, three ways to play (own dice, digital dice on one device, online), one scoresheet, one engine.
 
 ## Files
 
@@ -15,6 +15,9 @@ site/crossix/ui/dice.js            CSS 3D dice
 site/crossix/manifest.webmanifest  home-screen app scoped to /crossix/
 site/crossix/sw.js                 offline cache
 tests/crossix/engine.test.js       node --test "tests/crossix/*.test.js"
+server/crossix.js                  online rooms: the Crossix adapter for server/rooms.js
+server/crossix.test.js             online rooms through the Worker (cd server && npm test)
+server/crossix-client.test.js      the client (Bomb's site/bomb/ui/net.js) against the Worker
 ```
 
 ## Sheet
@@ -64,7 +67,7 @@ Marks are cell indices 0 to 10, strictly increasing, so "left to right only" and
 
 - Icons reuse the site's `/icons/`; Crossix has no icon of its own yet.
 - The service worker serves the cached page even after sign-out until the next fetch; the API stays gated.
-- Online multiplayer is not built; the reducer is ready for it (state and actions are JSON).
+- The home page tile still says "for one to five players"; another agent owns `site/index.html`.
 
 ## Scores setting and the end reveal
 
@@ -74,3 +77,33 @@ Marks are cell indices 0 to 10, strictly increasing, so "left to right only" and
 ## Dice roll fix (round 6)
 
 Each roll used to set the die straight to the new face's pose with transitions off, then spin whole turns back to it: the new face flashed before the spin. The change() render for the roll also ran before `rolling` was set, so it could put the new faces in place at once. Now the die keeps its angles (`_rx`, `_ry`) and a roll turns on from where it rests to an angle equal to the new face's pose modulo 360 plus two or more whole turns; `rolling` is set before the roll is dispatched; the settled class (only the front face visible) is applied by `transitionend` or a 1.2 s fallback, guarded so an older roll can never mark a newer spin settled.
+
+## Online
+
+Owner's request: `crossix-online-spec-owner-2026-11-23.md`. API: `crossix-online-contract.md`.
+
+- **Setup**: Play has a third choice, Online. You give your name, then Create room or Join with the 6-letter code; a link `/crossix/?room=CODE` joins straight away (or fills in the code when there is no name yet). The lobby is Bomb's: the code, Share link and Copy code, seats filling in (a seat is just a name, with Host, Ready or Away), the host's Start (2 to 8), Leave. A reload in a room reopens it; after leaving mid-game, Online offers Rejoin.
+- **Server**: Bomb's `server/rooms.js`, now shared through a small per-game adapter; Crossix's is `server/crossix.js`. Same tables, no migration: a Crossix room's state carries `kind: 'crossix'` and every lookup matches it, so a code or id of one game never opens the other's room. The server rolls with a seed from `crypto.getRandomValues`; seed and rng never leave it.
+- **A roll**: the roller's phone shows Roll; every phone spins the dice when the roll arrives and starts on its own sheet. Picks are made on the phone with the same reducer and taps as on one device (nothing is sent), and other sheets are there to look at (chips, read-only). End turn sends one request with the final picks; the engine checks them on the server. Change picks reopens until the roll resolves. Others' picks stay hidden until the resolve; chips show who is done. The last Done resolves and the next seat rolls.
+- **Away**: a phone keeps its seat. A seat not seen (polled) for 60 s shows dimmed, and the host gets "Skip <name>": for the roller in the roll phase it rolls for them; in the choose phase it ends that seat's turn with nothing crossed, which for the roller is the penalty.
+- **End**: the same finish screen and count. Play again becomes Rematch (starts when everyone has tapped it, as Bomb) and Change players becomes Leave (back to the lobby for the rest). No undo online, and online games are never written to Saved games or the autosave.
+- **Validation**: names 1 to 20 characters; picks shape-checked, then replayed through the engine's own `pick`, `penalty` and `done` actions; the stored state is checked with `validState` before every action (`MAX_ONLINE` = 8 there; the one-device roster stays at `MAX_PLAYERS` = 5).
+
+### Requests and the free plan
+
+The free plan allows 100,000 Worker requests a day for the whole site (every page and file request goes through the Worker too). Every change wakes every seated phone's held poll once; nothing else changes the version. Per roll with N players: 1 roll and N Dones are N + 1 requests, each waking N polls: (N + 1)² requests. Assume 30 s a roll, so on average one held poll a phone times out per roll (20 s hold), and a page load of about 25 requests per phone.
+
+| | per roll | rolls a game (assumed) | per game, with lobby and page loads | games a day in 100,000 |
+|---|---|---|---|---|
+| 4 players | 25 + 4 = about 29 | 40 (10 rounds) | about 1,300 | about 75 |
+| 8 players | 81 + 8 = about 89 | 48 (6 rounds) | about 4,500 | about 22 |
+
+That is if nothing else used requests that day; reopened Dones and Skips add a little. Free: yes, rooms and online play cost nothing on the free plan, up to these limits; past 100,000 requests the Worker answers with errors until the next day (UTC) rather than charging.
+
+### Decisions the owner can reverse
+
+- 8 players at most online (`MAX_ONLINE`); one device stays at 5.
+- Other players' picks are hidden until the roll resolves (only who is done shows).
+- The host's Skip for a seat unseen for 60 s, which gives a skipped roller the penalty.
+- No turn timer: nothing happens by itself; a slow player is waited for until the host skips them.
+- Long polling on the existing Worker and D1 (free plan), not WebSockets or Durable Objects.
