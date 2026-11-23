@@ -21,13 +21,8 @@
   <main style="padding-top: calc(env(safe-area-inset-top) + 52px)">
     <h1>Games</h1>
     <p class="lede">From NordgrenLabs.</p>
-    <div class="segmented" id="filter" role="group" aria-label="Show games" style="margin-bottom: 14px">
-      <button value="all" aria-pressed="true">All</button>
-      <button value="dice" aria-pressed="false">Dice</button>
-      <button value="card" aria-pressed="false">Cards</button>
-      <button value="online" aria-pressed="false" aria-label="Online only">Online</button>
-    </div>
     <div class="games">
+      <h2>Dice</h2>
       <div class="glass tile" data-kind="dice">
         <a href="bank/index.html">Bank</a>
         <button class="info" aria-expanded="false" aria-controls="about-0" aria-label="About Bank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
@@ -38,27 +33,28 @@
         <button class="info" aria-expanded="false" aria-controls="about-1" aria-label="About Crossix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-1" hidden>Cross off numbers in four coloured lanes, for one to five players. Keep score for your own dice or roll on screen.</p>
       </div>
-      <div class="glass tile" data-kind="online">
-        <a href="dots/index.html">Dots and Boxes</a>
-        <button class="info" aria-expanded="false" aria-controls="about-3" aria-label="About Dots and Boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
-        <p id="about-3" hidden>Draw lines between dots and close boxes to claim them, for two players on one device. Squares, shapes, triangles and hexagons.</p>
+      <h2 style="margin-top: 14px">Cards</h2>
+      <div class="glass tile" data-kind="card online">
+        <a href="bomb/index.html">Bomb</a>
+        <button class="info" aria-expanded="false" aria-controls="about-4" aria-label="About Bomb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+        <p id="about-4" hidden>Shed every card before anyone else, with 2s that reset and 10s that bomb the pile, for two to six players on one phone or online.</p>
       </div>
       <div class="glass tile" data-kind="card online">
         <a href="salad/index.html">Canadian Salad</a>
         <button class="info" aria-expanded="false" aria-controls="about-5" aria-label="About Canadian Salad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-5" hidden>Six rounds of tricks for 2 to 8 players, each on their own device. Lowest score wins.</p>
       </div>
+      <h2 style="margin-top: 14px">Other</h2>
+      <div class="glass tile" data-kind="online">
+        <a href="dots/index.html">Dots and Boxes</a>
+        <button class="info" aria-expanded="false" aria-controls="about-3" aria-label="About Dots and Boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+        <p id="about-3" hidden>Draw lines between dots and close boxes to claim them, for two players on one device. Squares, shapes, triangles and hexagons.</p>
+      </div>
       <div class="glass tile" data-kind="online">
         <a href="keep/index.html">Dragon's Keep</a>
         <button class="info" aria-expanded="false" aria-controls="about-2" aria-label="About Dragon's Keep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-2" hidden>Explore a keep, grab gold and reach a tower before sunset, for one to four players on one device.</p>
       </div>
-      <div class="glass tile" data-kind="card online">
-        <a href="bomb/index.html">Bomb</a>
-        <button class="info" aria-expanded="false" aria-controls="about-4" aria-label="About Bomb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
-        <p id="about-4" hidden>Shed every card before anyone else, with 2s that reset and 10s that bomb the pile, for two to six players on one phone or online.</p>
-      </div>
-      <p class="empty" hidden>No games here yet.</p>
     </div>
     <div class="account" id="account" style="margin-top: 24px" hidden></div>
   </main>
@@ -67,17 +63,6 @@
 <script src="platform.js"></script>
 <script>
 NL.account(document.getElementById('account'));
-// Filter by kind (data-kind on each card, space separated); remembered on this device.
-const tiles = [...document.querySelectorAll('.tile')], empty = document.querySelector('.games .empty');
-const showKind = NL.segmented(document.getElementById('filter'), k => pick(k));
-function pick(k) {
-  for (const t of tiles) t.hidden = k !== 'all' && !t.dataset.kind.split(' ').includes(k);
-  empty.hidden = tiles.some(t => !t.hidden);
-  showKind(k);
-  try { localStorage.setItem('nl-games-filter', k); } catch (e) {}
-}
-let saved = 'all'; try { saved = localStorage.getItem('nl-games-filter') || 'all'; } catch (e) {}
-pick(document.querySelector(`#filter button[value="${saved}"]`) ? saved : 'all');
 // The "i" opens that game's description inside its card.
 for (const b of document.querySelectorAll('.tile .info')) b.addEventListener('click', () => {
   const open = b.getAttribute('aria-expanded') !== 'true';
