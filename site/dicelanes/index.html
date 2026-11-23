@@ -301,6 +301,10 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 /* Phone in landscape: sheet on the left, tray on the right. */
 @media (orientation: landscape) and (max-height: 540px) {
   .app { max-width: 980px; padding-top: max(10px, env(safe-area-inset-top)); }
+  /* The open menu is too tall for a landscape phone: three rows per column, then a second column to the left (clear of the labels). */
+  .menu.open .item { --col: calc(clamp(0, var(--i) - 3, 1) + clamp(0, var(--i) - 6, 1)); --row: calc(var(--i) - 3 * var(--col));
+    transform: translate(calc(var(--col) * -184px), calc(var(--row) * 58px)); }
+  .menu.open:has(.undo:not([hidden])) .item { transform: translate(calc(var(--col) * -184px), calc((var(--row) + 1) * 58px)); }
   /* Content keeps a gutter for the menu and Undo circles. */
   .app { padding-right: calc(max(16px, env(safe-area-inset-right)) + 58px); }
   .head { padding-right: 0; min-height: 0; }
