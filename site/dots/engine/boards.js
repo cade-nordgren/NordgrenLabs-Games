@@ -11,7 +11,9 @@
 
 export const CATEGORIES = [
   { id: 'classic', name: 'Classic' }, { id: 'rect', name: 'Rectangles' },
-  { id: 'shapes', name: 'Shapes' }, { id: 'tri', name: 'Triangles' }, { id: 'hex', name: 'Hexagons' },
+  { id: 'shapes', name: 'Shapes' }, { id: 'geo', name: 'Geometric' }, { id: 'holes', name: 'With holes' },
+  { id: 'letters', name: 'Letters' }, { id: 'things', name: 'Things' }, { id: 'nature', name: 'Nature' },
+  { id: 'large', name: 'Large shapes' }, { id: 'tri', name: 'Triangles' }, { id: 'hex', name: 'Hexagons' },
 ];
 
 const MAX_SIDE = 12, MIN_FACES = 4;
@@ -162,11 +164,78 @@ const SHAPES = {
   random: ['Random', ['##.##..', '######.', '.####..', '..####.', '....###']],
 };
 
+// Added 2026-11-23 at the owner's request: [category, id, name, mask]. Ids are stable (settings remember the board id).
+const MORE = [
+  ['geo', 'octagon', 'Octagon', ['.###.', '#####', '#####', '#####', '.###.']],
+  ['geo', 'circle', 'Circle', ['..###..', '.#####.', '#######', '#######', '#######', '.#####.', '..###..']],
+  ['geo', 'oval', 'Oval', ['.######.', '########', '########', '.######.']],
+  ['geo', 'parallelogram', 'Parallelogram', ['####...', '.####..', '..####.', '...####']],
+  ['geo', 'trapezoid', 'Trapezoid', ['..####..', '.######.', '########']],
+  ['geo', 'bowtie', 'Bowtie', ['#.....#', '##...##', '###.###', '#######', '###.###', '##...##', '#.....#']],
+  ['geo', 'chevron', 'Chevron', ['##....', '.##...', '..##..', '..##..', '.##...', '##....']],
+  ['geo', 'arrow', 'Arrow', ['...#...', '..###..', '.#####.', '#######', '..###..', '..###..', '..###..']],
+  ['holes', 'hollow-diamond', 'Hollow diamond', ['..###..', '.##.##.', '##...##', '.##.##.', '..###..']],
+  ['holes', 'window', 'Window', ['#######', '#..#..#', '#..#..#', '#######', '#..#..#', '#..#..#', '#######']],
+  ['holes', 'waffle-small', 'Small waffle', ['#####', '#.#.#', '#####', '#.#.#', '#####']],
+  ['holes', 'waffle', 'Waffle', ['#######', '#.#.#.#', '#######', '#.#.#.#', '#######', '#.#.#.#', '#######']],
+  ['holes', 'swiss-cheese', 'Swiss cheese', ['######', '#.##.#', '######', '##.###', '#####.', '#.####']],
+  ['holes', 'target', 'Target', ['#######', '#.....#', '#.###.#', '###.###', '#.###.#', '#.....#', '#######']],
+  ['holes', 'spiral', 'Spiral', ['#######', '......#', '#####.#', '#...#.#', '#.###.#', '#.....#', '#######']],
+  ['holes', 'ladder', 'Ladder', ['#####', '#...#', '#####', '#...#', '#####', '#...#', '#####']],
+  ['holes', 'comb', 'Comb', ['#######', '#.#.#.#', '#.#.#.#', '#.#.#.#']],
+  ['holes', 'dumbbell', 'Dumbbell', ['###...###', '#########', '###...###']],
+  ['letters', 'letter-a', 'Letter A', ['.###.', '##.##', '#####', '##.##', '##.##']],
+  ['letters', 'letter-c', 'Letter C', ['#####', '#####', '##...', '##...', '#####', '#####']],
+  ['letters', 'letter-e', 'Letter E', ['#####', '##...', '#####', '##...', '#####']],
+  ['letters', 'letter-f', 'Letter F', ['#####', '##...', '####.', '##...', '##...']],
+  ['letters', 'letter-k', 'Letter K', ['##..##', '##.##.', '####..', '##.##.', '##..##']],
+  ['letters', 'letter-p', 'Letter P', ['####.', '##.##', '####.', '##...', '##...']],
+  ['letters', 'letter-s', 'Letter S', ['#####', '##...', '#####', '...##', '#####']],
+  ['letters', 'letter-y', 'Letter Y', ['##..##', '.####.', '..##..', '..##..', '..##..']],
+  ['letters', 'letter-z', 'Letter Z', ['#####', '...##', '..##.', '.##..', '##...', '#####']],
+  ['things', 'house', 'House', ['...#...', '..###..', '.#####.', '#######', '.##.##.', '.##.##.']],
+  ['things', 'castle', 'Castle', ['#.#.#.#', '#######', '#######', '###.###', '###.###']],
+  ['things', 'crown', 'Crown', ['#..#..#', '##.#.##', '#######', '#######']],
+  ['things', 'key', 'Key', ['###.....', '#.######', '###..#.#']],
+  ['things', 'rocket', 'Rocket', ['..#..', '.###.', '.###.', '.###.', '.###.', '#####', '#.#.#']],
+  ['things', 'boat', 'Boat', ['...#....', '...##...', '...###..', '...#....', '########', '.######.', '..####..']],
+  ['things', 'star', 'Star', ['....#....', '...###...', '#########', '.#######.', '..#####..', '.###.###.', '##.....##']],
+  ['things', 'skyline', 'Skyline', ['......#.', '..#...#.', '..#.#.##', '.##.####', '########']],
+  ['nature', 'tree', 'Tree', ['...#...', '..###..', '.#####.', '..###..', '.#####.', '#######', '...#...', '...#...']],
+  ['nature', 'mushroom', 'Mushroom', ['..####..', '.######.', '########', '...##...', '...##...', '..####..']],
+  ['nature', 'fish', 'Fish', ['..###...#', '.#####.##', '#########', '.#####.##', '..###...#']],
+  ['nature', 'butterfly', 'Butterfly', ['##...##', '###.###', '#######', '..###..', '#######', '###.###', '##...##']],
+  ['nature', 'cat', 'Cat', ['#...#', '##.##', '#####', '#.#.#', '#####', '.###.']],
+  ['nature', 'smiley', 'Smiley', ['.#####.', '#######', '##.#.##', '#######', '#.###.#', '##...##', '.#####.']],
+  ['nature', 'cactus', 'Cactus', ['..#..', '#.#..', '#.#.#', '###.#', '..###', '..#..', '..#..']],
+  ['nature', 'moon', 'Moon', ['..####.', '.##....', '##.....', '##.....', '.##....', '..####.']],
+  ['nature', 'cloud', 'Cloud', ['..##.....', '.####.##.', '#########', '#########']],
+  ['nature', 'flower', 'Flower', ['.#.#.', '#####', '.###.', '#####', '.###.', '..#..', '..#..']],
+  ['nature', 'leaf', 'Leaf', ['...##', '..###', '.####', '####.', '###..', '#....']],
+];
+
+// A large version of a square mask: exactly twice the size when that fits in MAX_SIDE, otherwise scaled until the
+// longer side is MAX_SIDE, each new cell copying the old cell under its centre (so a symmetric shape stays symmetric).
+// Either way every old cell becomes a block of at least one cell, so the shape stays one piece and keeps its holes.
+export function enlarge(mask) {
+  const h = mask.length, w = mask[0].length, f = Math.max(w, h) * 2 <= MAX_SIDE ? 2 : MAX_SIDE / Math.max(w, h);
+  const W = Math.round(w * f), H = Math.round(h * f);
+  return Array.from({ length: H }, (_, r) =>
+    Array.from({ length: W }, (_, c) => mask[Math.floor((r + .5) * h / H)][Math.floor((c + .5) * w / W)]).join(''));
+}
+console.assert(enlarge(['##', '#.']).join('/') === '####/####/##../##..', 'enlarge doubles');
+console.assert(enlarge(['#..#..#', '#######', '#..#..#']).every(r => r.length === 12 && r === [...r].reverse().join('')), 'enlarge keeps symmetry');
+// "Large heart", "Large letter A", but "Large X" for a one-letter name.
+const largeName = n => `Large ${n.length > 1 ? n[0].toLowerCase() + n.slice(1) : n}`;
+const SHAPE_LIST = [...Object.entries(SHAPES).map(([id, [name, mask]]) => ['shapes', id, name, mask]), ...MORE];
+const NO_LARGE = new Set(['waffle-small']); // its large version would just be the large waffle again
+
 export const PRESETS = [
   ...[2, 3, 4, 5, 6, 8, 10].map(n => sq(`sq-${n}x${n}`, `${n} × ${n}`, 'classic', rect(n, n))),
   ...[[5, 3], [7, 3], [6, 4], [8, 4], [8, 5], [10, 6], [8, 2], [2, 8], [3, 6]].map(([c, r]) =>
     sq(`rect-${c}x${r}`, `${c} × ${r} ${c > r ? 'wide' : 'tall'}`, 'rect', rect(c, r))),
-  ...Object.entries(SHAPES).map(([id, [name, mask]]) => sq(`shape-${id}`, name, 'shapes', mask)),
+  ...SHAPE_LIST.map(([cat, id, name, mask]) => sq(`shape-${id}`, name, cat, mask)),
+  ...SHAPE_LIST.filter(([, id]) => !NO_LARGE.has(id)).map(([, id, name, mask]) => sq(`large-${id}`, largeName(name), 'large', enlarge(mask))),
   { id: 'tri-small', name: 'Small triangle', category: 'tri', spec: { kind: 'tri', mask: ['..#..', '.###.', '#####'] } },
   { id: 'tri-large', name: 'Large triangle', category: 'tri',
     spec: { kind: 'tri', mask: ['....#....', '...###...', '..#####..', '.#######.', '#########'] } },

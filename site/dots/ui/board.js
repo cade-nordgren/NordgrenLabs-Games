@@ -63,8 +63,9 @@ export function makeBoard(geo, opts = {}) {
     const pl = i => v.players[i].color;
     edgeEls.forEach((el, e) => {
       const by = v.edges[e];
-      el.classList.toggle('drawn', by >= 0);
-      el.classList.toggle('open', by < 0 && legal(e));
+      el.classList.toggle('drawn', by !== -1);
+      el.classList.toggle('pre', by === -2); // a starting line: drawn by nobody, never legal
+      el.classList.toggle('open', by === -1 && legal(e));
       el.classList.toggle('fresh', e === v.fresh);
       el.style.stroke = by >= 0 ? `var(--c-${pl(by)}-line)` : '';
     });
@@ -106,6 +107,7 @@ export function makeBoard(geo, opts = {}) {
     var describe = () => {
       if (!live || document.activeElement !== svg) return;
       if (!view.legal?.size) { live.textContent = view.lockedText || 'No line to draw now.'; return; }
+      if (!legal(cursor)) cursor = nearest({ x: 0, y: 0 }, [...view.legal]); // focused without a cursor yet (focus() from script)
       const e = cursor, m = mid(geo, e), a = pt(geo, geo.edges[e].a), b = pt(geo, geo.edges[e].b);
       const dir = Math.abs(a.y - b.y) < 1e-6 ? 'Horizontal' : Math.abs(a.x - b.x) < 1e-6 ? 'Vertical' : 'Slanted';
       const col = Math.round(m.x / K * 2) / 2 + 1, row = Math.round(m.y / K * 2) / 2 + 1;

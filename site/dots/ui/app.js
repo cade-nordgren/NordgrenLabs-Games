@@ -1,6 +1,6 @@
 // Dots and Boxes screens. All rules live in ../engine; this file dispatches actions and draws state.
 import { CATEGORIES, PRESETS, preset, buildGeometry, validateSpec } from '../engine/boards.js';
-import { newGame, reduce, legalEdges, result, countSteps, checkState } from '../engine/reducer.js';
+import { newGame, reduce, legalEdges, result, countSteps, checkState, startEdges } from '../engine/reducer.js';
 import { COLORS, color, clash } from './colors.js';
 import { makeBoard, thumb } from './board.js';
 import { mountDie, showDie } from './dice.js';
@@ -26,12 +26,13 @@ const mk = (p, cls = '') => tint(el('span', `mk ${cls}`, p.marker), p.color);
 const PREFS = 'nl-dots-settings';
 const MAX_NAME = 20;
 const DEF_PLAYERS = () => [{ name: 'Player 1', marker: '', color: 'blue' }, { name: 'Player 2', marker: '', color: 'red' }];
-let prefs = { box: 'live', haptics: 'on', roll: 'digital', board: 'sq-4x4', players: DEF_PLAYERS() }, storedPlayers = false;
+let prefs = { box: 'live', haptics: 'on', roll: 'digital', board: 'sq-4x4', start: 'none', players: DEF_PLAYERS() }, storedPlayers = false;
 try {
   const p = JSON.parse(localStorage.getItem(PREFS));
   if (p?.box === 'hide') prefs.box = 'hide';
   if (p?.haptics === 'off') prefs.haptics = 'off';
   if (p?.roll === 'physical') prefs.roll = 'physical';
+  if (p?.start === 'swedish' || p?.start === 'icelandic') prefs.start = p.start;
   if (typeof p?.board === 'string') prefs.board = p.board.slice(0, 60);
   if (Array.isArray(p?.players) && p.players.length === 2) {
     prefs.players = p.players.map((q, i) => ({
@@ -97,6 +98,13 @@ function boardById(id) {
 const chosenBoard = () => boardById(prefs.board) || boardById('sq-4x4');
 const facesIn = spec => buildGeometry(spec).faces.length;
 const boardLine = b => `${plural(facesIn(b.spec), 'box')} · ${SIZE_WORD[b.size]}`;
+// Starting lines (a traditional variation): Icelandic is for square boards only, so another board falls back to None.
+const START_NAME = { swedish: 'Swedish', icelandic: 'Icelandic' };
+const START_TEXT = { swedish: 'The outer border starts drawn.', icelandic: 'The left and bottom edges start drawn.' };
+const startFor = spec => prefs.start === 'icelandic' && spec.kind !== 'square' ? 'none' : prefs.start;
+const okStart = (spec, start) => { try { startEdges(spec, start); return true; } catch { return false; } };
+// The board name as shown in the game, the results and saves: "4 × 4 · Swedish".
+const withStart = (name, start) => START_NAME[start] ? `${name} · ${START_NAME[start]}` : name;
 
 // ---- State, autosaved on every render. It belongs to whoever was signed in (owner), so a game in progress never
 // shows to the next person on this browser.
@@ -109,7 +117,7 @@ const okGame = g => { try { checkState(g); return okPlayers(g.players); } catch 
 const okDie = d => Number.isInteger(d) && d >= 1 && d <= 6;
 const okRoll = r => !!r && (r.mode === 'digital' || r.mode === 'physical') && Array.isArray(r.rounds) && r.rounds.every(x => Array.isArray(x) && x.length === 2 && x.every(okDie))
   && Array.isArray(r.cur) && r.cur.length === 2 && r.cur.every(d => d === null || okDie(d));
-const okNext = n => !!n && okPlayers(n.players) && typeof n.board?.name === 'string' && validateSpec(n.board?.spec).ok;
+const okNext = n => !!n && okPlayers(n.players) && typeof n.board?.name === 'string' && validateSpec(n.board?.spec).ok && okStart(n.board.spec, n.start);
 const cleanHist = h => (Array.isArray(h) ? h : []).filter(x => { try { return typeof x === 'string' && okGame(JSON.parse(x)); } catch { return false; } }).slice(-CAP);
 try {
   const s = JSON.parse(localStorage.getItem(KEY));
@@ -169,7 +177,7 @@ function nextTurn() {
 }
 function startGame(first) {
   const n = S.next;
-  Object.assign(S, { g: newGame({ spec: n.board.spec, players: n.players, first, roll: { mode: S.roll.mode, rounds: S.roll.rounds } }),
+  Object.assign(S, { g: newGame({ spec: n.board.spec, players: n.players, first, roll: { mode: S.roll.mode, rounds: S.roll.rounds }, start: n.start }),
     boardName: n.board.name, hist: [], saveId: null, createdAt: null, page: 'setup', next: null, roll: null });
   stopReveal();
   render();
@@ -179,7 +187,7 @@ function startGame(first) {
 function replay() {
   stopReveal();
   const g = S.g;
-  Object.assign(S, { g: newGame({ spec: g.spec, players: g.players, first: g.first, roll: g.roll }), hist: [], saveId: null, createdAt: null });
+  Object.assign(S, { g: newGame({ spec: g.spec, players: g.players, first: g.first, roll: g.roll, start: g.start }), hist: [], saveId: null, createdAt: null });
   render();
 }
 function toSetup() {
@@ -232,7 +240,7 @@ function winLine(g) {
 function saveStatus(r) {
   const g = r.state.g, name = typeof r.state.boardName === 'string' ? r.state.boardName.slice(0, 40) : '';
   if (g.status === 'over') { const { scores, winner } = result(g); return `Finished, ${winner === null ? `tie at ${scores[0]}` : `${g.players[winner].name} ${scores[winner]} to ${scores[1 - winner]}`}`; }
-  return `${name ? name + ', ' : ''}${g.moves.length} of ${g.edges.length} lines`;
+  return `${name ? withStart(name, g.start) + ', ' : ''}${g.moves.length} of ${g.edges.filter(o => o !== -2).length} lines`;
 }
 
 let shown = NL.saves.cached('dots'), loadingSaves = !shown, savesNote = '';
@@ -404,8 +412,16 @@ function renderSetup() {
   change.onclick = () => { pickId = chosenBoard().id; pickCat = chosenBoard().category; S.page = 'boards'; render(); scrollTo(0, 0); };
   change.setAttribute('aria-label', `Change board, now ${b.name}`);
   box.replaceChildren(thumb(buildGeometry(b.spec)), info, change);
+  const start = startFor(b.spec), square = b.spec.kind === 'square';
+  showStart(start);
+  $('startSeg').querySelector('[value="icelandic"]').disabled = !square;
+  const note = [START_TEXT[start], square ? '' : 'Icelandic is for square boards only.'].filter(Boolean).join(' ');
+  $('startNote').textContent = note;
+  $('startNote').hidden = !note;
   drawSaves();
 }
+
+const showStart = NL.segmented($('startSeg'), v => { prefs.start = v; savePrefs(); renderSetup(); });
 
 // ---- Board picker: categories, a card per board with its real outline, a larger preview of the one picked.
 let pickId = prefs.board, pickCat = chosenBoard().category;
@@ -612,7 +628,7 @@ $('rollBack').onclick = () => { S.page = 'setup'; S.next = S.roll = null; render
 $('toRoll').onclick = () => {
   if (setupProblem()) return;
   const b = chosenBoard();
-  toRoll({ players: finalPlayers(), board: { name: b.name, spec: b.spec }, rematch: false });
+  toRoll({ players: finalPlayers(), board: { name: b.name, spec: b.spec }, start: startFor(b.spec), rematch: false });
   scrollTo(0, 0);
 };
 
@@ -695,7 +711,7 @@ function renderGame() {
     const [who, text] = message(g);
     $('msg').replaceChildren(mk(who), el('span', '', text));
     $('next').disabled = !g.pending;
-    $('boardName').textContent = S.boardName;
+    $('boardName').textContent = withStart(S.boardName, g.start);
   }
   paintBoard(g);
   if (over) renderResults();
@@ -750,8 +766,8 @@ function finishReveal(game, rows) {
   placeRows(rows, scores, false);
   $('resultsTitle').textContent = winLine(game);
   $('resultsWhy').textContent = winner === null
-    ? `Both claimed ${plural(scores[0], 'box')}${S.boardName ? ` on ${S.boardName}` : ''}.`
-    : `${plural(scores[winner], 'box')} to ${scores[1 - winner]}${S.boardName ? ` on ${S.boardName}` : ''}.`;
+    ? `Both claimed ${plural(scores[0], 'box')}${S.boardName ? ` on ${withStart(S.boardName, game.start)}` : ''}.`
+    : `${plural(scores[winner], 'box')} to ${scores[1 - winner]}${S.boardName ? ` on ${withStart(S.boardName, game.start)}` : ''}.`;
   $('skip').hidden = true;
   $('after').hidden = false;
   $('again').textContent = 'Rematch';
@@ -871,6 +887,8 @@ function renderTopics() {
       miniRows([[P[0].name, '9'], [P[1].name, '7']])],
     ['Different shapes', 'Boards come as squares, shapes with gaps and holes, triangles and hexagons. Every closed shape counts as one box. Gaps never count.',
       demoBoard(preset('tri-small').spec, (geo, v) => { geo.faces.forEach((f, k) => { if (k % 3 === 0) { f.edges.forEach(e => { v.edges[e] = k % 2; }); v.faces[k] = k % 2; } }); })],
+    ['Starting lines', 'Swedish starts with the outer border drawn, Icelandic with the left and bottom edges (square boards only). Nobody owns those lines, and a box can start with three sides.',
+      demoBoard(one, (geo, v) => { startEdges(one, 'swedish').forEach(e => { v.edges[e] = -2; }); })],
     ['Hidden scores', 'In Settings, Hide until the end keeps both totals out of sight. Boxes still show who claimed them.',
       miniRows([[P[0].name, '–'], [P[1].name, '–']])],
   ];
@@ -951,7 +969,7 @@ $('again').onclick = e => {
 };
 $('rematchRoll').onclick = () => {
   $('rematchSheet').close();
-  toRoll({ players: S.g.players, board: { name: S.boardName, spec: S.g.spec }, rematch: true });
+  toRoll({ players: S.g.players, board: { name: S.boardName, spec: S.g.spec }, start: S.g.start, rematch: true });
 };
 $('rematchKeep').onclick = () => { $('rematchSheet').close(); replay(); };
 $('rematchCancel').onclick = () => $('rematchSheet').close();
