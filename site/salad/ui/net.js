@@ -110,7 +110,11 @@ async function loop(my) {
       listener({ type: 'offline', fails: ++fails });
       await wait(backoff(fails - 1));
     }
-  } finally { polling = false; }
+  } finally {
+    polling = false;
+    // A room entered while this loop was still waiting on the old one's long poll gets its own loop now.
+    if (my !== gen && state.view && !document.hidden) loop(gen);
+  }
 }
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && state.view) { fresh = true; loop(gen); }
@@ -169,6 +173,7 @@ export function detach() {
 }
 
 // ---- Actions. Same actionId and expect on every retry, so a retry of a landed action answers duplicate.
+const RETRY_STALE = new Set(['SET_READY', 'SET_PLAYER', 'SET_CONFIG', 'REMATCH_READY', 'LEAVE']);
 export async function act(action) {
   if (!state.view) return { ok: false, error: 'no_room' };
   const my = gen, id = state.view.room.id, body = { action, expect: state.version, actionId: crypto.randomUUID() };
@@ -184,6 +189,9 @@ export async function act(action) {
     if (status === 404) { gone('not_found'); return { ok: false, error: 'not_found' }; }
     if (status === 409 || status === 400 || status === 403) {
       if (data.view) accept(data);
+      // Someone else joined or readied first: these say what the person wants whatever changed, so send again on the
+      // fresh version (same actionId: the stale attempt applied nothing). Never PLAY_CARD, START or NEXT_ROUND.
+      if (data.error === 'stale' && RETRY_STALE.has(action.type) && typeof data.version === 'number' && n < 5) { body.expect = data.version; continue; }
       fatal(status, data);
       return { ok: false, error: data.error || 'bad_request' };
     }

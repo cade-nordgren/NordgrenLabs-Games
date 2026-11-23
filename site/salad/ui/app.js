@@ -233,7 +233,7 @@ function renderLobby(v) {
       t.setAttribute('role', 'switch');
       t.setAttribute('aria-checked', s.ready);
       t.setAttribute('aria-label', 'I’m ready');
-      t.onclick = async () => { t.disabled = true; const r = await net.act({ type: 'SET_READY', ready: !s.ready }); if (!r.ok) toast(errText(r.error)); };
+      t.onclick = async () => { t.disabled = true; const r = await net.act({ type: 'SET_READY', ready: !s.ready }); t.disabled = false; if (!r.ok) toast(errText(r.error)); };
       lab.append(t);
       row.append(lab);
     } else {
