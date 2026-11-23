@@ -478,7 +478,7 @@ function dealFx(v) {
 function startFx(g) {
   finishFx(true);
   const speed = { normal: 1, slow: 1.6, fast: 0.55 }[prefs.speed];
-  const hold = (g.last.kitty.length ? 2400 : 1000) * speed;
+  const hold = (g.last.kitty.length ? 2400 : 700) * speed; // with the sweep about 1 s: long enough to read the winner and penalty
   T.fx = { last: g.last, held: prefs.next === 'tap' && g.phase === 'play', timer: 0 };
   sound('trick');
   if (!T.fx.held) T.fx.timer = setTimeout(sweep, hold);

@@ -68,6 +68,10 @@ export function openSettings(view) {
   };
   drawPreview();
   const colours = el('div', 'swatch-row'), patterns = el('div', 'swatch-row pat-row');
+  // Ready-made backs (the canvas's presets): one tap sets colour and pattern.
+  const PRESETS = [['Felt Diamonds', 'felt', 'diamonds'], ['Cobalt Stripes', 'cobalt', 'stripes'], ['Tangerine Waves', 'tangerine', 'waves'],
+    ['Violet Crosshatch', 'violet', 'crosshatch'], ['Slate Dots', 'slate', 'dots'], ['Rose Plain', 'rose', 'plain']];
+  const presets = el('div', 'pick backs');
   const drawBacks = () => {
     colours.replaceChildren(...BACK_COLORS.map(([id, name, hex]) => {
       const b = el('button');
@@ -75,7 +79,7 @@ export function openSettings(view) {
       b.style.background = hex;
       b.setAttribute('aria-label', name);
       b.setAttribute('aria-pressed', prefs.backColor === id && prefs.backImage !== 'on');
-      b.onclick = () => { set('backColor', id); set('backImage', 'off'); drawBacks(); drawPreview(); };
+      b.onclick = () => { set('backColor', id); set('backImage', 'off'); drawBacks(); drawPresets(); drawPreview(); };
       return b;
     }));
     patterns.replaceChildren(...PATTERNS.map(([id, name]) => {
@@ -84,10 +88,21 @@ export function openSettings(view) {
       b.setAttribute('aria-label', name);
       b.title = name;
       b.setAttribute('aria-pressed', prefs.backPattern === id && prefs.backImage !== 'on');
-      b.onclick = () => { set('backPattern', id); set('backImage', 'off'); drawBacks(); drawPreview(); };
+      b.onclick = () => { set('backPattern', id); set('backImage', 'off'); drawBacks(); drawPresets(); drawPreview(); };
       return b;
     }));
   };
+  const drawPresets = () => presets.replaceChildren(...PRESETS.map(([name, c, p]) => {
+    const b = el('button'), pv = el('span', 'pv');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', prefs.backColor === c && prefs.backPattern === p && prefs.backImage !== 'on');
+    pv.dataset.backColor = c; pv.dataset.back = p;
+    pv.append(backEl());
+    b.append(pv, name);
+    b.onclick = () => { set('backColor', c); set('backPattern', p); set('backImage', 'off'); drawBacks(); drawPresets(); drawPreview(); };
+    return b;
+  }));
+  drawPresets();
   drawBacks();
   const file = el('input');
   file.type = 'file';
@@ -118,7 +133,7 @@ export function openSettings(view) {
   cancel.onclick = () => { pending = null; msg.textContent = ''; drawPreview(); drawImg(); };
   remove.onclick = () => { setBackImage(null); set('backImage', 'off'); msg.textContent = ''; drawPreview(); drawBacks(); drawImg(); };
   drawImg();
-  kids.push(...section('Card back', preview, el('p', '', 'Colour'), colours, el('p', '', 'Pattern'), patterns, choose, file, apply, cancel, remove, msg,
+  kids.push(...section('Card back', preview, presets, el('p', '', 'Colour'), colours, el('p', '', 'Pattern'), patterns, choose, file, apply, cancel, remove, msg,
     note('PNG, JPEG or WebP. It is shrunk to a small picture and kept only on this device; everyone sees their own backs.')));
 
   kids.push(...section('Card size', segFor('size', [{ value: 's', label: 'Smaller' }, { value: 'm', label: 'Standard' }, { value: 'l', label: 'Larger' }])));
