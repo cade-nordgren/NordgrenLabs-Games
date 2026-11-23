@@ -114,6 +114,10 @@ button:disabled { opacity: .35; cursor: default; }
 .tile { position: relative; display: grid; grid-template-columns: 1fr 44px; align-items: center; column-gap: 8px; padding: 6px 8px 6px 18px; }
 .tile a { font: 600 19px var(--num); color: var(--ink); text-decoration: none; min-height: 44px; display: flex; align-items: center; }
 .tile a::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+/* Pressed: tint and shrink the whole card, not the name link's own box (the shared .tapped would paint a square there). */
+.tile { transition: transform .12s ease; }
+.tile a.tapped { background-image: none !important; }
+.tile:has(a.tapped) { background-image: linear-gradient(var(--fill), var(--fill)); transform: scale(.98); }
 .tile .info { position: relative; z-index: 1; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink2); }
 .tile .info svg { width: 24px; height: 24px; }
 .tile .info[aria-expanded="true"] { color: var(--ink); background: var(--fill); }
