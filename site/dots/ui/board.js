@@ -19,12 +19,14 @@ function distTo(geo, e, p) {
 }
 const polygon = (geo, f) => geo.faces[f].verts.map(v => { const p = pt(geo, v); return `${p.x},${p.y}`; }).join(' ');
 
-// A small outline of a board for pickers and rules: boxes in a soft fill, edges thin.
-export function thumb(geo) {
+// A small outline of a board for pickers and rules: boxes in a soft fill, edges thin. pre: edge ids of starting
+// lines (Swedish or Icelandic), drawn bold on top so the preview shows how the game will begin.
+export function thumb(geo, pre = []) {
   const svg = svgEl('svg', { viewBox: `${-0.2 * K} ${-0.2 * K} ${(geo.width + 0.4) * K} ${(geo.height + 0.4) * K}`, class: 'thumb', 'aria-hidden': 'true' });
   const g = svgEl('g');
   geo.faces.forEach((_, f) => g.append(svgEl('polygon', { points: polygon(geo, f) })));
   svg.append(g);
+  if (pre.length) svg.append(svgEl('path', { class: 'pre', d: pre.map(e => { const a = pt(geo, geo.edges[e].a), b = pt(geo, geo.edges[e].b); return `M${a.x} ${a.y}L${b.x} ${b.y}`; }).join('') }));
   return svg;
 }
 
@@ -44,7 +46,7 @@ export function makeBoard(geo, opts = {}) {
   const markEls = geo.faces.map(f => marks.appendChild(svgEl('text', { x: f.cx * K, y: f.cy * K })));
   svg.append(faces, lines, preview, ring, dots, marks);
 
-  let view = null, cursor = -1, shown = -1, keyed = false; // keyed: the cursor shows only for keyboard focus
+  let view = null, cursor = -1, shown = -1, keyed = false, lastMover = null; // keyed: the cursor shows only for keyboard focus
   const legal = e => !!view?.legal?.has(e);
   const place = (el, e) => {
     if (e < 0) return el.setAttribute('visibility', 'hidden');
@@ -82,7 +84,10 @@ export function makeBoard(geo, opts = {}) {
       m.classList.toggle('wait', !!hide);
     });
     svg.classList.toggle('locked', !v.legal || !v.legal.size);
-    if (!legal(shown)) showPreview(-1);
+    // A hover preview belongs to the player who was moving: drop it when the mover changes (a new turn, or a rematch
+    // on the same board, which reuses this drawing), and repaint its colour otherwise.
+    showPreview(v.mover === lastMover ? shown : -1);
+    lastMover = v.mover;
     if (cursor >= 0 && !legal(cursor) && v.legal?.size) cursor = nearest(mid(geo, cursor), [...v.legal]);
     place(ring, keyed && document.activeElement === svg && legal(cursor) ? cursor : -1);
     if (opts.onDraw) describe();

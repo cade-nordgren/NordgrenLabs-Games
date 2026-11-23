@@ -102,6 +102,8 @@ const boardLine = b => `${plural(facesIn(b.spec), 'box')} · ${SIZE_WORD[b.size]
 const START_NAME = { swedish: 'Swedish', icelandic: 'Icelandic' };
 const START_TEXT = { swedish: 'The outer border starts drawn.', icelandic: 'The left and bottom edges start drawn.' };
 const startFor = spec => prefs.start === 'icelandic' && spec.kind !== 'square' ? 'none' : prefs.start;
+// A board's outline with the chosen starting lines drawn in, for the setup card and the picker.
+const boardThumb = b => thumb(buildGeometry(b.spec), startEdges(b.spec, startFor(b.spec)));
 const okStart = (spec, start) => { try { startEdges(spec, start); return true; } catch { return false; } };
 // The board name as shown in the game, the results and saves: "4 × 4 · Swedish".
 const withStart = (name, start) => START_NAME[start] ? `${name} · ${START_NAME[start]}` : name;
@@ -411,7 +413,7 @@ function renderSetup() {
   info.append(el('strong', '', b.name), el('span', '', boardLine(b)));
   change.onclick = () => { pickId = chosenBoard().id; pickCat = chosenBoard().category; S.page = 'boards'; render(); scrollTo(0, 0); };
   change.setAttribute('aria-label', `Change board, now ${b.name}`);
-  box.replaceChildren(thumb(buildGeometry(b.spec)), info, change);
+  box.replaceChildren(boardThumb(b), info, change);
   const start = startFor(b.spec), square = b.spec.kind === 'square';
   showStart(start);
   $('startSeg').querySelector('[value="icelandic"]').disabled = !square;
@@ -434,7 +436,7 @@ CATS.forEach(c => {
 });
 function boardCard(b) {
   const card = el('button', 'bcard glass');
-  card.append(thumb(buildGeometry(b.spec)), el('strong', '', b.name), el('span', '', boardLine(b)));
+  card.append(boardThumb(b), el('strong', '', b.name), el('span', '', boardLine(b)));
   card.setAttribute('aria-pressed', b.id === pickId);
   card.onclick = () => { pickId = b.id; renderBoards(); };
   return card;
@@ -452,7 +454,7 @@ function renderBoards() {
   }
   $('boardGrid').replaceChildren(...cards);
   const b = boardById(pickId), big = $('bigPreview');
-  big.replaceChildren(thumb(buildGeometry(b.spec)), el('strong', '', b.name), el('span', '', boardLine(b)));
+  big.replaceChildren(boardThumb(b), el('strong', '', b.name), el('span', '', boardLine(b)));
   big.setAttribute('aria-label', `Picked: ${b.name}, ${boardLine(b)}`);
   if (b.category === 'custom') {
     const edit = el('button', 'btn', 'Edit');
