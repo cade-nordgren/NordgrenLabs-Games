@@ -134,7 +134,8 @@ function scoring(round, id) {
 function drawFelt(v) {
   const g = v.game, my = v.you.seat, n = g.players.length, fx = T.fx;
   $('felt').classList.toggle('small', n >= 6);
-  $('felt').classList.toggle('ring', n >= 7);
+  const ring = n >= 7 && !wide.matches; // tablet and desktop keep the oval, with the opponents placed round it
+  $('felt').classList.toggle('ring', ring);
   let plays, leader, winner = null, done = false;
   if (fx) { plays = fx.last.plays; leader = fx.last.leader; winner = fx.last.winner; done = true; }
   else {
@@ -146,8 +147,8 @@ function drawFelt(v) {
   const trickN = fx ? fx.last.n : g.trick?.n;
   const spots = [];
   for (let s = 0; s < n; s++) {
-    // Seven or eight seats go round a rectangle instead (three rows on each side), so neighbours never overlap.
-    const a = angle(v, s), spot = el('div', 'spot'), m = n >= 7 ? Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))) : 1;
+    // Seven or eight seats on a phone go round a rectangle instead (three rows a side), so neighbours never overlap.
+    const a = angle(v, s), spot = el('div', 'spot'), m = ring ? Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))) : 1;
     spot.style.setProperty('--x', (Math.cos(a) / m).toFixed(3));
     spot.style.setProperty('--y', (Math.sin(a) / m).toFixed(3));
     const p = plays.find(q => q.seat === s);
@@ -314,6 +315,7 @@ function layoutHand() {
   box.replaceChildren(...rows.map(cards => { const r = el('div', 'hrow'); r.append(...cards); return r; }));
 }
 landscapePhone.addEventListener('change', () => view && renderTable(view));
+wide.addEventListener('change', () => view && renderTable(view));
 
 // Tap a card: select it (or play it, per the Play setting). Unplayable cards say why.
 $('hand').addEventListener('click', e => {
