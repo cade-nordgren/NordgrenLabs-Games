@@ -148,11 +148,15 @@ button:disabled { opacity: .35; cursor: default; }
 
 /* Sheets: a native <dialog> opened with showModal(); the inner div carries the padding so a click on the dialog itself is a backdrop click. */
 dialog.sheet { width: min(100% - 24px, 408px); max-width: none; margin: auto auto var(--sheet-gap); padding: 0; color: var(--ink);
-  /* A little above the bottom edge, less than the whole home-bar inset. --short (platform.js) is how far short of the real
-     screen an iPhone home-screen app has laid the page out. Nothing paints below that short viewport (a sheet pushed into
-     it was cut off), and the home bar is inside it, so there the sheet keeps only the 12px. */
-  --sheet-gap: max(12px, env(safe-area-inset-bottom) - 14px - var(--short, 0px));
+  /* A little above the bottom edge, less than the whole home-bar inset. */
+  --sheet-gap: max(12px, env(safe-area-inset-bottom) - 14px);
   max-height: calc(100dvh - max(12px, env(safe-area-inset-top)) - var(--sheet-gap)); overflow: auto; overscroll-behavior: contain; }
+/* iOS 26 home-screen apps (measured on the owner's iPhone: screen 852, innerHeight/dvh/svh 793, lvh 852, top inset 59):
+   the viewport is one status bar short, and anything position:fixed is cut off at its bottom edge. platform.js sets .short,
+   --short (the shortfall) and --sy (scroll offset); the sheet is then placed in the document instead, against 100lvh. */
+:root.short dialog.sheet { position: absolute; top: auto; margin-bottom: 0;
+  bottom: calc(var(--sheet-gap) - var(--short) - var(--sy, 0px));
+  max-height: calc(100lvh - max(12px, env(safe-area-inset-top)) - var(--sheet-gap)); }
 dialog.sheet > div { padding: 22px 18px 18px; display: grid; gap: 10px; }
 dialog.sheet h2 { font-size: 20px; }
 dialog.sheet h3 { margin: 10px 0 0; font-size: 15px; font-weight: 600; color: var(--ink2); }

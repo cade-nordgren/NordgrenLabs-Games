@@ -352,14 +352,17 @@
   // Session token for a game's own API calls (null when signed out or without sign-in); fresh skips ClerkJS's cache.
   const sessionToken = fresh => ready.then(() => token(fresh));
   // ---- iPhone home-screen app: WebKit can lay a page out one status bar short of the screen, which left sheets floating
-  // above the bottom edge. --short is that shortfall; style.css drops the home-bar gap by it. Zero everywhere else.
+  // above the bottom edge. --short is that shortfall; style.css then places sheets against the real screen. Zero everywhere else.
   // shortcut: measured from screen size, unconfirmed off an iPhone; drop it if the readout below shows it is not needed.
   const fit = () => {
     if (!globalThis.navigator?.standalone) return; // only an iPhone home-screen app sets this
     const d = (innerHeight > innerWidth ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - innerHeight;
-    document.documentElement.style.setProperty('--short', (d > 0 && d < 100 ? d : 0) + 'px');
+    const root = document.documentElement, on = d > 0 && d < 100;
+    root.classList.toggle('short', on);
+    root.style.setProperty('--short', (on ? d : 0) + 'px');
+    root.style.setProperty('--sy', scrollY + 'px');
   };
-  fit(); addEventListener('resize', fit);
+  fit(); addEventListener('resize', fit); addEventListener('scroll', fit, { passive: true });
   // TEMPORARY readout at the top of an open sheet, for the owner to screenshot. Remove once the sheet position is settled.
   addEventListener('click', () => setTimeout(() => {
     const d = document.querySelector('dialog.sheet[open] > div'); if (!d) return;
