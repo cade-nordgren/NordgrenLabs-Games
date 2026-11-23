@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { CATEGORIES, PRESETS, preset, buildGeometry, validateSpec } from '../../site/dots/engine/boards.js';
-import { newGame, reduce, legalEdges, result, countSteps, checkState } from '../../site/dots/engine/reducer.js';
+import { newGame, reduce, legalEdges, result, countSteps, checkState, startEdges } from '../../site/dots/engine/reducer.js';
 
 const PLAYERS = [{ name: 'Alex', marker: 'A', color: 'blue' }, { name: 'Brooke', marker: 'B', color: 'red' }];
 const ROLL = { mode: 'digital', rounds: [[5, 2]] };
@@ -173,7 +173,8 @@ test('triangle rows follow face centers: down triangles count before up triangle
 // Boards
 
 test('categories and preset catalogue', () => {
-  assert.deepEqual(CATEGORIES.map(c => c.id), ['classic', 'rect', 'shapes', 'tri', 'hex']);
+  assert.deepEqual(CATEGORIES.map(c => c.id), ['classic', 'rect', 'shapes', 'geo', 'holes', 'letters', 'things', 'nature', 'large', 'tri', 'hex']);
+  for (const c of ['geo', 'holes', 'letters', 'things', 'nature', 'large']) assert.ok(PRESETS.filter(p => p.category === c).length >= 8, c);
   const ids = PRESETS.map(p => p.id);
   assert.equal(new Set(ids).size, ids.length);
   for (const id of ['sq-2x2', 'sq-3x3', 'sq-4x4', 'sq-5x5', 'sq-6x6', 'sq-8x8', 'sq-10x10', 'rect-5x3', 'rect-7x3', 'rect-6x4',
@@ -189,6 +190,8 @@ test('categories and preset catalogue', () => {
     const n = buildGeometry(p.spec).faces.length;
     assert.equal(p.size, n <= 9 ? 'small' : n <= 25 ? 'medium' : n <= 49 ? 'large' : 'huge', p.id);
     if (p.category === 'shapes') assert.ok(n >= 12 && n <= 31, `${p.id} has ${n} cells`);
+    if (['geo', 'holes', 'letters', 'things', 'nature'].includes(p.category)) assert.ok(n >= 12 && n <= 40, `${p.id} has ${n} cells`);
+    if (p.category === 'large') assert.ok(p.spec.mask.length <= 12 && p.spec.mask.every(r => r.length <= 12), `${p.id} fits 12 x 12`);
   }
   assert.equal(buildGeometry(preset('sq-4x4').spec).faces.length, 16);
   assert.equal(buildGeometry(preset('sq-4x4').spec).vertices.length, 25, '4 x 4 boxes is 5 x 5 dots');
@@ -283,7 +286,7 @@ test('every preset plays to the end without getting stuck, with checkState passi
       assert.ok(steps++ < 4 * geo.edges.length, `${p.id} stuck`);
       if (g.pending) g = next(g);
       else { const legal = legalEdges(g); g = draw(g, legal[(g.moves.length * 7) % legal.length]); }
-      checkState(g);
+      if (geo.faces.length <= 49 || g.status === 'over') checkState(g); // shortcut: per step is cubic on the large boards; the last check replays every move
     }
     assert.equal(g.moves.length, geo.edges.length, p.id);
     assert.ok(g.faces.every(o => o !== -1), `${p.id}: every face completed`);
@@ -365,4 +368,90 @@ test('checkState rejects broken states', () => {
     assert.throws(() => checkState(x), Error, `break ${i}`);
   });
   for (const junk of [null, 1, 'x', {}, []]) assert.throws(() => checkState(junk));
+});
+
+// Starting lines (Swedish and Icelandic variations)
+
+const sorted = a => [...a].sort((x, y) => x - y);
+const H = (g, x, y) => edgeAt(g, x, y, x + 1, y), V = (g, x, y) => edgeAt(g, x, y, x, y + 1);
+
+test('Swedish and Icelandic starting lines on a 2 x 2', () => {
+  const g = start(['##', '##']);
+  assert.deepEqual(startEdges(g.spec, 'none'), []);
+  assert.deepEqual(startEdges(g.spec, 'swedish'),
+    sorted([H(g, 0, 0), H(g, 1, 0), H(g, 0, 2), H(g, 1, 2), V(g, 0, 0), V(g, 0, 1), V(g, 2, 0), V(g, 2, 1)]));
+  assert.deepEqual(startEdges(g.spec, 'icelandic'), sorted([V(g, 0, 0), V(g, 0, 1), H(g, 0, 2), H(g, 1, 2)]));
+});
+
+test('Swedish includes the rim of a hole; Icelandic takes left and bottom sides, hole rims too', () => {
+  const spec = preset('shape-ring').spec, g = newGame({ spec, players: PLAYERS, first: 0, roll: ROLL });
+  const sw = startEdges(spec, 'swedish');
+  assert.equal(sw.length, 32, '20 outer edges and 12 around the hole');
+  for (const e of [H(g, 1, 1), H(g, 3, 4), V(g, 1, 2), V(g, 4, 3)]) assert.ok(sw.includes(e), `hole rim ${e}`);
+  const ic = startEdges(spec, 'icelandic'), want = [];
+  for (let k = 0; k < 5; k++) want.push(V(g, 0, k), H(g, k, 5)); // the outer left and bottom
+  for (let k = 1; k < 4; k++) want.push(V(g, 4, k), H(g, k, 1)); // the hole's right and top rims face a box on their right and above
+  assert.deepEqual(ic, sorted(want));
+});
+
+test('starting lines are drawn by nobody, not moves, never legal, and count as drawn', () => {
+  for (const s of ['swedish', 'icelandic']) {
+    const g = newGame({ spec: { kind: 'square', mask: ['###', '###'] }, players: PLAYERS, first: 0, roll: ROLL, start: s });
+    const pre = startEdges(g.spec, s);
+    assert.equal(g.start, s);
+    assert.deepEqual(g.edges.flatMap((o, e) => o === -2 ? [e] : []), pre);
+    assert.deepEqual(g.moves, []);
+    assert.ok(pre.every(e => !legalEdges(g).includes(e)));
+    assert.equal(legalEdges(g).length, g.edges.length - pre.length);
+    for (const e of pre) assert.equal(reduce(g, { type: 'draw', edge: e }), g, `pre-drawn ${e}`);
+    checkState(g);
+  }
+  assert.equal(newGame({ spec: { kind: 'square', mask: ['##', '##'] }, players: PLAYERS, first: 0, roll: ROLL }).start, 'none');
+});
+
+test('a box with three starting sides is claimed by the first line, which keeps the turn', () => {
+  const g = newGame({ spec: { kind: 'square', mask: ['####'] }, players: PLAYERS, first: 1, roll: ROLL, start: 'swedish' });
+  const h = draw(g, V(g, 1, 0));
+  assert.equal(h.faces[0], 1);
+  assert.deepEqual(h.scores, [0, 1]);
+  assert.deepEqual(h.pending, { by: 1, next: 1, claimed: 1, edge: V(g, 1, 0) });
+  checkState(h);
+});
+
+test('every preset plays to the end with Swedish, and every square preset with Icelandic', () => {
+  for (const p of PRESETS) for (const s of p.spec.kind === 'square' ? ['swedish', 'icelandic'] : ['swedish']) {
+    let g = newGame({ spec: p.spec, players: PLAYERS, first: 0, roll: ROLL, start: s });
+    const geo = buildGeometry(p.spec), pre = startEdges(p.spec, s);
+    assert.ok(pre.length > 0, `${p.id} ${s}`);
+    let steps = 0;
+    while (g.status === 'playing') {
+      assert.ok(steps++ < 4 * geo.edges.length, `${p.id} ${s} stuck`);
+      if (g.pending) g = next(g);
+      else { const legal = legalEdges(g); g = draw(g, legal[(g.moves.length * 7) % legal.length]); }
+      if (geo.faces.length <= 49 || g.status === 'over') checkState(g); // shortcut: per step is cubic on the large boards; the last check replays every move
+    }
+    assert.equal(g.moves.length, geo.edges.length - pre.length, `${p.id} ${s}`);
+    assert.equal(g.scores[0] + g.scores[1], geo.faces.length, `${p.id} ${s}: scores sum to the face count`);
+  }
+});
+
+test('checkState guards starting lines; Icelandic needs a square board; old saves still load', () => {
+  const g = newGame({ spec: { kind: 'square', mask: ['###', '###'] }, players: PLAYERS, first: 0, roll: ROLL, start: 'swedish' });
+  const pre = startEdges(g.spec, 'swedish'), open = legalEdges(g)[0];
+  const breaks = [
+    x => { x.edges[pre[0]] = -1; },
+    x => { x.edges[pre[0]] = 0; x.moves = []; },
+    x => { x.edges[open] = -2; },
+    x => { x.start = 'none'; },
+    x => { x.start = 'icelandic'; },
+    x => { x.start = 'danish'; },
+  ];
+  breaks.forEach((brk, i) => { const x = structuredClone(g); brk(x); assert.throws(() => checkState(x), Error, `break ${i}`); });
+  const tri = { spec: preset('tri-small').spec, players: PLAYERS, first: 0, roll: ROLL };
+  assert.throws(() => newGame({ ...tri, start: 'icelandic' }));
+  assert.throws(() => newGame({ ...tri, start: 'danish' }));
+  checkState(newGame({ ...tri, start: 'swedish' }));
+  const old = play(start(['##', '##']), [0, 1]);
+  delete old.start;
+  checkState(old);
 });

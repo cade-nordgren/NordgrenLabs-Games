@@ -41,12 +41,20 @@ export function validateSpec(spec) // -> { ok: true, faces: n } | { ok: false, r
 ## `engine/reducer.js`
 
 ```js
-export function newGame({ spec, players, first, roll })
+export const STARTS = ['none', 'swedish', 'icelandic'];
+export function startEdges(spec, start) // -> sorted edge ids drawn before the first move; throws on a bad spec or start
+// 'none': []. 'swedish': every boundary edge (exactly one face in edgeFaces), hole rims included; any kind.
+// 'icelandic' (square only, else throws): boundary edges that are vertical with their face to the right ("left"),
+// or horizontal with their face above ("bottom", y grows down). Throws if any face would start closed.
+
+export function newGame({ spec, players, first, roll, start })
 // players: [{ name, marker, color }, { name, marker, color }]  (color is a palette id string; engine does not interpret it)
+// start: 'none' | 'swedish' | 'icelandic' (missing or null means 'none'; Icelandic on tri or hex throws)
 // first: 0 | 1;  roll: { mode: 'digital'|'physical', rounds: [[a, b], ...] } (kept for the record; last round decides)
 // -> state = {
-//   v: 1, spec, players, first, roll,
-//   edges: Array(nEdges).fill(-1),   // -1 undrawn, else 0 | 1 who drew it
+//   v: 1, spec, players, first, roll, start,
+//   edges: Array(nEdges).fill(-1),   // -1 undrawn, -2 a starting line (drawn, owned by nobody), else 0 | 1 who drew it
+//                                    // starting lines are never legal and never in moves, but count as drawn for boxes and the end
 //   faces: Array(nFaces).fill(-1),   // -1 unclaimed, else 0 | 1 owner
 //   scores: [0, 0],
 //   active: first,                    // whose turn it is (or was, while pending)
@@ -67,6 +75,7 @@ export function legalEdges(state)   // undrawn edge ids while playing (also whil
 export function result(state)       // { scores: [a, b], winner: 0 | 1 | null (tie) }
 export function countSteps(state)   // [[{ face, owner }...] per geo.rows row] for the results animation
 export function checkState(state)   // throws if the shape or invariants are broken (stored data is a trust boundary): use when resuming
+                                    // a state without start (older saves) is 'none'; the -2 edges must be exactly startEdges(spec, start)
 ```
 
 The UI owns undo (whole-state snapshots, like Crossix), dice, players, settings and saves. The engine has no randomness.

@@ -1,11 +1,36 @@
 // Dots and Boxes rules: a pure, serialisable reducer over any board geometry. No DOM, no randomness.
 import { buildGeometry } from './boards.js';
 
-export function newGame({ spec, players, first, roll }) {
+export const STARTS = ['none', 'swedish', 'icelandic'];
+
+// Starting lines, a traditional variation: edge ids drawn before the first move (value -2, owned by nobody), sorted.
+// swedish: every boundary edge (one face), hole rims included. icelandic (square only): boundary edges on a face's
+// left (vertical, face to the right) or bottom (horizontal, face above; y grows down). Throws on bad input.
+export function startEdges(spec, start = 'none') {
   const geo = buildGeometry(spec);
+  if (!STARTS.includes(start)) throw new Error('Unknown starting lines.');
+  if (start === 'icelandic' && geo.kind !== 'square') throw new Error('Icelandic starting lines need a square board.');
+  if (start === 'none') return [];
+  const out = geo.edgeFaces.flatMap((fs, e) => {
+    if (fs.length !== 1) return [];
+    if (start === 'swedish') return [e];
+    const a = geo.vertices[geo.edges[e].a], b = geo.vertices[geo.edges[e].b], f = geo.faces[fs[0]];
+    return (a.x === b.x && f.cx > a.x) || (a.y === b.y && f.cy < a.y) ? [e] : [];
+  });
+  const set = new Set(out);
+  // A face that started complete would belong to nobody; impossible on a connected board of 4+ faces, but check.
+  if (geo.faces.some(f => f.edges.every(e => set.has(e)))) throw new Error('A box would start closed.');
+  return out;
+}
+
+export function newGame({ spec, players, first, roll, start }) {
+  start ??= 'none';
+  const geo = buildGeometry(spec);
+  const edges = Array(geo.edges.length).fill(-1);
+  for (const e of startEdges(spec, start)) edges[e] = -2;
   return {
-    v: 1, spec, players, first, roll,
-    edges: Array(geo.edges.length).fill(-1),
+    v: 1, spec, players, first, roll, start,
+    edges,
     faces: Array(geo.faces.length).fill(-1),
     scores: [0, 0],
     active: first,
@@ -15,6 +40,9 @@ export function newGame({ spec, players, first, roll }) {
     moves: [],
   };
 }
+
+console.assert(startEdges({ kind: 'square', mask: ['##', '##'] }, 'swedish').length === 8 &&
+  startEdges({ kind: 'square', mask: ['##', '##'] }, 'icelandic').length === 4, 'starting lines on a 2 x 2');
 
 // Draws an edge already known to be legal, in place: claims every adjacent face it completes.
 function draw(g, geo, edge) {
@@ -94,7 +122,7 @@ export const countSteps = g => buildGeometry(g.spec).rows.map(row => row.map(fac
 
 // Stored state is a trust boundary: check the shape, then replay the moves and require the same board.
 const fail = msg => { throw new Error('Invalid Dots and Boxes state: ' + msg); };
-const owners = (a, n) => Array.isArray(a) && a.length === n && a.every(x => x === -1 || x === 0 || x === 1);
+const owners = (a, n, pre = false) => Array.isArray(a) && a.length === n && a.every(x => x === -1 || x === 0 || x === 1 || (pre && x === -2));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export function checkState(g) {
@@ -110,13 +138,17 @@ export function checkState(g) {
       !g.roll.rounds.every(r => Array.isArray(r) && r.length === 2 && r.every(d => Number.isInteger(d) && d >= 1 && d <= 6)))) {
     fail('bad dice roll record.');
   }
-  if (!owners(g.edges, geo.edges.length) || !owners(g.faces, geo.faces.length)) fail('edges or faces do not match the board.');
+  const start = g.start ?? 'none'; // saves from before starting lines have no start
+  let pre;
+  try { pre = startEdges(g.spec, start); } catch (e) { fail(e.message); }
+  if (!owners(g.edges, geo.edges.length, true) || !owners(g.faces, geo.faces.length)) fail('edges or faces do not match the board.');
+  if (!same(g.edges.flatMap((o, e) => o === -2 ? [e] : []), pre)) fail('starting lines do not match the board.');
   if (!Array.isArray(g.scores) || g.scores.length !== 2 || !g.scores.every(Number.isInteger)) fail('bad scores.');
   if (g.faces.some((o, f) => o !== -1 && geo.faces[f].edges.some(e => g.edges[e] === -1))) fail('a claimed box is not closed.');
   if (g.scores.some((s, p) => s !== g.faces.filter(o => o === p).length)) fail('scores do not match claimed boxes.');
-  if (!Array.isArray(g.moves) || g.moves.length !== g.edges.filter(o => o !== -1).length) fail('moves do not match drawn lines.');
+  if (!Array.isArray(g.moves) || g.moves.length !== g.edges.filter(o => o >= 0).length) fail('moves do not match drawn lines.');
   if (g.status !== (g.edges.includes(-1) ? 'playing' : 'over')) fail('status does not match the board.');
-  const r = newGame(g);
+  const r = newGame({ ...g, start });
   for (const e of g.moves) {
     if (r.pending) next(r);
     if (!canDraw(r, e)) fail('moves are not a legal sequence.');

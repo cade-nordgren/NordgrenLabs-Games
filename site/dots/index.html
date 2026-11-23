@@ -85,6 +85,7 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 .chosen div { flex: 1; min-width: 0; }
 .chosen strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .chosen span { font-size: 14px; color: var(--ink2); }
+.subhead { margin: 16px 0 8px; font-size: 15px; font-weight: 600; color: var(--ink2); }
 #startHint { text-align: center; }
 svg.thumb polygon { fill: color-mix(in srgb, var(--accent) 12%, transparent); stroke: var(--ink2); stroke-width: 1; vector-effect: non-scaling-stroke; stroke-linejoin: round; }
 
@@ -184,6 +185,7 @@ svg.board .edge { stroke: transparent; stroke-width: var(--lw); stroke-linecap: 
 svg.board .edge.open { stroke: var(--guide); stroke-width: 1.5px; stroke-dasharray: 2 5; }
 svg.board.locked .edge.open { stroke-dasharray: none; }
 svg.board .edge.drawn { stroke-dasharray: none; }
+svg.board .edge.pre { stroke: var(--dot); } /* starting lines: drawn by nobody, in the dots' ink */
 svg.board .edge.fresh { animation: draw .22s ease-out; }
 @keyframes draw { from { opacity: .2; } }
 svg.board .preview { stroke-width: var(--lw); stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: .45; pointer-events: none; }
@@ -381,6 +383,13 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <section class="glass group" aria-labelledby="boardTitle">
         <h2 id="boardTitle">Board</h2>
         <div class="chosen" id="chosen" style="margin-top: 10px"></div>
+        <h3 class="subhead" id="startTitle">Starting lines</h3>
+        <div class="segmented" id="startSeg" role="group" aria-labelledby="startTitle">
+          <button value="none">None</button>
+          <button value="swedish">Swedish</button>
+          <button value="icelandic">Icelandic</button>
+        </div>
+        <p class="note" id="startNote" aria-live="polite" hidden></p>
       </section>
 
       <button class="btn primary" id="toRoll">Roll for who starts</button>
