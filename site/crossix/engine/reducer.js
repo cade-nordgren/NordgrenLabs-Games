@@ -1,6 +1,6 @@
 // The whole game as a serialisable reducer: reduce(state, action) returns a new state, or the same state object when
 // the action is not legal now. State is plain JSON, so it can be autosaved, undone by snapshot, or sent over a wire.
-import { LANES, LAST, MAX_PENALTIES, LOCKS_TO_END, MAX_PLAYERS, MARKS_BEFORE_LAST, emptySheet } from './lanes.js';
+import { LANES, LAST, MAX_PENALTIES, LOCKS_TO_END, MAX_ONLINE, MARKS_BEFORE_LAST, emptySheet } from './lanes.js';
 import { canMark, applyPicks, noPicks, canEnd, cellChoice } from './moves.js';
 
 // Seeded PRNG (mulberry32) kept in state, so undo then roll again gives the same dice: no fishing for a better roll.
@@ -151,7 +151,7 @@ export function validState(g) {
   try {
     if (!g || typeof g !== 'object' || g.v !== 1 || (g.mode !== 'physical' && g.mode !== 'digital')) return false;
     if (!Number.isInteger(g.seed) || !Number.isInteger(g.rng) || !['playing', 'over'].includes(g.status)) return false;
-    if (!Array.isArray(g.players) || g.players.length < 1 || g.players.length > MAX_PLAYERS || !isBools(g.closed, 4)) return false;
+    if (!Array.isArray(g.players) || g.players.length < 1 || g.players.length > MAX_ONLINE || !isBools(g.closed, 4)) return false;
     const t = g.turn;
     for (const p of g.players) {
       if (!p || typeof p.name !== 'string' || p.name.length > 40 || !isInt(p.penalties, 0, MAX_PENALTIES)) return false;

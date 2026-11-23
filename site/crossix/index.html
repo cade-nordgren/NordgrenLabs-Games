@@ -84,6 +84,40 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 #modeSeg { margin-top: 12px; }
 #startHint { text-align: center; }
 
+/* ---- Online: Bomb's lobby (room code, seats filling in, the host's Start); a seat is just a name. */
+.row { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; margin-top: 8px; }
+.row input { flex: 1; min-width: 0; border: 0; background: none; padding: 12px 0; outline: none; font-size: 17px; }
+.row input:focus-visible { box-shadow: inset 0 -2px 0 var(--accent); }
+#joinRow input { text-transform: uppercase; letter-spacing: .12em; font: 700 19px var(--num); }
+#joinRow input::placeholder { letter-spacing: 0; font: 400 17px var(--text); text-transform: none; }
+.btn.ink { background: var(--ink); color: var(--canvas); }
+.err { color: var(--danger); }
+.center { text-align: center; }
+.cap { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.code { font: 800 44px/1.1 var(--num); letter-spacing: .14em; margin: 4px 0 2px; padding-left: .14em; text-align: center; }
+.pair { display: flex; gap: 8px; }
+.pair .btn { flex: 1; }
+#lobbyPage .head { min-height: 48px; justify-content: center; }
+#lobbyPage h1 { margin: 0; font: 800 30px/1.1 var(--num); letter-spacing: -.03em; }
+#lobbySeats { list-style: none; margin: 8px 0 0; padding: 0; }
+#lobbySeats li { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; }
+#lobbySeats .seat { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); font: 700 13px var(--num); color: var(--ink2); flex: none; }
+#lobbySeats .seat.open { background: none; border: 2px dashed var(--hair); }
+#lobbySeats strong { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#lobbySeats strong span { font-weight: 400; color: var(--ink2); }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.group-head h2 { margin: 0; }
+.group-head .note { margin: 0; }
+.pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; background: var(--fill); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.off { opacity: .55; }
+#lobbyPage > .btn, #lobbyPage > .wait { margin-top: 10px; }
+#lobbyPage > .btn:not(.primary) { width: 100%; }
+#skips { display: flex; flex-wrap: wrap; gap: 6px; }
+#skips .btn { min-height: 40px; font-size: 15px; }
+/* Online connection trouble: a small pill at the top, gone once a poll succeeds again. */
+.conn { position: fixed; z-index: 25; top: calc(max(10px, env(safe-area-inset-top)) + 4px); left: 50%; translate: -50% 0; margin: 0; padding: 4px 12px; border-radius: 999px;
+  background: var(--glass-menu); color: var(--danger); font-size: 13px; font-weight: 600; box-shadow: var(--shadow); white-space: nowrap; }
+
 /* ---- Game header: player chips, kept left of the menu and Undo circles (which reach 106px down). With digital dice
    the tray is the top element and takes that place beside the circles, so the chips sit under it at full width. */
 .head { padding-right: 58px; min-height: 106px; margin-bottom: 10px; display: flex; flex-direction: column; gap: 8px; }
@@ -104,6 +138,9 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 12.5l5 5L20 6.5' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 12.5l5 5L20 6.5' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / contain no-repeat; }
 .chip[aria-pressed="true"].done::after { background: var(--canvas); }
+.chip.off { opacity: .55; } /* online: not seen for a minute */
+/* Six to eight players (online only): chips keep their names and the row scrolls sideways instead of squeezing them. */
+#chips:has(.chip:nth-child(6)) .chip { flex: none; max-width: 128px; }
 #status { margin: 0; font-size: 15px; font-weight: 600; color: var(--ink2); }
 #status strong { color: var(--ink); }
 
@@ -332,6 +369,11 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   .rrow { padding-block: 5px; }
   .rrow .t { height: 30px; }
   .rrow .t.total { height: 32px; }
+  /* Six to eight rows (online): tighter still, so the ranking and the buttons fit one screen. */
+  .reveal:has(.rrow:nth-child(6)) { gap: 2px; }
+  .reveal:has(.rrow:nth-child(6)) .rrow { padding-block: 1px; }
+  .reveal:has(.rrow:nth-child(6)) .rrow .t { height: 22px; }
+  .reveal:has(.rrow:nth-child(6)) .rrow .t.total { height: 24px; }
   #after .stack { margin-top: 10px; display: flex; gap: 8px; }
   #after .stack .btn { flex: 1; margin: 0; min-height: 44px; }
   /* Four lanes share the height under the chips (95px: chips, gaps and the bottom gutter; 12px: a lane's padding). */
@@ -416,15 +458,16 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       </details>
 
       <section class="glass group">
-        <h2 id="modeTitle">Dice</h2>
+        <h2 id="modeTitle">Play</h2>
         <div class="segmented" id="modeSeg" role="group" aria-labelledby="modeTitle">
           <button value="physical">Physical dice</button>
           <button value="digital">Digital dice</button>
+          <button value="online">Online</button>
         </div>
         <p class="note" id="modeNote"></p>
       </section>
 
-      <section class="glass group">
+      <section class="glass group" id="rosterGroup">
         <h2>Players</h2>
         <ul id="roster"></ul>
         <form id="add">
@@ -436,6 +479,50 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 
       <button class="btn primary" id="start">Start game</button>
       <p class="note" id="startHint" hidden>Add a player to start.</p>
+
+      <p class="note err" id="onlineNote" role="status" hidden></p>
+      <section class="glass group" id="rejoinBox" hidden>
+        <h2>Your room</h2>
+        <p class="note" id="rejoinNote"></p>
+        <div class="stack">
+          <button class="btn primary" id="rejoin">Rejoin</button>
+          <button class="btn" id="forget">Forget this room</button>
+        </div>
+      </section>
+      <section class="glass group" id="meGroup" hidden>
+        <h2>You</h2>
+        <div class="row"><input id="meName" maxlength="20" placeholder="Your name" aria-label="Your name" autocomplete="nickname" enterkeyhint="done"></div>
+        <div class="stack"><button class="btn primary" id="create">Create room</button></div>
+      </section>
+      <section class="glass group" id="joinGroup" hidden>
+        <h2 id="joinTitle">Join a room</h2>
+        <form class="row" id="joinRow">
+          <input id="joinCode" maxlength="6" placeholder="6-letter code" aria-labelledby="joinTitle" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go">
+          <button class="btn ink" id="join">Join</button>
+        </form>
+      </section>
+    </section>
+
+    <section id="lobbyPage" class="page" hidden>
+      <div class="head"><h1>Online game</h1></div>
+      <section class="glass group center" aria-labelledby="codeTitle">
+        <p class="cap" id="codeTitle">Room code</p>
+        <div class="code" id="roomCode"></div>
+        <p class="note" style="margin: 0 0 12px">Friends open Crossix, choose Online, then Join. Or send them the link.</p>
+        <div class="pair">
+          <button class="btn ink" id="share">Share link</button>
+          <button class="btn" id="copy">Copy code</button>
+        </div>
+        <p class="note" id="shareNote" role="status" hidden></p>
+      </section>
+      <section class="glass group">
+        <div class="group-head"><h2>Players</h2><span class="note" id="seatCount"></span></div>
+        <ul id="lobbySeats"></ul>
+      </section>
+      <p class="note center" id="lobbyErr" role="status" hidden></p>
+      <button class="btn primary" id="startRoom">Start game</button>
+      <div class="wait glass" id="lobbyWait" role="status" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="lobbyWaitText"></span></div>
+      <button class="btn" id="leaveLobby">Leave</button>
     </section>
 
     <section id="gamePage" class="page" hidden>
@@ -455,6 +542,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <div class="head">
         <div id="chips" role="group" aria-label="Show sheet for"></div>
         <p id="status" role="status"></p>
+        <div id="skips" hidden></div>
       </div>
 
       <div id="results" hidden>
@@ -466,6 +554,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
             <button class="btn primary" id="again">Play again</button>
             <button class="btn" id="players">Change players</button>
           </div>
+          <p class="note center" id="votes" role="status" hidden></p>
         </div>
       </div>
 
@@ -491,6 +580,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   </main>
 
 </div>
+<p class="conn" id="conn" role="status" hidden>Reconnecting</p>
 
 <dialog class="sheet glass" id="endSheet" aria-labelledby="endTitle">
   <div>
@@ -540,6 +630,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <li>The active player may tick a penalty box at any time during the turn, and must end the turn with at least one cross or a penalty. Other players never take penalties.</li>
     </ol>
     <p>Several players can lock the same colour on one roll. A colour locked on a roll closes once everyone is done, and its die leaves the game.</p>
+    <h3>Online</h3>
+    <p>Two to eight players, each on their own phone, with digital dice. Picks stay hidden until everyone has ended their turn. If a phone has been away for a minute, the host can skip that player: they cross nothing, and a skipped roller takes a penalty.</p>
     <h3>With your own dice</h3>
     <p>Play the same turns at the table and tap what you cross. Tapping a lane's last cell (the 12 or 2 with the lock) before it has five crosses closes that colour as locked by another player away from this device; tap it again to reopen.</p>
     <p>The app can't see your dice, so it can't tell a white-sum cross from a white-plus-colour cross. Every tap puts down the plain X straight away, with no dice colours.</p>

@@ -1,4 +1,5 @@
-// The only file that talks to the games server: Bomb online rooms (docs/plans/bomb-online-contract.md).
+// The only file that talks to the games server's rooms: Bomb's (docs/plans/bomb-online-contract.md), and Crossix's
+// through deps.base (docs/plans/crossix-online-contract.md), which share the same API shape.
 // Long polling with `since`, one actionId per user action (a retry after a network error reuses it, so it never
 // applies twice), 409 adopts the server's view, backoff on errors, and no polling while the page is hidden.
 const BASE = '/api/bomb/rooms';
@@ -43,7 +44,7 @@ export async function browserAuth(fresh = false) {
 }
 
 // deps: { fetch, auth(fresh) -> headers, onView(view, version), onState('ok' | 'offline'), onGone(reason?), doc (visibility),
-//   win (online events), sleep, id }
+//   win (online events), sleep, id, base (the rooms path, Bomb's by default) }
 export function createNet(deps) {
   const fetch = deps.fetch, auth = deps.auth;
   const sleep = deps.sleep || (ms => new Promise(ok => setTimeout(ok, ms)));
@@ -66,7 +67,7 @@ export function createNet(deps) {
     for (let attempt = 0; ; attempt++) {
       let res;
       try {
-        res = await fetch(BASE + path, {
+        res = await fetch((deps.base || BASE) + path, {
           method, signal, cache: 'no-store',
           headers: { ...(await auth(attempt > 0)), ...(body ? { 'Content-Type': 'application/json' } : {}) },
           body: body ? JSON.stringify(body) : undefined,

@@ -1,6 +1,8 @@
-// Bomb online rooms on D1 with long polling (docs/decisions/0004; the API is docs/plans/bomb-online-contract.md).
-// The room row holds everything as JSON; each change is one conditional UPDATE ... WHERE version = ?, so of two
-// simultaneous actions only one applies. Phones only ever get viewFor(game, theirSeat), never the state or the seed.
+// Online rooms on D1 with long polling (docs/decisions/0004; the APIs are docs/plans/bomb-online-contract.md and
+// crossix-online-contract.md). One file for every game that shares the rooms tables: what differs is a small adapter,
+// Bomb's below and Crossix's in crossix.js. The room row holds everything as JSON; each change is one conditional
+// UPDATE ... WHERE version = ?, so of two simultaneous actions only one applies. Phones only ever get the adapter's
+// view for their seat, never the state or the seed.
 import { allowedDecks, MAX_DECKS, MAX_PLAYERS } from '../site/bomb/engine/cards.js';
 import { createGame, reduce, checkState } from '../site/bomb/engine/reducer.js';
 import { viewFor } from '../site/bomb/engine/view.js';
@@ -23,14 +25,18 @@ const CARD_ID = /^(?:[2-9]|10|[JQKA])[SHDC][0-3]$/;
 const conflict = (reason, cur) => [409, cur ? { error: 'conflict', reason, version: cur.version, view: cur.view } : { error: 'conflict', reason }];
 const invalid = reason => [400, { error: 'invalid', reason }];
 const NOT_FOUND = [404, { error: 'not_found' }];
-const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
+export const isInt = (v, lo, hi) => Number.isInteger(v) && v >= lo && v <= hi;
 // Same limit as the roster inputs of the other games (maxlength 20), trimmed, no control characters.
 const cleanName = v => {
   const n = typeof v === 'string' ? v.trim() : '';
   return n && n.length <= 20 && !/\p{Cc}/u.test(n) ? n : null;
 };
-const phase = room => !room.game ? 'lobby' : room.game.phase === 'over' ? 'over' : 'game';
+const phase = (kind, room) => !room.game ? 'lobby' : kind.over(room.game) ? 'over' : 'game';
 const sleep = ms => new Promise(ok => setTimeout(ok, ms));
+export const seed = () => crypto.getRandomValues(new Uint32Array(1))[0] | 0;
+// The room's game, kept in its state. Bomb rooms (the first, from before there were others) carry none, so Bomb's
+// kind is null and queries match it with IS: a code or id of one game never finds a room of another.
+const KIND = "json_extract(r.state, '$.kind') IS ?";
 
 function newCode() {
   let code = '';
@@ -42,10 +48,10 @@ function newCode() {
   return code;
 }
 
-// One batch: the row and its members. Null when the room is gone or this person is not seated in it.
-async function load(db, id, person) {
+// One batch: the row and its members. Null when the room is gone, is another game's, or this person is not seated in it.
+async function load(db, kind, id, person) {
   const [rooms, members] = await db.batch([
-    db.prepare('SELECT id, code, version, state, last_action FROM rooms WHERE id = ?').bind(id),
+    db.prepare(`SELECT id, code, version, state, last_action FROM rooms r WHERE id = ? AND ${KIND}`).bind(id, kind.kind),
     db.prepare('SELECT person_id, seen FROM room_members WHERE room_id = ?').bind(id),
   ]);
   const row = rooms.results[0];
@@ -56,11 +62,11 @@ async function load(db, id, person) {
   const now = Date.now();
   const view = {
     room: {
-      id: row.id, code: row.code, phase: phase(room), host: 0, decks: room.decks, rematch: room.rematch,
+      id: row.id, code: row.code, phase: phase(kind, room), host: 0, ...kind.roomView(room), rematch: room.rematch,
       startedAt: room.startedAt ?? null, endedAt: room.endedAt ?? null,
-      seats: room.seats.map(s => ({ name: s.name, style: s.style, connected: now - (seen.get(s.person) ?? 0) < CONNECTED_MS })),
+      seats: room.seats.map(s => ({ name: s.name, ...kind.seatView(s), connected: now - (seen.get(s.person) ?? 0) < CONNECTED_MS })),
     },
-    game: room.game && viewFor(room.game, seat),
+    game: room.game && kind.view(room.game, seat),
     you: seat,
   };
   return { id: row.id, version: row.version, room, seat, acts: JSON.parse(row.last_action), view };
@@ -88,80 +94,6 @@ async function json(request) {
   }
 }
 
-// Returns [status, body]. Database errors throw; the Worker turns them into 503.
-export async function handleRooms(db, request, person, id, actions, since) {
-  if (id === undefined) return create(db, request, person);
-  if (id === 'join' && !actions) return join(db, request, person);
-  if (!UUID.test(id)) return NOT_FOUND;
-  return actions ? act(db, request, person, id) : poll(db, request, person, id, since);
-}
-
-async function create(db, request, person) {
-  const body = await json(request);
-  if (body === null) return [413, { error: 'too_large' }];
-  if (!body) return invalid('body');
-  const name = cleanName(body.name);
-  if (!name) return invalid('name');
-  if (!STYLES.includes(body.style)) return invalid('style');
-  if (!isInt(body.decks, 1, MAX_DECKS)) return invalid('decks');
-  const now = Date.now();
-  await db.batch([
-    db.prepare('DELETE FROM room_members WHERE room_id IN (SELECT id FROM rooms WHERE updated_at < ?)').bind(now - IDLE_MS),
-    db.prepare('DELETE FROM rooms WHERE updated_at < ?').bind(now - IDLE_MS),
-  ]);
-  const state = JSON.stringify({ decks: body.decks, seats: [{ person, name, style: body.style }], game: null, rematch: [] });
-  for (let tries = 0; tries < 5; tries++) {
-    const id = crypto.randomUUID();
-    try {
-      await db.batch([
-        db.prepare('INSERT INTO rooms (id, code, version, state, last_action, updated_at) VALUES (?, ?, 1, ?, \'{}\', ?)')
-          .bind(id, newCode(), state, now),
-        db.prepare('INSERT INTO room_members (room_id, person_id, seen) VALUES (?, ?, ?)').bind(id, person, now),
-      ]);
-    } catch (e) {
-      if (/UNIQUE/.test(String(e?.message))) continue; // the code is taken: draw another
-      throw e;
-    }
-    const cur = await load(db, id, person);
-    return [200, { id, version: cur.version, view: cur.view }];
-  }
-  throw new Error('no free room code');
-}
-
-async function join(db, request, person) {
-  const body = await json(request);
-  if (body === null) return [413, { error: 'too_large' }];
-  if (!body) return invalid('body');
-  const code = typeof body.code === 'string' ? body.code.trim().toUpperCase() : '';
-  if (!/^[A-Z]{6}$/.test(code)) return invalid('code');
-  const name = cleanName(body.name);
-  if (!name) return invalid('name');
-  if (!STYLES.includes(body.style)) return invalid('style');
-  for (let tries = 0; tries < 5; tries++) {
-    const found = await db.prepare('SELECT id FROM rooms WHERE code = ?').bind(code).first();
-    if (!found) return NOT_FOUND;
-    const cur = await load(db, found.id, person);
-    if (cur) return [200, { id: cur.id, version: cur.version, view: cur.view }]; // already seated: reconnecting
-    const row = await db.prepare('SELECT version, state, last_action FROM rooms WHERE id = ?').bind(found.id).first();
-    if (!row) continue;
-    const room = JSON.parse(row.state);
-    if (room.game) return conflict('started');
-    if (room.seats.length >= MAX_PLAYERS) return conflict('full');
-    const taken = new Set(room.seats.map(s => s.style));
-    room.seats.push({ person, name, style: taken.has(body.style) ? STYLES.find(s => !taken.has(s)) : body.style });
-    const allowed = allowedDecks(room.seats.length);
-    if (!allowed.includes(room.decks)) room.decks = allowed[0]; // five or six players need two decks or more
-    const at = { id: found.id, version: row.version };
-    if (await save(db, at, room, JSON.parse(row.last_action), [guarded(db,
-      'INSERT INTO room_members (room_id, person_id, seen) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM room_members WHERE room_id = ? AND person_id = ?)',
-      at, found.id, person, Date.now(), found.id, person)])) {
-      const now = await load(db, found.id, person);
-      return [200, { id: now.id, version: now.version, view: now.view }];
-    }
-  }
-  throw new Error('room too busy');
-}
-
 // The action as the server will use it, or null when its shape is wrong. Fields not listed are dropped.
 function parseAction(a) {
   if (!a || typeof a !== 'object' || typeof a.type !== 'string') return null;
@@ -181,75 +113,193 @@ function parseAction(a) {
   }
 }
 
-const ROOM_LEVEL = new Set(['SET_PLAYER', 'SET_DECKS', 'START', 'REMATCH', 'LEAVE']);
-const seed = () => crypto.getRandomValues(new Uint32Array(1))[0] | 0;
+// What differs per game:
+//   kind         the room state's kind (null: Bomb)         max   most seats
+//   seat(body, room)  the seat's own fields from a create or join body (room is null while only checking the body),
+//                     or the bad field's name; it may adjust the room for one more player
+//   settings(body)    the room's own fields from a create body, or the bad field's name
+//   roomView(room), seatView(seat)  their public fields      parse(a)  an action's clean shape, or null
+//   anyVersion   its own actions that are checked against the room as it is now, never refused for a stale expect
+//   start(room)       a new game for the seats, or why not
+//   apply(room, next, seat, a, cur)  next (a copy of room) with the action applied, or why not
+//   view(game, seat), check(game) (throws on a bad stored state), over(game)
+//   presence     a held poll that times out sends the view anyway, so who is away stays current on every phone
+export const BOMB = {
+  kind: null, max: MAX_PLAYERS,
+  seat(body, room) {
+    if (!STYLES.includes(body.style)) return 'style';
+    if (!room) return { style: body.style };
+    const allowed = allowedDecks(room.seats.length + 1);
+    if (!allowed.includes(room.decks)) room.decks = allowed[0]; // five or six players need two decks or more
+    const taken = new Set(room.seats.map(s => s.style));
+    return { style: taken.has(body.style) ? STYLES.find(s => !taken.has(s)) : body.style };
+  },
+  settings: body => isInt(body.decks, 1, MAX_DECKS) ? { decks: body.decks } : 'decks',
+  roomView: room => ({ decks: room.decks }),
+  seatView: s => ({ style: s.style }),
+  parse: parseAction,
+  anyVersion: new Set(['SET_PLAYER', 'SET_DECKS']),
+  start: room => allowedDecks(room.seats.length).includes(room.decks)
+    ? createGame({ players: room.seats.length, decks: room.decks, seed: seed() }) : 'decks',
+  apply(room, next, seat, a) {
+    const lobby = !room.game;
+    switch (a.type) {
+      case 'SET_PLAYER':
+        if (!lobby) return 'started';
+        if (room.seats.some((s, i) => i !== seat && s.style === a.style)) return 'style_taken';
+        Object.assign(next.seats[seat], { name: a.name, style: a.style });
+        return next;
+      case 'SET_DECKS':
+        if (!lobby) return 'started';
+        if (seat !== 0) return 'not_host';
+        next.decks = a.decks;
+        return next;
+      default: {
+        if (lobby) return 'not_started';
+        let game = reduce(room.game, { ...a, seat });
+        if (game === room.game) return 'illegal';
+        if (game.pending) game = reduce(game, { type: 'next' }); // online turns pass by themselves
+        next.game = game;
+        if (room.game.phase === 'choose' && game.phase === 'play') next.startedAt = Date.now();
+        if (room.game.phase !== 'over' && game.phase === 'over') next.endedAt = Date.now();
+        return next;
+      }
+    }
+  },
+  view: viewFor,
+  check: checkState,
+  over: g => g.phase === 'over',
+  presence: false,
+};
+
+// Returns [status, body]. Database errors throw; the Worker turns them into 503.
+export async function handleRooms(db, request, person, id, actions, since, kind = BOMB) {
+  if (id === undefined) return create(db, kind, request, person);
+  if (id === 'join' && !actions) return join(db, kind, request, person);
+  if (!UUID.test(id)) return NOT_FOUND;
+  return actions ? act(db, kind, request, person, id) : poll(db, kind, request, person, id, since);
+}
+
+async function create(db, kind, request, person) {
+  const body = await json(request);
+  if (body === null) return [413, { error: 'too_large' }];
+  if (!body) return invalid('body');
+  const name = cleanName(body.name);
+  if (!name) return invalid('name');
+  const seat = kind.seat(body, null);
+  if (typeof seat === 'string') return invalid(seat);
+  const settings = kind.settings(body);
+  if (typeof settings === 'string') return invalid(settings);
+  const now = Date.now();
+  await db.batch([
+    db.prepare('DELETE FROM room_members WHERE room_id IN (SELECT id FROM rooms WHERE updated_at < ?)').bind(now - IDLE_MS),
+    db.prepare('DELETE FROM rooms WHERE updated_at < ?').bind(now - IDLE_MS),
+  ]);
+  const state = JSON.stringify({ ...(kind.kind && { kind: kind.kind }), ...settings, seats: [{ person, name, ...seat }], game: null, rematch: [] });
+  for (let tries = 0; tries < 5; tries++) {
+    const id = crypto.randomUUID();
+    try {
+      await db.batch([
+        db.prepare('INSERT INTO rooms (id, code, version, state, last_action, updated_at) VALUES (?, ?, 1, ?, \'{}\', ?)')
+          .bind(id, newCode(), state, now),
+        db.prepare('INSERT INTO room_members (room_id, person_id, seen) VALUES (?, ?, ?)').bind(id, person, now),
+      ]);
+    } catch (e) {
+      if (/UNIQUE/.test(String(e?.message))) continue; // the code is taken (by any game: codes are unique): draw another
+      throw e;
+    }
+    const cur = await load(db, kind, id, person);
+    return [200, { id, version: cur.version, view: cur.view }];
+  }
+  throw new Error('no free room code');
+}
+
+async function join(db, kind, request, person) {
+  const body = await json(request);
+  if (body === null) return [413, { error: 'too_large' }];
+  if (!body) return invalid('body');
+  const code = typeof body.code === 'string' ? body.code.trim().toUpperCase() : '';
+  if (!/^[A-Z]{6}$/.test(code)) return invalid('code');
+  const name = cleanName(body.name);
+  if (!name) return invalid('name');
+  const ok = kind.seat(body, null);
+  if (typeof ok === 'string') return invalid(ok);
+  for (let tries = 0; tries < 5; tries++) {
+    const found = await db.prepare(`SELECT id FROM rooms r WHERE code = ? AND ${KIND}`).bind(code, kind.kind).first();
+    if (!found) return NOT_FOUND;
+    const cur = await load(db, kind, found.id, person);
+    if (cur) return [200, { id: cur.id, version: cur.version, view: cur.view }]; // already seated: reconnecting
+    const row = await db.prepare('SELECT version, state, last_action FROM rooms WHERE id = ?').bind(found.id).first();
+    if (!row) continue;
+    const room = JSON.parse(row.state);
+    if (room.game) return conflict('started');
+    if (room.seats.length >= kind.max) return conflict('full');
+    room.seats.push({ person, name, ...kind.seat(body, room) });
+    const at = { id: found.id, version: row.version };
+    if (await save(db, at, room, JSON.parse(row.last_action), [guarded(db,
+      'INSERT INTO room_members (room_id, person_id, seen) SELECT ?, ?, ? WHERE NOT EXISTS (SELECT 1 FROM room_members WHERE room_id = ? AND person_id = ?)',
+      at, found.id, person, Date.now(), found.id, person)])) {
+      const now = await load(db, kind, found.id, person);
+      return [200, { id: now.id, version: now.version, view: now.view }];
+    }
+  }
+  throw new Error('room too busy');
+}
+
+const ROOM_LEVEL = new Set(['START', 'REMATCH', 'LEAVE']);
 
 // The room after the action, or a reason string when it does not apply now.
-function apply(room, seat, a) {
+function apply(kind, room, seat, a, cur) {
   const next = structuredClone(room);
   const lobby = !room.game;
   switch (a.type) {
-    case 'SET_PLAYER':
-      if (!lobby) return 'started';
-      if (room.seats.some((s, i) => i !== seat && s.style === a.style)) return 'style_taken';
-      Object.assign(next.seats[seat], { name: a.name, style: a.style });
-      return next;
-    case 'SET_DECKS':
-      if (!lobby) return 'started';
-      if (seat !== 0) return 'not_host';
-      next.decks = a.decks;
-      return next;
-    case 'START':
+    case 'START': {
       if (!lobby) return 'started';
       if (seat !== 0) return 'not_host';
       if (room.seats.length < 2) return 'too_few_players';
-      if (!allowedDecks(room.seats.length).includes(room.decks)) return 'decks';
-      Object.assign(next, { game: createGame({ players: room.seats.length, decks: room.decks, seed: seed() }), startedAt: null, endedAt: null });
+      const game = kind.start(room);
+      if (typeof game === 'string') return game;
+      Object.assign(next, { game, startedAt: null, endedAt: null });
       return next;
+    }
     case 'LEAVE':
-      if (phase(room) === 'game') return 'started';
+      if (phase(kind, room) === 'game') return 'started';
       next.seats.splice(seat, 1); // later seats move up one; seat 0, the host, is whoever is left first
       // After a finished game the others go back to the lobby, so the host can start again with whoever is left.
       Object.assign(next, { game: null, rematch: [], startedAt: null, endedAt: null });
       return next;
     case 'REMATCH':
-      if (phase(room) !== 'over') return 'not_over';
+      if (phase(kind, room) !== 'over') return 'not_over';
       if (!next.rematch.includes(seat)) next.rematch.push(seat);
       if (next.rematch.length === room.seats.length) {
-        Object.assign(next, { game: createGame({ players: room.seats.length, decks: room.decks, seed: seed() }), rematch: [], startedAt: null, endedAt: null });
+        const game = kind.start(room);
+        if (typeof game === 'string') return game;
+        Object.assign(next, { game, rematch: [], startedAt: null, endedAt: null });
       }
       return next;
-    default: {
-      if (lobby) return 'not_started';
-      let game = reduce(room.game, { ...a, seat });
-      if (game === room.game) return 'illegal';
-      if (game.pending) game = reduce(game, { type: 'next' }); // online turns pass by themselves
-      next.game = game;
-      if (room.game.phase === 'choose' && game.phase === 'play') next.startedAt = Date.now();
-      if (room.game.phase !== 'over' && game.phase === 'over') next.endedAt = Date.now();
-      return next;
-    }
+    default:
+      return kind.apply(room, next, seat, a, cur);
   }
 }
 
-async function act(db, request, person, id) {
+async function act(db, kind, request, person, id) {
   const body = await json(request);
   if (body === null) return [413, { error: 'too_large' }];
   if (!body) return invalid('body');
   if (!isInt(body.expect, 0, Number.MAX_SAFE_INTEGER)) return invalid('expect');
   if (typeof body.actionId !== 'string' || !ACTION_ID.test(body.actionId)) return invalid('actionId');
-  const action = parseAction(body.action);
+  const action = kind.parse(body.action);
   if (!action) return invalid('action');
-  const roomLevel = ROOM_LEVEL.has(action.type);
+  const roomLevel = ROOM_LEVEL.has(action.type) || kind.anyVersion.has(action.type);
   // Room-level actions are checked against whatever the room is now, so a change in between is no reason to refuse
   // them: re-read and try again. Bounded: each try is 3 to 4 queries, well under the 50 a request may make.
   for (let tries = 0; tries < 5; tries++) {
-    const cur = await load(db, id, person);
+    const cur = await load(db, kind, id, person);
     if (!cur) return NOT_FOUND;
     if (cur.acts[person] === body.actionId) return [200, { version: cur.version, view: cur.view }]; // a retry: already applied
     if (!roomLevel && body.expect !== cur.version) return conflict('stale', cur);
-    if (cur.room.game) checkState(cur.room.game); // the row came from D1: a trust boundary
-    const room = apply(cur.room, cur.seat, action);
+    if (cur.room.game) kind.check(cur.room.game); // the row came from D1: a trust boundary
+    const room = apply(kind, cur.room, cur.seat, action, cur);
     if (typeof room === 'string') return conflict(room, cur);
     const acts = { ...cur.acts, [person]: body.actionId };
     if (action.type === 'LEAVE') {
@@ -262,23 +312,23 @@ async function act(db, request, person, id) {
         return [200, { version: cur.version + 1, view: null }];
       }
     } else if (await save(db, cur, room, acts)) {
-      const now = await load(db, id, person);
+      const now = await load(db, kind, id, person);
       return now ? [200, { version: now.version, view: now.view }] : NOT_FOUND;
     }
     if (!roomLevel) {
-      const now = await load(db, id, person);
+      const now = await load(db, kind, id, person);
       return now ? conflict('stale', now) : NOT_FOUND;
     }
   }
-  const now = await load(db, id, person);
+  const now = await load(db, kind, id, person);
   return now ? conflict('stale', now) : NOT_FOUND;
 }
 
-async function poll(db, request, person, id, since) {
+async function poll(db, kind, request, person, id, since) {
   if (since !== null && !/^\d{1,15}$/.test(since)) return invalid('since');
   const me = await db.prepare(
-    'SELECT m.seen, r.version FROM room_members m JOIN rooms r ON r.id = m.room_id WHERE m.room_id = ? AND m.person_id = ?')
-    .bind(id, person).first();
+    `SELECT m.seen, r.version FROM room_members m JOIN rooms r ON r.id = m.room_id WHERE m.room_id = ? AND m.person_id = ? AND ${KIND}`)
+    .bind(id, person, kind.kind).first();
   if (!me) return NOT_FOUND;
   if (Date.now() - me.seen >= SEEN_EVERY_MS) {
     await db.prepare('UPDATE room_members SET seen = ? WHERE room_id = ? AND person_id = ?').bind(Date.now(), id, person).run();
@@ -292,7 +342,7 @@ async function poll(db, request, person, id, since) {
     if (!row) return NOT_FOUND;
     version = row.version;
   }
-  if (version === want) return [200, { version }];
-  const cur = await load(db, id, person);
+  if (version === want && (!kind.presence || request.signal?.aborted)) return [200, { version }];
+  const cur = await load(db, kind, id, person);
   return cur ? [200, { version: cur.version, view: cur.view }] : NOT_FOUND;
 }

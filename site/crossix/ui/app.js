@@ -1,9 +1,10 @@
 // Crossix screens. All rules live in ../engine; this file dispatches actions and draws state.
-import { LANES, LAST, POINTS, MARKS_BEFORE_LAST, MAX_PENALTIES, MAX_PLAYERS, score, standings } from '../engine/lanes.js';
-import { canMark, isSkipped, cellChoice, pickedCells, canEnd, whiteSum } from '../engine/moves.js';
+import { LANES, LAST, POINTS, MARKS_BEFORE_LAST, MAX_PENALTIES, MAX_PLAYERS, MAX_ONLINE, score, standings } from '../engine/lanes.js';
+import { canMark, isSkipped, cellChoice, pickedCells, canEnd, whiteSum, noPicks } from '../engine/moves.js';
 import { newGame, reduce, validState, endReason } from '../engine/reducer.js';
 import { record, undo as undoHist, cleanHist, SAVE_CAP } from '../engine/history.js';
 import { mountDie, showDie } from './dice.js';
+import { createNet, browserAuth, reasonText } from '../../bomb/ui/net.js'; // Bomb's long-poll client, pointed at our rooms
 
 const $ = id => document.getElementById(id);
 const el = (tag, cls, text) => {
@@ -48,14 +49,15 @@ const pickerOn = () => S.g?.mode === 'digital' && (prefs.picker === 'on' || narr
 // ---- State, autosaved on every render. It belongs to whoever was signed in (owner), so a game in progress never
 // shows to the next person on this browser.
 const KEY = 'nl-crossix-v1';
-const fresh = () => ({ v: 1, owner: NL.person(), names: [], mode: 'physical', g: null, hist: [], saveId: null, createdAt: null, sel: 0, compact: false });
+const fresh = () => ({ v: 1, owner: NL.person(), names: [], mode: 'physical', g: null, hist: [], saveId: null, createdAt: null, sel: 0, compact: false, myName: '' });
 let S = fresh();
 const me = NL.identity();
 try {
   const s = JSON.parse(localStorage.getItem(KEY));
   if (s && s.v === 1 && (!s.owner || s.owner === S.owner)) { // another person's autosave stays unread
     if (Array.isArray(s.names)) S.names = s.names.filter(n => typeof n === 'string').slice(0, MAX_PLAYERS).map(n => n.slice(0, 20));
-    if (MODE_WORD[s.mode]) S.mode = s.mode;
+    if (MODE_WORD[s.mode] || s.mode === 'online') S.mode = s.mode;
+    if (typeof s.myName === 'string') S.myName = s.myName.slice(0, 20);
     S.compact = s.compact === true;
     if (s.g && validState(s.g)) { // stored data is a trust boundary
       S.g = s.g;
@@ -67,9 +69,12 @@ try {
   }
 } catch {}
 if (me?.displayName && !S.names.length && !S.g) S.names.push(me.displayName.slice(0, 20));
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+if (me?.displayName && !S.myName) S.myName = me.displayName.slice(0, 20);
+// An online game lives on the server: it is never autosaved here, so a reload cannot turn it into a local game.
+const save = () => { try { localStorage.setItem(KEY, JSON.stringify(inRoom() ? { ...S, g: null, hist: [] } : S)); } catch {} };
 NL.ready.then(i => {
   if (!me && i?.displayName && !S.names.length && !S.g) S.names.push(i.displayName.slice(0, 20));
+  if (!me && i?.displayName && !S.myName) S.myName = i.displayName.slice(0, 20);
   if (!S.g) render();
 });
 NL.account($('account'));
@@ -99,13 +104,15 @@ function follow(action) {
 }
 
 // Every game action goes through here: snapshot for undo, reduce, render. Illegal actions change nothing.
+// Online: only this seat's tentative picks come here; they stay on this phone, with no undo, until Done sends them.
 function change(action) {
   const next = reduce(S.g, action);
   if (next === S.g) return false;
   if (S.g.status === 'playing' && next.status === 'over') revealPending = true;
-  S.hist = record(S.hist, S.g);
+  if (inRoom()) O.mine = next.turn.picks[O.view.you];
+  else S.hist = record(S.hist, S.g);
   S.g = next;
-  follow(action);
+  if (!inRoom()) follow(action);
   popMarks = true;
   render();
   popMarks = false;
@@ -273,6 +280,174 @@ async function removeSave(r) {
   drawSaves();
 }
 
+// ---- Online (docs/plans/crossix-online-contract.md). The server holds the game and rolls; this phone keeps the room
+// it is in (to offer a rejoin), the server's view for its seat, and its own tentative picks (O.mine) until Done.
+const ROOM = 'nl-crossix-room', IN_ROOM = 'nl-crossix-in-room';
+const REASONS = {
+  full: 'That room is full: eight players is the most.', not_your_turn: 'It is not your roll.',
+  not_away: 'They are back, so they can play their own turn.', not_started: 'The game has not started.',
+  stale: 'That roll is over. Here is the table now.', illegal: 'That is not allowed now.',
+};
+const why = r => REASONS[r] || reasonText(r);
+let O = { view: null, mine: null, error: '', notice: '', net: 'ok' }, busy = false;
+const inRoom = () => !!O.view;
+const net = createNet({
+  base: '/api/crossix/rooms', fetch: (...a) => fetch(...a), auth: browserAuth, doc: document, win: window,
+  onView: adoptView,
+  onState: s => { O.net = s; render(); },
+  // Signed out or no server: the seat is still there, so keep the room to rejoin. 404: the room is gone for good.
+  onGone: w => leaveRoom(w ? why(w) : 'That room is gone: everyone left, or it was idle for a day.', !!w),
+});
+const roomMemory = () => { try { const r = JSON.parse(localStorage.getItem(ROOM)); return r && UUID.test(r.id) && /^[A-Z]{6}$/.test(r.code) ? r : null; } catch { return null; } };
+const remember = r => { try { localStorage.setItem(ROOM, JSON.stringify(r)); sessionStorage.setItem(IN_ROOM, r.id); } catch {} };
+const forgetRoom = () => { try { localStorage.removeItem(ROOM); sessionStorage.removeItem(IN_ROOM); } catch {} };
+function leaveRoom(message = '', keep = false) {
+  net.close();
+  if (!keep) forgetRoom();
+  stopReveal();
+  O = { view: null, mine: null, error: message, notice: '', net: 'ok' };
+  Object.assign(S, { g: null, sel: 0 });
+  rolling = false;
+  render();
+}
+
+// The phone's copy of the game: the view with this seat's tentative picks, and none for the others (hidden until the
+// roll resolves; nothing here reads them). Seed and rng never come from the server and are never used here.
+function gameOf(v) {
+  const t = v.game.turn;
+  const picks = t.phase === 'choose' ? t.picks.map((k, i) => i === v.you ? O.mine ?? k ?? noPicks() : noPicks()) : [];
+  return { ...v.game, seed: 0, rng: 0, turn: { ...t, picks } };
+}
+function adoptView(view) {
+  if (!view) return;
+  const was = O.view?.game, g = view.game, t = g?.turn, sameRoll = was?.turn.phase === 'choose' && was.turn.n === t?.n;
+  const left = (O.view?.room.seats || []).filter(s => !view.room.seats.some(x => x.name === s.name)).map(s => s.name);
+  if (left.length) O.notice = `${listOf(left)} left.`;
+  O.view = view;
+  remember({ id: view.room.id, code: view.room.code });
+  if (!g) { stopReveal(); Object.assign(S, { g: null, sel: 0 }); return render(); }
+  // A new roll or a reopened Done: start from what the server holds (nothing, or the picks sent with Done).
+  if (t.phase !== 'choose' || !sameRoll || t.done[view.you]) O.mine = t.phase === 'choose' ? t.picks[view.you] : null;
+  if (!was || was.status === 'over' && g.status === 'playing') { stopReveal(); S.sel = view.you; } // joined, or a rematch
+  if (was?.status === 'playing' && g.status === 'over') revealPending = true;
+  const spinNow = was && t.phase === 'choose' && !sameRoll;
+  if (spinNow) S.sel = view.you; // everyone starts on their own sheet
+  S.g = gameOf(view);
+  fixSel();
+  if (spinNow) return spin();
+  popMarks = !!was && was.turn.n !== t.n;
+  render();
+  popMarks = false;
+}
+
+async function onlineSend(action) {
+  if (busy) return false;
+  busy = true;
+  O.error = '';
+  const r = await net.send(action);
+  busy = false;
+  if (!r.ok) O.error = why(r.reason);
+  render();
+  return r.ok;
+}
+async function enterRoom(kind) {
+  const name = S.myName.trim();
+  if (!name) { O.error = 'Enter your name first.'; render(); $('meName').focus(); return; }
+  if (busy) return;
+  busy = true; O.error = ''; render();
+  const r = kind === 'create' ? await net.create({ name }) : await net.join({ code: $('joinCode').value.trim().toUpperCase(), name });
+  busy = false;
+  O.error = r.ok ? '' : r.reason === 'not_found' && kind === 'join' ? 'No room with that code. Check the letters and try again.' : why(r.reason);
+  render();
+}
+// Leaving the lobby or a finished game frees the seat on the server, so nobody waits for this player.
+async function leaveSeat() {
+  if (busy) return;
+  busy = true;
+  const r = await net.send({ type: 'LEAVE' });
+  busy = false;
+  if (r.ok || r.reason === 'not_found') leaveRoom();
+  else { O.error = why(r.reason); render(); }
+}
+
+function renderOnlineSetup() {
+  const mem = roomMemory();
+  $('onlineNote').textContent = O.error;
+  $('onlineNote').hidden = !O.error;
+  $('rejoinBox').hidden = !mem;
+  if (mem) $('rejoinNote').textContent = `You were in room ${mem.code}. Your seat is kept while the game lasts.`;
+  if (document.activeElement !== $('meName')) $('meName').value = S.myName;
+  for (const id of ['create', 'join', 'rejoin']) $(id).disabled = busy;
+}
+$('meName').oninput = () => { S.myName = $('meName').value; save(); };
+$('create').onclick = () => enterRoom('create');
+$('joinRow').onsubmit = e => {
+  e.preventDefault();
+  if (!/^[A-Za-z]{6}$/.test($('joinCode').value.trim())) { O.error = 'A room code is six letters.'; render(); return; }
+  enterRoom('join');
+};
+$('rejoin').onclick = () => { const m = roomMemory(); if (m) { O.error = ''; net.open(m.id); } };
+$('forget').onclick = () => { forgetRoom(); render(); };
+
+function renderLobby() {
+  const v = O.view, r = v.room, host = v.you === r.host, n = r.seats.length;
+  $('roomCode').textContent = r.code;
+  $('roomCode').setAttribute('aria-label', `Room code ${[...r.code].join(' ')}`);
+  $('seatCount').textContent = `${n} of ${MAX_ONLINE} seated`;
+  const rows = r.seats.map((s, i) => {
+    const li = el('li'), name = el('strong', '', s.name);
+    if (i === v.you) name.append(el('span', '', ' (you)'));
+    else if (!s.connected) li.classList.add('off');
+    li.append(el('span', 'seat', i + 1), name, el('span', 'pill', i === r.host ? 'Host' : s.connected ? 'Ready' : 'Away'));
+    return li;
+  });
+  if (n < MAX_ONLINE) {
+    const li = el('li');
+    li.append(el('span', 'seat open'), el('span', 'note', `Waiting for a player${n < MAX_ONLINE - 1 ? `, ${MAX_ONLINE - n} seats open` : ''}`));
+    li.lastChild.style.margin = '0';
+    rows.push(li);
+  }
+  $('lobbySeats').replaceChildren(...rows);
+  $('startRoom').hidden = !host;
+  $('startRoom').disabled = busy || n < 2;
+  $('startRoom').textContent = n < 2 ? 'Waiting for players' : `Start game with ${n}`;
+  $('lobbyWait').hidden = host;
+  $('lobbyWaitText').textContent = `Waiting for ${r.seats[r.host]?.name || 'the host'} to start`;
+  $('lobbyErr').textContent = O.error || O.notice;
+  $('lobbyErr').classList.toggle('err', !!O.error);
+  $('lobbyErr').hidden = !$('lobbyErr').textContent;
+}
+$('startRoom').onclick = () => onlineSend({ type: 'START' });
+$('leaveLobby').onclick = leaveSeat;
+const roomLink = () => `${location.origin}${location.pathname.replace(/index\.html$/, '')}?room=${O.view.room.code}`;
+const shareNote = text => { $('shareNote').textContent = text; $('shareNote').hidden = false; };
+$('share').onclick = async () => {
+  const url = roomLink();
+  try {
+    if (navigator.share) { await navigator.share({ title: 'Crossix', text: `Join my Crossix game: room ${O.view.room.code}`, url }); return; }
+    await navigator.clipboard.writeText(url);
+    shareNote('Link copied.');
+  } catch (e) { if (e?.name !== 'AbortError') shareNote(`Copy this link: ${url}`); }
+};
+$('copy').onclick = async () => {
+  try { await navigator.clipboard.writeText(O.view.room.code); shareNote('Code copied.'); } catch { shareNote(`The code is ${O.view.room.code}.`); }
+};
+
+// The host's way past a phone that has gone quiet (the server allows it after a minute unseen): roll for that player,
+// or end their choice with nothing crossed. No timers and no kicking.
+function renderSkips() {
+  const v = O.view, t = S.g.turn, box = $('skips');
+  const who = inRoom() && v.you === v.room.host && S.g.status === 'playing' && !rolling
+    ? v.room.seats.map((s, i) => i).filter(i => i !== v.you && !v.room.seats[i].connected && (t.phase === 'roll' ? i === t.active : !t.done[i])) : [];
+  box.replaceChildren(...who.map(i => {
+    const b = el('button', 'btn', `Skip ${v.room.seats[i].name}`);
+    b.disabled = busy;
+    b.onclick = () => onlineSend({ type: 'skip', seat: i });
+    return b;
+  }));
+  box.hidden = !who.length;
+}
+
 // ---- Build the fixed parts of the sheet once; render() only updates them, so focus stays put.
 const laneEls = [], cellEls = [];
 LANES.forEach((lane, l) => {
@@ -339,7 +514,8 @@ function tapCell(l, i) {
   if (ok) { buzz(10); if ($('picker').open) $('picker').close(); }
 }
 // Digital: the selected player can pick right now.
-const choosingNow = () => { const t = S.g?.turn; return !!t && !rolling && S.g.status === 'playing' && t.phase === 'choose' && !t.done[S.sel]; };
+// Online: only on this phone's own sheet; the others are there to look at.
+const choosingNow = () => { const t = S.g?.turn; return !!t && !rolling && S.g.status === 'playing' && t.phase === 'choose' && !t.done[S.sel] && (!inRoom() || S.sel === O.view.you); };
 
 function paintCell(b, l, i) {
   const g = S.g, sheet = g.players[S.sel], lane = LANES[l], lock = i === LAST, playing = g.status === 'playing';
@@ -398,20 +574,28 @@ function placeLanes(g) {
 // ---- Rendering
 function render() {
   save();
-  const playing = !!S.g;
-  $('setupPage').hidden = playing;
+  const playing = !!S.g, lobby = inRoom() && !playing;
+  $('setupPage').hidden = playing || lobby;
+  $('lobbyPage').hidden = !lobby;
   $('gamePage').hidden = !playing;
   $('gamesLink').hidden = playing;
-  $('undo').hidden = !playing;
+  $('undo').hidden = !playing || inRoom(); // online: no undo
   $('undo').disabled = !S.hist.length;
-  for (const id of ['scoresBtn', 'exitBtn', 'newBtn', 'restart']) $(id).hidden = !playing;
-  playing ? renderGame() : renderSetup();
+  for (const id of ['scoresBtn', 'exitBtn']) $(id).hidden = !playing;
+  for (const id of ['newBtn', 'restart']) $(id).hidden = !playing || inRoom();
+  $('conn').hidden = !(inRoom() && O.net === 'offline');
+  lobby ? renderLobby() : playing ? renderGame() : renderSetup();
   if ($('scoresSheet').open) renderScores();
 }
 
-const showMode = NL.segmented($('modeSeg'), v => { S.mode = v; render(); });
+const showMode = NL.segmented($('modeSeg'), v => { S.mode = v; O.error = ''; render(); });
 function renderSetup() {
   showMode(S.mode);
+  const online = S.mode === 'online';
+  for (const id of ['rosterGroup', 'start']) $(id).hidden = online;
+  for (const id of ['meGroup', 'joinGroup']) $(id).hidden = !online;
+  if (online) { $('startHint').hidden = true; $('modeNote').textContent = 'Everyone plays on their own phone in a room, two to eight players. Dice roll on screen.'; renderOnlineSetup(); drawSaves(); return; }
+  $('rejoinBox').hidden = $('onlineNote').hidden = true;
   $('modeNote').textContent = S.mode === 'physical'
     ? 'Roll your own dice at the table and tap what you cross off. Everyone can keep a sheet here, or just you.'
     : 'Roll six dice on screen. Everyone picks on this device, then taps Done. The game checks every move.';
@@ -457,7 +641,9 @@ function renderChips() {
     c.setAttribute('aria-pressed', S.sel === i);
     c.classList.toggle('mover', digital && m === i);
     c.classList.toggle('done', choosing && g.turn.done[i]);
-    c.setAttribute('aria-label', `${p.name}${hideScores() ? '' : `, ${t} points`}${digital && m === i ? ', rolling player' : ''}${choosing && g.turn.done[i] ? ', turn ended' : ''}`);
+    const off = inRoom() && !O.view.room.seats[i]?.connected;
+    c.classList.toggle('off', off);
+    c.setAttribute('aria-label', `${p.name}${inRoom() && i === O.view.you ? ' (you)' : ''}${hideScores() ? '' : `, ${t} points`}${digital && m === i ? ', rolling player' : ''}${choosing && g.turn.done[i] ? ', turn ended' : ''}${off ? ', away' : ''}`);
   });
   box.hidden = g.players.length < 2 || g.status === 'over'; // results show everyone at once
 }
@@ -476,6 +662,7 @@ function renderGame() {
 
   const sheet = g.players[S.sel];
   if (digital) renderTray();
+  renderSkips();
 
   const picker = pickerOn();
   $('lanes').classList.toggle('choosing', digital && choosingNow());
@@ -523,23 +710,30 @@ function renderTray() {
     if (!rolling && v && die.dataset.shown !== String(v)) { showDie(die, v); die.dataset.shown = v; }
   });
   $('sum').textContent = dice && fresh && !rolling ? whiteSum(dice) : '';
-  $('sumLabel').textContent = fresh ? 'White sum' : g.players.length === 1 ? 'Ready to roll' : `${g.players[t.active].name} rolls`;
-  $('roll').hidden = t.phase !== 'roll';
-  $('roll').disabled = rolling;
-  // End turn: the roller needs a pick or a ticked penalty first; anyone else may end with nothing.
-  const done = $('doneBtn'), p = S.sel, mine = fresh && t.done[p];
+  const myRoll = inRoom() && O.view.you === t.active;
+  $('sumLabel').textContent = fresh ? 'White sum' : g.players.length === 1 ? 'Ready to roll' : myRoll ? 'Your roll' : `${g.players[t.active].name} rolls`;
+  $('roll').hidden = t.phase !== 'roll' || (inRoom() && !myRoll); // online: only the roller's phone rolls
+  $('roll').disabled = rolling || busy;
+  // End turn: the roller needs a pick or a ticked penalty first; anyone else may end with nothing. Online it is always
+  // this phone's own turn, whichever sheet is showing.
+  const done = $('doneBtn'), p = inRoom() ? O.view.you : S.sel, mine = fresh && t.done[p];
   done.hidden = !fresh;
-  done.disabled = rolling || (fresh && !mine && !canEnd(g, p));
+  done.disabled = rolling || busy || (fresh && !mine && !canEnd(g, p));
   done.classList.toggle('reopen', !!mine);
   done.textContent = mine ? 'Change picks' : 'End turn';
 }
 
 async function roll() {
   if (rolling) return;
+  if (inRoom()) return onlineSend({ type: 'roll' }); // the server rolls; its view spins the dice on every phone
   // rolling goes up before the change renders, or that render would set the new faces at once (a flash before the spin)
   rolling = true;
   if (!change({ type: 'roll' })) { rolling = false; return; }
+  return spin();
+}
+async function spin() {
   const d = S.g.turn.dice;
+  rolling = true;
   buzz([8, 40, 8]);
   render();
   await Promise.all(dieEls.map(({ die }, k) => {
@@ -556,6 +750,11 @@ async function roll() {
 function doneTap() {
   const t = S.g?.turn;
   if (!t || rolling || t.phase !== 'choose') return;
+  if (inRoom()) { // one request: this phone's final picks, or reopening them
+    const you = O.view.you, k = t.picks[you];
+    buzz(8);
+    return onlineSend(t.done[you] ? { type: 'reopen', n: t.n } : { type: 'done', n: t.n, picks: { white: k.white, colour: k.colour, penalty: !!k.penalty } });
+  }
   if (change({ type: 'done', player: S.sel, value: !t.done[S.sel] })) buzz(8);
 }
 
@@ -611,6 +810,14 @@ function renderResults() {
   $('resultsWhy').textContent = endReason(g) === 'penalties'
     ? `${g.players.length === 1 ? 'A' : `${listOf(fourth)} took a`} fourth penalty.`
     : `Two colours are locked: ${listOf(LANES.filter((_, l) => g.closed[l]).map(l => l.name.toLowerCase()))}.`;
+  // Online: Play again is a rematch vote (it starts when everyone has tapped it), Change players leaves the room.
+  const r = inRoom() && O.view.room, voted = r ? r.rematch : [], mine = r && voted.includes(O.view.you);
+  $('again').textContent = !r ? 'Play again' : mine ? 'Waiting for the others' : 'Rematch';
+  $('again').disabled = !!mine || busy;
+  $('players').textContent = r ? 'Leave' : 'Change players';
+  const yes = voted.map(i => r.seats[i].name), no = r ? r.seats.filter((_, i) => !voted.includes(i)).map(s => s.name) : [];
+  $('votes').textContent = !r ? '' : O.error || (voted.length ? `Ready for a rematch: ${listOf(yes)}.${no.length ? ` Waiting for ${listOf(no)}.` : ''}` : 'Rematch starts when everyone taps it.');
+  $('votes').hidden = !r;
   if (revealing) return; // the count is running; leave its rows alone
   const rows = revealRows(g);
   if (revealPending && !still()) { revealPending = false; runReveal(g, rows); return; }
@@ -733,10 +940,13 @@ const chip = id => $(id).querySelector('span');
 twoTap($('restart'), on => { chip('restart').textContent = on ? 'Tap again to restart' : 'Restart'; }, inProgress, () => !!S.g, () => { closeMenu(); restart(); });
 // Exit (Bank's End game) and New game confirm in a sheet, so they need no second tap.
 $('exitBtn').onclick = () => {
-  const fin = S.g?.status === 'over';
-  $('endTitle').textContent = fin ? 'Leave the final scores?' : 'End this game?';
-  $('endNote').textContent = fin ? 'Save the result to see it again later.' : 'Save it to pick up later from Saved games.';
-  $('discard').textContent = fin ? 'Exit without saving' : 'End without saving';
+  const fin = S.g?.status === 'over', online = inRoom();
+  $('endTitle').textContent = online ? (fin ? 'Leave the room?' : 'Leave this game?') : fin ? 'Leave the final scores?' : 'End this game?';
+  // Online games are not saved here: the server holds them, and a seat is kept while the game lasts.
+  $('endNote').textContent = online ? (fin ? 'Your seat goes to whoever joins next.' : 'Your seat stays in the game, and the host can skip your turns. Rejoin from Online while the game lasts.')
+    : fin ? 'Save the result to see it again later.' : 'Save it to pick up later from Saved games.';
+  $('saveExit').hidden = online;
+  $('discard').textContent = online ? 'Leave' : fin ? 'Exit without saving' : 'End without saving';
   $('keep').textContent = fin ? 'Back to scores' : 'Keep playing';
   $('endSheet').showModal();
 };
@@ -744,7 +954,12 @@ $('exitBtn').onclick = () => {
 $('saveExit').onclick = async () => {
   if (await saveNow($('endNote'))) { $('endSheet').close(); toSetup(); }
 };
-$('discard').onclick = () => { $('endSheet').close(); toSetup(); };
+$('discard').onclick = () => {
+  $('endSheet').close();
+  if (!inRoom()) return toSetup();
+  if (S.g?.status === 'over') return leaveSeat();
+  leaveRoom('', true); // mid-game: the seat stays, so keep the room to rejoin
+};
 $('keep').onclick = () => $('endSheet').close();
 $('newBtn').onclick = () => { $('newNote').textContent = 'Same players and dice, fresh sheets. Save this game to pick it up later from Saved games.'; $('newSheet').showModal(); };
 $('saveNew').onclick = async () => {
@@ -756,35 +971,10 @@ $('newKeep').onclick = () => $('newSheet').close();
 // ---- Sheets: Esc and a backdrop click close them.
 for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
 const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-// Like an iPhone sheet: drag down while it is scrolled to the top, let go past a quarter of its height (or flick) to dismiss.
+// Sheets swipe away like an iPhone's: that lives in the shared platform.js.
 for (const d of document.querySelectorAll('dialog.sheet')) {
   const h = d.querySelector('h2'); // focus the title on open, so a tall sheet opens at its top, not scrolled to its Done button
   if (h) { h.tabIndex = -1; h.autofocus = true; }
-  let y0 = null, dy = 0, t0 = 0, drag = false;
-  d.addEventListener('touchstart', e => {
-    y0 = d.open && d.scrollTop <= 0 && e.touches.length === 1 ? e.touches[0].clientY : null;
-    dy = 0; t0 = e.timeStamp; drag = false;
-  }, { passive: true });
-  d.addEventListener('touchmove', e => {
-    if (y0 === null) return;
-    dy = e.touches[0].clientY - y0;
-    if (!drag && dy <= 0) { y0 = null; return; } // an upward move scrolls the sheet as usual
-    drag = true;
-    e.preventDefault();
-    d.style.transition = 'none';
-    d.style.transform = `translateY(${Math.max(0, dy)}px)`;
-  }, { passive: false });
-  d.addEventListener('touchend', e => {
-    if (!drag) { y0 = null; return; }
-    y0 = null; drag = false;
-    const flick = dy / Math.max(1, e.timeStamp - t0) > 0.5 && dy > 30;
-    d.style.transition = still() ? 'none' : 'transform .22s ease-out';
-    if (dy > d.offsetHeight / 4 || flick) {
-      d.style.transform = 'translateY(calc(100% + 40px))';
-      setTimeout(() => { d.close(); d.style.transition = d.style.transform = ''; }, still() ? 0 : 200);
-    } else d.style.transform = '';
-  });
-  d.addEventListener('close', () => { d.style.transition = d.style.transform = ''; });
 }
 $('scoresBtn').onclick = () => { renderScores(); $('scoresSheet').showModal(); };
 $('rulesBtn').onclick = () => $('rulesSheet').showModal();
@@ -805,11 +995,25 @@ $('start').onclick = start;
 $('undo').onclick = undo;
 $('roll').onclick = roll;
 $('doneBtn').onclick = doneTap;
-$('again').onclick = restart;
-$('players').onclick = toSetup;
+$('again').onclick = () => inRoom() ? onlineSend({ type: 'REMATCH' }) : restart();
+$('players').onclick = () => inRoom() ? leaveSeat() : toSetup();
 $('trayToggle').onclick = () => { S.compact = !S.compact; render(); };
 narrow.addEventListener('change', render);
 
+// ---- Start: a room link joins (or fills in the code); a reload while in a room reopens it.
+const linkCode = new URLSearchParams(location.search).get('room');
+if (linkCode && /^[A-Za-z]{6}$/.test(linkCode) && !S.g) {
+  history.replaceState(null, '', location.pathname);
+  S.mode = 'online';
+  $('joinCode').value = linkCode.toUpperCase();
+  if (S.myName.trim()) enterRoom('join');
+  else { O.error = 'Enter your name, then tap Join.'; queueMicrotask(() => $('meName').focus()); }
+} else if (!S.g && S.mode === 'online') {
+  let again = null;
+  try { again = sessionStorage.getItem(IN_ROOM); } catch {}
+  const mem = roomMemory();
+  if (mem && again === mem.id) net.open(mem.id);
+}
 fixSel();
 render();
 if (!S.g) refreshSaves();
