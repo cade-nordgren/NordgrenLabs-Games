@@ -21,23 +21,36 @@
   <main style="padding-top: calc(env(safe-area-inset-top) + 52px)">
     <h1>Games</h1>
     <p class="lede">From NordgrenLabs.</p>
-    <a class="glass tile" href="bank/index.html">
-      <strong>Bank</strong>
-      <span>A push-your-luck dice game for two or more. Bring your own dice or roll on screen.</span>
-    </a>
-    <a class="glass tile" href="crossix/index.html" style="margin-top: 14px">
-      <strong>Crossix</strong>
-      <span>Cross off numbers in four coloured lanes, for one to five players. Keep score for your own dice or roll on screen.</span>
-    </a>
-    <a class="glass tile" href="keep/index.html" style="margin-top: 14px">
-      <strong>Dragon's Keep</strong>
-      <span>Explore a keep, grab gold and reach a tower before sunset, for one to four players on one device.</span>
-    </a>
+    <div class="games">
+      <div class="glass tile">
+        <a href="bank/index.html">Bank</a>
+        <button class="info" aria-expanded="false" aria-controls="about-0" aria-label="About Bank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+        <p id="about-0" hidden>A push-your-luck dice game for two or more. Bring your own dice or roll on screen.</p>
+      </div>
+      <div class="glass tile">
+        <a href="crossix/index.html">Crossix</a>
+        <button class="info" aria-expanded="false" aria-controls="about-1" aria-label="About Crossix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+        <p id="about-1" hidden>Cross off numbers in four coloured lanes, for one to five players. Keep score for your own dice or roll on screen.</p>
+      </div>
+      <div class="glass tile">
+        <a href="keep/index.html">Dragon's Keep</a>
+        <button class="info" aria-expanded="false" aria-controls="about-2" aria-label="About Dragon's Keep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+        <p id="about-2" hidden>Explore a keep, grab gold and reach a tower before sunset, for one to four players on one device.</p>
+      </div>
+    </div>
     <div class="account" id="account" style="margin-top: 24px" hidden></div>
   </main>
 </div>
 <script src="config.js"></script>
 <script src="platform.js"></script>
-<script>NL.account(document.getElementById('account'));</script>
+<script>
+NL.account(document.getElementById('account'));
+// The "i" opens that game's description inside its card.
+for (const b of document.querySelectorAll('.tile .info')) b.addEventListener('click', () => {
+  const open = b.getAttribute('aria-expanded') !== 'true';
+  b.setAttribute('aria-expanded', open);
+  document.getElementById(b.getAttribute('aria-controls')).hidden = !open;
+});
+</script>
 </body>
 </html>
