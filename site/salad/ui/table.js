@@ -95,7 +95,8 @@ function drawOpps(v) {
     nm.append(avatar(p), el('strong', '', p.name));
     if (!seat?.connected) { const off = el('span', 'off-tag', 'Away'); nm.append(off); }
     const st = g.seats[s], pts = roundPts(g, s);
-    const line = compact ? `${st.hand} · ${plural(st.tricks, 'trick')}` : `${plural(st.hand, 'card')} · ${plural(st.tricks, 'trick')}${pts === null ? '' : ` · ${pts} pts`}`;
+    // Hand count first (the face-down back says what it is), then tricks and, when shown, this round's points.
+    const line = `${others.length > 2 ? st.hand : plural(st.hand, 'card')} · ${plural(st.tricks, 'trick')}${pts === null || compact ? '' : ` · ${pts}`}`;
     const cap = el('p', 'cap', line);
     cap.prepend(backEl()); // their hand, face down, in your card back
     sec.append(nm, cap);

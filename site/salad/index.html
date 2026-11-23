@@ -415,24 +415,30 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 .sc b { font: 800 15px var(--num); }
 
 /* ---- Tablets and desktops: a real oval table with seats around it, scores in a side column. */
-@media (min-width: 900px) and (min-height: 600px) {
+@media (min-width: 700px) and (min-height: 600px) {
   .app { max-width: 720px; }
   #home, #form, #lobby, #results, #final { max-width: 560px; width: 100%; margin: 0 auto; }
   #game { padding: 24px; gap: 14px 24px; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr) auto auto;
     grid-template-areas: "top side" "felt side" "me side" "hand act"; }
-  .top { padding-right: 0; }
   .top h1 { font-size: 32px; }
   .side { display: flex !important; flex-direction: column; gap: 10px; padding-top: 60px; }
   .felt { margin: 70px 200px 20px; }
   #opps { display: contents; }
-  .opp { position: absolute; z-index: 4; width: 180px; padding: 10px 12px; transform: translate(-50%, -50%); grid-area: felt; }
+  .opp { position: absolute; z-index: 4; width: 160px; padding: 10px 12px; transform: translate(-50%, -50%); grid-area: felt; }
   .opp strong { font-size: 16px; }
   .felt { --cw: calc(68px * var(--k)); } .felt.small { --cw: calc(54px * var(--k)); }
-  .opp { left: calc(50% + var(--x) * (50% - 100px)); top: calc(50% + var(--y) * (50% - 44px)); }
+  .opp { left: calc(50% + var(--x) * (50% - 82px)); top: calc(50% + var(--y) * (50% - 44px)); }
   .hand .c { --w: calc(70px * var(--k)); }
   .hrow .c + .c { margin-left: var(--ov, -16px); }
   .act { align-self: end; }
   .who { max-width: 120px; font-size: 13px; }
+}
+/* Tablets: the same oval, one column (the scores live behind the Scores chip). */
+@media (min-width: 700px) and (min-height: 600px) and (max-width: 1099px) {
+  #game { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "felt" "me" "hand" "act"; grid-template-rows: auto minmax(0, 1fr) auto auto auto; }
+  .side { display: none !important; }
+  .felt { margin: 70px 150px 30px; }
+  .act { max-width: 420px; width: 100%; justify-self: center; }
 }
 </style>
 </head>
