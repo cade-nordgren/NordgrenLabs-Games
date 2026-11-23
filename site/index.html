@@ -26,6 +26,8 @@
   <main style="padding-top: calc(env(safe-area-inset-top) + 52px)">
     <h1>Games</h1>
     <p class="lede">From NordgrenLabs.</p>
+    <button class="btn" id="aboutAll" style="margin-bottom: 16px">Show descriptions</button>
+    <!-- Games stay in alphabetical order inside each group. -->
     <div class="games">
       <h2>Dice</h2>
       <div class="glass tile" data-kind="dice">
@@ -84,12 +86,17 @@ const settings = document.getElementById('settings');
 const showTheme = NL.segmented(document.getElementById('themeSeg'), v => { NL.theme.set(v); showTheme(v); });
 document.getElementById('settingsBtn').onclick = () => { showTheme(NL.theme.get()); settings.showModal(); };
 document.getElementById('settingsDone').onclick = () => settings.close();
-// The "i" opens that game's description inside its card.
-for (const b of document.querySelectorAll('.tile .info')) b.addEventListener('click', () => {
-  const open = b.getAttribute('aria-expanded') !== 'true';
+// The "i" opens that game's description inside its card; the button up top opens or closes them all.
+const infos = [...document.querySelectorAll('.tile .info')], aboutAll = document.getElementById('aboutAll');
+const isOpen = b => b.getAttribute('aria-expanded') === 'true';
+function about(b, open) {
   b.setAttribute('aria-expanded', open);
   document.getElementById(b.getAttribute('aria-controls')).hidden = !open;
-});
+  const all = infos.every(isOpen);
+  aboutAll.textContent = all ? 'Hide descriptions' : 'Show descriptions';
+}
+for (const b of infos) b.addEventListener('click', () => about(b, !isOpen(b)));
+aboutAll.onclick = () => { const open = !infos.every(isOpen); for (const b of infos) about(b, open); };
 </script>
 </body>
 </html>

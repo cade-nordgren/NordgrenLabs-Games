@@ -82,7 +82,7 @@ Quality floor for every screen: visible keyboard focus, 44px touch targets, `pre
 2. Write the rules as pure functions with asserts. Design the rules yourself; games here must be original in everything expressive. When the owner asks for it, a game may instead implement the documented procedures of an existing tabletop game, with its content slots filled by the owner's original content (see "Original expression, faithful mechanics where asked" in the decisions log).
 3. Hold state in one object, route actions through `change()`, autosave under `nl-<game>-v1`.
 4. Wire `NL.menu`, sheets, `NL.segmented` and saves as above. Load `<script src="../config.js"></script>` then `<script src="../platform.js"></script>` before the game script.
-5. Add a `.glass.tile` link to `site/index.html`.
+5. Add a `.glass.tile` link to `site/index.html` under its group heading (Dice, Cards or Other), keeping each group in alphabetical order (owner rule).
 6. Preview and run the checks below.
 
 ## Preview and checks
