@@ -62,6 +62,16 @@ export function lastLine(view, names, you) {
 export const nextLabel = (view, names) => !view.pending ? 'Next turn'
   : view.pending.next === view.turn ? `Next turn: ${names[view.turn]} again` : `Next turn: ${names[view.pending.next]}`;
 
+// One phone: face-up choices go round from whoever won the draw, in turn order. -1 once everyone is ready.
+export function choosingSeat(g) {
+  const n = g.players.length;
+  for (let k = 0; k < n; k++) if (!g.players[(g.first + k) % n].ready) return (g.first + k) % n;
+  return -1;
+}
+// Online: who left between two views of one room. Seats are re-packed, so compare by style (unique in a room).
+export const leavers = (was, now) => !was || was.id !== now.id || now.seats.length >= was.seats.length ? []
+  : was.seats.filter(s => !now.seats.some(t => t.style === s.style)).map(s => s.name);
+
 // Draw for first, as a sequence to present: each round's cards flip one by one, then that round's outcome.
 // Returns [{ round, cards: [{ seat, rank, suit }], tied: [seat] | null, winner: seat | null }].
 export function drawPlan(draws) {

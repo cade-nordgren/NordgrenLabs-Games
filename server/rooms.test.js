@@ -72,7 +72,7 @@ test('create: the creator is the host in seat 0 of a lobby, with a 6-letter code
   assert.equal(r.body.version, 1);
   assert.match(r.body.view.room.code, /^[ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/);
   assert.deepEqual(r.body.view, {
-    room: { id: r.body.id, code: r.body.view.room.code, phase: 'lobby', host: 0, decks: 1, rematch: [],
+    room: { id: r.body.id, code: r.body.view.room.code, phase: 'lobby', host: 0, decks: 1, rematch: [], startedAt: null, endedAt: null,
       seats: [{ name: 'Alex', style: 'cobalt', connected: true }] },
     game: null, you: 0,
   });
@@ -203,13 +203,12 @@ async function assertPrivate(id, seat, res) {
   for (const p of P) assert.ok(!res.text.includes(p));
 }
 
-test('a full scripted game through the API: nobody ever sees another player\'s cards, turns pass by themselves, then a rematch', async () => {
-  const n = 3;
-  const { id } = await room(n);
-  let r = await act(P[0], id, { type: 'START' }, await version(id));
+// Plays a started room to the end through the API, checking privacy on every answer; returns the last answer.
+async function playToEnd(id, n, r) {
   for (let seat = 0; seat < n; seat++) {
     r = await poll(P[seat], id);
     await assertPrivate(id, seat, r);
+    assert.equal(r.body.view.room.startedAt, null, 'play has not started while choosing');
     const hand = r.body.view.game.you.hand.map(c => c.id);
     r = await act(P[seat], id, { type: 'arrange', ids: hand.slice(0, 4) }, r.body.version);
     assert.equal(r.status, 200);
@@ -219,6 +218,8 @@ test('a full scripted game through the API: nobody ever sees another player\'s c
     await assertPrivate(id, seat, r);
   }
   assert.equal(r.body.view.game.phase, 'play');
+  assert.equal(typeof r.body.view.room.startedAt, 'number');
+  assert.equal(r.body.view.room.endedAt, null);
   let moves = 0;
   while (r.body.view.room.phase === 'game') {
     assert.ok(++moves < 3000, 'game ends');
@@ -250,6 +251,15 @@ test('a full scripted game through the API: nobody ever sees another player\'s c
   assert.equal(r.body.view.room.phase, 'over');
   assert.equal(typeof r.body.view.game.winner, 'number');
   assert.ok(moves > 20, `${moves} moves`);
+  return r;
+}
+
+test('a full scripted game through the API: nobody ever sees another player\'s cards, turns pass by themselves, then a rematch', async () => {
+  const n = 3;
+  const { id } = await room(n);
+  let r = await playToEnd(id, n, await act(P[0], id, { type: 'START' }, await version(id)));
+  const { startedAt, endedAt } = r.body.view.room;
+  assert.ok(Number.isInteger(endedAt) && endedAt >= startedAt, 'game time from the server clock');
   const winnerView = await poll(P[1], id);
   assert.equal(winnerView.body.view.game.phase, 'over');
 
@@ -263,7 +273,49 @@ test('a full scripted game through the API: nobody ever sees another player\'s c
   assert.deepEqual(r.body.view.room.rematch, []);
   assert.equal(r.body.view.game.phase, 'choose');
   assert.equal(r.body.view.game.players.length, n);
+  assert.equal(r.body.view.room.startedAt, null, 'a rematch starts a new clock');
   await assertPrivate(id, 1, r);
+});
+
+test('leave after a finished game: the rest go back to the lobby, re-packed, and can start again or be joined', async () => {
+  const n = 3;
+  const { id, code } = await room(n);
+  let r = await playToEnd(id, n, await act(P[0], id, { type: 'START' }, await version(id)));
+  r = await act(P[2], id, { type: 'REMATCH' }, 0);
+  assert.deepEqual(r.body.view.room.rematch, [2]);
+  r = await act(P[0], id, { type: 'LEAVE' }, 0); // a stale expect is fine for room-level actions
+  assert.equal(r.status, 200);
+  assert.equal(r.body.view, null);
+  assert.equal((await poll(P[0], id)).status, 404);
+  r = await poll(P[1], id);
+  assert.equal(r.body.view.room.phase, 'lobby');
+  assert.equal(r.body.view.game, null);
+  assert.equal(r.body.view.you, 0, 'the next seat is host');
+  assert.deepEqual(r.body.view.room.rematch, [], 'votes are discarded');
+  assert.deepEqual(r.body.view.room.seats.map(s => s.name), ['P1', 'P2']);
+  assert.equal(r.body.view.room.startedAt, null);
+  assert.equal(r.body.view.room.endedAt, null);
+  assert.equal((await act(P[2], id, { type: 'LEAVE' }, 0)).status, 200);
+  const j = await join(P[5], code, { name: 'New', style: 'sky' });
+  assert.equal(j.status, 200, 'a room of one can be joined again by code');
+  assert.equal(j.body.view.you, 1);
+  r = await act(P[1], id, { type: 'START' }, 0);
+  assert.equal(r.status, 200);
+  assert.equal(r.body.view.room.phase, 'game');
+  const no = await act(P[5], id, { type: 'LEAVE' }, r.body.version);
+  assert.equal(no.status, 409);
+  assert.equal(no.body.reason, 'started', 'leaving a game in progress is not supported');
+});
+
+test('simultaneous room-level actions all apply: every rematch vote counts', async () => {
+  const n = 4;
+  const { id } = await room(n);
+  await playToEnd(id, n, await act(P[0], id, { type: 'START' }, await version(id)));
+  const v = await version(id);
+  const votes = await Promise.all(P.slice(0, n).map(p => act(p, id, { type: 'REMATCH' }, v)));
+  assert.deepEqual(votes.map(r => r.status), [200, 200, 200, 200]);
+  assert.equal((await poll(P[0], id)).body.view.room.phase, 'game');
+  assert.equal(await version(id), v + n);
 });
 
 test('stale expect is 409 with the current version and view; a repeated actionId applies once', async () => {
@@ -276,13 +328,19 @@ test('stale expect is 409 with the current version and view; a repeated actionId
   assert.equal(again.status, 200);
   assert.equal(again.body.version, first.body.version);
   assert.equal(await version(id), v + 1);
-  const stale = await act(P[0], id, { type: 'SET_DECKS', decks: 2 }, v);
+  // The same actionId from a different person is a different action; room-level actions ignore a stale expect.
+  const late = await act(P[0], id, { type: 'SET_DECKS', decks: 2 }, v, actionId);
+  assert.equal(late.status, 200);
+  assert.equal(late.body.version, v + 2);
+  const started = await act(P[0], id, { type: 'START' }, v);
+  assert.equal(started.status, 200);
+  // Game actions keep a strict expect.
+  const hand = started.body.view.game.you.hand.map(c => c.id);
+  const stale = await act(P[0], id, { type: 'arrange', ids: hand.slice(0, 4) }, v);
   assert.equal(stale.status, 409);
   assert.equal(stale.body.reason, 'stale');
-  assert.equal(stale.body.version, v + 1);
+  assert.equal(stale.body.version, v + 3);
   assert.equal(stale.body.view.room.seats[1].name, 'Once');
-  // The same actionId from a different person is a different action.
-  assert.equal((await act(P[0], id, { type: 'SET_DECKS', decks: 2 }, v + 1, actionId)).status, 200);
 });
 
 test('two simultaneous actions on the same version: exactly one applies', async () => {
@@ -294,7 +352,7 @@ test('two simultaneous actions on the same version: exactly one applies', async 
       act(P[1], id, { type: 'SET_PLAYER', name: 'B', style: 'gold' }, v),
     ]);
     assert.deepEqual([a.status, b.status].sort(), [200, 409]);
-    assert.equal((a.status === 409 ? a : b).body.reason, 'stale');
+    assert.equal((a.status === 409 ? a : b).body.reason, 'style_taken', 'the second is re-checked against the first');
     assert.equal(await version(id), v + 1);
     const s = await rawState(id);
     assert.equal(s.seats.filter(x => x.style === 'gold').length, 1);
@@ -443,8 +501,15 @@ test('input validation: 400 with the field, 413 over 4 KB, unknown fields ignore
     assert.deepEqual(r.body, { error: 'invalid', reason });
   }
   assert.equal(await version(id), v);
+  // Prototype keys are plain data: they neither throw nor reach the room.
+  const proto = await call(P[1], 'POST', `/api/bomb/rooms/${id}/actions`,
+    `{"action":{"type":"SET_PLAYER","name":"Proto","style":"gold","__proto__":{"seat":0},"constructor":1},"expect":${v},"actionId":"p1","__proto__":{"x":1}}`);
+  assert.equal(proto.status, 200);
+  assert.deepEqual(proto.body.view.room.seats.map(s => s.name), ['Host', 'P1'].map((n, i) => i === 1 ? 'Proto' : n));
+  assert.equal((await call(P[1], 'POST', `/api/bomb/rooms/${id}/actions`, '{"action":{"type":"__proto__"},"expect":1,"actionId":"p2"}')).status, 400);
+  const v2 = await version(id);
   // The phone cannot choose its seat: a seat in the action is overwritten.
-  const r = await act(P[1], id, { type: 'SET_DECKS', decks: 2, seat: 0 }, v);
+  const r = await act(P[1], id, { type: 'SET_DECKS', decks: 2, seat: 0 }, v2);
   assert.equal(r.body.reason, 'not_host');
 });
 

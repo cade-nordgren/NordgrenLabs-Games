@@ -184,7 +184,7 @@ let game = createGame({ players: 3, decks: 1, seed: Math.random() * 2 ** 32 | 0 
 let ready = false;               // UI state: has the person holding the phone pressed Ready to Play?
 
 function render() {
-  const seat = game.phase === 'choose' ? choosingSeat() : game.turn;   // choosingSeat: the first seat not ready
+  const seat = game.phase === 'choose' ? choosingSeat() : game.turn;   // choosingSeat: the first seat not ready, from first in turn order
   const view = viewFor(game, ready ? seat : null);                     // handoff screen: no private cards
   draw(view);
   localStorage.setItem('nl-bomb-v1', JSON.stringify({ game, names, styles }));

@@ -9,7 +9,7 @@ The exact HTTP API of Bomb's online rooms, for the browser client (`site/bomb/ui
 - **Unknown fields are ignored.** A field with a wrong type or value is 400.
 - **Request bodies are at most 4096 bytes** (413 `too_large` past that).
 - **Not seated means not there.** A room you are not seated in answers 404, exactly like a room that does not exist. The only way into a room is `join` with its code.
-- **Versions.** Each room has an integer `version`, 1 when created, plus 1 on every change. Every successful answer carries the room's current `version`; send it back as `since` (poll) and `expect` (actions).
+- **Versions.** Each room has an integer `version`, 1 when created, plus 1 on every change. Every successful answer carries the room's current `version`; send it back as `since` (poll) and `expect` (actions). Only game actions must match `expect`; room-level actions apply to the room as it is.
 
 ### Errors common to every route
 
@@ -62,6 +62,8 @@ Every successful room answer carries `view` (except `LEAVE`, below):
     decks: 1..4,
     seats: [{ name, style, connected }],  // seat order = turn order = the engine's seat numbers
     rematch: [seat],           // seats that voted for a rematch (only while phase is 'over'); [] otherwise
+    startedAt: null | ms,      // server clock (epoch ms) when play began (the last face-up confirm); null before
+    endedAt: null | ms,        // server clock when the game ended; null until phase is 'over'
   },
   game: null | viewFor(state, you),   // null in the lobby; the engine contract's view for YOUR seat
   you: seat,                   // your seat number
@@ -108,17 +110,20 @@ Request: `{ "action": { "type": "...", ... }, "expect": <version you last saw>, 
 
 200: `{ "version", "view" }` after the action applied (for `LEAVE`, `view` is `null`).
 
-Order of checks: shape (400) → seated (404) → `actionId` already applied for you (200 with the current view, nothing applied again) → `expect` equals the current version (else 409 `stale`) → rules (409 with a reason) → conditional write (409 `stale` if someone else changed the room in the same instant; only one of two simultaneous actions applies).
+Order of checks: shape (400) → seated (404) → `actionId` already applied for you (200 with the current view, nothing applied again) → for game actions only, `expect` equals the current version (else 409 `stale`) → rules (409 with a reason) → conditional write.
 
-**Lobby actions** (`phase: 'lobby'`; in another phase they answer 409 `started`, except `REMATCH`):
+- **Game actions** keep a strict `expect`: if someone else changed the room first, 409 `stale` (only one of two simultaneous moves applies).
+- **Room-level actions** (`SET_PLAYER`, `SET_DECKS`, `START`, `REMATCH`, `LEAVE`) ignore `expect` (it must still be a valid integer). Each is checked against the room as it is now; if the conditional write loses a race, the server re-reads the room and tries again, up to 5 times (each try is 3 to 4 queries), so simultaneous rematch votes all count and two players picking the same style get one 200 and one 409 `style_taken`. 409 `stale` only if all 5 tries lose.
+
+**Room-level actions** (`phase: 'lobby'`; in another phase they answer 409 `started`, except `REMATCH` and `LEAVE`):
 
 | action | Who | Effect | 409 reasons |
 |---|---|---|---|
 | `{ type: 'SET_PLAYER', name, style }` | anyone, for their own seat | changes your name and style | `style_taken` (another seat has it), `started` |
 | `{ type: 'SET_DECKS', decks }` | host | sets the deck count | `not_host`, `started` |
 | `{ type: 'START' }` | host | deals: `phase` becomes `'game'`, the engine is in `'choose'` | `not_host`, `too_few_players` (fewer than 2 seated), `decks` (not allowed for this many players), `started` |
-| `{ type: 'LEAVE' }` | anyone | frees your seat; later seats move up one, so if the host leaves, seat 1 becomes seat 0 and host. The last one out deletes the room. Answer: `{ version, view: null }`; afterwards the room is 404 for you | `started` (leaving a started or finished game is not supported in this version: just stop polling; the room expires after 24 h idle) |
-| `{ type: 'REMATCH' }` | anyone, `phase: 'over'` | records your vote in `room.rematch`; when every seated player has voted, a new game starts at once with the same seats and decks (new seed, new draw for first), `rematch` back to `[]` | `not_over` |
+| `{ type: 'LEAVE' }` | anyone, `phase: 'lobby'` or `'over'` | frees your seat; later seats move up one, so if the host leaves, seat 1 becomes seat 0 and host. After a finished game the room goes back to the lobby for everyone left (`game: null`, rematch votes discarded, times cleared): the host can `START` again with whoever is left, and others can join by code. The last one out deletes the room. Answer: `{ version, view: null }`; afterwards the room is 404 for you. The others see the seat gone on their next poll | `started` (leaving a game in progress is not supported in this version: just stop polling; the room expires after 24 h idle) |
+| `{ type: 'REMATCH' }` | anyone, `phase: 'over'` | records your vote in `room.rematch`; when every seated player has voted, a new game starts at once with the same seats and decks (new seed, new draw for first), `rematch` back to `[]`, times cleared | `not_over` |
 
 **Game actions** (`phase: 'game'`), passed to the engine with your seat filled in by the server:
 
@@ -177,7 +182,7 @@ async function send(action) {                  // disable the controls until it 
 }
 ```
 
-- **On 409 `stale`:** someone acted first. Redraw from the `view` in the answer; do not resend automatically (the move may no longer make sense). The poll loop will also have caught up.
+- **On 409 `stale`** (game actions only): someone acted first. Redraw from the `view` in the answer; do not resend automatically (the move may no longer make sense). The poll loop will also have caught up. The exception is `arrange` and `confirm` in the `choose` phase: every seat chooses at once and another seat's choice cannot change yours, so `net.js`'s caller resends those once on `stale`.
 - **On a network error during an action:** resend the identical body. If the first attempt did apply, the server recognises the `actionId` and answers 200 with the current view, applying nothing twice.
 - **On 404:** the room is gone for you (you left, everyone left, or it expired after 24 h idle). Stop polling, forget the room id.
 - **Backoff:** after a failed poll wait 1 s, then 2, 4, 8, capped at 15 s; reset after any success. Never poll in a tight loop on errors.
@@ -197,6 +202,8 @@ async function authHeaders(fresh) {
   return t ? { Authorization: `Bearer ${t}` } : {};
 }
 ```
+
+Ask for the token on every request, never keep one: ClerkJS tokens live about 60 seconds and `getToken()` returns its cached one while it is fresh and a new one otherwise. The server checks the token when a request arrives, so a 20-second long poll that outlives its token is fine; the next poll asks again. `net.js` does exactly this (`browserAuth`), tested against the real Worker in `server/bomb-client.test.js`.
 
 `NL.person()` is your own person id if you need it for local bookkeeping; the server never needs it from you. A 403 `not_associated` means the account is not linked to a person yet: online play is unavailable for them (local play still works).
 
@@ -222,7 +229,7 @@ Per request:
 |---|---|---|---|
 | create | 4 (sweep, insert, view) | 1 + members + expired rooms scanned | 2 (+ 2 per expired room deleted, with members) |
 | join | 4 to 5 | about 10 | 2 (room + member) |
-| action | 3 to 4 (view, update, view) | about 15 | 1 (LEAVE: 2) |
+| action | 3 to 4 (view, update, view); a room-level action that loses a race retries, at most 5 x 4 + 2 = 22 | about 15 | 1 (LEAVE: 2) |
 | poll that changes at once | 3 to 4 | about 8 | 0, or 1 when last-seen is 30 s old |
 | poll held to the end | up to 2 + 28 | up to 30 | 0 or 1 |
 

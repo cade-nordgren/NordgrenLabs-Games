@@ -14,6 +14,7 @@ export const REASONS = {
   not_host: 'Only the host can do that.',
   decks: 'That many players need more decks.',
   illegal: 'That move is not allowed now.',
+  not_over: 'Someone left, so the room is back in the lobby.',
   stale: 'The table changed. Try again.',
   offline: 'No connection. Check your network and try again.',
   no_server: 'Online play needs the games server, and it is not reachable from this page.',
@@ -41,13 +42,17 @@ export async function browserAuth(fresh = false) {
   return { 'X-NL-Dev-Person': id };
 }
 
-// deps: { fetch, auth(fresh) -> headers, onView(view, version), onState('ok' | 'offline'), doc (visibility), sleep, id }
+// deps: { fetch, auth(fresh) -> headers, onView(view, version), onState('ok' | 'offline'), onGone(reason?), doc (visibility),
+//   win (online events), sleep, id }
 export function createNet(deps) {
   const fetch = deps.fetch, auth = deps.auth;
   const sleep = deps.sleep || (ms => new Promise(ok => setTimeout(ok, ms)));
   const doc = deps.doc || null;
   const newId = deps.id || (() => crypto.randomUUID());
-  let room = null, version = 0, alive = false, poller = null, abort = null, state = 'ok', reached = false;
+  let room = null, version = 0, alive = false, poller = null, abort = null, state = 'ok', reached = false, wake = null;
+  // A backoff wait ends early when the network comes back or the page is shown again.
+  const pause = ms => Promise.race([sleep(ms), new Promise(ok => { wake = ok; })]);
+  deps.win?.addEventListener('online', () => wake?.());
 
   const setState = s => { if (s !== state) { state = s; deps.onState?.(s); } };
   const adopt = (v, view) => {
@@ -125,7 +130,7 @@ export function createNet(deps) {
           // No server at all (the static preview) ends it; after a good answer, an odd page is an outage: keep trying.
           if (e.reason === 'no_server' && !reached) { setState('offline'); alive = false; deps.onGone?.('no_server'); break; }
           setState('offline');
-          await sleep(delay);
+          await pause(delay);
           delay = Math.min(delay * 2, 15000);
         }
       }
@@ -134,7 +139,7 @@ export function createNet(deps) {
     return poller;
   }
   // Hidden: drop the open poll at once (the loop then waits for visible); visible again: carry on.
-  doc?.addEventListener('visibilitychange', () => { if (doc.hidden) abort?.abort(); });
+  doc?.addEventListener('visibilitychange', () => { if (doc.hidden) abort?.abort(); else wake?.(); });
 
   // A user action: { ok: true } or { ok: false, reason }. Network errors retry with the same actionId and backoff;
   // a conflict adopts the view the server sent.
@@ -145,6 +150,7 @@ export function createNet(deps) {
     for (let tries = 0; tries < 6; tries++) {
       try {
         const r = await call('POST', `/${at}/actions`, { action, expect: version, actionId });
+        if (at !== room) return { ok: false, reason: 'not_found' }; // left meanwhile: never bring the room back
         setState('ok');
         if (r.status === 200) {
           if (r.body.view === null) { close(); return { ok: true, left: true }; }

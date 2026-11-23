@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { createGame, layout, reduce } from '../../site/bomb/engine/reducer.js';
 import { viewFor } from '../../site/bomb/engine/view.js';
 import { cardName, rankCount, sortHand, toggle, keepPlayable, canPlaySel, playLabel, beatInfo, lastLine, nextLabel,
-  drawPlan, drawFinal, readGame, decksFor, okRoster } from '../../site/bomb/ui/logic.js';
+  drawPlan, drawFinal, readGame, decksFor, okRoster, choosingSeat, leavers } from '../../site/bomb/ui/logic.js';
 
 const c = (rank, suit, deck = 0) => ({ id: `${rank}${suit}${deck}`, rank, suit, deck });
 
@@ -116,4 +116,28 @@ test('views for the handoff screen carry no private cards', () => {
   let g = createGame({ players: 2, decks: 1, seed: 7 });
   const v = JSON.stringify(viewFor(g, null));
   for (const p of g.players) for (const x of [...p.hand, ...p.down]) assert.ok(!v.includes(`"${x.id}"`));
+});
+
+test('one phone: face-up choices start from the draw winner and go round in turn order', () => {
+  for (let seed = 1; seed < 40; seed++) {
+    let g = createGame({ players: 4, decks: 2, seed });
+    const order = [];
+    for (let seat = choosingSeat(g); seat !== -1; seat = choosingSeat(g)) {
+      order.push(seat);
+      g = reduce(g, { type: 'arrange', seat, ids: g.players[seat].hand.slice(0, 4).map(x => x.id) });
+      g = reduce(g, { type: 'confirm', seat });
+    }
+    assert.deepEqual(order, [0, 1, 2, 3].map(k => (g.first + k) % 4));
+    assert.equal(g.phase, 'play');
+  }
+});
+
+test('online: who left is told apart by style after the seats re-pack', () => {
+  const room = (id, ...seats) => ({ id, seats: seats.map(([name, style]) => ({ name, style })) });
+  const was = room('r', ['Ann', 'cobalt'], ['Dana', 'gold'], ['Ann', 'sky']);
+  assert.deepEqual(leavers(was, room('r', ['Ann', 'cobalt'], ['Ann', 'sky'])), ['Dana']);
+  assert.deepEqual(leavers(was, room('r', ['Ann', 'sky'])), ['Ann', 'Dana']);
+  assert.deepEqual(leavers(was, room('x', ['Ann', 'sky'])), [], 'another room');
+  assert.deepEqual(leavers(undefined, was), []);
+  assert.deepEqual(leavers(was, room('r', ['Ann', 'cobalt'], ['Dana', 'gold'], ['Ann', 'sky'], ['Bo', 'lime'])), []);
 });

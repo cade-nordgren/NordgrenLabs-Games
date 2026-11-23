@@ -339,6 +339,9 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   .pile { --pw: 48px; }
   .stack { --dw: 38px; }
   .beat b { font-size: 32px; }
+}
+/* Short portrait screens have room for one row of actions; landscape's side column shows all three. */
+@media (max-height: 700px) and (orientation: portrait) {
   #next:disabled { display: none; }
   .actions:has(#next:not(:disabled)) #pick, .actions:has(#next:not(:disabled)) #play { display: none; }
 }
@@ -398,7 +401,10 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   .deckbox, .pilebox { flex-direction: row; gap: 8px; }
   .pile { width: auto; flex: 1; min-width: calc(var(--pw) + 50px); }
   .opps.one .opp { padding: 6px 10px; }
-  .opp { padding: 6px 8px; }
+  /* Panels size to their four spots, so two opponents fit beside Your table; more scroll inside the strip. */
+  .opp { padding: 6px; flex: 1 0 auto; }
+  .spot { --w: 22px; }
+  .myspots { gap: 6px; }
   .top { min-height: 18px; }
   .mine-head .cap { display: none; }
   .tray { padding-top: 14px; padding-bottom: 2px; }
@@ -415,7 +421,12 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   .actions .btn { min-height: 44px; }
   .wait { border-radius: 16px; }
 }
-@media (orientation: landscape) and (max-height: 360px) { #tablePage { --hw: 46px; --tw: 30px; } .opps.one .spot { --w: 26px; } }
+@media (orientation: landscape) and (max-height: 360px) {
+  #tablePage { --hw: 40px; --tw: 28px; row-gap: 4px; } .opps.one .spot { --w: 26px; } .spot { --w: 20px; } .myspots { gap: 4px; }
+  .pile { --pw: 36px; } .stack { --dw: 28px; } .beat b { font-size: 24px; } .centre { padding: 4px 12px; } .tray { padding-top: 10px; }
+  .opp-sub { margin-top: 1px; } .spots { margin-top: 4px; }
+}
+@media (orientation: landscape) and (max-height: 540px) and (max-width: 620px) { #tablePage { grid-template-columns: minmax(0, 1fr) 150px; } }
 </style>
 </head>
 <body>

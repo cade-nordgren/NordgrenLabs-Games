@@ -304,7 +304,7 @@ export function tableScreen(ctx) {
   // Status and actions.
   const words = statusLine(ctx, myTurn);
   $('status').textContent = words;
-  const short = words.replace('Your turn: ', '');
+  const short = words.replace(/Your turn: (.)/, (_, c) => c.toUpperCase());
   $('turnbox').replaceChildren(el('strong', '', myTurn ? 'Your turn' : view.pending ? (view.pending.next === me ? 'You go again' : 'Turn over') : view.phase === 'play' ? `${people[view.turn].name}'s turn` : 'Game over'), el('br'), short.charAt(0).toUpperCase() + short.slice(1));
   say(words);
   const pick = $('pick'), play = $('play'), next = $('next');
@@ -391,8 +391,14 @@ function flyer(c, rect, w) {
 const go = (f, from, to, opts) => f.animate([{ transform: `translate(${from.x - to.x}px, ${from.y - to.y}px)` }, { transform: 'none' }],
   { duration: 340, easing: 'cubic-bezier(.2, .8, .2, 1)', fill: 'both', ...opts }).finished;
 
+// A page that is not being drawn holds its animations, so an older one can resume much later: its flyers go at once,
+// and the token stops it from adding anything more.
+let animToken = 0;
+export const clearFlyers = () => { animToken++; document.querySelectorAll('.fly, .boom').forEach(e => e.remove()); };
 export async function animate(prev, view, snap, me) {
   const l = view.last;
+  clearFlyers();
+  const my = animToken, stale = () => my !== animToken;
   if (!prev || !snap || !l || still() || view.turns !== prev.turns + 1) return;
   const pileNow = $('pile').getBoundingClientRect(), pw = pileNow.height / 1.43 - 4;
   const target = centreOf(pileNow);
@@ -421,6 +427,7 @@ export async function animate(prev, view, snap, me) {
         return go(f, from, to, { delay: k * 60 });
       }));
       real.forEach(e => { e.style.visibility = ''; });
+      if (stale()) return;
       if (l.bomb) {
         const prevPile = prev.pile.slice(-4).map(c => ({ c, r: snap.cards.get(c.id) })).filter(x => x.r);
         prevPile.forEach(x => flips.push(flyer(x.c, centreOf(x.r), pw)));
@@ -449,6 +456,7 @@ export async function animate(prev, view, snap, me) {
           { duration: 450, easing: 'ease-out', fill: 'both' }).finished;
         await wait(900);
         cards.push(f);
+        if (stale()) return;
       }
       flips.push(...cards);
       const dest = l.seat === me ? centreOf($('tray').getBoundingClientRect()) : centreOf(document.querySelector(`#opps [data-seat="${l.seat}"]`)?.getBoundingClientRect() || seatRect(l.seat));

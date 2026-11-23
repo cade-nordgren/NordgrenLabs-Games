@@ -4,9 +4,10 @@ import { MAX_PLAYERS, MIN_PLAYERS, allowedDecks } from '../engine/cards.js';
 import { createGame, reduce } from '../engine/reducer.js';
 import { viewFor } from '../engine/view.js';
 import { STYLES, style, styleLabel, freeStyle } from './styles.js';
-import { toggle, keepPlayable, canPlaySel, readGame, decksFor, listOf, plural, minutes, MAX_NAME } from './logic.js';
+import { toggle, keepPlayable, canPlaySel, readGame, decksFor, listOf, plural, minutes, MAX_NAME,
+  choosingSeat, leavers } from './logic.js';
 import { $, el, still, say, back, drawScreen, stopDraw, handoffScreen, chooseScreen, waitScreen, tableScreen,
-  snapshot, animate, resultsScreen, stopResults } from './screens.js';
+  snapshot, animate, clearFlyers, resultsScreen, stopResults } from './screens.js';
 import { createNet, browserAuth, reasonText } from './net.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -58,7 +59,6 @@ function startLocal(names, styles, decks) {
   render();
 }
 const people = () => S.game.names.map((name, i) => ({ name, style: S.game.styles[i] }));
-const choosingSeat = g => g.players.findIndex(p => !p.ready);
 
 function localSend(action) {
   const G = S.game, g = G.g;
@@ -100,19 +100,23 @@ function localScreen() {
 }
 
 // ---- Online. The server holds the game; this browser keeps the room it is in (to offer a rejoin) and its view.
-let O = { view: null, error: '', net: 'ok', drawn: '' };
+let O = { view: null, error: '', notice: '', net: 'ok', drawn: '' };
 const net = createNet({
-  fetch: (...a) => fetch(...a), auth: browserAuth, doc: document,
+  fetch: (...a) => fetch(...a), auth: browserAuth, doc: document, win: window,
   onView: view => {
     if (!view) return;
     const was = O.view?.game, now = view.game;
     if (was && now && was.phase === 'play' && now.phase === 'over') endingSoon();
+    const gone = leavers(O.view?.room, view.room);
+    if (gone.length) { O.notice = `${listOf(gone)} left.${view.room.phase === 'lobby' && O.view.room.phase !== 'lobby' ? ' Back in the lobby.' : ''}`; say(O.notice); }
+    else if (O.view?.room.seats.length !== view.room.seats.length) O.notice = '';
     O.view = view;
     remember({ id: view.room.id, code: view.room.code });
     render();
   },
   onState: s => { O.net = s; render(); },
-  onGone: why => { leaveRoom(why ? reasonText(why) : 'That room is gone: everyone left, or it was idle for a day.'); },
+  // Signed out or no server: the seat is still there, so keep the room to rejoin. 404: the room is gone for good.
+  onGone: why => { leaveRoom(why ? reasonText(why) : 'That room is gone: everyone left, or it was idle for a day.', !!why); },
 });
 const roomMemory = () => { try { const r = JSON.parse(localStorage.getItem(ROOM)); return r && UUID.test(r.id) && /^[A-Z]{6}$/.test(r.code) ? r : null; } catch { return null; } };
 function remember(r) {
@@ -123,10 +127,10 @@ function remember(r) {
   } catch {}
 }
 function forgetRoom() { try { localStorage.removeItem(ROOM); sessionStorage.removeItem('nl-bomb-in-room'); } catch {} }
-function leaveRoom(message = '') {
+function leaveRoom(message = '', keep = false) {
   net.close();
-  forgetRoom();
-  O = { view: null, error: message, net: 'ok', drawn: '' };
+  if (!keep) forgetRoom();
+  O = { view: null, error: message, notice: '', net: 'ok', drawn: '' };
   sel = []; prevView = null;
   render();
 }
@@ -155,8 +159,9 @@ async function onlineSend(action) {
   if (busy) return false;
   busy = true;
   let r = await net.send(action);
-  // Room-level actions still make sense after someone else's change (a vote, a join): resend once on the new version.
-  if (!r.ok && r.reason === 'stale' && ['REMATCH', 'START', 'SET_DECKS', 'SET_PLAYER'].includes(action.type)) r = await net.send(action);
+  // Everyone chooses face-up cards at once, so another seat's choice often lands first; this seat's own choice still
+  // applies to the new version, so send it once more.
+  if (!r.ok && r.reason === 'stale' && (action.type === 'arrange' || action.type === 'confirm')) r = await net.send(action);
   busy = false;
   if (!r.ok) { O.error = reasonText(r.reason); say(O.error); render(); }
   return r.ok;
@@ -197,7 +202,7 @@ function render() {
   $('rulesMode').textContent = inRoom() ? 'Everyone plays on their own phone. Your turn passes on by itself as soon as you play or pick up.'
     : 'After you play, your cards lock. Tap Next turn and pass the phone; the next player taps Ready to play. After a bomb you keep the phone.';
   // Private cards leave the DOM with their screen, so a hidden page never holds the last player's hand.
-  if (page !== 'tablePage') { prevView = null; $('tray').replaceChildren(); $('mySpots').replaceChildren(); }
+  if (page !== 'tablePage') { prevView = null; $('tray').replaceChildren(); $('mySpots').replaceChildren(); clearFlyers(); }
   if (page !== 'choosePage') { $('chooseNine').replaceChildren(); $('chooseTable').replaceChildren(); }
   ({ setup: renderSetup, lobby: renderLobby, draw: renderDraw, handoff: renderHandoff, choose: renderChoose, wait: renderWait,
     table: () => renderTable(scr, snap), results: renderResults })[scr.page](scr);
@@ -372,17 +377,23 @@ function renderLobby() {
   $('startRoom').textContent = n < 2 ? 'Waiting for players' : `Start game with ${n}`;
   $('lobbyWait').hidden = host;
   $('lobbyWaitText').textContent = `Waiting for ${r.seats[r.host]?.name || 'the host'} to start`;
-  $('lobbyErr').textContent = O.error;
+  $('lobbyErr').textContent = O.error || O.notice;
+  $('lobbyErr').classList.toggle('err', !!O.error);
   $('lobbyErr').hidden = !$('lobbyErr').textContent;
 }
 $('lDecksDown').onclick = () => { const r = O.view.room; onlineSend({ type: 'SET_DECKS', decks: stepDecks(-1, r.seats.length, r.decks) }); };
 $('lDecksUp').onclick = () => { const r = O.view.room; onlineSend({ type: 'SET_DECKS', decks: stepDecks(1, r.seats.length, r.decks) }); };
 $('startRoom').onclick = () => { O.error = ''; onlineSend({ type: 'START' }); };
-$('leaveLobby').onclick = async () => {
+// Leaving the lobby or a finished game frees the seat on the server, so nobody waits for this player.
+async function leaveSeat() {
+  if (busy) return;
+  busy = true;
   const r = await net.send({ type: 'LEAVE' });
+  busy = false;
   if (r.ok || r.reason === 'not_found') leaveRoom();
-  else { O.error = reasonText(r.reason); render(); }
-};
+  else { O.error = reasonText(r.reason); say(O.error); render(); }
+}
+$('leaveLobby').onclick = leaveSeat;
 const roomLink = () => `${location.origin}${location.pathname.replace(/index\.html$/, '')}?room=${O.view.room.code}`;
 $('share').onclick = async () => {
   const url = roomLink();
@@ -481,7 +492,9 @@ function renderResults(scr) {
   const view = scr.view, animate = revealPending;
   revealPending = false;
   const G = S.game;
-  const time = !inRoom() && G?.startedAt && G?.endedAt ? minutes(G.startedAt, G.endedAt) : '';
+  const r0 = inRoom() && O.view.room, iso = ms => new Date(ms).toISOString();
+  const time = r0 ? (r0.startedAt && r0.endedAt ? minutes(iso(r0.startedAt), iso(r0.endedAt)) : '')
+    : G?.startedAt && G?.endedAt ? minutes(G.startedAt, G.endedAt) : '';
   resultsScreen(view, scr.ps, { animate, time, me: inRoom() ? O.view.you : null });
   if (inRoom()) {
     const r = O.view.room, voted = r.rematch || [], mine = voted.includes(O.view.you);
@@ -501,7 +514,7 @@ $('rematch').onclick = () => {
   startLocal(G.names, G.styles, G.g.decks);
 };
 $('newGame').onclick = () => {
-  if (inRoom()) return leaveRoom();
+  if (inRoom()) return leaveSeat();
   toSetup();
 };
 function toSetup() {
@@ -639,14 +652,14 @@ $('saveExit').onclick = async () => { if (await saveNow($('endNote'))) { $('endS
 $('discard').onclick = () => { $('endSheet').close(); toSetup(); };
 $('keep').onclick = () => $('endSheet').close();
 $('leaveBtn').onclick = () => {
-  const lobby = O.view?.room.phase === 'lobby';
-  $('leaveNote').textContent = lobby ? 'Your seat goes to whoever joins next.'
+  const lobby = O.view?.room.phase !== 'game';
+  $('leaveNote').textContent = lobby ? 'Your seat goes to whoever joins next. The others stay in the room.'
     : 'Your seat stays in the game, but the others cannot finish without you. You can rejoin with the room code while the game lasts.';
   $('leaveSheet').showModal();
 };
 $('leaveYes').onclick = async () => {
   $('leaveSheet').close();
-  if (O.view?.room.phase === 'lobby') await net.send({ type: 'LEAVE' });
+  if (O.view?.room.phase !== 'game') return leaveSeat();
   leaveRoom();
 };
 $('leaveNo').onclick = () => $('leaveSheet').close();

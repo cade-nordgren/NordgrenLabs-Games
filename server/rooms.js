@@ -57,6 +57,7 @@ async function load(db, id, person) {
   const view = {
     room: {
       id: row.id, code: row.code, phase: phase(room), host: 0, decks: room.decks, rematch: room.rematch,
+      startedAt: room.startedAt ?? null, endedAt: room.endedAt ?? null,
       seats: room.seats.map(s => ({ name: s.name, style: s.style, connected: now - (seen.get(s.person) ?? 0) < CONNECTED_MS })),
     },
     game: room.game && viewFor(room.game, seat),
@@ -180,6 +181,7 @@ function parseAction(a) {
   }
 }
 
+const ROOM_LEVEL = new Set(['SET_PLAYER', 'SET_DECKS', 'START', 'REMATCH', 'LEAVE']);
 const seed = () => crypto.getRandomValues(new Uint32Array(1))[0] | 0;
 
 // The room after the action, or a reason string when it does not apply now.
@@ -202,14 +204,19 @@ function apply(room, seat, a) {
       if (seat !== 0) return 'not_host';
       if (room.seats.length < 2) return 'too_few_players';
       if (!allowedDecks(room.seats.length).includes(room.decks)) return 'decks';
-      next.game = createGame({ players: room.seats.length, decks: room.decks, seed: seed() });
+      Object.assign(next, { game: createGame({ players: room.seats.length, decks: room.decks, seed: seed() }), startedAt: null, endedAt: null });
+      return next;
+    case 'LEAVE':
+      if (phase(room) === 'game') return 'started';
+      next.seats.splice(seat, 1); // later seats move up one; seat 0, the host, is whoever is left first
+      // After a finished game the others go back to the lobby, so the host can start again with whoever is left.
+      Object.assign(next, { game: null, rematch: [], startedAt: null, endedAt: null });
       return next;
     case 'REMATCH':
       if (phase(room) !== 'over') return 'not_over';
       if (!next.rematch.includes(seat)) next.rematch.push(seat);
       if (next.rematch.length === room.seats.length) {
-        next.game = createGame({ players: room.seats.length, decks: room.decks, seed: seed() });
-        next.rematch = [];
+        Object.assign(next, { game: createGame({ players: room.seats.length, decks: room.decks, seed: seed() }), rematch: [], startedAt: null, endedAt: null });
       }
       return next;
     default: {
@@ -218,6 +225,8 @@ function apply(room, seat, a) {
       if (game === room.game) return 'illegal';
       if (game.pending) game = reduce(game, { type: 'next' }); // online turns pass by themselves
       next.game = game;
+      if (room.game.phase === 'choose' && game.phase === 'play') next.startedAt = Date.now();
+      if (room.game.phase !== 'over' && game.phase === 'over') next.endedAt = Date.now();
       return next;
     }
   }
@@ -231,33 +240,38 @@ async function act(db, request, person, id) {
   if (typeof body.actionId !== 'string' || !ACTION_ID.test(body.actionId)) return invalid('actionId');
   const action = parseAction(body.action);
   if (!action) return invalid('action');
-  const cur = await load(db, id, person);
-  if (!cur) return NOT_FOUND;
-  if (cur.acts[person] === body.actionId) return [200, { version: cur.version, view: cur.view }]; // a retry: already applied
-  if (body.expect !== cur.version) return conflict('stale', cur);
-  if (cur.room.game) checkState(cur.room.game); // the row came from D1: a trust boundary
-  const acts = { ...cur.acts, [person]: body.actionId };
-
-  if (action.type === 'LEAVE') {
-    if (cur.room.game) return conflict('started', cur);
-    const room = structuredClone(cur.room);
-    room.seats.splice(cur.seat, 1); // later seats move up one; seat 0, the host, is whoever is left first
-    delete acts[person];
-    const leave = guarded(db, 'DELETE FROM room_members WHERE room_id = ? AND person_id = ?', cur, id, person);
-    if (!room.seats.length) {
-      const [, gone] = await db.batch([leave, db.prepare('DELETE FROM rooms WHERE id = ? AND version = ?').bind(id, cur.version)]);
-      if (gone.meta.changes) return [200, { version: cur.version + 1, view: null }];
-    } else if (await save(db, cur, room, acts, [leave])) {
-      return [200, { version: cur.version + 1, view: null }];
+  const roomLevel = ROOM_LEVEL.has(action.type);
+  // Room-level actions are checked against whatever the room is now, so a change in between is no reason to refuse
+  // them: re-read and try again. Bounded: each try is 3 to 4 queries, well under the 50 a request may make.
+  for (let tries = 0; tries < 5; tries++) {
+    const cur = await load(db, id, person);
+    if (!cur) return NOT_FOUND;
+    if (cur.acts[person] === body.actionId) return [200, { version: cur.version, view: cur.view }]; // a retry: already applied
+    if (!roomLevel && body.expect !== cur.version) return conflict('stale', cur);
+    if (cur.room.game) checkState(cur.room.game); // the row came from D1: a trust boundary
+    const room = apply(cur.room, cur.seat, action);
+    if (typeof room === 'string') return conflict(room, cur);
+    const acts = { ...cur.acts, [person]: body.actionId };
+    if (action.type === 'LEAVE') {
+      delete acts[person];
+      const leave = guarded(db, 'DELETE FROM room_members WHERE room_id = ? AND person_id = ?', cur, id, person);
+      if (!room.seats.length) {
+        const [, gone] = await db.batch([leave, db.prepare('DELETE FROM rooms WHERE id = ? AND version = ?').bind(id, cur.version)]);
+        if (gone.meta.changes) return [200, { version: cur.version + 1, view: null }];
+      } else if (await save(db, cur, room, acts, [leave])) {
+        return [200, { version: cur.version + 1, view: null }];
+      }
+    } else if (await save(db, cur, room, acts)) {
+      const now = await load(db, id, person);
+      return now ? [200, { version: now.version, view: now.view }] : NOT_FOUND;
     }
-    return conflict('stale', await load(db, id, person));
+    if (!roomLevel) {
+      const now = await load(db, id, person);
+      return now ? conflict('stale', now) : NOT_FOUND;
+    }
   }
-
-  const room = apply(cur.room, cur.seat, action);
-  if (typeof room === 'string') return conflict(room, cur);
-  if (!await save(db, cur, room, acts)) return conflict('stale', await load(db, id, person));
   const now = await load(db, id, person);
-  return [200, { version: now.version, view: now.view }];
+  return now ? conflict('stale', now) : NOT_FOUND;
 }
 
 async function poll(db, request, person, id, since) {

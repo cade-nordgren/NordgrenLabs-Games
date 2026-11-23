@@ -139,3 +139,81 @@ test('hidden page: the open poll is dropped and polling waits until visible agai
   assert.equal(polls, 2, 'resumes on visible');
   net.close();
 });
+
+test('a poll answer older than the view shown is ignored: the version never goes backwards', async () => {
+  const seen = [];
+  let polls = 0;
+  const { fetch } = fake(req => {
+    if (req.method === 'POST') return json(200, { version: 9, view: view(9) });
+    return ++polls === 1 ? new Promise(ok => setTimeout(() => ok(json(200, { version: 8, view: view(8) })), 5)) : never(req);
+  });
+  const net = createNet({ fetch, auth: async () => ({}), sleep: tick, onView: (v, n) => seen.push(n) });
+  net.open(ID, 7, view(7));
+  await net.send({ type: 'pickUp' });
+  await new Promise(ok => setTimeout(ok, 20));
+  assert.deepEqual(seen, [7, 9]);
+  assert.equal(net.version, 9);
+  net.close();
+});
+
+test('closing aborts the open poll, and an action answer that lands afterwards does not bring the room back', async () => {
+  let release, aborted = 0;
+  const seen = [];
+  const { fetch } = fake(req => req.method === 'GET'
+    ? new Promise((_, no) => req.signal.addEventListener('abort', () => { aborted++; no(Object.assign(new Error('a'), { name: 'AbortError' })); }))
+    : new Promise(ok => { release = () => ok(json(200, { version: 3, view: view(3) })); }));
+  const net = createNet({ fetch, auth: async () => ({}), sleep: tick, onView: (v, n) => seen.push(n) });
+  net.open(ID, 2, view(2));
+  await tick();
+  const sent = net.send({ type: 'pickUp' });
+  await tick();
+  net.close();
+  assert.equal(aborted, 1);
+  release();
+  assert.deepEqual(await sent, { ok: false, reason: 'not_found' });
+  assert.deepEqual(seen, [2]);
+  assert.equal(net.room, null);
+});
+
+test('coming back online ends the backoff wait at once', async () => {
+  const win = new EventTarget();
+  let polls = 0;
+  const { fetch } = fake(req => { polls++; if (polls === 1) throw new TypeError('offline'); return never(req); });
+  const net = createNet({ fetch, auth: async () => ({}), sleep: () => new Promise(() => {}), win });
+  net.open(ID);
+  for (let i = 0; i < 5; i++) await tick();
+  assert.equal(polls, 1, 'waiting out the backoff');
+  win.dispatchEvent(new Event('online'));
+  for (let i = 0; i < 5; i++) await tick();
+  assert.equal(polls, 2);
+  net.close();
+});
+
+test('signed in: every request waits for NL.ready and asks ClerkJS for a current token; a 401 skips its cache', async () => {
+  const { browserAuth } = await import('../../site/bomb/ui/net.js');
+  let ready, n = 0;
+  const asked = [];
+  globalThis.window = { NL_CONFIG: { clerkPublishableKey: 'pk_test_x' }, NL: { ready: new Promise(ok => { ready = ok; }) } };
+  const first = browserAuth();
+  // ClerkJS only exists once NL.ready has resolved, as platform.js loads it.
+  window.Clerk = { session: { getToken: async opts => { asked.push(opts?.skipCache === true); return `t${++n}`; } } };
+  ready();
+  assert.deepEqual(await first, { Authorization: 'Bearer t1' });
+  let polls = 0;
+  const { fetch, calls } = fake(req => {
+    if (req.method === 'POST') return json(200, { id: ID, version: 1, view: view(1) });
+    polls++;
+    if (polls === 1) return json(401, { error: 'unauthenticated' });
+    if (polls <= 3) return json(200, { version: 1 }); // two long polls held to the end
+    return never(req);
+  });
+  const net = createNet({ fetch, auth: browserAuth, sleep: tick });
+  await net.create({ name: 'A', style: 'sky', decks: 1 });
+  for (let i = 0; i < 10; i++) await tick();
+  assert.deepEqual(calls.map(c => c.headers.Authorization), ['Bearer t2', 'Bearer t3', 'Bearer t4', 'Bearer t5', 'Bearer t6']);
+  assert.deepEqual(asked, [false, false, false, true, false, false], 'only the retry after a 401 skips the cache');
+  window.Clerk.session = null;
+  assert.deepEqual(await browserAuth(), {}, 'signed out: no header, the server answers 401');
+  net.close();
+  delete globalThis.window;
+});
