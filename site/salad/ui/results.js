@@ -21,7 +21,7 @@ const nameOf = (v, s) => (s === v.you.seat ? 'You' : v.game.players[s].name);
 // ---- Counting engine shared by round and final results (after Crossix's runReveal): columns count up one after
 // another for everyone, rows re-sort (FLIP) after the columns that change totals, then the leader glows.
 let token = 0, running = false;
-export const stopReveals = () => { token++; running = false; };
+export const stopReveals = () => { token++; running = false; document.querySelectorAll('.counting').forEach(e => e.classList.remove('counting')); };
 const seen = key => { try { return sessionStorage.getItem('nl-salad-seen-' + key) === '1'; } catch { return false; } };
 const markSeen = key => { try { sessionStorage.setItem('nl-salad-seen-' + key, '1'); } catch {} };
 const wait = ms => new Promise(r => setTimeout(r, ms));
@@ -66,9 +66,11 @@ export function renderResults(v) {
   $('resLede').textContent = `${handed} points handed out (${RULE[ROUNDS[r - 1].key]}). Lowest total ranks first.`;
   // Host moves on; everyone else waits. The scorecard is always there.
   const host = v.room.seats[v.room.host];
-  $('nextRound').hidden = !v.you.host;
-  $('nextRound').textContent = `Start round ${r + 1}`;
-  $('resNote').textContent = v.you.host ? `Everyone else waits for you to start round ${r + 1}.` : `Waiting for ${host.name}, the host, to start round ${r + 1}.`;
+  $('nextRound').hidden = !v.you.host && r < 6;
+  $('nextRound').textContent = r < 6 ? `Start round ${r + 1}` : 'See the final results';
+  $('resNote').textContent = r === 6 ? 'That was the last round.' : v.you.host ? `Everyone else waits for you to start round ${r + 1}.` : `Waiting for ${host.name}, the host, to start round ${r + 1}.`;
+  $('resNext').hidden = r === 6;
+  if (r === 6) return drawRows();
   const nextKey = ROUNDS[r].key, dealer = (g.dealer + 1) % n, leader = (dealer + 1) % n;
   const nb = $('resNext');
   nb.style.setProperty('--c', `var(--r${r + 1})`);
@@ -76,6 +78,8 @@ export function renderResults(v) {
   txt.append(el('strong', '', `Next: ${ROUNDS[r].name}`), el('span', 'cap soft', ` ${NEXT[nextKey]} ${nameOf(v, dealer)} ${dealer === v.you.seat ? 'deal' : 'deals'}, ${nameOf(v, leader)} ${leader === v.you.seat ? 'lead' : 'leads'}.`));
   txt.lastChild.style.display = 'block';
   nb.replaceChildren(Object.assign(el('span', 'n', String(r + 1)), { ariaHidden: 'true' }), txt);
+  drawRows();
+  function drawRows() {
 
   if (resKey === key && (running || $('resList').childElementCount)) return; // already drawn; counting or done
   resKey = key;
@@ -89,7 +93,7 @@ export function renderResults(v) {
     const b = h.breakdown[s], row = el('li', 'glass rrow');
     row.style.setProperty('--n', six ? 0 : 2);
     const rank = el('span', 'rank'), who = el('span', 'who2'), line = el('span'), mv = el('span', 'mv');
-    line.append(avatar(p), el('strong', '', s === v.you.seat ? `${p.name} (you)` : p.name));
+    line.append(avatar(p), el('strong', '', p.name));
     who.append(line, mv);
     const tile = (c, label) => { const t = el('span', 't'); if (c) t.style.setProperty('--c', `var(${c})`); t.setAttribute('aria-label', label); return t; };
     let cols;
@@ -125,7 +129,7 @@ export function renderResults(v) {
   };
   const list = $('resList');
   const finish = () => {
-    rows.forEach(x => { x.cols.forEach(c => { c.el.textContent = c.fmt(c.to); c.el.classList.remove('now', 'mute'); }); x.mv.textContent = moves(x.s); });
+    rows.forEach(x => { x.cols.forEach(c => { c.el.textContent = c.fmt(c.to); c.el.classList.remove('now', 'mute'); }); x.mv.textContent = (x.s === v.you.seat ? 'You · ' : '') + moves(x.s); });
     place(list, rows, x => g.totals[x.s], false);
     const best = Math.min(...g.totals);
     rows.forEach(x => x.row.classList.toggle('win', g.totals[x.s] === best));
@@ -150,21 +154,29 @@ export function renderResults(v) {
       await wait(250);
     }
   });
+  }
 }
+// After round 6, everyone sees its breakdown first, then the final results.
+const finKeyOf = v => `${v.room.id}:fin:${JSON.stringify(v.game.cut)}`;
+export const finalShown = v => seen(finKeyOf(v));
 
 // Runs a count with a Skip button and tap-anywhere; `finish` draws the end state.
 function run(rows, list, finish, body) {
   const my = ++token, live = () => my === token;
   running = true;
+  list.parentElement.classList.add('counting');
   const skipBtn = list.id === 'resList' ? $('resSkip') : $('finSkip');
   skipBtn.hidden = false;
   const skip = () => { if (!live() || !running) return; token++; finish(); };
+  const end = finish;
+  finish = () => { list.parentElement.classList.remove('counting'); end(); };
   skipBtn.onclick = e => { e.stopPropagation(); skip(); };
   list.onclick = skip;
   body(live).then(() => { if (live()) finish(); });
 }
 
 $('nextRound').onclick = async () => {
+  if (net.state.view?.game.phase === 'over') { markSeen(finKeyOf(net.state.view)); dispatchEvent(new Event('salad-prefs')); return; }
   $('nextRound').disabled = true;
   const r = await net.act({ type: 'NEXT_ROUND' });
   $('nextRound').disabled = false;
@@ -309,7 +321,7 @@ export function openScorecard(v) {
     for (let s = 0; s < g.players.length; s++) {
       const td = el('td');
       if (h) {
-        const b = h.breakdown[s], took = (r.key === 'salad' ? CATEGORIES : [r.key]).filter(c => b[c]).map(c => c === 'last' ? 'last' : `${b[c]} ${CAT[c][0].toLowerCase()}`);
+        const b = h.breakdown[s], took = (r.key === 'salad' ? CATEGORIES : [r.key]).filter(c => b[c]).map(c => c === 'last' ? 'last' : c === 'kings' ? `${b[c]} K♠︎` : `${b[c]} ${CAT[c][0].toLowerCase()}`);
         td.append(String(b.points.total), el('small', '', took.join(', ') || '–'));
       } else if (r.n === g.round && g.phase === 'play') {
         const rp = roundPts(g, s);

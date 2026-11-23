@@ -9,7 +9,7 @@ import { qrSvg } from './qr.js';
 import { cardEl, backEl } from './cards.js';
 import { $, el, toast, seg, svgUse, listOf, plural, ERR, errText } from './dom.js';
 import { renderTable, tableBusy, onIdle } from './table.js';
-import { renderResults, renderFinal, openScores, openScorecard, stopReveals } from './results.js';
+import { renderResults, renderFinal, openScores, openScorecard, stopReveals, finalShown } from './results.js';
 import { openSettings } from './settings.js';
 import { openHow } from './howto.js';
 
@@ -43,7 +43,7 @@ export function render() {
   renderTable(v); // keeps the trick animation going even when results take over
   let next = 'game';
   if (g.phase === 'roundEnd' && !tableBusy()) next = 'results';
-  if (g.phase === 'over' && !tableBusy()) next = 'final';
+  if (g.phase === 'over' && !tableBusy()) next = finalShown(v) ? 'final' : 'results';
   if (next !== current) window.scrollTo(0, 0);
   current = next;
   show(next);
@@ -52,6 +52,7 @@ export function render() {
   maybeCut(v);
 }
 onIdle(render);
+addEventListener('salad-prefs', () => { if (net.state.view?.game) render(); });
 
 // ---- Home
 function renderHome() {
