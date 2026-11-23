@@ -274,6 +274,45 @@
     addEventListener('pointercancel', lift, { signal: done.signal });
   });
 
+  // ---- Sheets swipe away like an iPhone's: drag a dialog.sheet down and let go past a third of it, or flick it.
+  // A drag only starts when nothing under the finger is scrolled down, so long sheets still scroll first.
+  let sheet = null, x0 = 0, y0 = 0, t0 = 0, dy = 0, dragging = false;
+  const settle = (d, to, then) => {
+    const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    d.style.transition = calm ? 'none' : 'transform .2s ease-out';
+    d.style.transform = to;
+    setTimeout(() => { then?.(); d.style.transition = d.style.transform = ''; }, calm ? 0 : 200);
+  };
+  document.addEventListener('touchstart', e => {
+    sheet = e.touches.length === 1 ? e.target.closest?.('dialog.sheet[open]') : null;
+    if (!sheet || e.target.closest('input[type=range]')) return void (sheet = null);
+    for (let el = e.target; el && el !== sheet.parentNode; el = el.parentElement) if (el.scrollTop > 0) return void (sheet = null);
+    ({ clientX: x0, clientY: y0 } = e.touches[0]); t0 = e.timeStamp; dy = 0; dragging = false;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!sheet) return;
+    dy = e.touches[0].clientY - y0;
+    if (!dragging) {
+      const dx = Math.abs(e.touches[0].clientX - x0);
+      if (dy < 8 && dx < 8) return;
+      if (dy <= dx) return void (sheet = null); // sideways or upward: leave it to scrolling
+      dragging = true;
+    }
+    e.preventDefault(); // the sheet moves instead of the page behind it
+    sheet.style.transition = 'none';
+    sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
+  }, { passive: false });
+  const drop = e => {
+    const d = sheet; sheet = null;
+    if (!d || !dragging) return;
+    if (e.cancelable) e.preventDefault(); // no click on whatever the finger started on
+    const flick = dy > 30 && dy / (e.timeStamp - t0) > 0.5;
+    if (e.type === 'touchend' && (flick || dy > Math.min(140, d.offsetHeight / 3))) settle(d, 'translateY(110%)', () => d.close());
+    else settle(d, 'translateY(0)');
+  };
+  document.addEventListener('touchend', drop, { passive: false });
+  document.addEventListener('touchcancel', drop);
+
   // ---- Menu: the trigger opens and closes the items; Esc, a tap outside or choosing an item closes it,
   // except items marked data-keep-open (Undo, so several steps can be undone in a row).
   const menu = nav => {
