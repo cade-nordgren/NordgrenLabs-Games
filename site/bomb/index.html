@@ -1,0 +1,791 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Bomb · NordgrenLabs Games</title>
+<meta name="description" content="A shedding card game for two to six players, on one phone or online.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bomb">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f3ec">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!-- use-credentials: the Worker gates every file but the root manifest behind the session cookie. -->
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
+<link rel="stylesheet" href="../style.css">
+<style>
+/* Theme values: tests/bomb/contrast.test.js reads these blocks and checks them against ui/styles.js THEME. Cards stay
+   light in dark mode, so red suits keep their contrast; the primary blue stays #0071e3 (white on #0a84ff fails). */
+:root {
+  --canvas: #f6f3ec; --card: #ffffff; --red: #c8102e; --blk: #1d1d1f; --deck: #3a3a3c; --cell: #ffffff;
+  --add: #0071e3; --tag: #d70015;
+}
+:root[data-theme="dark"] {
+  --canvas: #000000; --card: #f2f2f4; --red: #c8102e; --blk: #1d1d1f; --deck: #737378; --cell: #2c2c2e;
+  --primary: #0071e3; --add: #0071e3; --tag: #d70015;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme]) { --canvas: #000000; --card: #f2f2f4; --deck: #737378; --cell: #2c2c2e; --primary: #0071e3; }
+}
+body::before {
+  background:
+    radial-gradient(60vmax 50vmax at 0% 0%, rgba(230, 90, 40, .16), transparent 60%),
+    radial-gradient(50vmax 45vmax at 100% 22%, rgba(241, 179, 0, .14), transparent 60%),
+    radial-gradient(60vmax 50vmax at 70% 100%, rgba(31, 115, 218, .12), transparent 60%);
+}
+
+/* The menu floats top right, a little below the system bar; content starts at its top edge (as in Crossix). */
+.menu { top: calc(max(10px, env(safe-area-inset-top)) + 14px); }
+.app { padding-top: calc(max(10px, env(safe-area-inset-top)) + 14px); }
+.menu::before { content: ""; position: fixed; inset: 0; z-index: -1; background: rgba(0, 0, 0, .22); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.menu.open::before { opacity: 1; }
+:root[data-theme="light"] .menu.open .item, :root[data-theme="light"] .menu.open .item span, :root[data-theme="light"] .menu.open .menu-trigger { background: var(--solid); box-shadow: 0 0 0 1px rgba(0, 0, 0, .1), 0 4px 14px rgba(0, 0, 0, .14); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.page { display: flex; flex-direction: column; gap: 12px; flex: 1; min-height: 0; }
+.cap { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.note { margin: 10px 0 0; font-size: 14px; color: var(--ink2); }
+.btn.ink { background: var(--ink); color: var(--canvas); }
+.spacer { flex: 1; }
+.center { text-align: center; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 999px; background: var(--fill); font-size: 13px; font-weight: 600; white-space: nowrap; }
+.pill i { width: 10px; height: 10px; border-radius: 50%; background: var(--pc); }
+
+/* ---- Logo and headings, left aligned and clear of the menu circle. */
+.logo { display: flex; align-items: center; gap: 10px; min-height: 48px; padding-right: 58px; }
+.logo svg { width: 58px; height: 50px; flex: none; }
+.logo h1, .head h1 { margin: 0; font: 800 36px/1 var(--num); letter-spacing: -.03em; }
+.head { min-height: 48px; padding-right: 58px; display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
+.head h1 { font-size: 30px; line-height: 1.1; }
+.lede { margin: 0; color: var(--ink2); font-size: 15px; }
+
+/* ---- Setup (Bank's roster: rows with a line above, the + circle to add) */
+.group { padding: 16px; }
+.group h2 { margin: 0; }
+.group-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.group-head .note { margin: 0; }
+#roster, #saves, #lobbySeats { list-style: none; margin: 8px 0 0; padding: 0; }
+#roster li, #add, #saves li, #lobbySeats li, .row { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 54px; }
+#add { margin: 0; }
+.row input, #roster input, #add input { flex: 1; min-width: 0; border: 0; background: none; padding: 12px 0; outline: none; font-size: 17px; }
+.row input:focus-visible, #roster input:focus-visible, #add input:focus-visible { box-shadow: inset 0 -2px 0 var(--accent); }
+.circle { width: 44px; height: 44px; padding: 7px; background-clip: content-box; border-radius: 50%; font-size: 20px; line-height: 1; flex: none; display: grid; place-items: center; }
+.circle.remove { background-color: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
+.circle.add { background-color: var(--add); color: #fff; }
+.pick { width: 44px; height: 54px; flex: none; display: grid; place-items: center; border-radius: 10px; }
+.pick .card { --w: 30px; }
+.pick.empty span { display: block; width: 30px; height: 42px; border-radius: 6px; border: 2px dashed var(--hair); }
+#savedGroup .count { display: inline-block; width: 2.2em; height: .9em; vertical-align: -1px; margin-left: 6px; }
+#saves li.loading { min-height: 59px; }
+.resume { flex: 1; min-width: 0; min-height: 58px; padding: 9px 0; text-align: left; }
+.resume strong { display: block; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.resume span { display: block; font-size: 14px; color: var(--ink2); }
+.resume:active:not(:disabled) { transform: none; opacity: .6; }
+details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
+.stepper { display: flex; align-items: center; background: var(--fill); border-radius: 12px; flex: none; }
+.stepper button { width: 46px; height: 44px; font-size: 24px; line-height: 1; border-radius: 12px; }
+.stepper output { min-width: 40px; text-align: center; font: 700 21px var(--num); }
+.decks { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.err { color: var(--danger); }
+#joinRow input { text-transform: uppercase; letter-spacing: .12em; font: 700 19px var(--num); }
+#joinRow input::placeholder { letter-spacing: 0; font: 400 17px var(--text); text-transform: none; }
+.tight { display: grid; gap: 8px; margin-top: 12px; }
+
+/* ---- Cards. --w sets the size; everything else follows it. */
+.card { --w: 60px; position: relative; flex: none; display: block; width: var(--w); height: calc(var(--w) * 1.43); border-radius: calc(var(--w) * .15);
+  background: var(--card); color: var(--blk); font-family: var(--num); text-align: left; padding: 0;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .06), 0 3px 10px rgba(0, 0, 0, .14), inset 0 0 0 1px rgba(0, 0, 0, .08); }
+.card.r { color: var(--red); }
+.card .i { position: absolute; top: calc(var(--w) * .08); left: calc(var(--w) * .1); display: flex; flex-direction: column; align-items: center;
+  font-weight: 800; font-size: calc(var(--w) * .3); line-height: 1; letter-spacing: -.05em; }
+.card .i small { font-size: calc(var(--w) * .23); margin-top: 2px; letter-spacing: 0; }
+.card .m { position: absolute; right: calc(var(--w) * .1); bottom: calc(var(--w) * .07); font-size: calc(var(--w) * .5); line-height: 1; }
+/* Small table cards: rank over suit, centred, readable at 26px wide. */
+.card.mini .i { inset: 0; justify-content: center; font-size: 13px; }
+.card.mini .i small { font-size: 12px; margin-top: 1px; }
+.card.mini .m { display: none; }
+button.card:active:not(:disabled) { transform: none; }
+button.card[aria-disabled="true"] { cursor: default; }
+.back { background-color: var(--pc); box-shadow: inset 0 0 0 calc(var(--w) * .06) var(--pc), inset 0 0 0 calc(var(--w) * .085) rgba(255, 255, 255, .75), 0 2px 8px rgba(0, 0, 0, .16); }
+.back::after { content: ""; position: absolute; left: 50%; top: 50%; width: calc(var(--w) * .22); height: calc(var(--w) * .22); translate: -50% -50%; border-radius: 50%;
+  background: rgba(255, 255, 255, .9); box-shadow: 0 0 0 calc(var(--w) * .05) var(--pc), 0 0 0 calc(var(--w) * .075) rgba(255, 255, 255, .6); }
+.back.deck { --pc: var(--deck); }
+.slot-empty { border: 2px dashed var(--hair); background: none; box-shadow: none; }
+/* Patterns: one per style, white over the style's colour, so styles differ by more than colour. */
+.p-stripes { background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, .24) 0 3px, transparent 3px 9px); }
+.p-dots { background-image: radial-gradient(circle, rgba(255, 255, 255, .42) 0 1.8px, transparent 2.3px); background-size: 9px 9px; }
+.p-diamonds { background-image: conic-gradient(from 45deg, rgba(255, 255, 255, .26) 0 25%, transparent 0 50%, rgba(255, 255, 255, .26) 0 75%, transparent 0); background-size: 12px 12px; background-position: center; }
+.p-waves { background-image: radial-gradient(circle at 50% 100%, transparent 0 4px, rgba(255, 255, 255, .32) 4px 6px, transparent 6px), radial-gradient(circle at 50% 0, transparent 0 4px, rgba(255, 255, 255, .32) 4px 6px, transparent 6px); background-size: 12px 7px; background-position: 0 0, 6px 3.5px; }
+.p-crosshatch { background-image: repeating-linear-gradient(45deg, rgba(255, 255, 255, .24) 0 1.5px, transparent 1.5px 7px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, .24) 0 1.5px, transparent 1.5px 7px); }
+.p-checks { background-image: conic-gradient(rgba(255, 255, 255, .24) 0 25%, transparent 0 50%, rgba(255, 255, 255, .24) 0 75%, transparent 0); background-size: 12px 12px; }
+.p-chevrons { background-image: linear-gradient(135deg, rgba(255, 255, 255, .28) 25%, transparent 25%), linear-gradient(225deg, rgba(255, 255, 255, .28) 25%, transparent 25%), linear-gradient(315deg, rgba(255, 255, 255, .28) 25%, transparent 25%), linear-gradient(45deg, rgba(255, 255, 255, .28) 25%, transparent 25%); background-size: 12px 12px; background-position: -6px 0, -6px 0, 0 0, 0 0; }
+.p-sunburst { background-image: repeating-conic-gradient(rgba(255, 255, 255, .24) 0 9deg, transparent 9deg 18deg); }
+.p-scales { background-image: radial-gradient(circle at 50% 0, transparent 0 5px, rgba(255, 255, 255, .32) 5px 6.5px, transparent 6.5px), radial-gradient(circle at 50% 0, transparent 0 5px, rgba(255, 255, 255, .32) 5px 6.5px, transparent 6.5px); background-size: 12px 8px; background-position: 0 0, 6px 4px; }
+.p-pinstripes { background-image: repeating-linear-gradient(90deg, rgba(255, 255, 255, .34) 0 1px, transparent 1px 6px); }
+.p-rings { background-image: repeating-radial-gradient(circle, rgba(255, 255, 255, .28) 0 2px, transparent 2px 6px); }
+.p-plaid { background-image: linear-gradient(rgba(255, 255, 255, .22) 0 3px, transparent 3px), linear-gradient(90deg, rgba(255, 255, 255, .22) 0 3px, transparent 3px); background-size: 11px 11px; }
+
+/* A name on its player's colour, in that colour's ink. */
+.who { justify-self: start; display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; height: 26px; padding: 0 10px 0 3px; border-radius: 999px;
+  background: var(--pc); color: var(--pi); font-weight: 700; font-size: 14px; }
+.who i { flex: none; width: 20px; height: 20px; border-radius: 50%; display: grid; place-items: center; font: 800 11px var(--num); font-style: normal; box-shadow: inset 0 0 0 2px currentColor; }
+.who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.av { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font: 800 14px var(--num); flex: none; background: var(--pc); color: var(--pi); }
+
+/* ---- Style picker sheet */
+.styles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 8px; }
+.opt { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 2px; border-radius: 14px; text-align: center; min-width: 0; }
+.opt .card { --w: min(60px, 15vw); }
+.opt b { font-size: 13px; line-height: 1.1; }
+.opt small { font-size: 12px; color: var(--ink2); line-height: 1.1; overflow: hidden; text-overflow: ellipsis; max-width: 100%; white-space: nowrap; }
+.opt[aria-pressed="true"] .card { box-shadow: inset 0 0 0 calc(var(--w) * .06) var(--pc), inset 0 0 0 calc(var(--w) * .085) rgba(255, 255, 255, .75), 0 0 0 3px var(--solid), 0 0 0 6px var(--ink); }
+.opt .tick { position: absolute; top: 0; right: 6px; width: 22px; height: 22px; border-radius: 50%; background: var(--ink); color: var(--solid); display: grid; place-items: center; }
+.opt:disabled { opacity: 1; }
+.opt:disabled .card { opacity: .3; filter: saturate(.4); }
+
+/* ---- Draw for first */
+.draws { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 10px; }
+.tile { position: relative; padding: 10px 8px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; border-radius: 20px; }
+.tile .card { --w: clamp(48px, 15vw, 72px); }
+.tile.tie { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
+.tile.starts { box-shadow: 0 0 0 3px var(--pc), 0 8px 28px color-mix(in srgb, var(--pc) 45%, transparent); }
+.tile.out .card:not(.back) { opacity: .5; filter: saturate(.3); }
+.tag { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; background: var(--fill); }
+.tag.tie, .tag.starts { background: var(--ink); color: var(--canvas); }
+.tag:empty { visibility: hidden; }
+.flip { animation: flip .32s ease-out; }
+@keyframes flip { from { transform: rotateY(90deg); } }
+#drawSummary { margin: 0; font-size: 15px; min-height: 42px; }
+#drawSummary strong { display: block; font: 800 24px/1.15 var(--num); color: var(--ink); }
+
+/* ---- Handoff */
+#handoffPage { align-items: center; text-align: center; }
+.big-av { width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center; font: 800 52px/1 var(--num); background: var(--pc); color: var(--pi);
+  box-shadow: 0 0 0 8px color-mix(in srgb, var(--pc) 20%, transparent), 0 16px 40px color-mix(in srgb, var(--pc) 40%, transparent); }
+#handoffPage h1 { margin: 0; font: 800 34px/1.12 var(--num); letter-spacing: -.02em; overflow-wrap: anywhere; }
+.stats { padding: 12px 18px; border-radius: 18px; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font-size: 15px; }
+.stats strong { font: 800 20px var(--num); }
+.stats span span { color: var(--ink2); }
+#ready { background: var(--pc); color: var(--pi); }
+#handoffPage .btn.primary { max-width: 420px; }
+
+/* ---- Face-up choice */
+.choose-table { padding: 14px 14px 12px; }
+.spots4 { display: flex; justify-content: space-between; gap: 6px; margin-top: 12px; padding: 0 4px; }
+.cslot { position: relative; width: var(--w); height: calc(var(--w) * 1.43 + var(--w) * .22); flex: none; --w: clamp(52px, 16vw, 64px); }
+.cslot > .card { position: absolute; left: 0; --w: inherit; }
+.cslot > .back { top: 0; }
+.cslot > .up { top: calc(var(--w) * .22); }
+.cslot > .up.on { box-shadow: 0 0 0 3px var(--accent), 0 6px 16px rgba(0, 0, 0, .18); }
+.cslot > .hole { top: calc(var(--w) * .22); display: grid; place-items: center; font: 700 14px var(--num); color: var(--ink2); border: 2px dashed color-mix(in srgb, var(--ink) 30%, transparent); background: color-mix(in srgb, var(--canvas) 70%, transparent); box-shadow: none; }
+.nine { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 14px 6px; justify-items: center; padding-top: 8px; }
+.nine .card { --w: clamp(50px, 15vw, 62px); }
+.nine .card[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--accent), 0 6px 16px rgba(0, 0, 0, .18); }
+.nine .card[aria-pressed="true"]::after { content: ""; position: absolute; top: -8px; right: -8px; width: 22px; height: 22px; border-radius: 50%; background: var(--add) center / 13px no-repeat;
+  box-shadow: 0 0 0 2px var(--canvas); background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 12.5l5 5L20 6.5' fill='none' stroke='%23fff' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+#chooseCount.done { color: var(--accent); }
+
+/* ---- Table */
+#tablePage { gap: 8px; }
+.top { display: flex; align-items: center; gap: 8px; min-height: 22px; margin-right: 58px; }
+.top .cap { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Online connection trouble: a small pill at the top, on every online screen, gone once a poll succeeds again. */
+.conn { position: fixed; z-index: 25; top: calc(max(10px, env(safe-area-inset-top)) + 4px); left: 50%; translate: -50% 0; margin: 0; padding: 4px 12px; border-radius: 999px;
+  background: var(--glass-menu); color: var(--danger); font-size: 13px; font-weight: 600; box-shadow: var(--shadow); white-space: nowrap; }
+.opps { display: flex; gap: 8px; overflow-x: auto; margin: -4px 54px -4px -4px; padding: 4px; scroll-behavior: smooth; }
+.opp { --pc: #888; flex: 1 0 128px; min-width: 0; padding: 8px; border-radius: 16px; }
+.opp.now { box-shadow: 0 0 0 3px var(--pc), var(--shadow); }
+.opp-sub { margin: 3px 0 0; font-size: 12px; font-weight: 600; color: var(--ink2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opp.now .opp-sub { color: var(--ink); }
+.spots { display: flex; gap: 4px; margin-top: 6px; }
+.spot { --w: 26px; position: relative; width: var(--w); height: calc(var(--w) * 1.43 + 6px); flex: none; }
+.spot > .card { position: absolute; left: 0; --w: inherit; }
+.spot > .back { top: 0; }
+.spot > .up { top: 6px; }
+/* One opponent: a roomy panel, name on the left, table on the right. */
+.opps.one .opp { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 10px; padding: 8px 12px; }
+.opps.one .spots { grid-row: 1 / 3; grid-column: 2; margin: 0; gap: 5px; }
+.opps.one .spot { --w: 34px; height: calc(var(--w) * 1.43 + 8px); }
+.opps.one .spot > .up { top: 8px; }
+.opps.one .card.mini .i { font-size: 15px; }
+.opps.one .card.mini .i small { font-size: 14px; }
+
+.centre { position: relative; padding: 10px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; border-radius: 22px; }
+.deckbox, .pilebox { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; }
+.stack { position: relative; width: calc(var(--dw) + 3px); height: calc(var(--dw) * 1.43 + 3px); --dw: 42px; }
+.stack .card { position: absolute; --w: var(--dw); }
+.stack .card + .card { top: 3px; left: 2px; }
+.deckbox .cap { text-align: center; line-height: 1.15; }
+.deckbox strong, .pilebox strong { color: var(--ink); font: 800 15px var(--num); }
+.pile { position: relative; height: calc(var(--pw) * 1.43 + 6px); --pw: 54px; width: 100%; }
+.pile .card { position: absolute; top: 3px; --w: var(--pw); }
+.pile .slot-empty { left: calc(50% - var(--pw) / 2); }
+.beat { text-align: center; line-height: 1.1; min-width: 78px; }
+.beat b { display: block; font: 800 38px/1.05 var(--num); letter-spacing: -.03em; }
+.beat .cap { font-size: 12px; }
+.beat .cap + .cap { font-weight: 500; max-width: 96px; margin: 2px auto 0; }
+.beat.pulse b { animation: pulse .6s ease-out; }
+@keyframes pulse { 40% { transform: scale(1.3); color: var(--accent); } }
+.boom { position: absolute; inset: 0; border-radius: inherit; display: grid; place-items: center; overflow: hidden; z-index: 3; pointer-events: none; }
+.boom::before { content: ""; position: absolute; width: 320px; height: 320px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 214, 120, .95) 0 18%, rgba(240, 124, 27, .75) 34%, rgba(226, 53, 59, .35) 52%, transparent 68%); animation: boom .9s ease-out forwards; }
+.boom b { position: relative; font: 900 56px/1 var(--num); letter-spacing: -.03em; color: #fff; text-shadow: 0 2px 0 #b3261e, 0 4px 18px rgba(179, 38, 30, .6); animation: boomText .9s ease-out forwards; }
+@keyframes boom { from { transform: scale(.2); opacity: 1; } 70% { opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
+@keyframes boomText { from { transform: scale(.4); } 25% { transform: scale(1.1); } 75% { opacity: 1; } to { transform: scale(1); opacity: 0; } }
+.toolow { position: absolute; left: 50%; bottom: -10px; translate: -50% 0; padding: 3px 9px; border-radius: 999px; background: var(--tag); color: #fff;
+  font: 700 12px var(--text); white-space: nowrap; box-shadow: 0 0 0 2px var(--canvas); }
+.fly { position: fixed; z-index: 30; pointer-events: none; margin: 0; }
+
+#status { margin: 0; font-size: 15px; font-weight: 600; min-height: 21px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+#status .you { color: var(--accent); }
+.mine-head, .hand-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.mine-head h2, .hand-head h2 { font-size: 14px; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mine-head .cap, .hand-head .cap { font-weight: 500; white-space: nowrap; }
+.myspots { display: flex; gap: 10px; margin-top: 6px; }
+.mslot { --w: var(--tw, 44px); position: relative; width: var(--w); height: calc(var(--w) * 1.43 + 9px); flex: none; }
+.mslot > .card { position: absolute; left: 0; --w: inherit; }
+.mslot > .back { top: 0; }
+.mslot > .up { top: 9px; }
+.mslot > .slot-empty { top: 9px; }
+.mslot > .tap { box-shadow: inset 0 0 0 calc(var(--w) * .06) var(--pc), inset 0 0 0 calc(var(--w) * .085) rgba(255, 255, 255, .75), 0 0 0 3px var(--accent), 0 8px 18px rgba(0, 0, 0, .2); }
+.tray { --w: var(--hw, 60px); --step: calc(var(--w) + 6px); display: flex; overflow-x: auto; overscroll-behavior-x: contain; padding: 16px 16px 6px; margin: 0 -16px; }
+.tray > .card { --w: inherit; transition: transform .18s ease, box-shadow .18s ease; }
+.tray > .card + .card { margin-left: calc(var(--step) - var(--w)); }
+.tray > .card[aria-pressed="true"] { transform: translateY(-14px); box-shadow: 0 0 0 3px var(--accent), 0 12px 24px rgba(0, 0, 0, .22); }
+.tray > .card.new::after, .mslot .card.new::after { content: ""; position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--canvas); }
+.locked .card { filter: saturate(.7); opacity: .75; }
+.tray .card.no { opacity: .55; }
+.empty-hand { margin: 18px 0; color: var(--ink2); font-size: 15px; }
+.actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+.actions #next { grid-column: 1 / -1; min-height: 52px; }
+.actions .btn { min-width: 0; padding: 0 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wait { min-height: 50px; padding: 8px 16px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 10px; grid-column: 1 / -1; font-weight: 700; }
+.wait span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink2); animation: dot 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes dot { 50% { opacity: .25; } }
+.side { display: contents; }
+/* Portrait order: opponents, centre, status, your table, hand, actions (the landscape grid places them itself). */
+.toprow { display: contents; }
+.top { order: 0; } .opps { order: 1; } .centre { order: 2; } #status { order: 3; } .mine { order: 4; } .hand { order: 5; } #tablePage > .spacer { order: 6; } .turnbox, .actions { order: 7; }
+.turnbox { display: none; }
+
+/* ---- Lobby */
+.code { font: 800 44px/1.1 var(--num); letter-spacing: .14em; margin: 4px 0 2px; padding-left: .14em; text-align: center; }
+#lobbySeats .card { --w: 28px; }
+#lobbySeats strong { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#lobbySeats strong span { font-weight: 400; color: var(--ink2); }
+.open-seat { width: 28px; height: 40px; border-radius: 6px; border: 2px dashed var(--hair); flex: none; }
+.off { opacity: .55; }
+
+/* ---- Results (Crossix's finish rows: winner glows, the rest step back; numbers tick up) */
+#resultsPage .crown { text-align: center; margin-bottom: 4px; }
+#resultsPage .crown .av { width: 72px; height: 72px; margin: 0 auto 12px; font-size: 34px; box-shadow: 0 0 0 6px color-mix(in srgb, var(--pc) 22%, transparent); }
+#resultsPage h2 { margin: 0; font: 800 30px/1.15 var(--num); overflow-wrap: anywhere; }
+#resultsPage .crown p { margin: 6px 0 0; color: var(--ink2); }
+.reveal { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rrow { padding: 10px 12px; border-radius: 20px; display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: 8px 10px; align-items: center; transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease; }
+.rank { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--ink2); font: 700 14px var(--num); }
+.rank.first { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .rank.first { background: #0071e3; }
+.rrow > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+.rrow > strong i { width: 12px; height: 12px; border-radius: 50%; background: var(--pc); flex: none; }
+.rstats { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.rstats div { height: 54px; border-radius: 12px; border: 2px solid var(--pc); background: color-mix(in srgb, var(--pc) 14%, var(--cell)); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+.rstats b { font: 800 22px/1 var(--num); font-variant-numeric: tabular-nums; }
+.rstats small { font: 600 11px/1 var(--text); color: var(--ink2); }
+.rrow.dim { opacity: .6; filter: grayscale(.6); }
+.rrow.win { box-shadow: 0 0 0 3px var(--accent), 0 8px 28px color-mix(in srgb, var(--accent) 45%, transparent); animation: glow 1.8s ease-in-out infinite; }
+@keyframes glow { 50% { box-shadow: 0 0 0 3px var(--accent), 0 10px 46px color-mix(in srgb, var(--accent) 80%, transparent); } }
+.totals { padding: 12px 16px; border-radius: 18px; display: flex; justify-content: space-around; text-align: center; }
+.totals b { font: 800 22px/1 var(--num); font-variant-numeric: tabular-nums; }
+.totals div div { font-size: 13px; font-weight: 600; color: var(--ink2); }
+/* Four or more players: one line per player, stats beside the name, so six fit a phone screen. */
+.reveal.many .rrow { grid-template-columns: 28px minmax(0, 1fr) auto; padding: 6px 10px; }
+.reveal.many .rstats { grid-column: auto; grid-template-columns: repeat(3, 52px); gap: 4px; }
+.reveal.many .rstats div { height: 40px; border-radius: 10px; }
+.reveal.many .rstats b { font-size: 18px; }
+.reveal.many .rstats small { font-size: 9px; }
+#resultsPage:has(.reveal.many) .crown .av { display: none; }
+#votes { margin: 0; text-align: center; font-size: 14px; color: var(--ink2); }
+
+/* ---- Sheets */
+.rules ol, .rules ul { margin: 0 0 4px; padding-left: 20px; color: var(--ink2); font-size: 15px; }
+.rules li + li { margin-top: 6px; }
+.rules strong { color: var(--ink); }
+/* Sheets open over busy tables: near-solid glass, like the menu, keeps their text readable. */
+dialog.sheet { --glass: var(--glass-menu); }
+dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--ink2); opacity: .35; margin: -12px 0 2px; }
+.appearance { display: flex; align-items: center; gap: 12px; }
+.appearance .segmented { flex: 1; }
+
+/* ---- Sizes. Portrait phones: everything for a turn fits one screen; shorter screens shrink cards, and hide the
+   action buttons that are disabled (only the one that applies shows). */
+#tablePage { --hw: 64px; --tw: 48px; }
+@media (max-height: 780px) { #tablePage { --hw: 58px; --tw: 44px; } }
+@media (max-height: 700px) {
+  #tablePage { --hw: 56px; --tw: 42px; }
+  #resultsPage .crown .av { width: 52px; height: 52px; font-size: 24px; margin-bottom: 8px; }
+  .cslot { --w: 48px; } .nine .card { --w: 48px; } .nine { gap: 10px 6px; padding-top: 4px; }
+  #chooseTitle { font-size: 22px !important; } .choose-table { padding: 10px 12px; } .spots4 { margin-top: 8px; }
+  #choosePage, #drawPage, #lobbyPage { gap: 10px; }
+  #resultsPage h2 { font-size: 26px; }
+  .rstats div { height: 46px; }
+  .rrow { padding: 8px 10px; }
+  .centre { padding: 8px 10px; }
+  .pile { --pw: 48px; }
+  .stack { --dw: 38px; }
+  .beat b { font-size: 32px; }
+}
+/* Short portrait screens have room for one row of actions; landscape's side column shows all three. */
+@media (max-height: 700px) and (orientation: portrait) {
+  #next:disabled { display: none; }
+  .actions:has(#next:not(:disabled)) #pick, .actions:has(#next:not(:disabled)) #play { display: none; }
+}
+@media (max-height: 600px) { #tablePage { --hw: 46px; --tw: 34px; } .opps.one .spot { --w: 32px; } .tray { padding-top: 14px; } }
+@media (max-width: 359px) { .opps.one .who i { display: none; } .opps.one .who { padding-left: 10px; } .opps { margin-right: 54px; } .opp { flex-basis: 118px; } .spot { --w: 23px; } .card.mini .i { font-size: 12px; } .beat { min-width: 64px; } .myspots { gap: 6px; } }
+
+/* Tablets and desktops: centred and roomier. */
+@media (min-width: 700px) and (min-height: 701px) {
+  .app { max-width: 760px; }
+  #tablePage { --hw: 74px; --tw: 56px; gap: 12px; }
+  .opps { margin-right: 58px; }
+  .opp { flex: 1 0 150px; }
+  .spot { --w: 32px; }
+  .opps.one .spot { --w: 50px; }
+  .centre { padding: 14px 18px; }
+  .pile { --pw: 70px; }
+  .stack { --dw: 54px; }
+  .beat b { font-size: 46px; }
+  .actions { max-width: 560px; width: 100%; margin: 0 auto; }
+  #setupPage, #lobbyPage, #choosePage, #waitPage, #drawPage, #resultsPage { max-width: 520px; width: 100%; margin: 0 auto; }
+}
+
+/* Phone in landscape: table on the left, actions on the right, hand along the bottom (the Landscape mock-up). */
+@media (orientation: landscape) and (max-height: 540px) {
+  .app { max-width: 1000px; padding-top: max(10px, env(safe-area-inset-top)); padding-bottom: max(8px, env(safe-area-inset-bottom)); }
+  .menu { top: max(10px, env(safe-area-inset-top)); }
+  .menu.open .item { --col: calc(clamp(0, var(--i) - 3, 1) + clamp(0, var(--i) - 6, 1)); --row: calc(var(--i) - 3 * var(--col));
+    transform: translate(calc(var(--col) * -184px), calc(var(--row) * 58px)); }
+  #setupPage { display: block; columns: 2; column-gap: 14px; padding-right: 58px; }
+  #setupPage > * { break-inside: avoid; margin-bottom: 12px; }
+  #setupPage > .logo, #setupPage > #modeSeg { column-span: all; }
+  #lobbyPage, #choosePage, #resultsPage, #waitPage { padding-right: 58px; }
+  #drawPage { padding-right: 58px; }
+  .draws { --cols: 6 !important; }
+  .tile .card { --w: 48px; }
+  .head h1, #handoffPage h1 { font-size: 26px; }
+  .big-av { width: 72px; height: 72px; font-size: 34px; }
+  .nine { gap: 8px 6px; padding-top: 4px; }
+  .nine .card { --w: 42px; }
+  #choosePage .lede { display: none; }
+  #chooseTitle { font-size: 22px !important; }
+  #choosePage .btn.primary { min-height: 46px; }
+  .cslot { --w: 46px; }
+  .choose-wrap { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 12px; align-items: start; }
+  #resultsPage .reveal { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  #resultsPage .crown .av { display: none; }
+
+  #tablePage { --hw: 52px; --tw: 34px; display: grid; grid-template-columns: minmax(0, 1fr) clamp(180px, 26vw, 220px); grid-template-rows: auto auto auto 1fr;
+    grid-template-areas: "top side" "row side" "centre side" "hand side"; column-gap: 12px; row-gap: 6px; min-height: calc(100dvh - max(10px, env(safe-area-inset-top)) - max(8px, env(safe-area-inset-bottom))); }
+  .top { grid-area: top; margin-right: 0; }
+  .toprow { grid-area: row; display: flex; gap: 8px; min-width: 0; align-items: stretch; }
+  .opps { margin: -4px; flex: 1 1 auto; min-width: 0; }
+  .opps.one .spot { --w: 30px; }
+  .mine { flex: none; padding: 6px 10px; border-radius: 16px; }
+  .mine.glass { background: var(--glass); }
+  .centre { grid-area: centre; padding: 6px 12px; }
+  .deckbox, .pilebox { flex-direction: row; gap: 8px; }
+  .pile { width: auto; flex: 1; min-width: calc(var(--pw) + 50px); }
+  .opps.one .opp { padding: 6px 10px; }
+  /* Panels size to their four spots, so two opponents fit beside Your table; more scroll inside the strip. */
+  .opp { padding: 6px; flex: 1 0 auto; }
+  .spot { --w: 22px; }
+  .myspots { gap: 6px; }
+  .top { min-height: 18px; }
+  .mine-head .cap { display: none; }
+  .tray { padding-top: 14px; padding-bottom: 2px; }
+  .hand-head .av { width: 24px; height: 24px; font-size: 12px; }
+  .pile { --pw: 44px; }
+  .stack { --dw: 34px; }
+  .beat b { font-size: 30px; }
+  #status { display: none; }
+  .hand { grid-area: hand; align-self: end; }
+  .side { grid-area: side; display: flex; flex-direction: column; gap: 8px; padding-top: 58px; min-height: 0; }
+  .turnbox { display: block; padding: 8px 10px; border-radius: 16px; font-size: 14px; font-weight: 600; line-height: 1.3; overflow: hidden; max-height: 9.5em; }
+  .actions { grid-template-columns: 1fr; margin-top: auto; }
+  .actions #next { min-height: 46px; }
+  .actions .btn { min-height: 44px; }
+  .wait { border-radius: 16px; }
+}
+@media (orientation: landscape) and (max-height: 360px) {
+  #tablePage { --hw: 40px; --tw: 28px; row-gap: 4px; } .opps.one .spot { --w: 26px; } .spot { --w: 20px; } .myspots { gap: 4px; }
+  .pile { --pw: 36px; } .stack { --dw: 28px; } .beat b { font-size: 24px; } .centre { padding: 4px 12px; } .tray { padding-top: 10px; }
+  .opp-sub { margin-top: 1px; } .spots { margin-top: 4px; }
+}
+@media (orientation: landscape) and (max-height: 540px) and (max-width: 620px) { #tablePage { grid-template-columns: minmax(0, 1fr) 150px; } }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="menu" id="menu" aria-label="Bomb">
+    <button class="menu-trigger glass" aria-controls="menuItems">
+      <svg class="bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+      <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+    <div class="menu-items" id="menuItems">
+      <a class="item glass" id="gamesLink" href="../index.html">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+        <span class="glass">Games</span>
+      </a>
+      <button class="item glass" id="exitBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
+        <span class="glass">Exit</span>
+      </button>
+      <button class="item glass" id="restart" data-keep-open>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4v4h4"/></svg>
+        <span class="glass">Restart</span>
+      </button>
+      <button class="item glass" id="leaveBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
+        <span class="glass">Leave room</span>
+      </button>
+      <button class="item glass" id="rulesBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6"/></svg>
+        <span class="glass">How to play</span>
+      </button>
+      <button class="item glass" id="settingsBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+        <span class="glass">Settings</span>
+      </button>
+    </div>
+  </nav>
+
+  <main class="page" id="main">
+    <section id="setupPage" class="page">
+      <div class="logo">
+        <svg viewBox="0 0 58 50" aria-hidden="true">
+          <g transform="rotate(-12 18 26)"><rect x="5" y="6" width="26" height="38" rx="5" fill="#fff" stroke="rgba(0,0,0,.14)"/><text x="9" y="21" font-size="12" font-weight="800" fill="#c8102e" font-family="system-ui, sans-serif">10</text><path d="M24 34l3 4-3 4-3-4z" fill="#c8102e"/></g>
+          <circle cx="38" cy="32" r="14" fill="#1d1d1f" stroke="rgba(255,255,255,.35)"/><rect x="34" y="15" width="8" height="5" rx="1.5" fill="#1d1d1f"/>
+          <path d="M38 15c0-5 4-8 8-8" fill="none" stroke="#8e8e93" stroke-width="2" stroke-linecap="round"/>
+          <circle cx="47" cy="7" r="4" fill="#f07c1b"/><circle cx="47" cy="7" r="1.8" fill="#ffd27a"/><circle cx="33" cy="27" r="3" fill="rgba(255,255,255,.35)"/>
+        </svg>
+        <h1>Bomb</h1>
+      </div>
+      <div class="segmented" id="modeSeg" role="group" aria-label="Where you play">
+        <button value="local">This phone</button>
+        <button value="online">Online</button>
+      </div>
+
+      <div id="localSetup" class="page">
+        <details class="glass group" id="savedGroup" hidden>
+          <summary id="savedSummary">Saved games</summary>
+          <p class="note" id="savedNote" role="status" hidden></p>
+          <ul id="saves"></ul>
+        </details>
+        <section class="glass group">
+          <div class="group-head"><h2>Players</h2><span class="note" id="rosterCount"></span></div>
+          <ul id="roster"></ul>
+          <form id="add">
+            <span class="pick empty" aria-hidden="true"><span></span></span>
+            <input id="newName" maxlength="20" placeholder="Add a player" aria-label="New player name" autocomplete="off" enterkeyhint="done">
+            <button class="circle add" aria-label="Add player">+</button>
+          </form>
+          <p class="note">Tap a card to pick its style. The colour on the back is that player's colour.</p>
+        </section>
+        <section class="glass group">
+          <div class="decks">
+            <h2 id="decksTitle">Decks</h2>
+            <div class="stepper" role="group" aria-labelledby="decksTitle">
+              <button id="decksDown" aria-label="One deck fewer">−</button>
+              <output id="decksOut" aria-live="polite"></output>
+              <button id="decksUp" aria-label="One deck more">+</button>
+            </div>
+          </div>
+          <p class="note" id="decksNote"></p>
+        </section>
+        <div class="spacer"></div>
+        <p class="note center" id="startHint">Digital cards only. Everyone draws a card; the highest rank goes first.</p>
+        <button class="btn primary" id="start">Draw for first turn</button>
+      </div>
+
+      <div id="onlineSetup" class="page" hidden>
+        <p class="note" id="onlineNote" role="status" hidden></p>
+        <section class="glass group" id="rejoinBox" hidden>
+          <h2>Your room</h2>
+          <p class="note" id="rejoinNote"></p>
+          <div class="tight">
+            <button class="btn primary" id="rejoin">Rejoin</button>
+            <button class="btn" id="forget">Forget this room</button>
+          </div>
+        </section>
+        <section class="glass group">
+          <h2>You</h2>
+          <div class="row" style="margin-top: 8px">
+            <button class="pick" id="mePick"></button>
+            <input id="meName" maxlength="20" placeholder="Your name" aria-label="Your name" autocomplete="nickname" enterkeyhint="done">
+          </div>
+          <p class="note">Your card style is your colour at the table. If someone already has it, you get the next free one.</p>
+        </section>
+        <section class="glass group">
+          <h2>Start a room</h2>
+          <div class="decks" style="margin-top: 10px">
+            <span class="cap" id="oDecksTitle">Decks</span>
+            <div class="stepper" role="group" aria-labelledby="oDecksTitle">
+              <button id="oDecksDown" aria-label="One deck fewer">−</button>
+              <output id="oDecksOut" aria-live="polite"></output>
+              <button id="oDecksUp" aria-label="One deck more">+</button>
+            </div>
+          </div>
+          <div class="tight"><button class="btn primary" id="create">Create room</button></div>
+        </section>
+        <section class="glass group">
+          <h2 id="joinTitle">Join a room</h2>
+          <form class="row" id="joinRow" style="margin-top: 8px">
+            <input id="joinCode" maxlength="6" placeholder="6-letter code" aria-labelledby="joinTitle" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go">
+            <button class="btn ink" id="join">Join</button>
+          </form>
+        </section>
+      </div>
+    </section>
+
+    <section id="lobbyPage" class="page" hidden>
+      <div class="head"><h1>Online game</h1></div>
+      <section class="glass group center" aria-labelledby="codeTitle">
+        <p class="cap" id="codeTitle">Room code</p>
+        <div class="code" id="roomCode"></div>
+        <p class="note" style="margin: 0 0 12px">Friends open Bomb, choose Online, then Join. Or send them the link.</p>
+        <div style="display: flex; gap: 8px">
+          <button class="btn ink" id="share" style="flex: 1">Share link</button>
+          <button class="btn" id="copy" style="flex: 1">Copy code</button>
+        </div>
+        <p class="note" id="shareNote" role="status" hidden></p>
+      </section>
+      <section class="glass group">
+        <div class="group-head"><h2>Players</h2><span class="note" id="seatCount"></span></div>
+        <ul id="lobbySeats"></ul>
+      </section>
+      <section class="glass group">
+        <div class="decks">
+          <h2 id="lDecksTitle">Decks</h2>
+          <div class="stepper" role="group" aria-labelledby="lDecksTitle" id="lDecksStep">
+            <button id="lDecksDown" aria-label="One deck fewer">−</button>
+            <output id="lDecksOut" aria-live="polite"></output>
+            <button id="lDecksUp" aria-label="One deck more">+</button>
+          </div>
+        </div>
+        <p class="note" id="lDecksNote"></p>
+      </section>
+      <div class="spacer"></div>
+      <p class="note center err" id="lobbyErr" role="status" hidden></p>
+      <button class="btn primary" id="startRoom">Start game</button>
+      <div class="wait glass" id="lobbyWait" role="status" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="lobbyWaitText"></span></div>
+      <button class="btn" id="leaveLobby">Leave</button>
+    </section>
+
+    <section id="drawPage" class="page" hidden>
+      <div class="head"><h1>Who goes first?</h1></div>
+      <p class="lede">Everyone draws one card. Highest rank starts, Ace high. Suits don't count: equal ranks draw again.</p>
+      <div class="draws" id="drawGrid"></div>
+      <p id="drawSummary" aria-live="polite"></p>
+      <div class="spacer"></div>
+      <button class="btn" id="drawSkip">Skip</button>
+      <button class="btn primary" id="drawGo">Deal cards</button>
+    </section>
+
+    <section id="handoffPage" class="page" hidden>
+      <div class="spacer"></div>
+      <div class="big-av" id="handAv" aria-hidden="true"></div>
+      <p class="cap" id="handHidden" style="margin-top: 14px; font-size: 15px"></p>
+      <h1 id="handTitle"></h1>
+      <div class="stats glass" id="handStats"></div>
+      <div class="spacer"></div>
+      <button class="btn primary" id="ready">Ready to play</button>
+      <p class="cap" id="handNote" style="font-weight: 500"></p>
+    </section>
+
+    <section id="choosePage" class="page" hidden>
+      <div class="head"><span class="pill" id="choosePill"></span></div>
+      <h1 style="margin: 0; font: 800 26px/1.15 var(--num); letter-spacing: -.02em; overflow-wrap: anywhere" id="chooseTitle"></h1>
+      <p class="lede">They go on your table, over your four face-down cards. The other five are your hand.</p>
+      <div class="choose-wrap">
+        <section class="glass choose-table">
+          <div class="group-head"><h2 style="font-size: 15px">Your table</h2><span class="cap" id="tableHint">Tap two to swap places</span></div>
+          <div class="spots4" id="chooseTable"></div>
+        </section>
+        <div>
+          <div class="group-head"><h2 style="font-size: 15px">Your nine cards</h2><span class="cap" id="chooseCount" aria-live="polite"></span></div>
+          <div class="nine" id="chooseNine" role="group" aria-label="Your nine cards"></div>
+        </div>
+      </div>
+      <div class="spacer"></div>
+      <p class="note center" id="chooseNote" style="margin: 0"></p>
+      <button class="btn primary" id="confirm">Confirm and hide</button>
+    </section>
+
+    <section id="waitPage" class="page" hidden>
+      <div class="head"><h1>Face-up cards chosen</h1></div>
+      <p class="lede" id="waitLede"></p>
+      <ul class="reveal" id="waitList"></ul>
+      <div class="spacer"></div>
+      <div class="wait glass" role="status"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="waitText"></span></div>
+    </section>
+
+    <section id="tablePage" class="page" hidden aria-label="Table">
+      <div class="top"><span class="cap" id="tableInfo"></span></div>
+      <div class="toprow">
+        <div class="opps" id="opps"></div>
+        <section class="mine" id="mineBox" aria-label="Your table">
+          <div class="mine-head"><h2 id="mineTitle">Your table</h2><span class="cap" id="mineNote"></span></div>
+          <div class="myspots" id="mySpots"></div>
+        </section>
+      </div>
+      <section class="glass centre" id="centre" aria-label="Deck and pile">
+        <div class="deckbox"><div class="stack" id="deckStack"></div><span class="cap" id="deckCap"></span></div>
+        <div class="pilebox"><div class="pile" id="pile"></div><span class="cap" id="pileCap"></span></div>
+        <div class="beat" id="beat"><p class="cap">To beat</p><b id="beatRank"></b><p class="cap" id="beatNote"></p></div>
+      </section>
+      <p id="status"></p>
+      <section class="hand" id="handBox" aria-label="Your hand">
+        <div class="hand-head"><span class="av" id="handAvSmall" aria-hidden="true"></span><h2 id="handTitleSmall"></h2><span class="cap" id="handCount"></span></div>
+        <div class="tray" id="tray" role="group" aria-label="Your hand"></div>
+      </section>
+      <div class="spacer"></div>
+      <div class="side">
+        <div class="turnbox glass" id="turnbox" aria-hidden="true"></div>
+        <div class="actions" id="actions">
+          <button class="btn" id="pick">Pick up</button>
+          <button class="btn ink" id="play">Play</button>
+          <button class="btn primary" id="next">Next turn</button>
+          <div class="wait glass" id="waitPill" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="waitPillText"></span></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="resultsPage" class="page" hidden>
+      <div class="head" aria-hidden="true"></div>
+      <div class="crown"><div class="av" id="winAv" aria-hidden="true"></div><h2 id="winTitle"></h2><p id="winWhy"></p></div>
+      <ol class="reveal" id="resultRows" aria-label="Results"></ol>
+      <div class="totals glass"><div><b id="totTurns">0</b><div>turns</div></div><div id="timeBox"><b id="totTime"></b><div>game time</div></div></div>
+      <button class="btn" id="resultsSkip" hidden>Skip</button>
+      <div class="spacer"></div>
+      <p id="votes" role="status"></p>
+      <button class="btn primary" id="rematch">Rematch</button>
+      <button class="btn" id="newGame" style="min-height: 50px">New game</button>
+    </section>
+  </main>
+</div>
+
+<div class="sr" id="live" aria-live="polite"></div>
+<p class="conn" id="conn" role="status" hidden>Reconnecting</p>
+
+<dialog class="sheet glass" id="styleSheet" aria-labelledby="styleTitle">
+  <div>
+    <h2 id="styleTitle">Card style</h2>
+    <p id="styleNote"></p>
+    <div class="styles" id="styleGrid"></div>
+    <button class="btn" id="styleDone">Done</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="endSheet" aria-labelledby="endTitle">
+  <div>
+    <h2 id="endTitle">End this game?</h2>
+    <p id="endNote">Save it to pick up later from Saved games.</p>
+    <button class="btn primary" id="saveExit">Save and exit</button>
+    <button class="btn danger" id="discard">End without saving</button>
+    <button class="btn" id="keep">Keep playing</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="leaveSheet" aria-labelledby="leaveTitle">
+  <div>
+    <h2 id="leaveTitle">Leave this room?</h2>
+    <p id="leaveNote"></p>
+    <button class="btn danger" id="leaveYes">Leave</button>
+    <button class="btn" id="leaveNo">Stay</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass rules" id="rulesSheet" aria-labelledby="rulesTitle">
+  <div>
+    <h2 id="rulesTitle">How to play</h2>
+    <p>Get rid of every card you hold, in your hand and on your table. The first player with no cards left wins.</p>
+    <h3>The deal</h3>
+    <ul>
+      <li>Everyone gets four cards face down that nobody sees, and nine more.</li>
+      <li>Pick four of the nine to lie face up on top of your face-down cards. The other five are your hand.</li>
+      <li>The rest of the cards are the deck.</li>
+    </ul>
+    <h3>Who goes first</h3>
+    <ul>
+      <li>Everyone draws one card. The highest rank starts. Ace is high and 2 is low.</li>
+      <li>Suits don't count: players tied for highest draw again, only them, until one is highest.</li>
+    </ul>
+    <h3>A turn</h3>
+    <ul>
+      <li>Play a card that matches or beats the top of the pile. On an empty pile, anything goes.</li>
+      <li>You may play several cards of the same rank at once, like two Queens.</li>
+      <li>While the deck lasts, draw back up to five cards after you play.</li>
+      <li>Can't play, or don't want to? Pick up the whole pile instead. The next player then starts a fresh pile.</li>
+    </ul>
+    <h3>Special cards</h3>
+    <ul>
+      <li><strong>2 resets.</strong> Play it on anything. The next player may play any rank. The pile stays.</li>
+      <li><strong>10 bombs.</strong> Play it on anything. The whole pile leaves the game and you play again.</li>
+      <li><strong>Four of a kind bombs.</strong> Four cards of one rank in a row on top of the pile, played together or over several turns, also clear the pile. Whoever adds the fourth plays again.</li>
+      <li>7 and 8 are ordinary cards.</li>
+    </ul>
+    <h3>The three phases</h3>
+    <ol>
+      <li><strong>Hand.</strong> Play from your hand while you hold cards.</li>
+      <li><strong>Face up.</strong> When the deck is gone and your hand is empty, play your face-up cards.</li>
+      <li><strong>Face down.</strong> When those are gone too, turn over one face-down card at a time without looking. If it can't beat the pile, it goes on the pile and you pick the whole pile up.</li>
+    </ol>
+    <p>Picking up puts you back on your hand. Your table cards wait until your hand is empty again.</p>
+    <h3 id="rulesModeTitle">On one phone</h3>
+    <p id="rulesMode">After you play, your cards lock. Tap Next turn and pass the phone; the next player taps Ready to play. After a bomb you keep the phone.</p>
+    <button class="btn" id="rulesDone">Done</button>
+  </div>
+</dialog>
+
+<dialog class="sheet glass" id="settingsSheet" aria-labelledby="settingsTitle">
+  <div>
+    <h2 id="settingsTitle">Settings</h2>
+    <h3 id="themeTitle">Appearance</h3>
+    <div class="appearance">
+      <div class="segmented" id="themeSeg" role="group" aria-labelledby="themeTitle">
+        <button value="system">System</button>
+        <button value="light">Light</button>
+        <button value="dark">Dark</button>
+      </div>
+      <svg class="theme-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(45 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(90 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(135 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(180 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(225 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(270 12 12)"/>
+        <line x1="12" y1="2.5" x2="12" y2="4.5" pathLength="1" transform="rotate(315 12 12)"/>
+        <circle cx="12" cy="12" r="5" fill="currentColor" stroke="none"/>
+        <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor" stroke="none"/>
+      </svg>
+    </div>
+    <p>Game saves on this phone stay in this browser's storage. Anyone with the phone and developer tools could read them, hidden cards included.</p>
+    <div class="account" id="account" hidden><h3>Account</h3></div>
+    <button class="btn" id="settingsDone">Done</button>
+  </div>
+</dialog>
+
+<template id="tickIcon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12.5l5 5L20 6.5"/></svg></template>
+<template id="xIcon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></template>
+
+<script src="../config.js"></script>
+<script src="../platform.js"></script>
+<script type="module" src="ui/app.js"></script>
+</body>
+</html>

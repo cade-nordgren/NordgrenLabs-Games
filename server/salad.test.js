@@ -388,23 +388,24 @@ test('a whole six-round game over HTTP: private hands throughout, host-only roun
   assert.equal(r.body.view.game.you.hand.length, 17);
 });
 
-test('X-Dev-Person: ignored in production, honoured only by a development build with Clerk unconfigured', async () => {
+test('X-NL-Dev-Person (shared with Bomb): ignored in production, honoured only by a development build with Clerk unconfigured', async () => {
+  const dev = '0f6c2d4e-8a1b-4c3d-9e5f-a7b8c9d0e1f2';
   const devEnv = { ...env, CLERK_PUBLISHABLE_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '' };
   for (const e of [env, devEnv]) {
     const res = await worker.fetch(new Request('https://games.nordgrenlabs.com/api/salad/rooms', { method: 'POST',
-      headers: { 'x-dev-person': 'alice' }, body: JSON.stringify({ name: 'A', color: 'sky' }) }), e);
+      headers: { 'x-nl-dev-person': dev }, body: JSON.stringify({ name: 'A', color: 'sky' }) }), e);
     assert.equal(res.status, 401);
-    assert.equal((await worker.fetch(new Request('https://games.nordgrenlabs.com/api/me', { headers: { 'x-dev-person': 'alice' } }), e)).status, 401);
+    assert.equal((await worker.fetch(new Request('https://games.nordgrenlabs.com/api/me', { headers: { 'x-nl-dev-person': dev } }), e)).status, 401);
   }
   const script = `globalThis.__GAMES_BUILD_MODE__ = 'development';
     const { default: worker } = await import('./worker.js');
     const ask = (env, h) => worker.fetch(new Request('http://localhost:8787/api/me', { headers: h }), env).then(async r => r.status + ' ' + await r.text());
     const off = { CLERK_PUBLISHABLE_KEY: '', CLERK_JWT_KEY: '', CLERK_ISSUER: '' };
     const on = { CLERK_PUBLISHABLE_KEY: 'pk', CLERK_JWT_KEY: ${JSON.stringify(jwtKey)}, CLERK_ISSUER: '${ISSUER}' };
-    console.log([await ask(off, { 'x-dev-person': 'alice' }), await ask(off, { 'x-dev-person': 'bad id!' }), await ask(off, {}),
-      await ask(on, { 'x-dev-person': 'alice' })].join('|'));`;
+    console.log([await ask(off, { 'x-nl-dev-person': '${dev}' }), await ask(off, { 'x-nl-dev-person': 'alice' }),
+      await ask(off, { 'x-dev-person': '${dev}' }), await ask(off, {}), await ask(on, { 'x-nl-dev-person': '${dev}' })].join('|'));`;
   const r = spawnSync(process.execPath, ['--input-type=module', '-e', script], { cwd: import.meta.dirname, encoding: 'utf8' });
-  assert.equal(r.stdout.trim(), '200 {"personPublicId":"alice"}|401 {"error":"unauthenticated"}|401 {"error":"unauthenticated"}|401 {"error":"unauthenticated"}', r.stderr);
+  assert.equal(r.stdout.trim(), `200 {"personPublicId":"${dev}"}|401 {"error":"unauthenticated"}|401 {"error":"unauthenticated"}|401 {"error":"unauthenticated"}|401 {"error":"unauthenticated"}`, r.stderr);
 });
 
 test('the changes() guard: a member row is written or moved only when the room update in the same batch won', async () => {

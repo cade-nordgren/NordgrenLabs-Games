@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pass the device</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--solid:#fff;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 380px at 50% 38%,rgba(240,124,27,.26),transparent 65%),radial-gradient(420px 360px at 0% 100%,rgba(240,124,27,.12),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:22px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.btn{min-height:44px;padding:0 18px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px}
+.btn.primary{min-height:54px;background:var(--primary);color:#fff;font-size:18px}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 16px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="flex: 1"></div>
+<div style="width: 112px; height: 112px; border-radius: 50%; background: #d96c00; color: #1d1d1f; display: grid; place-items: center; font: 800 52px/1 var(--num); box-shadow: 0 0 0 8px rgba(240,124,27,.18), 0 16px 40px rgba(240,124,27,.35)">B</div>
+<p style="margin: 18px 0 0; font-size: 15px; font-weight: 600; color: var(--ink2)">Alex's cards are hidden</p>
+<h1 style="margin: 0; font: 800 34px/1.12 var(--num); letter-spacing: -.02em">Pass the device<br>to Brooke</h1>
+<div class="glass" style="margin-top: 14px; padding: 12px 18px; border-radius: 18px; display: flex; gap: 18px; font-size: 15px">
+<span><strong style="font: 800 20px var(--num)">7</strong> <span style="color: var(--ink2)">in Brooke's hand</span></span>
+<span><strong style="font: 800 20px var(--num)">Q</strong> <span style="color: var(--ink2)">to beat</span></span>
+</div>
+<div style="flex: 1.2"></div>
+<button class="btn primary" style="width: 100%; background: #d96c00; color: #1d1d1f">Ready to play</button>
+<p style="margin: 0; font-size: 13px; color: var(--ink2)">Brooke taps when holding the phone. This screen also shows after a refresh.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

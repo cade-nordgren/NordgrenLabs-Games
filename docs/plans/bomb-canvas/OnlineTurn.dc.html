@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Online game board</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--solid:#fff;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--card:#fff;--red:#c8102e;--blk:#1d1d1f;--deck:#3a3a3c;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s.dark{--canvas:#000;--solid:#1c1c1e;--ink:#f5f5f7;--ink2:#a1a1a6;--accent:#2997ff;--primary:#0071e3;--glass:rgba(44,44,46,.6);--edge:rgba(255,255,255,.13);--hair:rgba(255,255,255,.14);--fill:rgba(120,120,128,.26);--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 40px rgba(0,0,0,.5);--card:#f2f2f4;--deck:#737378}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 0% 0%,rgba(240,124,27,.16),transparent 60%),radial-gradient(360px 320px at 100% 30%,rgba(241,179,0,.12),transparent 60%),radial-gradient(420px 360px at 60% 100%,rgba(31,115,218,.16),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:22px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.s button:disabled{cursor:default}
+.btn{min-height:50px;padding:0 16px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px}
+.btn.ink{background:var(--ink);color:var(--canvas)}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;background:var(--fill);color:var(--ink);font-size:12px;font-weight:600;white-space:nowrap}
+.av{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font:800 11px var(--num);flex:none}
+.c{position:relative;flex:none;display:block;width:56px;height:80px;border-radius:9px;background:var(--card);color:var(--blk);box-shadow:0 1px 0 rgba(0,0,0,.06),0 3px 10px rgba(0,0,0,.14),inset 0 0 0 1px rgba(0,0,0,.07);font-family:var(--num);text-align:left}
+.c.r{color:var(--red)}
+.c .i{position:absolute;top:5px;left:6px;display:flex;flex-direction:column;align-items:center;font-weight:800;font-size:17px;line-height:1;letter-spacing:-.05em}
+.c .i small{font-size:13px;margin-top:2px;letter-spacing:0}
+.c .m{position:absolute;right:6px;bottom:5px;font-size:28px;line-height:1}
+.c.xs{width:21px;height:30px;border-radius:4px}.c.xs .i{font-size:11px;top:2px;left:3px}.c.xs .i small{font-size:9px;margin-top:0}.c.xs .m{display:none}
+.c.sm{width:44px;height:62px;border-radius:7px}.c.sm .i{font-size:14px;top:4px;left:5px}.c.sm .i small{font-size:11px}.c.sm .m{font-size:20px;right:4px;bottom:3px}
+.c.md{width:62px;height:88px;border-radius:10px}.c.md .i{font-size:19px;top:6px;left:7px}.c.md .i small{font-size:15px}.c.md .m{font-size:30px;right:6px;bottom:5px}
+.c.lg{width:62px;height:90px;border-radius:10px}.c.lg .i{font-size:19px;top:6px;left:7px}.c.lg .i small{font-size:15px}.c.lg .m{font-size:32px;right:6px;bottom:6px}
+.c.sel{transform:translateY(-14px);box-shadow:0 0 0 3px var(--accent),0 12px 24px rgba(0,0,0,.22)}
+.c.new::after{content:"";position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--canvas)}
+.back{background-color:var(--pc);box-shadow:inset 0 0 0 3px var(--pc),inset 0 0 0 4.5px rgba(255,255,255,.75),0 3px 10px rgba(0,0,0,.16)}
+.c.xs.back{box-shadow:inset 0 0 0 2px var(--pc),inset 0 0 0 3px rgba(255,255,255,.7),0 1px 4px rgba(0,0,0,.16)}
+.p-stripes{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.24) 0 3px,transparent 3px 9px)}
+.p-waves{background-image:radial-gradient(circle at 50% 100%,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px),radial-gradient(circle at 50% 0,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px);background-size:12px 7px;background-position:0 0,6px 3.5px}
+.p-diamonds{background-image:conic-gradient(from 45deg,rgba(255,255,255,.26) 0 25%,transparent 0 50%,rgba(255,255,255,.26) 0 75%,transparent 0);background-size:12px 12px;background-position:center}
+.p-crosshatch{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.24) 0 1.5px,transparent 1.5px 7px),repeating-linear-gradient(-45deg,rgba(255,255,255,.24) 0 1.5px,transparent 1.5px 7px)}
+.p-plain{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.14) 0 2px,transparent 2px 7px)}
+.opp{padding:8px;border-radius:16px;min-width:0}
+.opp.now{box-shadow:0 0 0 3px var(--pc),var(--shadow)}
+.spot{position:relative;width:21px;height:36px;flex:none}
+.spot>.c{position:absolute;left:0}.spot>.back{top:0}.spot>.up{top:6px}
+.slot{position:relative;width:44px;height:72px;flex:none}
+.slot>.c{position:absolute;left:0}.slot>.back{top:0}.slot>.up{top:10px}
+.lock .c{opacity:.5;filter:saturate(.5)}
+.tray{display:flex;gap:8px;padding:18px 2px 4px;overflow-x:auto}
+.dots{display:inline-flex;gap:4px}.dots i{width:7px;height:7px;border-radius:50%;background:var(--ink2)}.dots i+i{opacity:.6}.dots i+i+i{opacity:.3}
+</style>
+</helmet>
+<div class="{{rootCls}}" style="width: 390px; height: 844px; padding: 24px 16px 16px; display: flex; flex-direction: column; gap: 12px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+
+<div style="min-height: 48px; padding-right: 58px; display: flex; flex-direction: column; justify-content: center">
+<h1 style="margin: 0; font: 800 26px/1.1 var(--num); letter-spacing: -.02em">{{title}}</h1>
+<p class="cap" style="font-weight: 500">Room BXMRTW · 4 players · 2 decks</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{opps}}" as="o" hint-placeholder-count="3">
+<section class="{{o.cls}}" aria-label="{{o.aria}}" style="--pc: {{o.hex}}">
+<div style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: {{o.hex}}; color: {{o.ink}}">{{o.initial}}</span><strong style="font-size: 14px; line-height: 1.1; min-width: 0; overflow: hidden; text-overflow: ellipsis">{{o.name}}</strong></div>
+<p class="cap" style="font-weight: 500; font-size: 12px; margin-top: 2px">{{o.status}}</p>
+<div style="display: flex; gap: 4px; margin-top: 6px">
+<sc-for list="{{o.table}}" as="t" hint-placeholder-count="4"><div class="spot"><div class="{{t.backCls}}"></div><div class="{{t.cls}} up"><span class="i">{{t.r}}<small>{{t.s}}</small></span></div></div></sc-for>
+</div>
+</section>
+</sc-for>
+</div>
+
+<section class="glass" aria-label="Table" style="padding: 12px 14px; display: grid; grid-template-columns: 60px minmax(0, 1fr) 92px; gap: 10px; align-items: center">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 6px; --pc: var(--deck)">
+<div style="position: relative; width: 48px; height: 72px"><div class="c back p-plain" style="position: absolute; width: 46px; height: 66px; top: 0; left: 0"></div><div class="c back p-plain" style="position: absolute; width: 46px; height: 66px; top: 4px; left: 2px"></div></div>
+<span class="cap" style="text-align: center; line-height: 1.2">Deck<br><strong style="color: var(--ink); font: 800 16px var(--num)">31</strong></span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 6px">
+<div style="position: relative; width: {{pileW}}px; height: 94px">
+<sc-for list="{{pile}}" as="k" hint-placeholder-count="3"><div class="{{k.cls}}" style="position: absolute; top: 2px; left: {{k.x}}px; transform: rotate({{k.rot}}deg)"><span class="i">{{k.r}}<small>{{k.s}}</small></span><span class="m">{{k.s}}</span></div></sc-for>
+</div>
+<span class="cap">Pile · {{pileCount}}</span>
+</div>
+<div style="text-align: center; line-height: 1.15">
+<p class="cap">To beat</p>
+<div style="font: 800 42px/1.05 var(--num); letter-spacing: -.03em">Q</div>
+<p class="cap" style="font-weight: 500; font-size: 12px; margin-top: 2px">{{beatNote}}</p>
+</div>
+</section>
+
+<section aria-label="Your table" style="--pc: #1f6fd6">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><h2 class="cap" style="color: var(--ink); font-size: 14px">Your table</h2><span class="cap" style="font-weight: 500">after your hand and the deck</span></div>
+<div class="{{lockCls}}" style="display: flex; gap: 10px; margin-top: 8px">
+<sc-for list="{{mine}}" as="t" hint-placeholder-count="4"><div class="slot"><div class="c sm back p-stripes"></div><div class="{{t.cls}} up"><span class="i">{{t.r}}<small>{{t.s}}</small></span><span class="m">{{t.s}}</span></div></div></sc-for>
+</div>
+</section>
+
+<section aria-label="Your hand" style="min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px"><span class="av" style="background: #1f6fd6; color: #fff">A</span><h2 class="cap" style="color: var(--ink); font-size: 14px; flex: 1">Alex · your hand · 5</h2><span class="cap" style="font-weight: 500">{{handNote}}</span></div>
+<div class="{{trayCls}}" style="margin: 0 -16px; padding-left: 16px; padding-right: 16px">
+<sc-for list="{{hand}}" as="k" hint-placeholder-count="5"><button class="{{k.cls}}" aria-label="{{k.name}}" aria-pressed="{{k.pressed}}" disabled="{{waiting}}"><span class="i">{{k.r}}<small>{{k.s}}</small></span><span class="m">{{k.s}}</span></button></sc-for>
+</div>
+</section>
+
+<div style="flex: 1"></div>
+<sc-if value="{{myTurn}}" hint-placeholder-val="{{ true }}">
+<div style="display: flex; gap: 8px">
+<button class="btn" style="flex: 1">Pick up 6</button>
+<button class="btn ink" style="flex: 1.4">Play 2 Queens</button>
+</div>
+<p class="cap" style="font-weight: 500; text-align: center">Your turn passes to Brooke as soon as you play.</p>
+</sc-if>
+<sc-if value="{{waiting}}" hint-placeholder-val="{{ false }}">
+<div class="glass" role="status" style="min-height: 50px; padding: 8px 16px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 10px">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><strong style="font-size: 16px">Waiting for Brooke</strong>
+</div>
+<p class="cap" style="font-weight: 500; text-align: center">Then Sam and Dana. You play after Dana.</p>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"waiting":{"editor":"boolean","default":false},"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const waiting = !!this.props.waiting;
+    const SU = { S: ['♠︎', 'spades', 0], H: ['♥︎', 'hearts', 1], D: ['♦︎', 'diamonds', 1], C: ['♣︎', 'clubs', 0] };
+    const RN = { A: 'Ace', K: 'King', Q: 'Queen', J: 'Jack' };
+    const card = (code, size, extra) => { const r = code.slice(0, -1), u = SU[code.slice(-1)]; return { r, s: u[0], name: (RN[r] || r) + ' of ' + u[1], cls: 'c ' + size + (u[2] ? ' r' : '') + (extra ? ' ' + extra : '') }; };
+    // Opponents in seat order after you: name, colour, ink that passes on it, card-back pattern, hand count, face-up cards.
+    const opps = [['Brooke', '#d96c00', '#1d1d1f', 'waves', 6, ['KS', '9D', 'AC', '5H']],
+      ['Sam', '#1c7f3e', '#fff', 'diamonds', 4, ['JH', '8S', '3C', 'KD']],
+      ['Dana', '#9046d6', '#fff', 'crosshatch', 7, ['AH', '6S', '10D', '4C']]];
+    const hand = waiting ? ['4C', '7H', 'AD', '3S', 'JC'] : ['4C', '7H', 'QS', 'QH', 'AD'];
+    const sel = waiting ? [] : ['QS', 'QH'];
+    const fresh = waiting ? ['3S', 'JC'] : [];
+    const pileCodes = waiting ? ['9H', 'QD', 'QS', 'QH'] : ['6C', '9H', 'QD'];
+    return {
+      rootCls: 's' + (this.props.dark ? ' dark' : ''),
+      waiting, myTurn: !waiting,
+      title: waiting ? "Brooke's turn" : 'Your turn',
+      opps: opps.map(([name, hex, ink, pat, n, up], i) => {
+        const now = waiting && i === 0;
+        return {
+          name, hex, ink, initial: name[0],
+          cls: 'glass opp' + (now ? ' now' : ''),
+          status: now ? 'Playing · ' + n + ' in hand' : n + ' in hand',
+          aria: name + ', ' + n + ' cards in hand' + (now ? ', playing now' : ''),
+          table: up.map((c) => ({ ...card(c, 'xs'), backCls: 'c xs back p-' + pat }))
+        };
+      }),
+      pile: pileCodes.map((c, i) => ({ ...card(c, 'lg'), x: i * 20, rot: [-6, 3, -2, 5][i] })),
+      pileW: 62 + (pileCodes.length - 1) * 20,
+      pileCount: waiting ? 8 : 6,
+      beatNote: waiting ? 'three Queens in a row' : 'or higher, or a 2 or 10',
+      mine: ['AS', 'KH', '10C', '2D'].map((c) => card(c, 'sm')),
+      lockCls: waiting ? 'lock' : '',
+      hand: hand.map((c) => ({ ...card(c, 'md', (sel.includes(c) ? 'sel' : '') + (fresh.includes(c) ? ' new' : '')), pressed: sel.includes(c) ? 'true' : 'false' })),
+      handNote: waiting ? 'drew 2' : '2 selected',
+      trayCls: 'tray' + (waiting ? ' lock' : '')
+    };
+  }
+}
+</script>
+</body>
+</html>

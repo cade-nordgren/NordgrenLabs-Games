@@ -1,0 +1,16 @@
+{
+  "id": "/bomb/",
+  "name": "Bomb",
+  "short_name": "Bomb",
+  "description": "A shedding card game for two to six players, on one phone or online.",
+  "start_url": "/bomb/",
+  "scope": "/bomb/",
+  "display": "standalone",
+  "theme_color": "#f6f3ec",
+  "background_color": "#f6f3ec",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

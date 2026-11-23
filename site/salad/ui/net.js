@@ -6,17 +6,19 @@ const ID = /^[A-Za-z0-9_-]{1,64}$/;
 const local = ['127.0.0.1', 'localhost', '[::1]'].includes(location.hostname) || /\.(localhost|test)$/.test(location.hostname);
 const signInOn = typeof window.NL_CONFIG?.clerkPublishableKey === 'string';
 
-// Local development (signed out, Worker in --env dev): X-Dev-Person names the person. ?as=alice picks it; otherwise a
-// random id per tab, so every tab is its own player.
+// Local development (signed out, Worker in --env dev): X-NL-Dev-Person names the person with a UUID, which only a
+// development build of the Worker reads. ?as=alice keeps one stable UUID per name in localStorage; otherwise a random
+// UUID per tab, so every tab is its own player.
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const devPerson = (() => {
   if (signInOn || !local) return null;
   const as = new URLSearchParams(location.search).get('as');
-  if (as && ID.test(as)) return as;
+  const [store, key] = as && ID.test(as) ? [() => localStorage, `nl-salad-dev-${as}`] : [() => sessionStorage, 'nl-salad-dev'];
   try {
-    let id = sessionStorage.getItem('nl-salad-dev');
-    if (!id || !ID.test(id)) sessionStorage.setItem('nl-salad-dev', id = 'p' + crypto.randomUUID().slice(0, 8));
+    let id = store().getItem(key);
+    if (!UUID.test(id ?? '')) store().setItem(key, id = crypto.randomUUID());
     return id;
-  } catch { return 'p' + crypto.randomUUID().slice(0, 8); }
+  } catch { return crypto.randomUUID(); }
 })();
 
 // The room this person was last in, so a reload or a later visit gets back to the table.
@@ -40,7 +42,7 @@ let gen = 0; // bumps when we leave a room, so a stale poll loop stops
 
 async function headers(fresh) {
   const h = { 'Content-Type': 'application/json' };
-  if (devPerson) h['X-Dev-Person'] = devPerson;
+  if (devPerson) h['X-NL-Dev-Person'] = devPerson;
   else if (signInOn) {
     const t = await NL.token(fresh);
     if (t) h.Authorization = `Bearer ${t}`;

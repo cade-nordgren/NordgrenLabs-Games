@@ -11,7 +11,7 @@ const valid = r => !!r && typeof r === 'object' && r.schemaVersion === 1 && UUID
   && typeof r.title === 'string' && (r.status === 'in_progress' || r.status === 'finished')
   && ISO.test(r.createdAt) && ISO.test(r.updatedAt) && !!r.state && typeof r.state === 'object';
 
-// Resolves null once the body passes `max` bytes and stops reading; nothing past the cap is buffered. Also used by salad.js.
+// Resolves null once the body passes max and stops reading; nothing past the cap is buffered.
 export async function readBody(request, max = MAX_BYTES) {
   if (!request.body) return '';
   const reader = request.body.getReader();
