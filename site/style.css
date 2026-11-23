@@ -109,9 +109,17 @@ button:disabled { opacity: .35; cursor: default; }
 .btn.primary { width: 100%; min-height: 54px; background: var(--primary); color: #fff; font-size: 18px; }
 .btn.danger { background: color-mix(in srgb, var(--danger) 14%, transparent); color: var(--danger); }
 
-a.tile { display: block; padding: 20px; color: var(--ink); }
-a.tile strong { display: block; font: 700 24px var(--num); }
-a.tile span { color: var(--ink2); }
+/* Games list: a card per game with just its name (the whole card opens it) and an "i" that shows the description. */
+.games { display: grid; gap: 10px; }
+.tile { position: relative; display: grid; grid-template-columns: 1fr 44px; align-items: center; column-gap: 8px; padding: 6px 8px 6px 18px; }
+.tile a { font: 600 19px var(--num); color: var(--ink); text-decoration: none; min-height: 44px; display: flex; align-items: center; }
+.tile a::after { content: ""; position: absolute; inset: 0; border-radius: inherit; }
+.tile .info { position: relative; z-index: 1; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; color: var(--ink2); }
+.tile .info svg { width: 24px; height: 24px; }
+.tile .info[aria-expanded="true"] { color: var(--ink); background: var(--fill); }
+.tile[hidden] { display: none; }
+.games .empty { margin: 8px 0; color: var(--ink2); text-align: center; }
+.tile p { grid-column: 1 / -1; margin: 0 10px 10px 0; color: var(--ink2); font-size: 15px; }
 /* Account control filled by NL.account(); not(hidden) so the hidden attribute still wins. */
 .account:not([hidden]) { display: grid; gap: 10px; }
 .account p { margin: 0; color: var(--ink2); font-size: 15px; }
