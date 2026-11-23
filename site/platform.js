@@ -355,8 +355,8 @@
   // above the bottom edge. --short is that shortfall; style.css gives it back to the sheet. Zero everywhere else.
   // shortcut: measured from screen size, unconfirmed off an iPhone; drop it if the readout below shows it is not needed.
   const fit = () => {
-    const full = innerHeight > innerWidth ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-    const d = navigator.standalone ? full - innerHeight : 0;
+    if (!globalThis.navigator?.standalone) return; // only an iPhone home-screen app sets this
+    const d = (innerHeight > innerWidth ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height)) - innerHeight;
     document.documentElement.style.setProperty('--short', (d > 0 && d < 100 ? d : 0) + 'px');
   };
   fit(); addEventListener('resize', fit);
