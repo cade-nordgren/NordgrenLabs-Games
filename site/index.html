@@ -33,47 +33,39 @@
       <button value="other" aria-pressed="false">Other</button>
     </div>
     <button class="btn" id="aboutAll" style="margin-bottom: 16px">Show descriptions</button>
-    <!-- Groups and the games inside each stay in alphabetical order. -->
-    <div id="groups">
-      <section class="games" data-kind="cards">
-      <h2>Cards</h2>
-      <div class="glass tile">
-        <a href="bomb/index.html">Bomb</a>
-        <button class="info" aria-expanded="false" aria-controls="about-4" aria-label="About Bomb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
-        <p id="about-4" hidden>Shed every card before anyone else, with 2s that reset and 10s that bomb the pile, for two to six players on one phone or online.</p>
-      </div>
-      <div class="glass tile">
-        <a href="salad/index.html">Canadian Salad</a>
-        <button class="info" aria-expanded="false" aria-controls="about-5" aria-label="About Canadian Salad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
-        <p id="about-5" hidden>Six rounds of tricks for 2 to 8 players, each on their own device. Lowest score wins.</p>
-      </div>
-      </section>
-      <section class="games" data-kind="dice">
-      <h2>Dice</h2>
-      <div class="glass tile">
+    <!-- Games stay in alphabetical order; data-kind is cards, dice or other. -->
+    <div class="games">
+      <div class="glass tile" data-kind="dice">
         <a href="bank/index.html">Bank</a>
         <button class="info" aria-expanded="false" aria-controls="about-0" aria-label="About Bank"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-0" hidden>A push-your-luck dice game for two or more. Bring your own dice or roll on screen.</p>
       </div>
-      <div class="glass tile">
+      <div class="glass tile" data-kind="cards">
+        <a href="bomb/index.html">Bomb</a>
+        <button class="info" aria-expanded="false" aria-controls="about-4" aria-label="About Bomb"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+        <p id="about-4" hidden>Shed every card before anyone else, with 2s that reset and 10s that bomb the pile, for two to six players on one phone or online.</p>
+      </div>
+      <div class="glass tile" data-kind="cards">
+        <a href="salad/index.html">Canadian Salad</a>
+        <button class="info" aria-expanded="false" aria-controls="about-5" aria-label="About Canadian Salad"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
+        <p id="about-5" hidden>Six rounds of tricks for 2 to 8 players, each on their own device. Lowest score wins.</p>
+      </div>
+      <div class="glass tile" data-kind="dice">
         <a href="crossix/index.html">Crossix</a>
         <button class="info" aria-expanded="false" aria-controls="about-1" aria-label="About Crossix"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-1" hidden>Cross off numbers in four coloured lanes, for one to five players. Keep score for your own dice or roll on screen.</p>
       </div>
-      </section>
-      <section class="games" data-kind="other">
-      <h2>Other</h2>
-      <div class="glass tile">
+      <div class="glass tile" data-kind="other">
         <a href="dots/index.html">Dots and Boxes</a>
         <button class="info" aria-expanded="false" aria-controls="about-3" aria-label="About Dots and Boxes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-3" hidden>Draw lines between dots and close boxes to claim them, for two players on one device. Squares, shapes, triangles and hexagons.</p>
       </div>
-      <div class="glass tile">
+      <div class="glass tile" data-kind="other">
         <a href="keep/index.html">Dragon's Keep</a>
         <button class="info" aria-expanded="false" aria-controls="about-2" aria-label="About Dragon's Keep"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg></button>
         <p id="about-2" hidden>Explore a keep, grab gold and reach a tower before sunset, for one to four players on one device.</p>
       </div>
-      </section>
+      <p class="empty" hidden>No games here yet.</p>
     </div>
   </main>
 </div>
@@ -94,13 +86,12 @@
 <script src="platform.js"></script>
 <script>
 NL.account(document.getElementById('account'));
-// Tabs show one group or all of them; the choice is remembered on this device.
-const groups = [...document.querySelectorAll('#groups section')];
+// Tabs filter the list by kind; the choice is remembered on this device.
+const tiles = [...document.querySelectorAll('.tile')], empty = document.querySelector('.games .empty');
 const showKind = NL.segmented(document.getElementById('filter'), pick);
 function pick(k) {
-  groups.forEach(g => g.hidden = k !== 'all' && g.dataset.kind !== k);
-  // The first group on screen sits flush under the buttons.
-  groups.filter(g => !g.hidden).forEach((g, i) => g.style.marginTop = i ? '24px' : 0);
+  for (const t of tiles) t.hidden = k !== 'all' && t.dataset.kind !== k;
+  empty.hidden = tiles.some(t => !t.hidden);
   showKind(k);
   try { localStorage.setItem('nl-games-filter', k); } catch (e) {}
 }
