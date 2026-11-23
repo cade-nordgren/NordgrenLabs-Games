@@ -808,7 +808,11 @@ function skipReveal() {
   render();
 }
 $('skip').onclick = e => { e.stopPropagation(); skipReveal(); };
-$('results').onclick = skipReveal; // tap anywhere on the results while counting
+// Tap anywhere on the results while counting skips it, but only a tap that began there: on a phone held upright the
+// board shrinks when the last line ends the game, and the click from that same finger lands on the results.
+let downOnResults = false;
+document.addEventListener('pointerdown', e => { downOnResults = $('results').contains(e.target); }, true);
+$('results').onclick = () => { if (downOnResults) skipReveal(); downOnResults = false; };
 
 // ---- Rendering
 function render() {
