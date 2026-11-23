@@ -509,3 +509,14 @@ test('the whole game replays identically from the seed and the actions', () => {
   const again = actions.reduce(reduce, createGame({ players: 4, seed: 42 }));
   assert.deepEqual(again, g);
 });
+
+test('views say which deck each face-down card and the next draw came from; two decks are shuffled together', () => {
+  const g = createGame({ players: 2, decks: 2, seed: 3 });
+  const v = viewFor(g, 0);
+  assert.equal(v.nextDeck, g.deck[0].deck);
+  v.players.forEach((q, i) => assert.deepEqual(q.downDeck, g.players[i].down.map(c => c.deck)));
+  // Across a few seeds, some player's face-down cards come from both decks: nobody just gets "their" deck.
+  const mixed = [1, 2, 3, 4, 5].some(seed => createGame({ players: 2, decks: 2, seed }).players.some(p => new Set(p.down.map(c => c.deck)).size > 1));
+  assert.ok(mixed);
+  assert.equal(viewFor({ ...g, deck: [] }, 0).nextDeck, null);
+});

@@ -54,6 +54,6 @@ test('only site/ is published, and it holds only site files', () => {
   assert.equal(config.assets.run_worker_first, true); // the sign-in gate must see every request (decisions/0003)
   const files = readdirSync(new URL('../site/', import.meta.url), { recursive: true, withFileTypes: true })
     .filter(f => f.isFile()).map(f => f.name);
-  // webp art and woff2 fonts for Dragon's Keep; the fonts' OFL licence texts ship beside them.
-  for (const name of files) assert.match(name, /^([a-z0-9_-]+\.(html|css|js|png|svg|ico|webmanifest|webp|woff2)|OFL-[a-z]+\.txt|_headers)$/, name);
+  // webp art and woff2 fonts for Dragon's Keep; the fonts' OFL licence texts ship beside them; jpg card art in decks/.
+  for (const name of files) assert.match(name, /^([a-z0-9_-]+\.(html|css|js|png|jpg|svg|ico|webmanifest|webp|woff2)|OFL-[a-z]+\.txt|_headers)$/, name);
 });

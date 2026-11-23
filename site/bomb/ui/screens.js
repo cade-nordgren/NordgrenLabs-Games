@@ -2,6 +2,7 @@
 // Nothing here changes game state; taps call the handlers the caller passes in. Both modes use these same screens.
 import { label } from '../engine/cards.js';
 import { style } from './styles.js';
+import { DECKS, deckOf, faceUrl, backUrl } from '../../decks/decks.js';
 import { SUIT, isRed, cardName, sortHand, canPlaySel, playLabel, beatInfo, lastLine, nextLabel, firstLine,
   plural, listOf, rankName } from './logic.js';
 
@@ -25,23 +26,56 @@ export function paint(e, styleId) {
   e.style.setProperty('--pi', s.ink);
   return e;
 }
-export function face(c, { button = false, cls = '' } = {}) {
+// Picture deck from site/decks ('' for Bomb's own drawn cards), chosen in Settings and kept on this device.
+const DECK_KEY = 'nl-bomb-deck';
+let deck = (() => { try { const v = localStorage.getItem(DECK_KEY); return deckOf(v) ? v : ''; } catch { return ''; } })();
+export const cardDeck = () => deck;
+export function setCardDeck(id) {
+  deck = deckOf(id) ? id : '';
+  try { deck ? localStorage.setItem(DECK_KEY, deck) : localStorage.removeItem(DECK_KEY); } catch {}
+}
+export { DECKS };
+// One deck: each player's cards wear that player's style. More than one: the decks are shuffled together and deck d
+// is dressed in the style of player d (seat order, wrapping), so every card shows its own deck's back, and a picture
+// deck's face, whoever holds it. Set by the screens that draw cards.
+let tableDecks = null;
+const useDecks = (view, people) => { tableDecks = view.decks > 1 ? people.map(p => p.style) : null; };
+const deckStyle = d => tableDecks[d % tableDecks.length];
+// The style on the back of face-down card i of a player (person who, view player q).
+const downStyle = (who, q, i) => tableDecks && Number.isInteger(q.downDeck?.[i]) ? deckStyle(q.downDeck[i]) : who.style;
+// art: a deck id ('' for drawn cards) to preview instead of the one the card would wear.
+export function face(c, { button = false, cls = '', art: show } = {}) {
   const e = el(button ? 'button' : 'span', `card${isRed(c.suit) ? ' r' : ''}${cls ? ' ' + cls : ''}`);
   const i = el('span', 'i', label(c.rank));
   i.append(el('small', '', sym(c.suit)));
   e.append(i, el('span', 'm', sym(c.suit)));
+  const art = show !== undefined ? show : tableDecks && Number.isInteger(c.deck) ? style(deckStyle(c.deck))?.deck : deck;
+  const pic = faceUrl(art, label(c.rank), c.suit);
+  if (pic) { const img = el('img', 'pic'); img.alt = ''; img.src = pic; e.append(img); }
   e.setAttribute('aria-label', cardName(c));
   if (button) e.type = 'button'; else e.setAttribute('role', 'img');
   if (c.id) e.dataset.id = c.id;
   return e;
 }
-export function back(styleId, cls = '') {
-  const s = style(styleId), e = el('span', `card back p-${s.pattern}${cls ? ' ' + cls : ''}`);
+// A player's card back: their deck's picture, or their colour and pattern.
+const dress = (e, s) => {
   e.style.setProperty('--pc', s.hex);
+  if (s.deck) { e.classList.add('pic-back'); e.style.setProperty('--img', `url("${backUrl(s.deck)}")`); }
+  return e;
+};
+export function back(styleId, cls = '') {
+  const s = style(styleId), e = dress(el('span', `card back p-${s.pattern}${cls ? ' ' + cls : ''}`), s);
   e.setAttribute('aria-hidden', 'true');
   return e;
 }
-export const deckBack = () => { const e = el('span', 'card back deck'); e.setAttribute('aria-hidden', 'true'); return e; };
+// The draw pile wears the picture deck's back; players' own backs keep their colours, which say whose cards they are.
+export const deckBack = view => {
+  if (tableDecks && Number.isInteger(view?.nextDeck)) return back(deckStyle(view.nextDeck)); // the next card's own back
+  const e = el('span', 'card back deck'), pic = backUrl(deck);
+  if (pic) { e.classList.add('pic-back'); e.style.setProperty('--img', `url("${pic}")`); }
+  e.setAttribute('aria-hidden', 'true');
+  return e;
+};
 export function whoChip(person) {
   const c = paint(el('span', 'who'), person.style);
   c.append(el('i', '', initial(person.name)), el('span', '', person.name));
@@ -92,6 +126,7 @@ export function handoffScreen(view, people, seat, { choosing, from }) {
 // ---- Face-up choice. picks: four ids or null (table positions); on: the position picked to swap, or null.
 export function chooseScreen(view, people, seat, ui, { onPick, onSlot, onConfirm, online, waitingNames, desc }) {
   const p = people[seat], you = view.you, mine = view.players[seat];
+  useDecks(view, people);
   const nine = sortHand([...you.hand, ...(mine.up || [])], desc);
   // Where each card was before this redraw, so a card that changed table spots slides there (FLIP).
   const rects = sel => new Map([...document.querySelectorAll(sel)].map(e => [e.dataset.id, e.getBoundingClientRect()]));
@@ -103,7 +138,7 @@ export function chooseScreen(view, people, seat, ui, { onPick, onSlot, onConfirm
   $('chooseTitle').textContent = `${p.name}, pick your four face-up cards`;
   const table = ui.picks.map((id, i) => {
     const s = el('div', 'cslot');
-    s.append(back(p.style));
+    s.append(back(downStyle(p, mine, i)));
     if (id) {
       const b = face(byId.get(id), { button: true, cls: 'up' + (ui.on === i ? ' on' : '') });
       b.setAttribute('aria-label', `${cardName(byId.get(id))}, table spot ${i + 1}${ui.on === i ? ', chosen to swap' : ''}`);
@@ -163,6 +198,7 @@ export function waitScreen(view, people, me) {
 // onPick, onNext, onSort }
 export function tableScreen(ctx) {
   const { view, people, me, online } = ctx, you = view.you, mp = view.players[me], person = people[me];
+  useDecks(view, people);
   const myTurn = view.phase === 'play' && view.turn === me && !view.pending;
   $('tableInfo').textContent = ctx.info;
 
@@ -180,7 +216,7 @@ export function tableScreen(ctx) {
     spots.setAttribute('aria-hidden', 'true');
     for (let i = 0; i < 4; i++) {
       const sp = el('div', 'spot'), u = q.up?.[i];
-      if (q.down[i]) sp.append(back(who.style));
+      if (q.down[i]) sp.append(back(downStyle(who, q, i)));
       if (u) sp.append(face(u, { cls: 'mini up' }));
       if (!q.down[i] && !u) sp.append(el('span', 'card mini slot-empty up'));
       spots.append(sp);
@@ -195,7 +231,7 @@ export function tableScreen(ctx) {
   }
 
   // Centre: deck, pile (top four fanned), and what to beat.
-  $('deckStack').replaceChildren(...(view.deck ? [deckBack(), deckBack()] : [el('span', 'card slot-empty')]));
+  $('deckStack').replaceChildren(...(view.deck ? [deckBack(view), deckBack(view)] : [el('span', 'card slot-empty')]));
   $('deckStack').querySelectorAll('.card').forEach(c => c.style.setProperty('--w', 'var(--dw)'));
   $('deckCap').replaceChildren('Deck', el('br'), el('strong', '', view.deck || 'Empty'));
   const top = view.pile.slice(-4), pile = $('pile');
@@ -221,14 +257,14 @@ export function tableScreen(ctx) {
   $('mySpots').replaceChildren(...[0, 1, 2, 3].map(i => {
     const s = el('div', 'mslot'), u = mp.up?.[i];
     if (mp.down[i]) {
+      const ds = style(downStyle(person, mp, i));
       if (fromDown && you.blind.includes(i)) {
-        const b = el('button', `card back p-${style(person.style).pattern} tap`);
-        b.style.setProperty('--pc', style(person.style).hex);
+        const b = dress(el('button', `card back p-${ds.pattern} tap`), ds);
         b.setAttribute('aria-label', `Face-down card ${i + 1}, turn it over`);
         b.dataset.k = `down${i}`;
         b.onclick = () => ctx.onSlot(i);
         s.append(b);
-      } else s.append(back(person.style));
+      } else s.append(back(ds.id));
     }
     if (u) s.append(cardButton(u, fromUp, ctx, 'up'));
     if (!mp.down[i] && !u) s.append(el('span', 'card slot-empty'));

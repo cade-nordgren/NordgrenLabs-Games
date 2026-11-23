@@ -102,7 +102,7 @@ test('join: a taken style gets the first free one; joining again is a reconnect 
   const c = await create(P[0], { style: 'scarlet' });
   const code = c.body.view.room.code;
   const r = await join(P[1], code, { style: 'scarlet' });
-  assert.equal(r.body.view.room.seats[1].style, 'cobalt');
+  assert.equal(r.body.view.room.seats[1].style, STYLES[0]); // the first free style: a picture deck
   const again = await join(P[1], code, { name: 'Other', style: 'lime' });
   assert.equal(again.status, 200);
   assert.equal(again.body.version, r.body.version);

@@ -9,7 +9,7 @@ export function viewFor(g, seat = null) {
   return structuredClone({
     v: g.v, phase: g.phase, decks: g.decks, first: g.first, firstWhy: g.firstWhy ?? null,
     turn: g.turn, pending: g.pending, winner: g.winner, turns: g.turns,
-    deck: g.deck.length, removed: g.removed.length,
+    deck: g.deck.length, nextDeck: g.deck[0]?.deck ?? null, removed: g.removed.length,
     pile: g.pile, required: required(g.pile), streak: streak(g.pile),
     last: g.last,
     players: g.players.map((q, i) => ({
@@ -17,6 +17,7 @@ export function viewFor(g, seat = null) {
       // Face-up choices stay private until everyone has confirmed.
       up: g.phase !== 'choose' || i === me ? q.up : null,
       down: q.down.map(Boolean),
+      downDeck: q.down.map(c => c ? c.deck : null), // which deck each face-down card came from: its back shows it
       left: q.hand.length + q.up.filter(Boolean).length + q.down.filter(Boolean).length,
       ready: q.ready, bombs: q.bombs, pickups: q.pickups,
     })),
