@@ -102,6 +102,8 @@ Run the tests with `cd server && npm install && npm test`. They call the real Wo
 
 The saves API in `server/saves.js` backs the four `NL.saves` methods: `GET /api/saves?game=<game>` is `list`, `GET /api/saves/<id>` is `get`, `PUT /api/saves/<id>` is `put` and `DELETE /api/saves/<id>` is `remove`. Every save is keyed on the verified `nl_person_id`, so another person's save always answers 404, and the `personPublicId` a client sends is replaced with the verified one. Saves live in the D1 database `games` (schema in `migrations/`), and each person may keep 200 saves of at most 256 KB each. D1 has no interactive transactions, so every ownership or cap check sits in the same statement as the read or write it guards.
 
+Bomb's online rooms are in `server/rooms.js` (decision 0004, API in `docs/plans/bomb-online-contract.md`, tables in `migrations/0002_rooms.sql`): `POST /api/bomb/rooms`, `POST /api/bomb/rooms/join`, the long poll `GET /api/bomb/rooms/<id>?since=<version>` and `POST /api/bomb/rooms/<id>/actions`, behind the same bearer check. The Worker runs the Bomb engine from `site/bomb/engine/`, keeps the whole room in one D1 row written with `UPDATE ... WHERE version = ?`, and sends each phone only its own `viewFor`. Under `npm run dev` (sign-in off) the API takes the caller from an `X-NL-Dev-Person: <uuid>` header, so two tabs can be two players; only a development build with no Clerk key reads it. Shipping it needs `npm run db:migrate` for `0002_rooms.sql` before the deploy.
+
 A new game folder under `site/` ships without any change to the Worker and is behind the gate from the start. Anything that must not be served at all stays outside `site/`. `docs/runbooks/deploy.md` has the release steps.
 
 ## Decisions log

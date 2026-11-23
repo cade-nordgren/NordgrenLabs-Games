@@ -7,8 +7,8 @@ import { verifyJwt } from '@clerk/backend/jwt';
 const PRODUCTION_AUTHORIZED_PARTY = 'https://games.nordgrenlabs.com';
 const DEVELOPMENT_AUTHORIZED_PARTY = 'http://localhost:8787';
 // __GAMES_BUILD_MODE__ is a wrangler `define`, replaced at build time (wrangler.jsonc); never a runtime variable.
-export const AUTHORIZED_PARTY = typeof __GAMES_BUILD_MODE__ !== 'undefined' && __GAMES_BUILD_MODE__ === 'development'
-  ? DEVELOPMENT_AUTHORIZED_PARTY : PRODUCTION_AUTHORIZED_PARTY;
+const DEVELOPMENT = typeof __GAMES_BUILD_MODE__ !== 'undefined' && __GAMES_BUILD_MODE__ === 'development';
+export const AUTHORIZED_PARTY = DEVELOPMENT ? DEVELOPMENT_AUTHORIZED_PARTY : PRODUCTION_AUTHORIZED_PARTY;
 
 const SKEW_S = 5;
 const MAX_TOKEN_LENGTH = 4096;
@@ -19,6 +19,11 @@ const MAX_SESSION_COOKIES = 4; // bounds the signature checks one request can as
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const filled = v => typeof v === 'string' && v.length > 0;
 const base64url = s => new TextDecoder().decode(Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/')), c => c.charCodeAt(0)));
+
+// Development build with sign-in off only (`wrangler dev --env dev`): a local tab names its own person in the
+// X-NL-Dev-Person header, so several people can share an online room on one machine. The production build defines
+// "production", so this is always null there, and a configured JWT key turns it off in any build.
+export const devPerson = (header, jwtKey) => DEVELOPMENT && !filled(jwtKey) && UUID.test(header ?? '') ? header : null;
 
 // The API reads only the bearer header.
 export const verify = (authorization, options) => check(BEARER.exec(authorization ?? '')?.[1], options);
