@@ -1012,3 +1012,17 @@ check the game can easily be played in landscape or portrait mode.
 Allow users to also pick their own style of cards. Based on the color or design on the back of the Cards, switch the color of the player but ensure ike in dots and boxes that color contrasts are compatible.
 
 i am going to bed. Get as much of this project done as possible, designed, tested, and built to my website as possible. I authorise pushes to deploy to my website.
+
+## Part 3 (verbatim, 2026-11-23)
+
+For who goes first, it actually depends on the cards dealt. After cards are dealt and all players have onyl 5 cards in their hand, the player with a 3 goes first. if more than one perosn ahs a 3, the player with mroe 3's goes first. if tied then whoever has a 3 and a 4. both have a three and four then whoever has more fours. If both have a three or two but no four, then whoever has a five. The rule continues. Does that make sense?
+
+Also on the picking your face up cards, when you tap one of the four cards and then another one (both not in your hand) have an animation that shows them swapping places.
+
+Also have an animation for drawing new cards from the deck until the deck is gone.
+
+If you play a 2 or 10 or bomb the pile by playing the 4th card in a row, you get to go again immedately. If you pick up cards, you lose your turn. After playing a 2 or 10 or bombing, you must draw cards so your hand is full if possible as you may draw cards you would like to immedately use.
+
+Have a setting for each player where they can change the order of cards in their hand, low to high or high to low. Cards should always be organized in your hand.
+
+When the next turn is the player's again, do not make them press a button to keep going. For example, a 2 or 10 or bomb.

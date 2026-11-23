@@ -146,21 +146,6 @@ button.card[aria-disabled="true"] { cursor: default; }
 .opt:disabled { opacity: 1; }
 .opt:disabled .card { opacity: .3; filter: saturate(.4); }
 
-/* ---- Draw for first */
-.draws { display: grid; grid-template-columns: repeat(var(--cols, 2), minmax(0, 1fr)); gap: 10px; }
-.tile { position: relative; padding: 10px 8px 12px; display: flex; flex-direction: column; align-items: center; gap: 8px; min-width: 0; border-radius: 20px; }
-.tile .card { --w: clamp(48px, 15vw, 72px); }
-.tile.tie { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
-.tile.starts { box-shadow: 0 0 0 3px var(--pc), 0 8px 28px color-mix(in srgb, var(--pc) 45%, transparent); }
-.tile.out .card:not(.back) { opacity: .5; filter: saturate(.3); }
-.tag { display: inline-block; padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; background: var(--fill); }
-.tag.tie, .tag.starts { background: var(--ink); color: var(--canvas); }
-.tag:empty { visibility: hidden; }
-.flip { animation: flip .32s ease-out; }
-@keyframes flip { from { transform: rotateY(90deg); } }
-#drawSummary { margin: 0; font-size: 15px; min-height: 42px; }
-#drawSummary strong { display: block; font: 800 24px/1.15 var(--num); color: var(--ink); }
-
 /* ---- Handoff */
 #handoffPage { align-items: center; text-align: center; }
 .big-av { width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center; font: 800 52px/1 var(--num); background: var(--pc); color: var(--pi);
@@ -169,6 +154,7 @@ button.card[aria-disabled="true"] { cursor: default; }
 .stats { padding: 12px 18px; border-radius: 18px; display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 18px; font-size: 15px; }
 .stats strong { font: 800 20px var(--num); }
 .stats span span { color: var(--ink2); }
+#handWhy { margin: 0; font-size: 16px; font-weight: 600; max-width: 420px; }
 #ready { background: var(--pc); color: var(--pi); }
 #handoffPage .btn.primary { max-width: 420px; }
 
@@ -195,6 +181,8 @@ button.card[aria-disabled="true"] { cursor: default; }
 /* Online connection trouble: a small pill at the top, on every online screen, gone once a poll succeeds again. */
 .conn { position: fixed; z-index: 25; top: calc(max(10px, env(safe-area-inset-top)) + 4px); left: 50%; translate: -50% 0; margin: 0; padding: 4px 12px; border-radius: 999px;
   background: var(--glass-menu); color: var(--danger); font-size: 13px; font-weight: 600; box-shadow: var(--shadow); white-space: nowrap; }
+/* Online: who goes first, for a few seconds when play starts. Under the menu circle, clear of it. */
+.toast { top: calc(max(10px, env(safe-area-inset-top)) + 66px); max-width: calc(100% - 32px); padding: 8px 14px; color: var(--ink); font-size: 15px; white-space: normal; text-align: center; }
 .opps { display: flex; gap: 8px; overflow-x: auto; margin: -4px 54px -4px -4px; padding: 4px; scroll-behavior: smooth; }
 .opp { --pc: #888; flex: 1 0 128px; min-width: 0; padding: 8px; border-radius: 16px; }
 .opp.now { box-shadow: 0 0 0 3px var(--pc), var(--shadow); }
@@ -243,6 +231,9 @@ button.card[aria-disabled="true"] { cursor: default; }
 .mine-head, .hand-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
 .mine-head h2, .hand-head h2 { font-size: 14px; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mine-head .cap, .hand-head .cap { font-weight: 500; white-space: nowrap; }
+/* Hand order: a small pill with a full 44px tap area that does not make the header taller. */
+.sort { flex: none; min-height: 44px; min-width: 44px; margin: -11px -4px -11px 0; padding: 0 4px; font-size: 13px; font-weight: 600; color: var(--ink); }
+.sort > span { display: block; padding: 3px 9px; border-radius: 999px; background: var(--fill); }
 .myspots { display: flex; gap: 10px; margin-top: 6px; }
 .mslot { --w: var(--tw, 44px); position: relative; width: var(--w); height: calc(var(--w) * 1.43 + 9px); flex: none; }
 .mslot > .card { position: absolute; left: 0; --w: inherit; }
@@ -331,7 +322,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   #resultsPage .crown .av { width: 52px; height: 52px; font-size: 24px; margin-bottom: 8px; }
   .cslot { --w: 48px; } .nine .card { --w: 48px; } .nine { gap: 10px 6px; padding-top: 4px; }
   #chooseTitle { font-size: 22px !important; } .choose-table { padding: 10px 12px; } .spots4 { margin-top: 8px; }
-  #choosePage, #drawPage, #lobbyPage { gap: 10px; }
+  #choosePage, #lobbyPage { gap: 10px; }
   #resultsPage h2 { font-size: 26px; }
   .rstats div { height: 46px; }
   .rrow { padding: 8px 10px; }
@@ -361,7 +352,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   .stack { --dw: 54px; }
   .beat b { font-size: 46px; }
   .actions { max-width: 560px; width: 100%; margin: 0 auto; }
-  #setupPage, #lobbyPage, #choosePage, #waitPage, #drawPage, #resultsPage { max-width: 520px; width: 100%; margin: 0 auto; }
+  #setupPage, #lobbyPage, #choosePage, #waitPage, #resultsPage { max-width: 520px; width: 100%; margin: 0 auto; }
 }
 
 /* Phone in landscape: table on the left, actions on the right, hand along the bottom (the Landscape mock-up). */
@@ -374,9 +365,6 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   #setupPage > * { break-inside: avoid; margin-bottom: 12px; }
   #setupPage > .logo, #setupPage > #modeSeg { column-span: all; }
   #lobbyPage, #choosePage, #resultsPage, #waitPage { padding-right: 58px; }
-  #drawPage { padding-right: 58px; }
-  .draws { --cols: 6 !important; }
-  .tile .card { --w: 48px; }
   .head h1, #handoffPage h1 { font-size: 26px; }
   .big-av { width: 72px; height: 72px; font-size: 34px; }
   .nine { gap: 8px 6px; padding-top: 4px; }
@@ -508,8 +496,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
           <p class="note" id="decksNote"></p>
         </section>
         <div class="spacer"></div>
-        <p class="note center" id="startHint">Digital cards only. Everyone draws a card; the highest rank goes first.</p>
-        <button class="btn primary" id="start">Draw for first turn</button>
+        <p class="note center" id="startHint">Digital cards only. Whoever holds the most 3s after choosing goes first.</p>
+        <button class="btn primary" id="start">Deal cards</button>
       </div>
 
       <div id="onlineSetup" class="page" hidden>
@@ -586,22 +574,13 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <button class="btn" id="leaveLobby">Leave</button>
     </section>
 
-    <section id="drawPage" class="page" hidden>
-      <div class="head"><h1>Who goes first?</h1></div>
-      <p class="lede">Everyone draws one card. Highest rank starts, Ace high. Suits don't count: equal ranks draw again.</p>
-      <div class="draws" id="drawGrid"></div>
-      <p id="drawSummary" aria-live="polite"></p>
-      <div class="spacer"></div>
-      <button class="btn" id="drawSkip">Skip</button>
-      <button class="btn primary" id="drawGo">Deal cards</button>
-    </section>
-
     <section id="handoffPage" class="page" hidden>
       <div class="spacer"></div>
       <div class="big-av" id="handAv" aria-hidden="true"></div>
       <p class="cap" id="handHidden" style="margin-top: 14px; font-size: 15px"></p>
       <h1 id="handTitle"></h1>
       <div class="stats glass" id="handStats"></div>
+      <p id="handWhy" hidden></p>
       <div class="spacer"></div>
       <button class="btn primary" id="ready">Ready to play</button>
       <p class="cap" id="handNote" style="font-weight: 500"></p>
@@ -650,7 +629,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       </section>
       <p id="status"></p>
       <section class="hand" id="handBox" aria-label="Your hand">
-        <div class="hand-head"><span class="av" id="handAvSmall" aria-hidden="true"></span><h2 id="handTitleSmall"></h2><span class="cap" id="handCount"></span></div>
+        <div class="hand-head"><span class="av" id="handAvSmall" aria-hidden="true"></span><h2 id="handTitleSmall"></h2><span class="cap" id="handCount"></span><button class="sort" id="sortBtn"></button></div>
         <div class="tray" id="tray" role="group" aria-label="Your hand"></div>
       </section>
       <div class="spacer"></div>
@@ -681,6 +660,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 
 <div class="sr" id="live" aria-live="polite"></div>
 <p class="conn" id="conn" role="status" hidden>Reconnecting</p>
+<p class="conn toast" id="toast" role="status" hidden></p>
 
 <dialog class="sheet glass" id="styleSheet" aria-labelledby="styleTitle">
   <div>
@@ -722,19 +702,21 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
     </ul>
     <h3>Who goes first</h3>
     <ul>
-      <li>Everyone draws one card. The highest rank starts. Ace is high and 2 is low.</li>
-      <li>Suits don't count: players tied for highest draw again, only them, until one is highest.</li>
+      <li>Once everyone has chosen, look at the five cards in each hand. Whoever has the most 3s goes first.</li>
+      <li>Tied? Of those players, whoever has more 4s, then more 5s, and so on up to Aces, then 2s.</li>
+      <li>Exactly the same cards (possible with several decks): the game picks one of them at random.</li>
     </ul>
     <h3>A turn</h3>
     <ul>
       <li>Play a card that matches or beats the top of the pile. On an empty pile, anything goes.</li>
       <li>You may play several cards of the same rank at once, like two Queens.</li>
       <li>While the deck lasts, draw back up to five cards after you play.</li>
+      <li>After a 2, a 10 or a bomb, you play again at once, with the cards you just drew.</li>
       <li>Can't play, or don't want to? Pick up the whole pile instead. The next player then starts a fresh pile.</li>
     </ul>
     <h3>Special cards</h3>
     <ul>
-      <li><strong>2 resets.</strong> Play it on anything. The next player may play any rank. The pile stays.</li>
+      <li><strong>2 resets.</strong> Play it on anything, then play again: any rank goes on it. The pile stays.</li>
       <li><strong>10 bombs.</strong> Play it on anything. The whole pile leaves the game and you play again.</li>
       <li><strong>Four of a kind bombs.</strong> Four cards of one rank in a row on top of the pile, played together or over several turns, also clear the pile. Whoever adds the fourth plays again.</li>
       <li>7 and 8 are ordinary cards.</li>
@@ -747,7 +729,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
     </ol>
     <p>Picking up puts you back on your hand. Your table cards wait until your hand is empty again.</p>
     <h3 id="rulesModeTitle">On one phone</h3>
-    <p id="rulesMode">After you play, your cards lock. Tap Next turn and pass the phone; the next player taps Ready to play. After a bomb you keep the phone.</p>
+    <p id="rulesMode">After you play, your cards lock. Tap Next turn and pass the phone; the next player taps Ready to play. After a 2, a 10 or a bomb you keep the phone and play on.</p>
     <button class="btn" id="rulesDone">Done</button>
   </div>
 </dialog>

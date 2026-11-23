@@ -1,6 +1,6 @@
 # Bomb: build plan
 
-Written 2026-11-23, the night the owner asked for it ("Get as much of this project done as possible, designed, tested, and built to my website as possible. I authorise pushes to deploy to my website."). The owner's words are in `bomb-spec-owner-2026-11-23.md`; read that first. This file says how Part 1 and Part 2 of that spec fit together and how the work is split. Decisions marked **(my call)** were made without the owner, who was asleep; they are listed again at the end so the owner can reverse any of them.
+Written 2026-11-23, the night the owner asked for it ("Get as much of this project done as possible, designed, tested, and built to my website as possible. I authorise pushes to deploy to my website."). The owner's words are in `bomb-spec-owner-2026-11-23.md`; read that first. This file says how Part 1, Part 2 and Part 3 of that spec fit together (Part 3 replaced the draw for first and made a 2 go again) and how the work is split. Decisions marked **(my call)** were made without the owner, who was asleep; they are listed again at the end so the owner can reverse any of them.
 
 ## What Bomb is
 
@@ -13,15 +13,19 @@ Design mock-ups: private claude.ai design canvas `Has6pimM66aju5b5vyfczB` (cream
 
 ## Rules (Part 1, widened by Part 2)
 
-Unchanged from Part 1: ranks 2 low to Ace high; play equal or higher; several cards of one rank at once; 2 resets (no clear, no extra turn); 10 bombs; four consecutive equal ranks on top of the pile bomb; a bomb removes the pile from the game and gives the bomber exactly one more turn; 7 and 8 are ordinary; refill the hand to five while the deck lasts; pick up the pile voluntarily or when stuck; hand, then face-up, then face-down phases; a failed blind card goes to the hand with the pile; first player with no cards at all wins and the game ends there.
+Unchanged from Part 1: ranks 2 low to Ace high; play equal or higher; several cards of one rank at once; 10 bombs; four consecutive equal ranks on top of the pile bomb; a bomb removes the pile from the game and gives the bomber exactly one more turn; 7 and 8 are ordinary; refill the hand to five while the deck lasts; pick up the pile voluntarily or when stuck; hand, then face-up, then face-down phases; a failed blind card goes to the hand with the pile; first player with no cards at all wins and the game ends there.
 
 Widened:
 
-- **Players**: 2 to 6 **(my call on the upper limit)**. Turn order is seat order, starting from whoever won the draw. An ordinary play or a pickup passes to the next seat; a bomb keeps the turn.
+- **Players**: 2 to 6 **(my call on the upper limit)**. Turn order is seat order, starting from the first player (below). An ordinary play or a pickup passes to the next seat; a 2 or a bomb keeps the turn.
+- **2 goes again (Part 3)**: a 2 still resets without clearing the pile, and now the same player plays again at once, like after a bomb. The hand is refilled to five before that extra turn, so a card just drawn can be played.
+- **No button when you go again (Part 3)**: after a 2 or a bomb nothing is pending; the turn simply stays with that player, on one phone and online. Next Turn and the handoff remain for one phone when the turn changes hands.
 - **Decks**: 1 to 4 standard 52-card decks shuffled together, chosen at setup. Every player needs 13 cards, so the setup screen only offers deck counts with `decks * 52 >= players * 13`. Default **(my call)**: 1 deck for 2 or 3 players, 2 decks for 4 to 6. Cards are unique objects (`id` includes the deck number), so two Queens of hearts can coexist.
 - **Four of a kind with several decks**: still four consecutive equal ranks on top. Playing five or more of a rank at once is legal and bombs.
-- **Who goes first**: draw cards, no dice anywhere. From a freshly shuffled shoe every player draws one card. Highest rank starts (Ace high, 2 lowest: a 2 and a 10 count as plain ranks here). Suits never break ties: the players tied for highest draw again, only those players, until one is highest. Then every card goes back, the shoe is reshuffled, and the deal happens.
-- **Order of a game**: setup, draw for first, deal, choose four face-up cards, play, results.
+- **Who goes first (Part 3, replaces Part 2's draw)**: decided when the last player confirms their face-up cards, from the five cards left in each hand. Most 3s goes first; players tied on 3s compare 4s, then 5s, and so on up the ranks. The order is 3, 4, 5, 6, 7, 8, 9, 10, J, Q, K, A and 2 last **(my call: the owner's "the rule continues" runs up from 3; 2 is the lowest card but comes last here)**. Two players identical on every rank (possible with several decks) are settled by the game's seeded random generator **(my call)**. The table says who starts and why ("Sam goes first: most 3s"), never more of anyone's hand.
+- **Order of a game**: setup, deal, choose four face-up cards, play, results.
+- **Hand order (Part 3)**: hands are always sorted by rank (ties by suit). Each player picks low to high (default) or high to low with a small button by the hand: per player in a one-phone game (kept in the save), per device online.
+- **Animations (Part 3)**: two table cards swapped on the face-up screen trade places (FLIP); cards drawn from the deck fly from the deck to the hand while the deck lasts. None under reduced motion.
 - **Face-up choice**: on one phone, players choose in turn with a handoff between them. Online, everyone chooses at the same time and play starts when the last player confirms.
 - **Next Turn online (my call)**: the Next Turn button exists so a shared phone can change hands privately. Online there is nothing to hide, and the owner asked for "light and fast so there is not a lot of waiting", so online turns pass by themselves the moment a play or pickup resolves. The engine keeps the pending-turn state either way; the server applies the advance itself.
 - **Card styles**: each player picks a card-back style (at least ten: a colour plus a pattern). The style's colour is the player's colour everywhere. Two players in one game cannot hold the same style. Text or marks drawn on a player colour use whichever of dark or white ink has the better contrast, and every pairing must reach 4.5:1 (3:1 for large numerals) in both themes; reuse the approach Dots and Boxes uses.
@@ -63,7 +67,7 @@ The client keeps all of this inside `ui/net.js`, so a later move to WebSockets s
 
 ### Screens
 
-Setup (mode, roster with "+", card style per player, decks) · online lobby (code, share link, seats filling, host's Start) · draw for first · face-up choice · handoff (one phone only) · table · results. The table shows the active viewer at the bottom and every other player as a compact panel (name, colour, hand count, four table spots); with 3 to 5 opponents the panels shrink and scroll sideways rather than squeezing cards unreadably. Portrait and a real landscape layout. Light, dark and follow-system through the shared theme code. Reduced motion respected.
+Setup (mode, roster with "+", card style per player, decks) · online lobby (code, share link, seats filling, host's Start) · face-up choice · handoff (one phone only) · table · results. The table shows the active viewer at the bottom and every other player as a compact panel (name, colour, hand count, four table spots); with 3 to 5 opponents the panels shrink and scroll sideways rather than squeezing cards unreadably. Portrait and a real landscape layout. Light, dark and follow-system through the shared theme code. Reduced motion respected.
 
 ## Split of work
 
@@ -76,7 +80,7 @@ Setup (mode, roster with "+", card style per player, decks) · online lobby (cod
 
 1. Up to 6 players; default decks 1 (2 to 3 players) or 2 (4 to 6).
 2. Online turns pass automatically (no Next Turn press); the button stays for one-phone play.
-3. Only the players tied for highest redraw in the first-player draw.
+3. First player: the rank order 3 up to Ace, then 2 last; a full tie (identical hands, several decks) is picked by the game's seeded random generator.
 4. Online uses long polling in the existing Worker and D1, not a new Cloudflare product.
 5. No turn timer and no kicking of absent players online.
 6. The game ends when the first player is out; nobody plays on for second place.

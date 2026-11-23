@@ -1,7 +1,6 @@
-// Pure helpers for the Bomb screens: names, sorting, selection, labels, the draw-for-first sequence and the local
-// save shape. No DOM, so tests/bomb/ui.test.js runs them under node --test. Rules stay in ../engine.
+// Pure helpers for the Bomb screens: names, sorting, selection, labels, who goes first and the local save shape. No DOM, so tests/bomb/ui.test.js runs them under node --test. Rules stay in ../engine.
 import { label, MIN_PLAYERS, MAX_PLAYERS, allowedDecks, defaultDecks } from '../engine/cards.js';
-import { checkState } from '../engine/reducer.js';
+import { checkState, FIRST_ORDER } from '../engine/reducer.js';
 import { STYLES } from './styles.js';
 
 export const SUIT = { S: ['♠', 'spades'], H: ['♥', 'hearts'], D: ['♦', 'diamonds'], C: ['♣', 'clubs'] };
@@ -19,9 +18,10 @@ export function rankCount(rank, n) {
 export const listOf = names => new Intl.ListFormat('en', { type: 'conjunction' }).format(names);
 export const plural = (n, one, many = one + 's') => `${n} ${n === 1 ? one : many}`;
 
-// Hand order: by rank, 2 low to Ace high, then suit, so equal ranks sit together.
+// Hand order: by rank, 2 low to Ace high (or high to low with desc), then suit, so equal ranks sit together.
 const SUIT_ORDER = 'SHCD';
-export const sortHand = cards => [...cards].sort((a, b) => a.rank - b.rank || SUIT_ORDER.indexOf(a.suit) - SUIT_ORDER.indexOf(b.suit) || a.deck - b.deck);
+export const sortHand = (cards, desc = false) => [...cards].sort((a, b) => (desc ? b.rank - a.rank : a.rank - b.rank)
+  || SUIT_ORDER.indexOf(a.suit) - SUIT_ORDER.indexOf(b.suit) || a.deck - b.deck);
 
 // Tapping a card: only cards the engine says are playable can be chosen; a card of another rank replaces the selection.
 export function toggle(sel, card, playable) {
@@ -54,15 +54,29 @@ export function lastLine(view, names, you) {
   const what = l.cards.length === 1 ? cardName(l.cards[0]) : rankCount(l.cards[0].rank, l.cards.length);
   const blind = l.from === 'down' ? ' face down' : '';
   if (l.bomb) return `${who} played ${what}${blind}. Bomb! The pile is gone and ${l.seat === you ? 'you go' : 'they go'} again.`;
-  if (l.cards[0].rank === 2) return `${who} played ${what}${blind}. Reset: anything goes next.`;
+  if (l.cards[0].rank === 2) return `${who} played ${what}${blind}. Reset: ${l.seat === you ? 'you go' : 'they go'} again, anything goes.`;
   return `${who} played ${what}${blind}.`;
+}
+
+// Who goes first and why, from view.firstWhy (null in games from before it existed): "Sam goes first: most 3s."
+const ranks = r => `${rankName(r)}s`;
+export function firstLine(view, names, you) {
+  const w = view.firstWhy;
+  if (!w) return '';
+  const who = view.first === you ? 'You go first' : `${names[view.first]} goes first`;
+  if (w.rank === null) return `${who}: same cards, so picked at random.`;
+  const what = w.tied ? `more ${ranks(w.rank)}` : w.count === 1 ? `the only ${rankName(w.rank)}` : `most ${ranks(w.rank)}`;
+  const below = FIRST_ORDER.slice(0, FIRST_ORDER.indexOf(w.rank));
+  const pre = !below.length ? '' : w.tied ? 'tied on lower cards, so '
+    : `no ${below.length === 1 ? ranks(below[0]) : below.length === 2 ? `${ranks(below[0])} or ${ranks(below[1])}` : `${ranks(below[0])} to ${ranks(below.at(-1))}`}, so `;
+  return `${who}: ${pre}${what}.`;
 }
 
 // One phone: the Next Turn button's words once a move is pending.
 export const nextLabel = (view, names) => !view.pending ? 'Next turn'
   : view.pending.next === view.turn ? `Next turn: ${names[view.turn]} again` : `Next turn: ${names[view.pending.next]}`;
 
-// One phone: face-up choices go round from whoever won the draw, in turn order. -1 once everyone is ready.
+// One phone: face-up choices go round in seat order (from first, which is seat 0 while choosing). -1 once everyone is ready.
 export function choosingSeat(g) {
   const n = g.players.length;
   for (let k = 0; k < n; k++) if (!g.players[(g.first + k) % n].ready) return (g.first + k) % n;
@@ -72,23 +86,7 @@ export function choosingSeat(g) {
 export const leavers = (was, now) => !was || was.id !== now.id || now.seats.length >= was.seats.length ? []
   : was.seats.filter(s => !now.seats.some(t => t.style === s.style)).map(s => s.name);
 
-// Draw for first, as a sequence to present: each round's cards flip one by one, then that round's outcome.
-// Returns [{ round, cards: [{ seat, rank, suit }], tied: [seat] | null, winner: seat | null }].
-export function drawPlan(draws) {
-  return draws.map((cards, round) => {
-    const top = Math.max(...cards.map(d => d.rank));
-    const best = cards.filter(d => d.rank === top).map(d => d.seat);
-    return { round, cards, tied: best.length > 1 ? best : null, winner: best.length === 1 ? best[0] : null };
-  });
-}
-// The final card each seat drew and how they ended: 'starts', or 'out' (with the round they went out in).
-export function drawFinal(draws) {
-  const plan = drawPlan(draws), out = {};
-  for (const r of plan) for (const d of r.cards) out[d.seat] = { rank: d.rank, suit: d.suit, result: r.winner === d.seat ? 'starts' : r.tied?.includes(d.seat) ? 'tie' : 'out', round: r.round };
-  return out;
-}
-
-// ---- The local save: the engine state plus names, styles and where the screens were. Stored data is a trust
+// ---- The local save: the engine state plus names, styles, each player's hand order and times. Stored data is a trust
 // boundary, so readGame checks every field and returns null for anything not shaped right.
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -104,7 +102,7 @@ export function readGame(x) {
   if (!okRoster(x.names, x.styles) || x.names.length !== x.g.players.length) return null;
   return {
     g: x.g, names: x.names, styles: x.styles,
-    drawSeen: x.drawSeen === true,
+    desc: x.names.map((_, i) => Array.isArray(x.desc) && x.desc[i] === true), // hand order per player: true is high to low
     saveId: UUID.test(x.saveId) ? x.saveId : null,
     createdAt: ISO.test(x.createdAt) ? x.createdAt : null,
     startedAt: ISO.test(x.startedAt) ? x.startedAt : null,

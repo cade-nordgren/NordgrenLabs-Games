@@ -5,8 +5,8 @@ import { createGame, reduce } from '../engine/reducer.js';
 import { viewFor } from '../engine/view.js';
 import { STYLES, style, styleLabel, freeStyle } from './styles.js';
 import { toggle, keepPlayable, canPlaySel, readGame, decksFor, listOf, plural, minutes, MAX_NAME,
-  choosingSeat, leavers } from './logic.js';
-import { $, el, still, say, back, drawScreen, stopDraw, handoffScreen, chooseScreen, waitScreen, tableScreen,
+  choosingSeat, leavers, firstLine } from './logic.js';
+import { $, el, still, say, back, toast, handoffScreen, chooseScreen, waitScreen, tableScreen,
   snapshot, animate, clearFlyers, resultsScreen, stopResults } from './screens.js';
 import { createNet, browserAuth, reasonText } from './net.js';
 
@@ -48,12 +48,12 @@ NL.account($('account'));
 
 // ---- Screen flags that are never saved: whoever holds the phone has not pressed Ready after a load.
 let ready = false, from = null, sel = [], choose = { key: '', picks: [null, null, null, null], on: null };
-let holdUntil = 0, revealPending = false, drawAnimated = '', prevView = null, busy = false;
+let holdUntil = 0, revealPending = false, prevView = null, busy = false;
 
 // ---- One phone
 function startLocal(names, styles, decks) {
-  stopDraw(); stopResults();
-  S.game = { g: createGame({ players: names.length, decks, seed: newSeed() }), names, styles, drawSeen: false,
+  stopResults();
+  S.game = { g: createGame({ players: names.length, decks, seed: newSeed() }), names, styles, desc: names.map(() => false),
     saveId: null, createdAt: null, startedAt: null, endedAt: null };
   ready = false; from = null; sel = []; prevView = null; holdUntil = 0;
   render();
@@ -86,7 +86,6 @@ function endingSoon() {
 function localScreen() {
   const G = S.game, g = G.g, ps = people();
   if (g.phase === 'choose') {
-    if (!G.drawSeen) return { page: 'draw', view: viewFor(g, null), ps };
     const seat = choosingSeat(g);
     if (!ready) return { page: 'handoff', view: viewFor(g, null), ps, seat, choosing: true };
     return { page: 'choose', view: viewFor(g, seat), ps, seat };
@@ -100,13 +99,14 @@ function localScreen() {
 }
 
 // ---- Online. The server holds the game; this browser keeps the room it is in (to offer a rejoin) and its view.
-let O = { view: null, error: '', notice: '', net: 'ok', drawn: '' };
+let O = { view: null, error: '', notice: '', net: 'ok' };
 const net = createNet({
   fetch: (...a) => fetch(...a), auth: browserAuth, doc: document, win: window,
   onView: view => {
     if (!view) return;
     const was = O.view?.game, now = view.game;
     if (was && now && was.phase === 'play' && now.phase === 'over') endingSoon();
+    if (was && now && was.phase === 'choose' && now.phase === 'play') toast(firstLine(now, view.room.seats.map(s => s.name), view.you));
     const gone = leavers(O.view?.room, view.room);
     if (gone.length) { O.notice = `${listOf(gone)} left.${view.room.phase === 'lobby' && O.view.room.phase !== 'lobby' ? ' Back in the lobby.' : ''}`; say(O.notice); }
     else if (O.view?.room.seats.length !== view.room.seats.length) O.notice = '';
@@ -121,8 +121,7 @@ const net = createNet({
 const roomMemory = () => { try { const r = JSON.parse(localStorage.getItem(ROOM)); return r && UUID.test(r.id) && /^[A-Z]{6}$/.test(r.code) ? r : null; } catch { return null; } };
 function remember(r) {
   try {
-    const old = roomMemory();
-    localStorage.setItem(ROOM, JSON.stringify({ ...r, drawn: old?.id === r.id ? old.drawn || '' : '' }));
+    localStorage.setItem(ROOM, JSON.stringify(r));
     sessionStorage.setItem('nl-bomb-in-room', r.id);
   } catch {}
 }
@@ -130,17 +129,9 @@ function forgetRoom() { try { localStorage.removeItem(ROOM); sessionStorage.remo
 function leaveRoom(message = '', keep = false) {
   net.close();
   if (!keep) forgetRoom();
-  O = { view: null, error: message, notice: '', net: 'ok', drawn: '' };
+  O = { view: null, error: message, notice: '', net: 'ok' };
   sel = []; prevView = null;
   render();
-}
-// The draw for first plays once per game on this phone; a game is told apart by its draws.
-const drawKey = g => JSON.stringify([g.first, g.draws]);
-const drawnHere = g => (roomMemory()?.drawn || O.drawn) === drawKey(g);
-function markDrawn(g) {
-  O.drawn = drawKey(g);
-  const r = roomMemory();
-  if (r) try { localStorage.setItem(ROOM, JSON.stringify({ ...r, drawn: O.drawn })); } catch {}
 }
 const onlinePeople = () => O.view.room.seats.map(s => ({ name: s.name, style: s.style }));
 
@@ -148,7 +139,6 @@ function onlineScreen() {
   const v = O.view, g = v.game, ps = onlinePeople();
   if (v.room.phase === 'lobby' || !g) return { page: 'lobby', ps };
   if (g.phase === 'choose') {
-    if (!drawnHere(g)) return { page: 'draw', view: g, ps };
     return g.you.canArrange ? { page: 'choose', view: g, ps, seat: v.you } : { page: 'wait', view: g, ps, seat: v.you };
   }
   if (g.phase === 'over' && Date.now() >= holdUntil) return { page: 'results', view: g, ps, seat: v.you };
@@ -184,7 +174,7 @@ async function enterRoom(kind) {
 }
 
 // ---- Rendering
-const PAGES = ['setupPage', 'lobbyPage', 'drawPage', 'handoffPage', 'choosePage', 'waitPage', 'tablePage', 'resultsPage'];
+const PAGES = ['setupPage', 'lobbyPage', 'handoffPage', 'choosePage', 'waitPage', 'tablePage', 'resultsPage'];
 let lastPage = '';
 function render() {
   save();
@@ -200,11 +190,11 @@ function render() {
   $('conn').hidden = !(inRoom() && O.net === 'offline');
   $('rulesModeTitle').textContent = inRoom() ? 'Online' : 'On one phone';
   $('rulesMode').textContent = inRoom() ? 'Everyone plays on their own phone. Your turn passes on by itself as soon as you play or pick up.'
-    : 'After you play, your cards lock. Tap Next turn and pass the phone; the next player taps Ready to play. After a bomb you keep the phone.';
+    : 'After you play, your cards lock. Tap Next turn and pass the phone; the next player taps Ready to play. After a 2, a 10 or a bomb you keep the phone and play on.';
   // Private cards leave the DOM with their screen, so a hidden page never holds the last player's hand.
   if (page !== 'tablePage') { prevView = null; $('tray').replaceChildren(); $('mySpots').replaceChildren(); clearFlyers(); }
   if (page !== 'choosePage') { $('chooseNine').replaceChildren(); $('chooseTable').replaceChildren(); }
-  ({ setup: renderSetup, lobby: renderLobby, draw: renderDraw, handoff: renderHandoff, choose: renderChoose, wait: renderWait,
+  ({ setup: renderSetup, lobby: renderLobby, handoff: renderHandoff, choose: renderChoose, wait: renderWait,
     table: () => renderTable(scr, snap), results: renderResults })[scr.page](scr);
   if (page !== lastPage) { window.scrollTo(0, 0); if (lastPage) focusPage(page); }
   else if (keep) { const k = document.querySelector(`#${page} [data-k="${keep}"]`) || $(keep); if (k && document.activeElement !== k && !k.hidden) k.focus({ preventScroll: true }); }
@@ -213,7 +203,7 @@ function render() {
 // A new screen: focus its main control, so keyboard and screen reader users land somewhere useful.
 function focusPage(page) {
   if (document.querySelector('dialog[open]')) return;
-  const t = { handoffPage: 'ready', drawPage: 'drawSkip', choosePage: 'chooseTitle', tablePage: 'status', resultsPage: 'winTitle', lobbyPage: 'roomCode' }[page];
+  const t = { handoffPage: 'ready', choosePage: 'chooseTitle', tablePage: 'status', resultsPage: 'winTitle', lobbyPage: 'roomCode' }[page];
   const e = t && $(t);
   if (!e || e.hidden) return;
   if (!/^(BUTTON|INPUT|A)$/.test(e.tagName)) e.tabIndex = -1;
@@ -263,7 +253,7 @@ function renderLocalSetup() {
     const ok2 = S.roster.length >= MIN_PLAYERS && S.roster.every(p => p.name.trim());
     $('start').disabled = !ok2;
     $('startHint').textContent = S.roster.length < MIN_PLAYERS ? `Add ${MIN_PLAYERS - S.roster.length === 2 ? 'two players' : 'one more player'} to start.`
-      : !ok2 ? 'Every player needs a name.' : 'Digital cards only. Everyone draws a card; the highest rank goes first.';
+      : !ok2 ? 'Every player needs a name.' : 'Digital cards only. Whoever holds the most 3s after choosing goes first.';
   }
 }
 function stepDecks(dir, n, cur) {
@@ -408,24 +398,6 @@ $('copy').onclick = async () => {
 };
 function note(text) { $('shareNote').textContent = text; $('shareNote').hidden = false; }
 
-// ---- Draw for first
-function renderDraw(scr) {
-  const key = drawKey(scr.view) + (inRoom() ? O.view.room.id : '');
-  if (drawAnimated === key && $('drawGrid').childElementCount) return; // already on screen (or playing): online updates must not restart it
-  drawAnimated = key;
-  $('drawGo').textContent = inRoom() ? 'Choose your cards' : 'Deal cards';
-  drawScreen(scr.view, scr.ps, { animate: !still() });
-}
-$('drawSkip').onclick = () => { stopDraw(); drawScreen(currentView(), currentPeople(), { animate: false }); $('drawGo').focus(); };
-$('drawPage').onclick = e => { if (!$('drawSkip').hidden && e.target.closest('.draws')) $('drawSkip').click(); };
-$('drawGo').onclick = () => {
-  if (inRoom()) markDrawn(O.view.game);
-  else S.game.drawSeen = true;
-  render();
-};
-const currentView = () => inRoom() ? O.view.game : viewFor(S.game.g, null);
-const currentPeople = () => inRoom() ? onlinePeople() : people();
-
 // ---- Handoff
 function renderHandoff(scr) {
   handoffScreen(scr.view, scr.ps, scr.seat, { choosing: !!scr.choosing, from });
@@ -434,11 +406,12 @@ $('ready').onclick = () => { ready = true; sel = []; render(); };
 
 // ---- Face-up choice
 function renderChoose(scr) {
-  const mine = scr.view.players[scr.seat], key = `${drawKey(scr.view)}:${scr.seat}`;
+  // The nine cards tell one deal apart from the next (a rematch), so picks reset only for a new deal.
+  const mine = scr.view.players[scr.seat], key = [...scr.view.you.hand, ...(mine.up || [])].map(c => c.id).sort().join();
   if (choose.key !== key) choose = { key, picks: mine.up?.length === 4 ? mine.up.map(c => c.id) : [null, null, null, null], on: null };
   const waitingNames = inRoom() ? scr.view.players.map((q, i) => !q.ready && i !== scr.seat ? scr.ps[i].name : null).filter(Boolean) : [];
   chooseScreen(scr.view, scr.ps, scr.seat, choose, {
-    online: inRoom(), waitingNames,
+    online: inRoom(), waitingNames, desc: handDesc(scr.seat),
     onPick: id => {
       const at = choose.picks.indexOf(id);
       if (at >= 0) { choose.picks[at] = null; choose.on = null; }
@@ -463,6 +436,18 @@ function renderChoose(scr) {
 }
 function renderWait(scr) { waitScreen(scr.view, scr.ps, scr.seat); }
 
+// ---- Hand order, low to high unless the player chose high to low: per player in the local game, per device online.
+const ORDER = 'nl-bomb-order';
+const handDesc = seat => {
+  if (!inRoom()) return !!S.game.desc?.[seat];
+  try { return localStorage.getItem(ORDER) === 'desc'; } catch { return false; }
+};
+function flipOrder(seat) {
+  if (!inRoom()) { S.game.desc ||= S.game.names.map(() => false); S.game.desc[seat] = !S.game.desc[seat]; }
+  else try { localStorage.setItem(ORDER, handDesc(seat) ? 'asc' : 'desc'); } catch {}
+  render();
+}
+
 // ---- Table
 function renderTable(scr, snap) {
   const view = scr.view, me = scr.seat;
@@ -470,7 +455,7 @@ function renderTable(scr, snap) {
   const info = inRoom() ? `Room ${O.view.room.code} · ${plural(scr.ps.length, 'player')} · ${plural(view.decks, 'deck')}`
     : `${plural(scr.ps.length, 'player')} · ${plural(view.decks, 'deck')} · turn ${view.turns + 1}`;
   tableScreen({
-    view, people: scr.ps, me, online: inRoom(), sel, info,
+    view, people: scr.ps, me, online: inRoom(), sel, info, desc: handDesc(me), onSort: () => flipOrder(me),
     onCard: (c, ok) => {
       if (!ok) { if (view.you.source === 'hand' || view.you.source === 'up') say(`${c.rank === 2 || c.rank === 10 ? '' : 'Too low. '}That card can't be played now.`); return; }
       sel = toggle(sel, c, view.you.playable);
@@ -518,7 +503,7 @@ $('newGame').onclick = () => {
   toSetup();
 };
 function toSetup() {
-  stopDraw(); stopResults();
+  stopResults();
   S.game = null; ready = false; sel = []; prevView = null;
   render();
   refreshSaves();
@@ -548,7 +533,7 @@ async function resume(id) {
   const G = okRecord(r) && readGame(r.state.game);
   if (!G) { savesNote = 'Could not open that save. Check your connection and try again.'; return drawSaves(); }
   Object.assign(G, { saveId: r.id, createdAt: r.createdAt });
-  stopDraw(); stopResults();
+  stopResults();
   S.game = G; ready = false; from = null; sel = []; prevView = null; holdUntil = 0;
   render();
 }

@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { SUITS, RANKS, fullDeck, allowedDecks, defaultDecks, required, canPlay, legalRanks, streak } from '../../site/bomb/engine/cards.js';
-import { createGame, drawForFirst, layout, reduce, checkState, playable, mustPickUp } from '../../site/bomb/engine/reducer.js';
+import { createGame, pickFirst, FIRST_ORDER, layout, reduce, checkState, playable, mustPickUp } from '../../site/bomb/engine/reducer.js';
 import { viewFor } from '../../site/bomb/engine/view.js';
 
 const act = (g, a) => { const n = reduce(g, a); assert.notEqual(n, g, `rejected: ${JSON.stringify(a)}`); checkState(n); return n; };
@@ -62,7 +62,8 @@ test('choosing four face-up cards leaves a five-card hand; order of confirmation
   // Any confirmation order gives the same game.
   const a = startPlay(g, [2, 0, 1]), b = startPlay(g, [0, 1, 2]);
   assert.deepEqual(a, b);
-  assert.deepEqual([a.phase, a.turn], ['play', g.first]);
+  assert.deepEqual([a.phase, a.turn], ['play', a.first]);
+  assert.deepEqual({ first: a.first, firstWhy: a.firstWhy }, pickFirst(a.players, { rng: 0 }), 'decided from the five-card hands');
   for (const p of a.players) assert.deepEqual([p.hand.length, p.up.length, p.down.length], [5, 4, 4]);
   assert.equal(a.deck.length, 52 - 39);
 });
@@ -97,37 +98,42 @@ test('same seed, same game; different seed, different game', () => {
   assert.notDeepEqual(a.deck, c.deck);
 });
 
-// Draw for first
+// Who goes first
 
-test('draw for first: highest rank starts, ace high, 2 low, suits never break ties, only tied players redraw', () => {
-  let ties = 0, partial = 0;
-  for (let seed = 1; seed <= 400; seed++) {
-    const players = 2 + seed % 5, g = createGame({ players, decks: defaultDecks(players), seed });
-    assert.equal(g.draws[0].length, players, 'everyone draws in the first round');
-    assert.deepEqual(g.draws[0].map(d => d.seat), [...Array(players).keys()]);
-    for (let r = 0; r < g.draws.length; r++) {
-      const round = g.draws[r], top = Math.max(...round.map(d => d.rank));
-      const tied = round.filter(d => d.rank === top).map(d => d.seat);
-      if (r < g.draws.length - 1) {
-        assert.ok(tied.length > 1, 'a redraw only follows a tie');
-        assert.deepEqual(g.draws[r + 1].map(d => d.seat), tied, 'only the tied players draw again');
-        if (tied.length < round.length) partial++;
-      } else assert.deepEqual(tied, [g.first], 'the single highest starts');
-    }
-    if (g.draws.length > 1) ties++;
-    assert.equal(g.turn, g.first);
-  }
-  assert.ok(ties > 10 && partial > 5, `ties ${ties}, partial ${partial}`);
+const hands = (...hs) => layout({ decks: 2, players: hs.map(hand => ({ hand })) }).players;
+test('first player: most 3s; ties go to 4s, then 5s and up, 2 last', () => {
+  assert.deepEqual(FIRST_ORDER, [3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 2]);
+  const pf = (...hs) => pickFirst(hands(...hs), { rng: 1 });
+  assert.deepEqual(pf(['3S', 'KS'], ['3H', '3D', 'AS'], ['4S']), { first: 1, firstWhy: { rank: 3, count: 2, tied: false } }, 'most 3s');
+  assert.deepEqual(pf(['5S', 'KS'], ['3H', 'AS'], ['4S']), { first: 1, firstWhy: { rank: 3, count: 1, tied: false } }, 'the only 3');
+  assert.deepEqual(pf(['3S', '4S', '9S'], ['3H', '4H', '4D'], ['3D', 'JS']), { first: 1, firstWhy: { rank: 4, count: 2, tied: true } }, 'tied on 3s, more 4s');
+  assert.deepEqual(pf(['3S', '5S'], ['3H', '6H'], ['7D', '4S', '4H']), { first: 0, firstWhy: { rank: 5, count: 1, tied: true } },
+    'only the tied players go on: seat 2 has 4s but no 3');
+  assert.deepEqual(pf(['6S', 'KS'], ['7H', 'AS'], ['9D', 'QS']), { first: 0, firstWhy: { rank: 6, count: 1, tied: false } }, 'nobody holds a 3, 4 or 5');
+  assert.deepEqual(pf(['2S', 'KS'], ['2H', 'KH', '2D']), { first: 1, firstWhy: { rank: 2, count: 2, tied: true } }, '2 counts last');
 });
 
-test('draw for first reshuffles the drawn cards back in when the shoe runs out during redraws', () => {
-  const shoe = layout({ players: [{}, {}], deck: ['KS', 'AS', 'AH'] }).deck;
-  const r = drawForFirst(2, shoe, { rng: 1 });
-  assert.ok(r.draws.length >= 2, 'aces tie first, then the shoe of one card cannot serve two players');
-  assert.deepEqual(r.draws[0].map(d => d.rank), [14, 14]);
-  const last = r.draws.at(-1);
-  assert.equal(last.find(d => d.seat === r.first).rank, 14);
-  assert.equal(last.find(d => d.seat !== r.first).rank, 13);
+test('first player: identical hands are settled by the seeded rng, the same way every time', () => {
+  const same = hands(['3S0', '9S0', 'KS0'], ['3S1', '9S1', 'KS1'], ['4H0']);
+  const picks = new Set();
+  for (let rng = 0; rng < 40; rng++) {
+    const r = pickFirst(same, { rng });
+    assert.deepEqual(r, pickFirst(same, { rng }), 'deterministic');
+    assert.deepEqual(r.firstWhy, { rank: null, count: 0, tied: true });
+    picks.add(r.first);
+  }
+  assert.deepEqual([...picks].sort(), [0, 1], 'only the tied seats, and either can win');
+});
+
+test('first player is decided when the last player confirms, and play starts there', () => {
+  for (let seed = 1; seed <= 60; seed++) {
+    const players = 2 + seed % 5, g = createGame({ players, decks: defaultDecks(players), seed });
+    assert.deepEqual([g.first, g.turn, g.firstWhy], [0, 0, null], 'nothing decided while choosing');
+    const h = startPlay(g);
+    const want = pickFirst(h.players, { rng: g.rng });
+    assert.deepEqual([h.turn, h.first, h.firstWhy], [want.first, want.first, want.firstWhy]);
+    assert.deepEqual(viewFor(h, 0).firstWhy, h.firstWhy);
+  }
 });
 
 // Normal play
@@ -190,21 +196,26 @@ test('turn order walks the seats with 3 to 6 players and wraps', () => {
 
 // Special cards
 
-test('2 resets on any rank, stays on the pile and gives no extra turn', () => {
+test('2 resets on any rank, stays on the pile, and the same player goes again at once with no Next Turn', () => {
   const g = two({ hand: ['2S', '4S', '9H'] }, undefined, { pile: ['AH'] });
   const h = play(g, '2S');
-  assert.deepEqual([ranks(h.pile), h.pending, h.last.bomb, required(h.pile)], [[14, 2], { next: 1 }, false, null]);
+  assert.deepEqual([ranks(h.pile), h.pending, h.turn, h.last.bomb, required(h.pile)], [[14, 2], null, 0, false, null]);
   assert.deepEqual(legalRanks(h.pile), RANKS);
+  no(h, { type: 'next' });
+  assert.equal(play(h, '4S').pending.next, 1, 'the next ordinary play passes on');
+  // The refill comes before the extra turn, so a card just drawn can be played at once.
+  const t = { up: ['QC', 'QD', 'QS', 'QH'], down: ['JC', 'JD', 'JH', 'AC'] };
+  const b = { hand: ['3C', '3D', '6C', '6D', '6H'], up: ['4C', '4D', '4H', '8C'], down: ['5C', '5D', '5H', '8D'] };
+  const r = play(two({ hand: ['2S', '4S', '5S', '6S', '7S'], ...t }, b, { deck: ['9H', 'KS'] }), '2S');
+  assert.deepEqual([r.players[0].hand.map(c => c.id), r.last.drew, viewFor(r, 0).you.playable.includes('9H0')], [['4S0', '5S0', '6S0', '7S0', '9H0'], 1, true]);
 });
 
 test('10 bombs on any rank: pile removed, same player again for exactly one turn', () => {
   const g = two({ hand: ['10S', '4S', '9H'] }, undefined, { pile: ['8H', 'AH'] });
   const h = play(g, '10S');
-  assert.deepEqual([h.pile, h.pending, h.last.bomb, h.players[0].bombs], [[], { next: 0 }, true, 1]);
+  assert.deepEqual([h.pile, h.pending, h.turn, h.last.bomb, h.players[0].bombs], [[], null, 0, true, 1], 'no Next Turn: the turn stays');
   assert.ok(['8H0', 'AH0', '10S0'].every(id => h.removed.some(c => c.id === id)));
-  const i = next(h);
-  assert.equal(i.turn, 0);
-  assert.equal(play(i, '4S').pending.next, 1, 'the next ordinary play passes on: no queue of extra turns');
+  assert.equal(play(h, '4S').pending.next, 1, 'the next ordinary play passes on: no queue of extra turns');
 });
 
 test('four of a kind across turns bombs and the completer plays again; an interruption resets the streak', () => {
@@ -215,7 +226,7 @@ test('four of a kind across turns bombs and the completer plays again; an interr
   g = next(play(g, '8C'));
   assert.equal(streak(g.pile), 2);
   g = play(g, '8H', '8D');
-  assert.deepEqual([g.pile, g.pending, g.players[0].bombs, g.last.bomb], [[], { next: 0 }, 1, true]);
+  assert.deepEqual([g.pile, g.pending, g.turn, g.players[0].bombs, g.last.bomb], [[], null, 0, 1, true]);
 
   let s = two({ hand: ['8S', '8H', '8D', '9S'] }, { ...b, hand: ['KD', 'KC'] }, { pile: ['8C'] });
   s = next(play(s, '8S', '8H'));
@@ -321,14 +332,14 @@ test('face-down: one blind card at a time; legal cards play, a failed card goes 
   assert.deepEqual(bad.last, { seat: 0, type: 'failed', card: { rank: 3, suit: 'S' }, count: 3 });
   assert.equal(viewFor(next(bad), 0).you.source, 'hand', 'back to the hand phase');
   const reset = down(g, 2);
-  assert.deepEqual([required(reset.pile), reset.pending], [null, { next: 1 }], 'a blind 2 resets');
+  assert.deepEqual([required(reset.pile), reset.pending, reset.turn], [null, null, 0], 'a blind 2 resets and goes again');
   const boom = down(g, 3);
-  assert.deepEqual([boom.pile, boom.pending, boom.players[0].bombs], [[], { next: 0 }, 1], 'a blind 10 bombs');
+  assert.deepEqual([boom.pile, boom.pending, boom.players[0].bombs], [[], null, 1], 'a blind 10 bombs');
   const third = down(two({ down: ['9S'] }, b, { pile: ['9H', '9D', '9C'] }), 0);
   assert.equal(third.phase, 'over', 'a blind fourth 9 bombs and, being the last card, wins');
   assert.equal(third.players[0].bombs, 1);
   const quad = down(two({ down: ['9S', 'AS'] }, b, { pile: ['9H', '9D', '9C'] }), 0);
-  assert.deepEqual([quad.last.bomb, quad.pending], [true, { next: 0 }], 'four-of-a-kind completed blind');
+  assert.deepEqual([quad.last.bomb, quad.pending, quad.turn], [true, null, 0], 'four-of-a-kind completed blind');
 });
 
 test('winning: immediate on the last card with no Next Turn; an empty hand alone does not win', () => {
@@ -377,6 +388,29 @@ test('checkState rejects broken states', () => {
   assert.throws(() => checkState(two({ hand: ['3S'], up: ['QS'], down: [null, '7H'] }, b)), 'face-down before face-up');
   assert.throws(() => checkState(two({ hand: ['3S'] }, b, { deck: ['AS'] })), 'short hand with cards in the deck');
   assert.throws(() => checkState(two({}, b)), 'a player with no cards should have won');
+  bad(s => { s.firstWhy = { rank: 3, count: 1, tied: false }; });
+  assert.throws(() => checkState({ ...two({ hand: ['3S'] }, b), firstWhy: { rank: 1, count: 1, tied: false } }), 'bad first reason');
+});
+
+test('games saved by the earlier version still load and play: a draws list, no firstWhy, a same-seat pending', () => {
+  const b = { hand: ['3C', '3D', '6C', '6D', '6H'], up: ['4C', '4D', '4S', '4H'], down: ['5C', '5D', '5S', '5H'] };
+  const old = two({ hand: ['7S', '9H'] }, b);
+  delete old.firstWhy;
+  old.draws = [[{ seat: 0, rank: 14, suit: 'S' }, { seat: 1, rank: 9, suit: 'H' }]];
+  old.pending = { next: 0 }; // the old engine after a bomb: the turn kept, waiting for Next Turn
+  checkState(old);
+  assert.equal(viewFor(old, 0).firstWhy, null);
+  no(old, { type: 'play', seat: 0, ids: ['7S0'] });
+  const n = next(old);
+  assert.deepEqual([n.turn, n.pending], [0, null]);
+  assert.equal(play(n, '7S').pending.next, 1);
+  // An old game still choosing (first from the draw) picks its first player afresh at the last confirm.
+  const c = createGame({ players: 2, seed: 9 });
+  delete c.firstWhy;
+  Object.assign(c, { first: 1, turn: 1, draws: [[{ seat: 0, rank: 5, suit: 'S' }, { seat: 1, rank: 9, suit: 'H' }]] });
+  checkState(c);
+  const p = startPlay(c, [1, 0]);
+  assert.ok(p.firstWhy && p.turn === p.first);
 });
 
 // Views
@@ -402,8 +436,7 @@ test('viewFor shows the viewer their own cards, counts for others, face-down as 
   assert.deepEqual(v.players[0].up, g.players[0].up);
   assert.deepEqual(v.players[2].down, [true, true, true, true]);
   assert.equal(v.deck, 52 - 39);
-  assert.deepEqual([v.phase, v.turn, v.first, v.pending, v.removed, v.required, v.streak], ['play', g.first, g.first, null, 0, null, 0]);
-  assert.deepEqual(v.draws, g.draws);
+  assert.deepEqual([v.phase, v.turn, v.first, v.firstWhy, v.pending, v.removed, v.required, v.streak], ['play', g.first, g.first, g.firstWhy, null, 0, null, 0]);
   assert.equal(v.you.playable.length, g.turn === 1 ? 5 : 0);
   // Mutating the view must not touch the state.
   v.you.hand.pop();

@@ -218,9 +218,11 @@ async function playToEnd(id, n, r) {
     await assertPrivate(id, seat, r);
   }
   assert.equal(r.body.view.game.phase, 'play');
+  const g0 = r.body.view.game;
+  assert.ok(g0.firstWhy && g0.turn === g0.first, 'the first player was picked from the hands at the last confirm');
   assert.equal(typeof r.body.view.room.startedAt, 'number');
   assert.equal(r.body.view.room.endedAt, null);
-  let moves = 0;
+  let moves = 0, again = 0;
   while (r.body.view.room.phase === 'game') {
     assert.ok(++moves < 3000, 'game ends');
     const turn = r.body.view.game.turn;
@@ -239,6 +241,11 @@ async function playToEnd(id, n, r) {
     r = await act(P[turn], id, action, r.body.version);
     assert.equal(r.status, 200, JSON.stringify(r.body));
     await assertPrivate(id, turn, r);
+    const l = r.body.view.game.last;
+    if (r.body.view.room.phase === 'game' && l.type === 'play' && (l.bomb || l.cards[0].rank === 2)) {
+      assert.deepEqual([r.body.view.game.turn, r.body.view.game.pending], [turn, null], 'a 2 or a bomb: the same player goes again');
+      again++;
+    }
     // Someone else's turn: they may not move.
     const other = (turn + 1) % n;
     if (r.body.view.room.phase === 'game' && r.body.view.game.turn !== other) {
@@ -251,6 +258,7 @@ async function playToEnd(id, n, r) {
   assert.equal(r.body.view.room.phase, 'over');
   assert.equal(typeof r.body.view.game.winner, 'number');
   assert.ok(moves > 20, `${moves} moves`);
+  assert.ok(again > 0, 'the game had a 2 or a bomb');
   return r;
 }
 

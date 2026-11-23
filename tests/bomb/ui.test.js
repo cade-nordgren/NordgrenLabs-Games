@@ -1,10 +1,10 @@
-// Pure UI logic: names, sorting, selection, labels, the draw-for-first sequence and the local save round trip.
+// Pure UI logic: names, sorting, selection, labels, who goes first and the local save round trip.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createGame, layout, reduce } from '../../site/bomb/engine/reducer.js';
 import { viewFor } from '../../site/bomb/engine/view.js';
 import { cardName, rankCount, sortHand, toggle, keepPlayable, canPlaySel, playLabel, beatInfo, lastLine, nextLabel,
-  drawPlan, drawFinal, readGame, decksFor, okRoster, choosingSeat, leavers } from '../../site/bomb/ui/logic.js';
+  firstLine, readGame, decksFor, okRoster, choosingSeat, leavers } from '../../site/bomb/ui/logic.js';
 
 const c = (rank, suit, deck = 0) => ({ id: `${rank}${suit}${deck}`, rank, suit, deck });
 
@@ -22,6 +22,8 @@ test('hands sort by rank, 2 low to Ace high, equal ranks together', () => {
   const hand = [c(14, 'S'), c(2, 'D'), c(9, 'H'), c(2, 'S'), c(9, 'C', 1)];
   assert.deepEqual(sortHand(hand).map(x => x.rank), [2, 2, 9, 9, 14]);
   assert.equal(hand[0].rank, 14, 'does not mutate');
+  assert.deepEqual(sortHand(hand, true).map(x => x.id), ['14S0', '9H0', '9C1', '2S0', '2D0'], 'high to low, ties still by suit');
+  assert.deepEqual(sortHand(hand, false).map(x => x.id), ['2S0', '2D0', '9H0', '9C1', '14S0']);
 });
 
 test('selection: only playable cards, one rank at a time; another rank replaces it', () => {
@@ -55,8 +57,9 @@ test('what just happened, and the Next Turn label', () => {
   g = reduce(g, { type: 'play', seat: 0, ids: ['10H0'] });
   const v = viewFor(g, 0);
   assert.match(lastLine(v, names, 0), /^You played 10 of hearts\. Bomb!.*you go again/);
-  assert.equal(nextLabel(v, names), 'Next turn: Alex again');
-  g = reduce(reduce(g, { type: 'next' }), { type: 'play', seat: 0, ids: ['4C0'] });
+  assert.equal(v.pending, null, 'a bomb keeps the turn with no Next Turn');
+  assert.equal(nextLabel({ ...v, pending: { next: 0 } }, names), 'Next turn: Alex again', 'an older save still pending on the same seat');
+  g = reduce(g, { type: 'play', seat: 0, ids: ['4C0'] });
   assert.equal(nextLabel(viewFor(g, 0), names), 'Next turn: Brooke');
   assert.equal(lastLine(viewFor(g, 1), names, 1), 'Alex played 4 of clubs.');
   g = reduce(g, { type: 'next' });
@@ -64,33 +67,37 @@ test('what just happened, and the Next Turn label', () => {
   assert.equal(lastLine(viewFor(g, 0), names, 0), 'Brooke picked up 1 card.');
 });
 
-test('draw for first: rounds, ties called out, only the tied redraw, one winner', () => {
-  const draws = [
-    [{ seat: 0, rank: 7, suit: 'C' }, { seat: 1, rank: 13, suit: 'H' }, { seat: 2, rank: 13, suit: 'S' }],
-    [{ seat: 1, rank: 9, suit: 'C' }, { seat: 2, rank: 12, suit: 'D' }],
-  ];
-  const plan = drawPlan(draws);
-  assert.deepEqual(plan.map(r => [r.tied, r.winner]), [[[1, 2], null], [null, 2]]);
-  const f = drawFinal(draws);
-  assert.equal(f[2].result, 'starts');
-  assert.equal(f[1].result, 'out');
-  assert.equal(f[1].rank, 9, 'shows the last card that seat drew');
-  assert.equal(f[0].round, 0);
-  // Real games: the plan always ends on the engine's first player.
-  for (let seed = 1; seed < 200; seed++) {
-    const g = createGame({ players: 6, decks: 2, seed });
-    assert.equal(drawPlan(g.draws).at(-1).winner, g.first);
+test('who goes first, in plain words', () => {
+  const names = ['Alex', 'Sam'], v = (first, firstWhy) => ({ first, firstWhy });
+  assert.equal(firstLine(v(1, { rank: 3, count: 2, tied: false }), names, 0), 'Sam goes first: most 3s.');
+  assert.equal(firstLine(v(1, { rank: 3, count: 1, tied: false }), names, 1), 'You go first: the only 3.');
+  assert.equal(firstLine(v(0, { rank: 4, count: 1, tied: false }), names, null), 'Alex goes first: no 3s, so the only 4.');
+  assert.equal(firstLine(v(0, { rank: 5, count: 2, tied: false }), names, null), 'Alex goes first: no 3s or 4s, so most 5s.');
+  assert.equal(firstLine(v(0, { rank: 14, count: 1, tied: false }), names, null), 'Alex goes first: no 3s to Kings, so the only Ace.');
+  assert.equal(firstLine(v(0, { rank: 4, count: 2, tied: true }), names, null), 'Alex goes first: tied on lower cards, so more 4s.');
+  assert.equal(firstLine(v(1, { rank: null, count: 0, tied: true }), names, null), 'Sam goes first: same cards, so picked at random.');
+  assert.equal(firstLine(v(0, null), names, null), '', 'older games have no reason');
+  // Real games: the words always name the engine's first player.
+  for (let seed = 1; seed < 30; seed++) {
+    let g = createGame({ players: 3, decks: 1, seed });
+    for (let seat = 0; seat < 3; seat++) {
+      g = reduce(g, { type: 'arrange', seat, ids: g.players[seat].hand.slice(0, 4).map(x => x.id) });
+      g = reduce(g, { type: 'confirm', seat });
+    }
+    assert.ok(firstLine(viewFor(g, null), ['A', 'B', 'C'], null).startsWith(`${'ABC'[g.first]} goes first: `));
   }
 });
 
 test('local save round trip: exact cards come back, and bad saves are refused', () => {
   const g = createGame({ players: 3, decks: 1, seed: 42 });
-  const save = { g, names: ['Alex', 'Brooke', 'Sam'], styles: ['cobalt', 'tangerine', 'forest'], drawSeen: true,
+  const save = { g, names: ['Alex', 'Brooke', 'Sam'], styles: ['cobalt', 'tangerine', 'forest'], desc: [false, true, false],
     saveId: null, createdAt: '2026-11-23T10:00:00.000Z', startedAt: null, endedAt: null };
   const back = readGame(JSON.parse(JSON.stringify(save)));
   assert.deepEqual(back.g, g, 'never reshuffled');
   assert.deepEqual(back.names, save.names);
-  assert.equal(back.drawSeen, true);
+  assert.deepEqual(back.desc, [false, true, false], 'hand order per player');
+  const old = readGame({ ...save, desc: undefined, drawSeen: true });
+  assert.deepEqual([old.desc, 'drawSeen' in old], [[false, false, false], false], 'an older save: low to high for everyone');
   assert.equal(readGame({ ...save, styles: ['cobalt', 'cobalt', 'forest'] }), null, 'two players, one style');
   assert.equal(readGame({ ...save, names: ['Alex', 'Brooke'] }), null, 'names must match the seats');
   assert.equal(readGame({ ...save, names: ['Alex', '', 'Sam'] }), null);
@@ -118,7 +125,7 @@ test('views for the handoff screen carry no private cards', () => {
   for (const p of g.players) for (const x of [...p.hand, ...p.down]) assert.ok(!v.includes(`"${x.id}"`));
 });
 
-test('one phone: face-up choices start from the draw winner and go round in turn order', () => {
+test('one phone: face-up choices go round in seat order from seat 0', () => {
   for (let seed = 1; seed < 40; seed++) {
     let g = createGame({ players: 4, decks: 2, seed });
     const order = [];
@@ -127,7 +134,7 @@ test('one phone: face-up choices start from the draw winner and go round in turn
       g = reduce(g, { type: 'arrange', seat, ids: g.players[seat].hand.slice(0, 4).map(x => x.id) });
       g = reduce(g, { type: 'confirm', seat });
     }
-    assert.deepEqual(order, [0, 1, 2, 3].map(k => (g.first + k) % 4));
+    assert.deepEqual(order, [0, 1, 2, 3]);
     assert.equal(g.phase, 'play');
   }
 });
