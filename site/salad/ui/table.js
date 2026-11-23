@@ -96,7 +96,9 @@ function drawOpps(v) {
     if (!seat?.connected) { const off = el('span', 'off-tag', 'Away'); nm.append(off); }
     const st = g.seats[s], pts = roundPts(g, s);
     const line = compact ? `${st.hand} · ${plural(st.tricks, 'trick')}` : `${plural(st.hand, 'card')} · ${plural(st.tricks, 'trick')}${pts === null ? '' : ` · ${pts} pts`}`;
-    sec.append(nm, el('p', 'cap', line));
+    const cap = el('p', 'cap', line);
+    cap.prepend(backEl()); // their hand, face down, in your card back
+    sec.append(nm, cap);
     if (now) {
       const tag = el('span', 'ptag');
       tag.style.background = c.hex; tag.style.color = c.ink;
@@ -194,15 +196,13 @@ function drawFelt(v) {
     mid.replaceChildren(box);
   } else mid.replaceChildren();
 
-  // The kitty lies face down until the first trick's winner takes it.
-  const ks = $('kittyStack');
-  if (g.kitty.count && g.kitty.to === null && g.phase === 'play') {
-    const box = el('div', 'kitty-stack');
-    box.setAttribute('aria-label', `Kitty: ${plural(g.kitty.count, 'card')} face down, for the winner of trick 1`);
-    for (let i = 0; i < Math.min(3, g.kitty.count); i++) box.append(backEl());
-    box.append(el('span', 'who', `Kitty ${g.kitty.count}`));
-    ks.replaceChildren(box);
-  } else ks.replaceChildren();
+  // The kitty lies face down until the first trick's winner takes it: shown under the middle note.
+  if (!fx && g.kitty.count && g.kitty.to === null && g.phase === 'play' && mid.firstChild) {
+    const k = el('span', 'kit-line');
+    k.append(backEl(), `Kitty ${g.kitty.count}, face down`);
+    k.title = 'The winner of trick 1 takes the kitty';
+    mid.firstChild.append(k);
+  }
 }
 
 function penaltyWords(round, pen) {
@@ -280,7 +280,7 @@ function layoutHand() {
   probe.append(handEls[0]);
   box.replaceChildren(probe);
   const w = handEls[0].getBoundingClientRect().width || 62, n = handEls.length;
-  const fit = Math.floor((W - w) / (w * 0.6)) + 1;
+  const fit = Math.floor((W - w) / (w * 0.55)) + 1; // the index stays readable down to about 55% of a card
   let rows;
   if (n <= fit) rows = [handEls];
   else if (n <= 2 * fit && !landscapePhone.matches && n <= 20) { const h = Math.ceil(n / 2); rows = [handEls.slice(0, h), handEls.slice(h)]; }

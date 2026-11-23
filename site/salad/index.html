@@ -240,12 +240,15 @@ dialog h2:focus { outline: none; }
 .mid { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 6px 14px; border-radius: 999px; text-align: center; white-space: nowrap; z-index: 3; }
 .mid .cap { font-size: 11px; display: block; line-height: 1.1; }
 .mid strong { font: 800 16px/1.2 var(--num); }
+.felt.small .mid:not(.won):not(.kit) { padding: 3px 9px; } .felt.small .mid:not(.won):not(.kit) .cap { display: none; } .felt.small .mid strong { font-size: 14px; }
 .mid.won { width: 200px; padding: 10px 12px; border-radius: 20px; white-space: normal; }
 .mid.won p { margin: 0; font: 800 18px/1.15 var(--num); }
 .badge { display: inline-grid; place-items: center; min-width: 54px; height: 34px; padding: 0 10px; border-radius: 999px; background: var(--pen); color: #fff; font: 800 20px var(--num); }
 .badge.zero { background: var(--fill); color: var(--ink); }
 .mid.kit { width: min(300px, 92%); padding: 12px; border-radius: 22px; white-space: normal; }
 .kit-cards { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.kit-line { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--ink2); margin-top: 2px; }
+.kit-line .c.back { --w: 12px; display: inline-block; }
 .kitty-stack { position: absolute; right: 8%; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; z-index: 1; }
 .kitty-stack .c { --w: calc(34px * var(--k)); }
 .kitty-stack .c + .c { margin-top: calc(var(--w) * -1.35); }
@@ -275,6 +278,7 @@ dialog h2:focus { outline: none; }
 .act .on2 { text-align: center; font-weight: 500; min-height: 18px; }
 #game .btn:not(.primary) { background: var(--glass); color: var(--ink); box-shadow: var(--shadow); }
 #game .btn.primary { min-height: 54px; }
+#game .btn.primary:disabled { background: var(--glass); color: var(--ink2); }
 .offline { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 8px); transform: translateX(-50%); z-index: 30; padding: 6px 14px; border-radius: 999px; background: #1d1d1f; color: #fff; font-size: 14px; font-weight: 600; }
 
 /* ---- Results (round and final), on the house cream. */
@@ -316,6 +320,8 @@ dialog h2:focus { outline: none; }
 .rside { display: flex; flex-direction: column; gap: 10px; flex: 1; }
 
 /* ---- Sheets */
+/* Sheets open over the busy table: near-solid glass so they stay readable. */
+dialog.sheet { --glass: var(--glass-menu); --glass-strong: var(--solid); }
 dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--ink2); opacity: .35; margin: -12px 0 2px; }
 .appearance { display: flex; align-items: center; gap: 12px; }
 .appearance .segmented { flex: 1; }
@@ -345,7 +351,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 .swatch-row button { width: 44px; height: 44px; border-radius: 50%; }
 .swatch-row button[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--solid), 0 0 0 6px var(--ink); }
 .pat-row button { border-radius: 12px; background-color: #62738a; background-image: var(--pat); background-size: var(--pat-size, auto); }
-.preview { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 12px; border-radius: 18px; background: radial-gradient(ellipse at 50% 45%, #27704a, #1d5a39); --k: 1.1; }
+.preview { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 12px; border-radius: 18px; background: var(--fill); --k: 1.1; }
+.opp .cap .c.back { display: inline-block; vertical-align: -5px; margin-right: 5px; --w: 14px; box-shadow: inset 0 0 0 1px var(--pc), inset 0 0 0 2px rgba(255, 255, 255, .75); }
 .howto h3 { color: var(--ink) !important; font-size: 16px !important; }
 .howto ol, .howto ul { margin: 0; padding-left: 20px; color: var(--ink2); font-size: 15px; }
 .howto li + li { margin-top: 4px; }
