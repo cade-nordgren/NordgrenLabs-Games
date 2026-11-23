@@ -7,8 +7,8 @@ import { verifyJwt } from '@clerk/backend/jwt';
 const PRODUCTION_AUTHORIZED_PARTY = 'https://games.nordgrenlabs.com';
 const DEVELOPMENT_AUTHORIZED_PARTY = 'http://localhost:8787';
 // __GAMES_BUILD_MODE__ is a wrangler `define`, replaced at build time (wrangler.jsonc); never a runtime variable.
-export const AUTHORIZED_PARTY = typeof __GAMES_BUILD_MODE__ !== 'undefined' && __GAMES_BUILD_MODE__ === 'development'
-  ? DEVELOPMENT_AUTHORIZED_PARTY : PRODUCTION_AUTHORIZED_PARTY;
+export const DEVELOPMENT = typeof __GAMES_BUILD_MODE__ !== 'undefined' && __GAMES_BUILD_MODE__ === 'development';
+export const AUTHORIZED_PARTY = DEVELOPMENT ? DEVELOPMENT_AUTHORIZED_PARTY : PRODUCTION_AUTHORIZED_PARTY;
 
 const SKEW_S = 5;
 const MAX_TOKEN_LENGTH = 4096;

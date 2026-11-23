@@ -1,7 +1,8 @@
 // The Worker (docs/decisions/0002, 0003). It runs first for every request: /api/* and /config.js are its own, and every
 // other path is a file from site/ through the ASSETS binding, behind the sign-in gate when Clerk is configured.
-import { verify, verifyCookie, AUTHORIZED_PARTY } from './seam.js';
+import { verify, verifyCookie, AUTHORIZED_PARTY, DEVELOPMENT } from './seam.js';
 import { handleSaves } from './saves.js';
+import { handleSalad, saladAllow } from './salad.js';
 
 const REQUIRED = ['CLERK_PUBLISHABLE_KEY', 'CLERK_JWT_KEY', 'CLERK_ISSUER'];
 // What the sign-in page and a home-screen install need (phones fetch these without a usable session), nothing else. Exact paths, so any other file,
@@ -11,6 +12,12 @@ const PUBLIC = new Set(['/manifest.webmanifest', '/apple-touch-icon.png', '/favi
 // site/signin.html; html_handling serves it at /signin. It carries this placeholder for the Worker to fill in.
 const SIGN_IN = '/signin';
 const PLACEHOLDER = 'window.NL_CONFIG = null;';
+// Local development only (a development build with Clerk unconfigured, which is signed out): X-Dev-Person names who you
+// are, so one PC can be several players. Production never reads it.
+const devPerson = (request, env) => {
+  const p = request.headers.get('x-dev-person') ?? '';
+  return DEVELOPMENT && !env.CLERK_JWT_KEY && /^[A-Za-z0-9_-]{1,64}$/.test(p) ? { ok: true, personPublicId: p } : null;
+};
 
 // Names only, never values (decision 7 of 0001). A Worker cannot refuse to start, so it refuses to serve instead.
 // All three empty is the signed-out dev environment; anything else partial is a broken deploy.
@@ -42,15 +49,16 @@ export default {
 
     if (pathname === '/api' || pathname.startsWith('/api/')) {
       const id = /^\/api\/saves\/([^/]+)$/.exec(pathname)?.[1];
-      const allow = pathname === '/api/me' || pathname === '/api/saves' ? 'GET' : id ? 'GET, PUT, DELETE' : null;
+      const allow = pathname === '/api/me' || pathname === '/api/saves' ? 'GET' : id ? 'GET, PUT, DELETE' : saladAllow(pathname);
       if (!allow) return json(404, { error: 'not_found' });
       if (!allow.split(', ').includes(request.method)) return json(405, { error: 'method_not_allowed' }, { Allow: allow });
-      const r = await verify(request.headers.get('authorization') ?? undefined,
+      const r = devPerson(request, env) ?? await verify(request.headers.get('authorization') ?? undefined,
         { jwtKey: env.CLERK_JWT_KEY, issuer: env.CLERK_ISSUER, authorizedParty: AUTHORIZED_PARTY });
       if (!r.ok) return json(401, { error: 'unauthenticated' });
       if (r.personPublicId === null) return json(403, { error: 'not_associated' });
       if (pathname === '/api/me') return json(200, { personPublicId: r.personPublicId });
       try {
+        if (pathname.startsWith('/api/salad/')) return json(...await handleSalad(env.DB, request, r.personPublicId, pathname, searchParams));
         return json(...await handleSaves(env.DB, request, r.personPublicId, id, searchParams.get('game')));
       } catch {
         return json(503, { error: 'unavailable' });
