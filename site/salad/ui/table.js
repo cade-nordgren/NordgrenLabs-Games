@@ -15,6 +15,7 @@ import { sound } from './sound.js';
 const OBJ = { tricks: '10 a trick', hearts: '10 a heart', queens: '25 a queen', kings: '100 for the K♠︎', last: '100 for the last trick', salad: 'every penalty counts' };
 export const objective = round => OBJ[ROUNDS[round - 1].key];
 const landscapePhone = matchMedia('(orientation: landscape) and (max-height: 540px)');
+const wide = matchMedia('(min-width: 700px) and (min-height: 600px)'); // tablet and desktop: opponents sit round the felt
 
 let idle = () => {};
 export const onIdle = fn => { idle = fn; };
@@ -83,6 +84,9 @@ function drawOpps(v) {
   const others = Array.from({ length: n - 1 }, (_, i) => (my + 1 + i) % n);
   box.style.setProperty('--cols', others.length <= 4 ? others.length : Math.ceil(others.length / 2));
   const compact = others.length > 4;
+  const tight = compact && !landscapePhone.matches && !wide.matches; // four to a row on a portrait phone only
+  box.classList.toggle('tight', tight);
+  box.classList.toggle('many', compact);
   box.replaceChildren(...others.map(s => {
     const p = g.players[s], seat = v.room.seats[s], c = color(p.color), now = g.phase === 'play' && g.turn === s && !(T.fx && !still());
     const sec = el('section', 'glass opp' + (now ? ' now' : ''));
@@ -96,8 +100,11 @@ function drawOpps(v) {
     if (!seat?.connected) { const off = el('span', 'off-tag', 'Away'); nm.append(off); }
     const st = g.seats[s], pts = roundPts(g, s);
     // Hand count first (the face-down back says what it is), then tricks and, when shown, this round's points.
-    const line = `${others.length > 2 ? st.hand : plural(st.hand, 'card')} · ${plural(st.tricks, 'trick')}${pts === null || compact ? '' : ` · ${pts}`}`;
-    const cap = el('p', 'cap', line);
+    // No-break spaces inside each part, so a wrapped line breaks between parts ("0 pts" never splits).
+    const line = [others.length > 2 ? st.hand : plural(st.hand, 'card'), plural(st.tricks, 'trick'), ...(pts === null || compact ? [] : [`${pts} pts`])]
+      .map(t => String(t).replace(/ /g, ' ')).join(' · ');
+    // Seven opponents share a phone's width: away replaces the counts there (the name keeps the room it needs).
+    const cap = el('p', 'cap', tight && !seat?.connected ? 'Away' : line);
     cap.prepend(backEl()); // their hand, face down, in your card back
     sec.append(nm, cap);
     if (now) {
@@ -126,6 +133,7 @@ function scoring(round, id) {
 function drawFelt(v) {
   const g = v.game, my = v.you.seat, n = g.players.length, fx = T.fx;
   $('felt').classList.toggle('small', n >= 6);
+  $('felt').classList.toggle('ring', n >= 7);
   let plays, leader, winner = null, done = false;
   if (fx) { plays = fx.last.plays; leader = fx.last.leader; winner = fx.last.winner; done = true; }
   else {
@@ -137,9 +145,10 @@ function drawFelt(v) {
   const trickN = fx ? fx.last.n : g.trick?.n;
   const spots = [];
   for (let s = 0; s < n; s++) {
-    const a = angle(v, s), spot = el('div', 'spot');
-    spot.style.setProperty('--x', Math.cos(a).toFixed(3));
-    spot.style.setProperty('--y', Math.sin(a).toFixed(3));
+    // Seven or eight seats go round a rectangle instead (three rows on each side), so neighbours never overlap.
+    const a = angle(v, s), spot = el('div', 'spot'), m = n >= 7 ? Math.max(Math.abs(Math.cos(a)), Math.abs(Math.sin(a))) : 1;
+    spot.style.setProperty('--x', (Math.cos(a) / m).toFixed(3));
+    spot.style.setProperty('--y', (Math.sin(a) / m).toFixed(3));
     const p = plays.find(q => q.seat === s);
     if (p) {
       const c = cardEl(p.card);
@@ -155,7 +164,7 @@ function drawFelt(v) {
     } else spot.append(Object.assign(el('span', 'hole'), { ariaHidden: 'true' }));
     const who = el('span', 'who'), dot = el('i');
     dot.style.background = color(g.players[s].color).hex;
-    who.append(dot, s === my ? 'You' : g.players[s].name);
+    who.append(dot, el('span', '', s === my ? 'You' : g.players[s].name)); // a span, so a long name ends in an ellipsis
     spot.append(who);
     spots.push(spot);
   }
@@ -229,7 +238,7 @@ function drawSide(v) {
 function drawMe(v, myTurn) {
   const g = v.game, my = v.you.seat, p = g.players[my], st = g.seats[my], pts = roundPts(g, my);
   $('meAv').replaceChildren(avatar(p));
-  $('meName').textContent = `${p.name} · ${plural(st.hand - (T.pending ? 1 : 0), 'card')} · ${plural(st.tricks, 'trick')}${pts === null ? '' : ` · ${pts} pts`}`;
+  $('meName').textContent = `${plural(st.hand - (T.pending ? 1 : 0), 'card')} · ${plural(st.tricks, 'trick')}${pts === null ? '' : ` · ${pts} pts`}`;
   $('meTurn').hidden = !myTurn;
   const c = color(p.color);
   $('meTurn').style.background = c.hex; $('meTurn').style.color = c.ink;

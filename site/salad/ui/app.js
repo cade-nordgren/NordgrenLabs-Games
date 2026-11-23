@@ -316,7 +316,7 @@ function maybeCut(v) {
       if (c.rank === top) card.classList.add('win');
       const who = el('span', 'who'), dot = el('i');
       dot.style.background = color(g.players[c.seat].color).hex;
-      who.append(dot, c.seat === v.you.seat ? 'You' : g.players[c.seat].name);
+      who.append(dot, el('span', '', c.seat === v.you.seat ? 'You' : g.players[c.seat].name));
       spot.append(card, who);
       line.append(spot);
     }

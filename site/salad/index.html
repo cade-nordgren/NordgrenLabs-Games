@@ -223,6 +223,16 @@ dialog h2:focus { outline: none; }
 .dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
 @keyframes blink { 50% { opacity: .3; } }
 .off-tag { font-size: 11px; font-weight: 700; color: var(--ink2); }
+/* Five to seven opponents in portrait: smaller avatar and type so names stay readable four to a row; away shows in the count line. */
+#opps.tight { gap: 6px; }
+#opps.tight .opp { padding: 6px 7px; border-radius: 14px; }
+#opps.tight .opp .nm { gap: 4px; }
+#opps.tight .opp .av { width: 18px; height: 18px; font-size: 10px; }
+#opps.tight .opp strong { font-size: 13px; }
+#opps:not(.tight) .opp .cap { white-space: normal; } /* hand, tricks and points wrap rather than lose the points */
+#opps.tight .opp .cap { font-size: 11px; letter-spacing: -.01em; }
+#opps.tight .opp .cap .c.back { --w: 11px; margin-right: 3px; }
+#opps.tight .off-tag { display: none; }
 /* The felt: an oval, trick spots placed on a ring by script (viewer at the bottom, clockwise). */
 .felt { grid-area: felt; position: relative; border-radius: 999px; min-height: 0;
   background: radial-gradient(ellipse at 50% 45%, rgba(255, 255, 255, .07), rgba(0, 0, 0, .08) 70%); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .12), inset 0 4px 24px rgba(0, 0, 0, .22); }
@@ -230,6 +240,7 @@ dialog h2:focus { outline: none; }
 .spot { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px; transform: translate(-50%, -50%); }
 .who { display: inline-flex; align-items: center; gap: 4px; max-width: 86px; padding: 1px 7px 1px 4px; border-radius: 999px; background: var(--glass); color: var(--ink); font-size: 12px; font-weight: 700; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .who i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.who > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .ttag { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 2; padding: 1px 7px; border-radius: 999px; background: var(--glass); color: var(--ink); font: 800 11px var(--text); white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, .2); letter-spacing: 0; }
 .ttag.w { background: #1d1d1f; color: #fff; }
 .hole { width: var(--w); height: calc(var(--w) * 1.43); border-radius: calc(var(--w) * .16); border: 2px dashed rgba(255, 255, 255, .45); }
@@ -237,6 +248,10 @@ dialog h2:focus { outline: none; }
 .felt .c, .felt .hole { --w: var(--cw); }
 .felt .spot { left: calc(50% + var(--x) * (50% - var(--cw) * .75 - 8px)); top: calc(50% + var(--y) * (50% - var(--cw) * .86 - 10px)); }
 #game[data-table="light"] .hole { border-color: rgba(0, 0, 0, .3); }
+/* Seven or eight seats: a rounded rectangle with three rows of spots a side, each spot clear of its neighbours. */
+.felt.ring { border-radius: 40px; }
+@media not all and (orientation: landscape) and (max-height: 540px) { .felt.ring .spot { top: calc(50% + var(--y) * (50% - var(--cw) * .95 - 2px)); } }
+.felt.small .who { max-width: 76px; }
 .mid { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 6px 14px; border-radius: 999px; text-align: center; white-space: nowrap; z-index: 3; }
 .mid .cap { font-size: 11px; display: block; line-height: 1.1; }
 .mid strong { font: 800 16px/1.2 var(--num); }
@@ -264,6 +279,10 @@ dialog h2:focus { outline: none; }
 .hand { display: flex; flex-direction: column; align-items: center; }
 .hrow { display: flex; justify-content: center; padding-top: 20px; }
 .hrow .c + .c { margin-left: var(--ov, -14px); }
+/* Two rows overlap so the felt keeps its height: the back row keeps its index and a band over 44px to tap, and the
+   front row's padding lets taps through to it. */
+.hrow { pointer-events: none; } .hrow .c { pointer-events: auto; }
+.hrow + .hrow { margin-top: -44px; }
 .hand.scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; align-items: flex-start; overscroll-behavior-x: contain;
   -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
 .hand.scroll .hrow { justify-content: flex-start; width: max-content; padding-right: 40px; }
@@ -393,12 +412,20 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   .opp .cap { margin: 1px 0 0; font-size: 11px; }
   .opp .ptag { margin-top: 2px; }
   .opp .caps { display: none; }
-  .side { grid-area: side; display: flex !important; flex-direction: column; gap: 8px; padding-top: 56px; min-height: 0; }
+  /* Five to seven opponents: one line each so all of them fit the column; the turn shows in the ring and the header. */
+  #opps.many { gap: 3px; }
+  #opps.many .opp { display: flex; align-items: center; gap: 6px; padding: 3px 8px; min-height: 30px; }
+  #opps.many .opp .av { width: 20px; height: 20px; font-size: 11px; }
+  #opps.many .opp .nm { flex: 1; min-width: 0; }
+  #opps.many .opp .cap { margin: 0; flex: none; }
+  #opps.many .opp .ptag { display: none; }
+  .side { grid-area: side; display: flex !important; flex-direction: column; gap: 8px; padding-top: 56px; min-height: 0; overflow-y: auto; }
   .act { grid-area: act; align-self: end; }
   .act .on2 { display: none; }
   .me { min-height: 0; }
   .hrow { padding-top: 14px; }
-  .wait { min-height: 44px; font-size: 14px; }
+  .wait { min-height: 44px; font-size: 14px; overflow-wrap: anywhere; }
+  #gTitle2 { overflow-wrap: anywhere; } /* a 20-letter name has no space to break at */
   #game .btn.primary { min-height: 48px; font-size: 16px; }
   .felt { --cw: calc(40px * var(--k)); } .felt.small { --cw: calc(34px * var(--k)); }
   .mid { padding: 3px 10px; } .mid strong { font-size: 14px; } .mid.won { width: 170px; padding: 6px 8px; } .mid.won p { font-size: 15px; } .badge { height: 28px; min-width: 44px; font-size: 17px; }
