@@ -18,13 +18,11 @@
 </head>
 <body>
 <div class="app">
-  <div class="menu">
-    <button class="menu-trigger glass" id="settingsBtn" aria-label="Settings" aria-haspopup="dialog">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
-    </button>
-  </div>
   <main style="padding-top: calc(env(safe-area-inset-top) + 52px)">
-    <h1>Games</h1>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+      <h1>Games</h1>
+      <button class="glass" id="settingsBtn" aria-label="Settings" aria-haspopup="dialog" style="flex: none; width: 48px; height: 48px; border-radius: 50%; display: grid; place-items: center"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg></button>
+    </div>
     <p class="lede">From NordgrenLabs.</p>
     <div class="segmented" id="filter" role="group" aria-label="Show games" style="margin-bottom: 14px">
       <button value="all" aria-pressed="true">All</button>
@@ -69,7 +67,8 @@
     </div>
   </main>
 </div>
-<dialog class="sheet glass" id="settings" aria-labelledby="settingsTitle">
+<!-- Near-solid like the game menus: the list behind is glass too, and glass over glass was muddy. -->
+<dialog class="sheet glass" id="settings" style="--glass: var(--glass-menu)" aria-labelledby="settingsTitle">
   <div>
     <h2 id="settingsTitle">Settings</h2>
     <h3 id="themeTitle">Appearance</h3>
