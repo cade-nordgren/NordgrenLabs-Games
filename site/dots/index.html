@@ -241,6 +241,14 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 #tutStage { height: min(46dvh, 320px); display: grid; place-items: center; }
 #tutMsg { min-height: 2.8em; margin: 0; text-align: center; font-weight: 600; color: var(--ink); }
 
+/* Phones upright: the picked board is a compact row (picture beside its name), so the board list starts on the first screen. */
+@media (max-width: 699px) and (orientation: portrait) {
+  #bigPreview { grid-template-columns: 104px minmax(0, 1fr); gap: 2px 14px; padding: 10px 14px 10px 10px; }
+  #bigPreview .thumb { grid-column: 1; grid-row: 1 / span 3; width: 104px; height: 88px; margin: 0; }
+  #bigPreview strong, #bigPreview span { grid-column: 2; align-self: end; }
+  #bigPreview span { align-self: start; }
+  #bigPreview .btn { grid-column: 2; grid-row: 3; justify-self: start; min-height: 40px; padding: 0 16px; }
+}
 /* Tablets: centred and roomier. */
 @media (min-width: 700px) {
   .app { max-width: 720px; }
@@ -261,6 +269,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 @media (min-width: 1000px) and (min-height: 541px) {
   .app:has(#gamePage:not([hidden])) { padding-bottom: 24px; }
   #gamePage { padding-right: 58px; }
+  /* Desktop: players and the turn controls sit together, centred beside the board, not split top and bottom. */
+  #gamePage:not(.over) { grid-template-rows: minmax(0, 1fr) auto auto minmax(0, 1fr); grid-template-areas: "stage ." "stage head" "stage bar" "stage ."; row-gap: 18px; }
   .pagehead, .logo { max-width: none; }
 }
 /* Phone in landscape: everything fits one screen, the content clear of the circles on the right. */
@@ -284,6 +294,13 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   .rcard { padding: 8px 10px; gap: 6px; }
   .slot { --h: 22px; }
   #rollMsg { margin: 8px 0; }
+  /* Physical dice: the name beside its number pad, and Start game beside Enter the numbers again, so Start game shows without a scroll. */
+  .rcard:has(.pad) { grid-template-columns: minmax(0, 1fr) auto; justify-items: start; align-items: center; }
+  #rollPage { display: grid; grid-template-columns: 1fr 1fr; column-gap: 8px; align-content: start; }
+  #rollPage > * { grid-column: 1 / -1; }
+  #rollPage > #startGame:has(~ #fixRoll:not([hidden])) { grid-column: 1; }
+  #rollPage > #startGame:not([hidden]) ~ #fixRoll { grid-column: 2; margin-top: 0 !important; }
+  #fixRoll .btn { min-height: 54px; }
   .pagehead { margin-bottom: 6px; }
   #resultsHead { margin-bottom: 8px; }
   #resultsHead h2 { font-size: 22px; }
