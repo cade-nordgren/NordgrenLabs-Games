@@ -80,3 +80,26 @@ Setup (mode, roster with "+", card style per player, decks) · online lobby (cod
 4. Online uses long polling in the existing Worker and D1, not a new Cloudflare product.
 5. No turn timer and no kicking of absent players online.
 6. The game ends when the first player is out; nobody plays on for second place.
+
+## Card styles (from the design canvas, contrast measured)
+
+Twelve backs, each a colour plus its own CSS pattern. Ink is the text colour used on that colour (white, or dark `#1d1d1f`); every pairing is 4.77:1 or better, and each colour is 3:1 or better against both the cream ground and dark glass.
+
+| Style | Hex | Ink |
+|---|---|---|
+| Cobalt Stripes | #1f6fd6 | white |
+| Scarlet Dots | #d42f3a | white |
+| Forest Diamonds | #1c7f3e | white |
+| Tangerine Waves | #d96c00 | dark |
+| Violet Crosshatch | #9046d6 | white |
+| Teal Checks | #0c7c78 | white |
+| Rose Chevrons | #cc2f7c | white |
+| Gold Sunburst | #b58300 | dark |
+| Indigo Scales | #575bdb | white |
+| Slate Pinstripes | #62738a | white |
+| Sky Rings | #1f93c9 | dark |
+| Lime Plaid | #62970f | dark |
+
+Other measured fixes to carry into the build: in dark mode the primary button is `#0071e3` (white text 4.70:1, `#0a84ff` fails), the danger tag is `#d70015`, and the neutral deck back is `#737378`.
+
+The canvas source files (one `.dc.html` per screen, plain HTML and CSS) are in `docs/plans/bomb-canvas/` for reference.

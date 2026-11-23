@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bomb setup</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--solid:#fff;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--danger:#d70015;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--thumb:#fff;--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s.dark{--canvas:#000;--solid:#1c1c1e;--ink:#f5f5f7;--ink2:#a1a1a6;--accent:#2997ff;--primary:#0071e3;--danger:#ff453a;--glass:rgba(44,44,46,.6);--edge:rgba(255,255,255,.13);--hair:rgba(255,255,255,.14);--fill:rgba(120,120,128,.26);--thumb:#636366;--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 40px rgba(0,0,0,.5)}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 0% 0%,rgba(230,90,40,.16),transparent 60%),radial-gradient(360px 320px at 100% 22%,rgba(241,179,0,.14),transparent 60%),radial-gradient(420px 360px at 70% 100%,rgba(31,115,218,.12),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:22px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button,.s input{font:inherit;color:inherit}
+.s button{border:0;background:none;padding:0;cursor:pointer}
+.btn{min-height:44px;padding:0 18px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px}
+.btn.primary{min-height:54px;background:var(--primary);color:#fff;font-size:18px}
+.note{margin:10px 0 0;font-size:14px;color:var(--ink2)}
+.seg{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));background:var(--fill);border-radius:12px;padding:3px}
+.seg button{min-height:44px;border-radius:9px;font-size:15px;font-weight:600}
+.seg button[aria-pressed=true]{background:var(--thumb);box-shadow:0 1px 4px rgba(0,0,0,.14)}
+.row{display:flex;align-items:center;gap:10px;border-top:1px solid var(--hair);min-height:54px}
+.row input{flex:1;min-width:0;border:0;background:none;padding:12px 0;font-size:17px;outline:none}
+.circle{width:44px;height:44px;padding:7px;background-clip:content-box;border-radius:50%;font-size:20px;line-height:1;flex:none;display:grid;place-items:center}
+.circle.remove{background-color:color-mix(in srgb,var(--danger) 14%,transparent);color:var(--danger)}
+.circle.add{background-color:var(--accent);color:#fff}
+.s.dark .circle.add{background-color:#0071e3}
+.pick{width:44px;height:54px;flex:none;display:grid;place-items:center}
+.back{display:block;width:30px;height:42px;border-radius:6px;background-color:var(--pc);box-shadow:inset 0 0 0 2px var(--pc),inset 0 0 0 3.5px rgba(255,255,255,.75),0 2px 6px rgba(0,0,0,.18)}
+.p-stripes{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.24) 0 3px,transparent 3px 9px)}
+.p-waves{background-image:radial-gradient(circle at 50% 100%,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px),radial-gradient(circle at 50% 0,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px);background-size:12px 7px;background-position:0 0,6px 3.5px}
+.p-diamonds{background-image:conic-gradient(from 45deg,rgba(255,255,255,.26) 0 25%,transparent 0 50%,rgba(255,255,255,.26) 0 75%,transparent 0);background-size:12px 12px;background-position:center}
+.stepper{display:flex;align-items:center;background:var(--fill);border-radius:12px}
+.stepper button{width:46px;height:44px;font-size:24px;line-height:1}
+.stepper input{width:48px;border:0;background:none;text-align:center;font:700 21px var(--num);padding:0}
+</style>
+</helmet>
+<div class="{{rootCls}}" style="width: 390px; height: 844px; padding: 24px 16px 16px; display: flex; flex-direction: column; gap: 14px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+
+<div style="display: flex; align-items: center; gap: 10px; min-height: 48px; padding-right: 58px">
+<svg width="58" height="50" viewBox="0 0 58 50" aria-hidden="true"><g transform="rotate(-12 18 26)"><rect x="5" y="6" width="26" height="38" rx="5" fill="#fff" stroke="rgba(0,0,0,.12)"></rect><text x="10" y="21" font-size="12" font-weight="800" fill="#c8102e" font-family="system-ui">10</text></g><circle cx="38" cy="32" r="14" fill="#1d1d1f" stroke="rgba(255,255,255,.35)"></circle><rect x="34" y="15" width="8" height="5" rx="1.5" fill="#1d1d1f"></rect><path d="M38 15c0-5 4-8 8-8" fill="none" stroke="#8e8e93" stroke-width="2" stroke-linecap="round"></path><circle cx="47" cy="7" r="4" fill="#f07c1b"></circle><circle cx="47" cy="7" r="1.8" fill="#ffd27a"></circle><circle cx="33" cy="27" r="3" fill="rgba(255,255,255,.35)"></circle></svg>
+<h1 style="margin: 0; font: 800 36px/1 var(--num); letter-spacing: -.03em">Bomb</h1>
+</div>
+
+<div class="seg" role="group" aria-label="Where you play">
+<button aria-pressed="true">This phone</button>
+<button aria-pressed="false">Online</button>
+</div>
+
+<section class="glass" style="padding: 16px 16px 14px">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><h2 style="margin: 0; font-size: 17px; font-weight: 600">Players</h2><span class="note" style="margin: 0">3 of 6</span></div>
+<ul style="list-style: none; margin: 8px 0 0; padding: 0">
+<sc-for list="{{players}}" as="p" hint-placeholder-count="3">
+<li class="row">
+<button class="pick" aria-label="{{p.pickLabel}}"><span class="{{p.backCls}}" style="--pc: {{p.hex}}"></span></button>
+<input value="{{p.name}}" maxlength="20" aria-label="{{p.inputLabel}}">
+<button class="circle remove" aria-label="{{p.removeLabel}}"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"></path></svg></button>
+</li>
+</sc-for>
+</ul>
+<form class="row" style="margin: 0">
+<span class="pick" aria-hidden="true"><span style="display: block; width: 30px; height: 42px; border-radius: 6px; border: 2px dashed var(--hair)"></span></span>
+<input placeholder="Add a player" maxlength="20" aria-label="New player name">
+<button class="circle add" aria-label="Add player">+</button>
+</form>
+<p class="note">Tap a card to pick its style. The colour on the back is that player's colour.</p>
+</section>
+
+<section class="glass" style="padding: 16px">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 12px">
+<h2 id="decksTitle" style="margin: 0; font-size: 17px; font-weight: 600">Decks</h2>
+<div class="stepper">
+<button aria-label="One deck fewer">−</button>
+<input value="1" inputmode="numeric" aria-labelledby="decksTitle">
+<button aria-label="One deck more">+</button>
+</div>
+</div>
+<p class="note">52 cards. Every player needs 13, so 1 deck suits 2 or 3 players and 2 decks suit 4 to 6. Up to 4 decks.</p>
+</section>
+
+<div style="flex: 1"></div>
+<p style="margin: 0; text-align: center; font-size: 14px; color: var(--ink2)">Digital cards only. Everyone draws a card; the highest rank goes first.</p>
+<button class="btn primary">Draw for first turn</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const list = [['Alex', '#1f6fd6', 'stripes', 'Cobalt stripes'], ['Brooke', '#d96c00', 'waves', 'Tangerine waves'], ['Sam', '#1c7f3e', 'diamonds', 'Forest diamonds']];
+    return {
+      rootCls: 's' + (this.props.dark ? ' dark' : ''),
+      players: list.map(([name, hex, pat, style], i) => ({
+        name, hex,
+        backCls: 'back p-' + pat,
+        pickLabel: name + "'s card style: " + style + '. Change',
+        inputLabel: 'Player ' + (i + 1) + ' name',
+        removeLabel: 'Remove ' + name
+      }))
+    };
+  }
+}
+</script>
+</body>
+</html>

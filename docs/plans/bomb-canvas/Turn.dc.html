@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bomb game board</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--solid:#fff;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--danger:#d70015;--card:#fff;--red:#c8102e;--blk:#1d1d1f;--deck:#3a3a3c;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s.dark{--canvas:#000;--solid:#1c1c1e;--ink:#f5f5f7;--ink2:#a1a1a6;--accent:#2997ff;--primary:#0071e3;--glass:rgba(44,44,46,.6);--edge:rgba(255,255,255,.13);--hair:rgba(255,255,255,.14);--fill:rgba(120,120,128,.26);--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 40px rgba(0,0,0,.5);--danger:#ff453a;--card:#f2f2f4;--deck:#737378}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 0% 0%,rgba(240,124,27,.16),transparent 60%),radial-gradient(360px 320px at 100% 30%,rgba(241,179,0,.12),transparent 60%),radial-gradient(420px 360px at 60% 100%,rgba(31,115,218,.16),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:22px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.s button:disabled{opacity:.35;cursor:default}
+.btn{min-height:44px;padding:0 16px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px}
+.btn.ink{background:var(--ink);color:var(--canvas)}
+.btn.primary{min-height:54px;background:var(--primary);color:#fff;font-size:18px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--fill);font-size:12px;font-weight:600;white-space:nowrap}
+.av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;font:700 14px var(--num);flex:none}
+.c{position:relative;flex:none;display:block;width:56px;height:80px;border-radius:9px;background:var(--card);color:var(--blk);box-shadow:0 1px 0 rgba(0,0,0,.06),0 3px 10px rgba(0,0,0,.14),inset 0 0 0 1px rgba(0,0,0,.07);font-family:var(--num);text-align:left}
+.c.r{color:var(--red)}
+.c .i{position:absolute;top:5px;left:6px;display:flex;flex-direction:column;align-items:center;font-weight:800;font-size:17px;line-height:1;letter-spacing:-.05em}
+.c .i small{font-size:13px;margin-top:2px;letter-spacing:0}
+.c .m{position:absolute;right:6px;bottom:5px;font-size:28px;line-height:1}
+.c.sm{width:44px;height:62px;border-radius:7px}.c.sm .i{font-size:14px;top:4px;left:5px}.c.sm .i small{font-size:11px}.c.sm .m{font-size:20px;right:4px;bottom:3px}
+.c.md{width:64px;height:92px;border-radius:10px}.c.md .i{font-size:19px;top:6px;left:7px}.c.md .i small{font-size:15px}.c.md .m{font-size:32px;right:7px;bottom:6px}
+.c.lg{width:66px;height:96px;border-radius:10px}.c.lg .i{font-size:20px;top:6px;left:7px}.c.lg .i small{font-size:15px}.c.lg .m{font-size:34px;right:7px;bottom:6px}
+.c.sel{transform:translateY(-14px);box-shadow:0 0 0 3px var(--accent),0 12px 24px rgba(0,0,0,.22)}
+.c.new::after{content:"";position:absolute;top:-4px;right:-4px;width:12px;height:12px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 2px var(--canvas)}
+.back{background:repeating-linear-gradient(45deg,rgba(255,255,255,.14) 0 2px,transparent 2px 7px),var(--pc);box-shadow:inset 0 0 0 3px var(--pc),inset 0 0 0 4.5px rgba(255,255,255,.75),0 3px 10px rgba(0,0,0,.16)}
+.back::after{content:"";position:absolute;left:50%;top:50%;width:12px;height:12px;margin:-6px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 0 3px var(--pc),0 0 0 4.5px rgba(255,255,255,.6)}
+.slot{position:relative;width:44px;height:72px;flex:none}
+.slot>.c{position:absolute;left:0}
+.slot>.back{top:0}.slot>.up{top:10px}
+.slot.empty{border:2px dashed var(--hair);border-radius:8px;height:62px}
+.slot.tap>.back{box-shadow:inset 0 0 0 3px var(--pc),inset 0 0 0 4.5px rgba(255,255,255,.75),0 0 0 3px var(--accent),0 8px 18px rgba(0,0,0,.2)}
+.lock .c{opacity:.5;filter:saturate(.5)}
+.tray{display:flex;gap:8px;padding:18px 2px 4px;overflow-x:auto}
+.tray.over{gap:0}
+.tray.over>.c+.c{margin-left:-32px}
+.tag{position:absolute;left:50%;bottom:-10px;transform:translateX(-50%);padding:3px 9px;border-radius:999px;background:#d70015;color:#fff;font:700 12px var(--text);white-space:nowrap;box-shadow:0 0 0 2px var(--canvas)}
+.boom{position:absolute;inset:-6px;border-radius:24px;display:grid;place-items:center;overflow:hidden;z-index:3}
+.boom::before{content:"";position:absolute;width:300px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(255,214,120,.95) 0 18%,rgba(240,124,27,.75) 34%,rgba(226,53,59,.35) 52%,transparent 68%)}
+.boom b{position:relative;font:900 64px/1 var(--num);letter-spacing:-.03em;color:#fff;text-shadow:0 2px 0 #b3261e,0 4px 18px rgba(179,38,30,.6)}
+.fly{position:absolute;opacity:.85}
+.opp-waves .back{background:radial-gradient(circle at 50% 100%,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px) 0 0/12px 7px,radial-gradient(circle at 50% 0,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px) 6px 3.5px/12px 7px,var(--pc)}
+</style>
+</helmet>
+<div class="{{rootCls}}" style="width: 390px; height: 844px; padding: 24px 16px 16px; display: flex; flex-direction: column; gap: 12px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+
+<section class="glass opp-waves" aria-label="Brooke" style="margin-right: 58px; padding: 10px 12px; border-radius: 20px; --pc: #d96c00">
+<div style="display: flex; align-items: center; gap: 8px">
+<span class="av" style="background: #d96c00; color: #1d1d1f">B</span>
+<div style="flex: 1; min-width: 0; line-height: 1.2"><strong style="font-size: 16px">Brooke</strong><div class="cap" style="font-weight: 500">{{oppHand}} in hand</div></div>
+<span class="pill">Waiting</span>
+</div>
+<div style="display: flex; gap: 10px; margin-top: 8px">
+<sc-for list="{{oppTable}}" as="t" hint-placeholder-count="4"><div class="{{t.slotCls}}"><sc-if value="{{t.back}}" hint-placeholder-val="{{ true }}"><div class="c sm back"></div></sc-if><sc-if value="{{t.up}}" hint-placeholder-val="{{ true }}"><div class="{{t.up.cls}} up"><span class="i">{{t.up.r}}<small>{{t.up.s}}</small></span><span class="m">{{t.up.s}}</span></div></sc-if></div></sc-for>
+</div>
+</section>
+
+<section class="glass" aria-label="Table" style="position: relative; padding: 14px; display: grid; grid-template-columns: 64px minmax(0, 1fr) 92px; gap: 10px; align-items: center; min-height: 150px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px; --pc: var(--deck)">
+<sc-if value="{{deckLeft}}" hint-placeholder-val="{{ true }}"><div style="position: relative; width: 50px; height: 76px"><div class="c back" style="position: absolute; width: 48px; height: 70px; top: 0; left: 0"></div><div class="c back" style="position: absolute; width: 48px; height: 70px; top: 4px; left: 2px"></div></div></sc-if>
+<sc-if value="{{deckEmpty}}" hint-placeholder-val="{{ false }}"><div class="slot empty" style="width: 48px; height: 70px"></div></sc-if>
+<span class="cap" style="text-align: center; line-height: 1.2">Deck<br><strong style="color: var(--ink); font: 800 16px var(--num)">{{deck}}</strong></span>
+</div>
+<div style="display: flex; flex-direction: column; align-items: center; gap: 8px">
+<div style="position: relative; width: {{pileW}}px; height: 100px">
+<sc-for list="{{pile}}" as="k" hint-placeholder-count="3"><div class="{{k.cls}}" style="position: absolute; top: 2px; left: {{k.x}}px; transform: rotate({{k.rot}}deg)"><span class="i">{{k.r}}<small>{{k.s}}</small></span><span class="m">{{k.s}}</span><sc-if value="{{k.tag}}" hint-placeholder-val="{{ false }}"><span class="tag">Too low</span></sc-if></div></sc-for>
+<sc-if value="{{pileEmpty}}" hint-placeholder-val="{{ false }}"><div class="slot empty" style="position: absolute; left: 0; top: 2px; width: 66px; height: 96px"></div></sc-if>
+</div>
+<span class="cap">Pile · {{pileCount}}</span>
+</div>
+<div style="text-align: center; line-height: 1.15">
+<p class="cap">To beat</p>
+<div style="font: 800 42px/1.05 var(--num); letter-spacing: -.03em">{{beat}}</div>
+<p class="cap" style="font-weight: 500; font-size: 12px; margin-top: 2px">{{beatNote}}</p>
+</div>
+<sc-if value="{{bomb}}" hint-placeholder-val="{{ false }}"><div class="boom" aria-live="polite"><div class="c lg fly" style="left: 16px; top: 18px; transform: rotate(-28deg)"><span class="i">9<small>♥︎</small></span><span class="m">♥︎</span></div><div class="c lg fly r" style="right: 14px; top: 10px; transform: rotate(24deg)"><span class="i">Q<small>♦︎</small></span><span class="m">♦︎</span></div><div class="c lg fly" style="right: 70px; bottom: -30px; transform: rotate(-12deg)"><span class="i">6<small>♣︎</small></span><span class="m">♣︎</span></div><b>BOMB!</b></div></sc-if>
+</section>
+
+<sc-if value="{{banner}}" hint-placeholder-val="{{ false }}"><div class="glass" role="status" style="padding: 10px 14px; border-radius: 16px; font-size: 15px; font-weight: 600; text-align: center">{{banner}}</div></sc-if>
+
+<section aria-label="Your table" style="--pc: #1f6fd6">
+<div style="display: flex; justify-content: space-between; align-items: baseline"><h2 class="cap" style="color: var(--ink); font-size: 14px">Your table</h2><span class="cap" style="font-weight: 500">{{tableNote}}</span></div>
+<div style="display: flex; gap: 10px; margin-top: 8px">
+<sc-for list="{{myTable}}" as="t" hint-placeholder-count="4"><div class="{{t.slotCls}}"><sc-if value="{{t.back}}" hint-placeholder-val="{{ true }}"><button class="c sm back" aria-label="Face-down card"></button></sc-if><sc-if value="{{t.up}}" hint-placeholder-val="{{ true }}"><button class="{{t.up.cls}} up" aria-label="{{t.up.name}}"><span class="i">{{t.up.r}}<small>{{t.up.s}}</small></span><span class="m">{{t.up.s}}</span></button></sc-if></div></sc-for>
+</div>
+</section>
+
+<section aria-label="Your hand" style="min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px"><span class="av" style="width: 22px; height: 22px; font-size: 11px; background: #1f6fd6; color: #fff">A</span><h2 class="cap" style="color: var(--ink); font-size: 14px; flex: 1">Alex · your hand · {{handCount}}</h2><span class="cap" style="font-weight: 500">{{handNote}}</span></div>
+<div class="{{trayCls}}" style="margin: 0 -16px; padding-left: 16px; padding-right: 16px">
+<sc-for list="{{hand}}" as="k" hint-placeholder-count="5"><button class="{{k.cls}}" aria-label="{{k.name}}" aria-pressed="{{k.pressed}}"><span class="i">{{k.r}}<small>{{k.s}}</small></span><span class="m">{{k.s}}</span></button></sc-for>
+<sc-if value="{{handEmpty}}" hint-placeholder-val="{{ false }}"><p style="margin: 18px 0; color: var(--ink2); font-size: 15px">Your hand is empty.</p></sc-if>
+</div>
+</section>
+
+<div style="flex: 1"></div>
+<div style="display: flex; gap: 8px">
+<button class="btn" style="flex: 1" disabled="{{pickOff}}">{{pickLabel}}</button>
+<button class="btn ink" style="flex: 1.4" disabled="{{playOff}}">{{playLabel}}</button>
+</div>
+<button class="btn primary" disabled="{{nextOff}}">{{nextLabel}}</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"scene":{"editor":"enum","options":["turn","played","bomb","bighand","facedown","reveal"],"default":"turn"},"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const SU = { S: ['♠︎', 'spades', 0], H: ['♥︎', 'hearts', 1], D: ['♦︎', 'diamonds', 1], C: ['♣︎', 'clubs', 0] };
+    const RN = { A: 'Ace', K: 'King', Q: 'Queen', J: 'Jack' };
+    const card = (code, size, extra) => { const r = code.slice(0, -1), u = SU[code.slice(-1)]; return { r, s: u[0], name: (RN[r] || r) + ' of ' + u[1], cls: 'c ' + size + (u[2] ? ' r' : '') + (extra ? ' ' + extra : '') }; };
+    // Table spot codes: 'KS' face up on a back, '#' back only, '#*' back you can tap, '' empty spot.
+    const table = (codes) => codes.map((c) => ({
+      slotCls: 'slot' + (c === '' ? ' empty' : '') + (c === '#*' ? ' tap' : ''),
+      back: c !== '',
+      up: c && c[0] !== '#' ? card(c, 'sm') : null
+    }));
+    const hand = (codes, sel, fresh) => codes.map((c) => ({ ...card(c, 'md', (sel.includes(c) ? 'sel' : '') + (fresh.includes(c) ? ' new' : '')), pressed: sel.includes(c) ? 'true' : 'false' }));
+    const pile = (codes, tagLast) => codes.map((c, i) => ({ ...card(c, 'lg'), x: i * 22, rot: [-6, 3, -2, 5, -4, 2][i % 6], tag: tagLast && i === codes.length - 1 }));
+    const S = {
+      turn: { oppHand: 7, opp: ['KS', '9D', 'AC', '5H'], deck: 14, pile: pile(['6C', '9H', 'QD']), pileCount: 6, beat: 'Q', beatNote: 'or higher, or a 2 or 10',
+        mine: ['AS', 'KH', '10C', '2D'], tableNote: 'after your hand and the deck', hand: hand(['4C', '7H', 'QS', 'QH', 'AD'], ['QS', 'QH'], []), handNote: '2 selected',
+        pick: 'Pick up 6', play: 'Play 2 Queens', next: 'Next turn', pickOff: false, playOff: false, nextOff: true },
+      played: { oppHand: 7, opp: ['KS', '9D', 'AC', '5H'], deck: 12, pile: pile(['9H', 'QD', 'QS', 'QH']), pileCount: 8, beat: 'Q', beatNote: 'three Queens in a row',
+        mine: ['AS', 'KH', '10C', '2D'], tableNote: 'after your hand and the deck', hand: hand(['4C', '7H', 'AD', '3S', 'JC'], [], ['3S', 'JC']), handNote: 'drew 2', lock: true,
+        banner: 'You played 2 Queens. Brooke is next.', pick: 'Pick up', play: 'Play', next: 'Next turn: Brooke', pickOff: true, playOff: true, nextOff: false },
+      bomb: { oppHand: 9, opp: ['KS', '9D', 'AC', '5H'], deck: 11, pile: [], pileCount: 0, beat: 'Any', beatNote: 'empty pile', bomb: true,
+        mine: ['AS', 'KH', '10C', '2D'], tableNote: 'after your hand and the deck', hand: hand(['4C', '7H', 'AD', '3S', '8H'], [], ['8H']), handNote: 'drew 1', lock: true,
+        banner: 'Your 10 bombed the pile: 9 cards gone. You go again.', pick: 'Pick up', play: 'Play', next: 'Next turn: Alex again', pickOff: true, playOff: true, nextOff: false },
+      bighand: { oppHand: 2, opp: ['KS', '#', '#', '#'], deck: 0, pile: [], pileCount: 0, beat: 'Any', beatNote: 'empty pile, play anything',
+        mine: ['AS', 'KH', '10C', '2D'], tableNote: 'after your hand',
+        hand: hand(['3C', '3H', '4D', '5S', '5C', '5H', '6D', '7C', '7S', '8H', '9C', '9D', 'JC', 'JD', 'JS', 'QH', 'QC', 'KD', 'KS', 'AH', 'AC', '2S', '2H'], ['JC', 'JD', 'JS'], []),
+        handNote: 'sorted · swipe', over: true, pick: 'Pick up', play: 'Play 3 Jacks', next: 'Next turn', pickOff: true, playOff: false, nextOff: true },
+      facedown: { oppHand: 4, opp: ['KS', '#', '#', '#'], deck: 0, pile: pile(['8C', 'JH']), pileCount: 5, beat: 'J', beatNote: 'or higher, or a 2 or 10',
+        mine: ['#*', '#*', '', '#*'], tableNote: 'face-down: pick one', hand: [], handEmpty: true, handNote: '',
+        banner: 'Tap one face-down card. It turns over when you tap it.', pick: 'Pick up 5', play: 'Tap a card above', next: 'Next turn', pickOff: false, playOff: true, nextOff: true },
+      reveal: { oppHand: 4, opp: ['KS', '#', '#', '#'], deck: 0, pile: pile(['8C', 'JH', '4S'], true), pileCount: 6, beat: 'J', beatNote: '4 is too low',
+        mine: ['#', '', '', '#'], tableNote: '2 face-down left', hand: hand(['4S', '6D', '8C', '9S', 'JH', 'KC'], [], ['4S']), handNote: 'took 6', lock: true,
+        banner: 'Your 4♠︎ can’t beat a Jack. You take the pile, 6 cards.', pick: 'Pick up', play: 'Play', next: 'Next turn: Brooke', pickOff: true, playOff: true, nextOff: false }
+    };
+    const v = S[this.props.scene] || S.turn;
+    const pileW = v.pile.length ? 66 + (v.pile.length - 1) * 22 : 66;
+    return {
+      rootCls: 's' + (this.props.dark ? ' dark' : ''),
+      oppHand: v.oppHand, oppTable: table(v.opp),
+      deck: v.deck ? v.deck : 'Empty', deckLeft: v.deck > 0, deckEmpty: !v.deck,
+      pile: v.pile, pileEmpty: !v.pile.length && !v.bomb, pileCount: v.pileCount, pileW,
+      beat: v.beat, beatNote: v.beatNote, bomb: !!v.bomb, banner: v.banner || '',
+      myTable: table(v.mine), tableNote: v.tableNote,
+      hand: v.hand, handCount: v.hand.length, handEmpty: !!v.handEmpty, handNote: v.handNote,
+      trayCls: 'tray' + (v.over ? ' over' : '') + (v.lock ? ' lock' : ''),
+      pickLabel: v.pick, playLabel: v.play, nextLabel: v.next,
+      pickOff: v.pickOff, playOff: v.playOff, nextOff: v.nextOff
+    };
+  }
+}
+</script>
+</body>
+</html>

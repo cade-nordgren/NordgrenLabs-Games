@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Card style picker</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--solid:#fff;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.s button:disabled{cursor:default}
+.btn{min-height:44px;padding:0 18px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px}
+.btn.primary{min-height:54px;background:var(--primary);color:#fff;font-size:18px}
+.scrim{position:absolute;inset:0;background:rgba(0,0,0,.3)}
+.sheet{position:absolute;left:8px;right:8px;bottom:8px;background:var(--solid);border-radius:28px;padding:10px 16px 16px;display:flex;flex-direction:column;gap:12px;box-shadow:0 -4px 40px rgba(0,0,0,.18)}
+.opt{display:flex;flex-direction:column;align-items:center;gap:6px;padding:6px 0 4px;border-radius:14px;min-width:0}
+.opt .lbl{line-height:1.15;text-align:center}
+.opt .lbl b{display:block;font-size:13px;font-weight:600}
+.opt .lbl span{display:block;font-size:12px;color:var(--ink2)}
+.back{position:relative;display:block;width:64px;height:90px;border-radius:9px;background-color:var(--pc);box-shadow:inset 0 0 0 4px var(--pc),inset 0 0 0 5.5px rgba(255,255,255,.75),0 3px 10px rgba(0,0,0,.16)}
+.opt.on .back{box-shadow:inset 0 0 0 4px var(--pc),inset 0 0 0 5.5px rgba(255,255,255,.75),0 0 0 3px var(--solid),0 0 0 6px var(--ink)}
+.opt.on .tick{position:absolute;right:-8px;top:-8px;width:24px;height:24px;border-radius:50%;background:var(--ink);color:var(--solid);display:grid;place-items:center;box-shadow:0 0 0 2px var(--solid)}
+.opt.taken .back{opacity:.3;filter:saturate(.4)}
+.p-stripes{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.24) 0 3px,transparent 3px 9px)}
+.p-dots{background-image:radial-gradient(circle,rgba(255,255,255,.42) 0 1.8px,transparent 2.3px);background-size:9px 9px}
+.p-diamonds{background-image:conic-gradient(from 45deg,rgba(255,255,255,.26) 0 25%,transparent 0 50%,rgba(255,255,255,.26) 0 75%,transparent 0);background-size:14px 14px;background-position:center}
+.p-waves{background-image:radial-gradient(circle at 50% 100%,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px),radial-gradient(circle at 50% 0,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px);background-size:12px 7px;background-position:0 0,6px 3.5px}
+.p-crosshatch{background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.24) 0 1.5px,transparent 1.5px 7px),repeating-linear-gradient(-45deg,rgba(255,255,255,.24) 0 1.5px,transparent 1.5px 7px)}
+.p-checks{background-image:conic-gradient(rgba(255,255,255,.24) 0 25%,transparent 0 50%,rgba(255,255,255,.24) 0 75%,transparent 0);background-size:12px 12px}
+.p-chevrons{background-image:linear-gradient(135deg,rgba(255,255,255,.28) 25%,transparent 25%),linear-gradient(225deg,rgba(255,255,255,.28) 25%,transparent 25%),linear-gradient(315deg,rgba(255,255,255,.28) 25%,transparent 25%),linear-gradient(45deg,rgba(255,255,255,.28) 25%,transparent 25%);background-size:12px 12px;background-position:-6px 0,-6px 0,0 0,0 0}
+.p-sunburst{background-image:repeating-conic-gradient(rgba(255,255,255,.24) 0 9deg,transparent 9deg 18deg)}
+.p-scales{background-image:radial-gradient(circle at 50% 0,transparent 0 5px,rgba(255,255,255,.32) 5px 6.5px,transparent 6.5px),radial-gradient(circle at 50% 0,transparent 0 5px,rgba(255,255,255,.32) 5px 6.5px,transparent 6.5px);background-size:12px 8px;background-position:0 0,6px 4px}
+.p-pinstripes{background-image:repeating-linear-gradient(90deg,rgba(255,255,255,.34) 0 1px,transparent 1px 6px)}
+.p-rings{background-image:repeating-radial-gradient(circle,rgba(255,255,255,.28) 0 2px,transparent 2px 6px)}
+.p-plaid{background-image:linear-gradient(rgba(255,255,255,.22) 0 3px,transparent 3px),linear-gradient(90deg,rgba(255,255,255,.22) 0 3px,transparent 3px);background-size:11px 11px}
+.chip{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 14px 0 4px;border-radius:999px;font-weight:700;font-size:15px}
+.chip i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:800 13px var(--num);font-style:normal;box-shadow:inset 0 0 0 2px currentColor}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px">
+<div aria-hidden="true" style="padding: 24px 16px; display: flex; align-items: center; gap: 10px; min-height: 96px"><span style="font: 800 36px/1 var(--num); letter-spacing: -.03em">Bomb</span></div>
+<div class="scrim" aria-hidden="true"></div>
+
+<section class="sheet" role="dialog" aria-modal="true" aria-labelledby="stTitle">
+<span aria-hidden="true" style="align-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--hair)"></span>
+<div>
+<h2 id="stTitle" style="margin: 0; font-size: 20px">Alex's card style</h2>
+<p style="margin: 2px 0 0; font-size: 15px; color: var(--ink2)">The colour on the back becomes your colour in the game. A style another player holds is taken.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px 6px">
+<sc-for list="{{styles}}" as="st" hint-placeholder-count="12">
+<button class="{{st.cls}}" aria-pressed="{{st.pressed}}" disabled="{{st.taken}}" aria-label="{{st.aria}}">
+<span class="{{st.backCls}}" style="--pc: {{st.hex}}"><sc-if value="{{st.on}}" hint-placeholder-val="{{ false }}"><span class="tick"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"></path></svg></span></sc-if></span>
+<span class="lbl"><b>{{st.name}}</b><span>{{st.sub}}</span></span>
+</button>
+</sc-for>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 16px; background: var(--fill)">
+<span class="chip" style="background: #1f6fd6; color: #fff"><i>A</i>Alex</span>
+<p style="margin: 0; flex: 1; font-size: 14px; color: var(--ink)">White name on Cobalt, 4.9:1. Each colour gets dark or white ink, whichever reads better.</p>
+</div>
+<button class="btn primary">Done</button>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Colour, pattern, hex. Every hex is 3:1 or more on the cream ground and on dark glass, so the backs read in both themes.
+    const list = [['Cobalt', 'Stripes', '#1f6fd6'], ['Scarlet', 'Dots', '#d42f3a'], ['Forest', 'Diamonds', '#1c7f3e'], ['Tangerine', 'Waves', '#d96c00'],
+      ['Violet', 'Crosshatch', '#9046d6'], ['Teal', 'Checks', '#0c7c78'], ['Rose', 'Chevrons', '#cc2f7c'], ['Gold', 'Sunburst', '#b58300'],
+      ['Indigo', 'Scales', '#575bdb'], ['Slate', 'Pinstripes', '#62738a'], ['Sky', 'Rings', '#1f93c9'], ['Lime', 'Plaid', '#62970f']];
+    const takenBy = { Tangerine: 'Brooke', Forest: 'Sam' };
+    return {
+      styles: list.map(([name, pat, hex]) => {
+        const by = takenBy[name], on = name === 'Cobalt';
+        return {
+          name, hex, on, taken: !!by,
+          sub: by ? 'Taken: ' + by : pat,
+          cls: 'opt' + (on ? ' on' : '') + (by ? ' taken' : ''),
+          backCls: 'back p-' + pat.toLowerCase(),
+          pressed: on ? 'true' : 'false',
+          aria: name + ' ' + pat.toLowerCase() + (by ? ', taken by ' + by : '') + (on ? ', chosen' : '')
+        };
+      })
+    };
+  }
+}
+</script>
+</body>
+</html>
