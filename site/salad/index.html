@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Canadian Salad · NordgrenLabs Games</title>
+<meta name="description" content="Six rounds of tricks for 2 to 8 players, each on their own device. Lowest score wins.">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Salad">
+<meta name="theme-color" media="(prefers-color-scheme: light)" content="#f6f3ec">
+<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000">
+<link rel="icon" href="/icons/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!-- use-credentials: the Worker gates every file but the root manifest behind the session cookie. -->
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<script>try{var p=localStorage.getItem('nl-games-theme');document.documentElement.dataset.theme=p==='light'||p==='dark'?p:matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'}catch(e){}</script>
+<link rel="stylesheet" href="../style.css">
+<style>
+/* ---- Tokens. House screens are cream glass with a felt-green accent; game screens sit on the table theme.
+   Colours from the design canvas (docs/plans/salad-canvas/contrast.js), where every pairing is measured. */
+:root {
+  --canvas: #f6f3ec; --primary: #0071e3; --felt: #1a6b40; --sub: #55555a;
+  --ink2: #55555a; /* the shared #6e6e73 is about 4.5:1 on cream and under it on the grey fills; the canvas measured #55555a */
+  --card: #fff; --red: #c8102e; --blk: #1d1d1f; --dim: #d7d7d2; --dim-ink: #3a3a3c; --dim-red: #9e1a2c;
+  --win: #ffd23f; --pen: #d70015; --cell: #fff; --mix: 14%;
+  --r1: #1f6fd6; --r2: #d42f3a; --r3: #9046d6; --r4: #3a3a3c; --r5: #c45f00; --r6: #1c7f3e;
+  --k: 1; /* card size preference */
+}
+:root[data-theme="dark"] {
+  --canvas: #000; --primary: #0071e3; --felt: #5fc08a; --sub: #c7c7cc; --card: #f2f2f4; --cell: #1c1c1e; --mix: 22%;
+  --r1: #3d8bf0; --r2: #f0535d; --r3: #b07ff0; --r4: #8e8e93; --r5: #f08a2c; --r6: #3db86a;
+}
+:root[data-size="s"] { --k: .86; } :root[data-size="l"] { --k: 1.16; }
+body::before {
+  background:
+    radial-gradient(60vmax 50vmax at 50% 0%, rgba(26, 107, 64, .22), transparent 60%),
+    radial-gradient(50vmax 45vmax at 80% 100%, rgba(31, 115, 218, .12), transparent 60%),
+    radial-gradient(40vmax 40vmax at 0% 60%, rgba(240, 124, 27, .10), transparent 60%);
+}
+.menu { top: calc(max(10px, env(safe-area-inset-top)) + 14px); }
+.app { padding-top: calc(max(10px, env(safe-area-inset-top)) + 14px); }
+.menu::before { content: ""; position: fixed; inset: 0; z-index: -1; background: rgba(0, 0, 0, .22); opacity: 0; pointer-events: none; transition: opacity .25s; }
+.menu.open::before { opacity: 1; }
+:root[data-theme="light"] .menu.open .item, :root[data-theme="light"] .menu.open .item span, :root[data-theme="light"] .menu.open .menu-trigger { background: var(--solid); box-shadow: 0 0 0 1px rgba(0, 0, 0, .1), 0 4px 14px rgba(0, 0, 0, .14); }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.cap { margin: 0; font-size: 13px; font-weight: 600; color: var(--ink2); }
+.cap.soft { font-weight: 500; }
+.center { text-align: center; }
+.grow { flex: 1; }
+.page { display: flex; flex-direction: column; gap: 12px; flex: 1; }
+.head { min-height: 48px; padding-right: 58px; display: flex; flex-direction: column; justify-content: center; }
+.head h1 { margin: 0; font: 800 28px/1.1 var(--num); letter-spacing: -.02em; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; }
+.btn.big { min-height: 54px; font-size: 17px; }
+a.btn { color: var(--ink); }
+.counting .rside > :not(.grow) { visibility: hidden; }
+.btn.sm { min-height: 44px; padding: 0 12px; font-size: 15px; }
+.btn svg { width: 18px; height: 18px; flex: none; }
+.btn.primary:disabled { background: var(--fill); color: var(--sub); opacity: 1; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.three:has(> [hidden]) { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.group { padding: 14px; display: flex; flex-direction: column; gap: 10px; border-radius: 22px; }
+.group h2 { font-size: 14px; }
+.note { margin: 0; font-size: 14px; color: var(--ink2); }
+.err { color: var(--danger); font-weight: 600; }
+.warn { padding: 8px 10px; border-radius: 12px; background: color-mix(in srgb, #cf6900 12%, transparent); color: var(--ink); font-size: 14px; }
+.av { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font: 800 12px var(--num); flex: none; }
+.av.l { width: 32px; height: 32px; font-size: 14px; }
+.tag { padding: 2px 8px; border-radius: 999px; background: var(--fill); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.tag.felt { background: #1a6b40; color: #fff; }
+label.field { display: grid; gap: 4px; font-size: 14px; font-weight: 600; color: var(--ink2); }
+input.text { width: 100%; min-height: 48px; padding: 0 14px; border-radius: 14px; border: 1px solid var(--hair); background: var(--solid); font-size: 17px; color: var(--ink); }
+input.text:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 60%, transparent); }
+#code { font: 800 26px var(--num); letter-spacing: .12em; text-transform: uppercase; text-align: center; }
+
+/* Colour swatches: a filled circle with the initial-ink tick when chosen; a taken colour is struck through. */
+.swatches { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.sw { position: relative; height: 48px; border-radius: 14px; display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.sw[aria-checked="true"] { box-shadow: 0 0 0 3px var(--solid), 0 0 0 6px var(--ink); }
+.sw svg { width: 20px; height: 20px; opacity: 0; }
+.sw[aria-checked="true"] svg { opacity: 1; }
+.sw.taken { opacity: .35; }
+.sw.taken::after { content: ""; position: absolute; left: 12%; right: 12%; top: 50%; height: 2px; background: currentColor; transform: rotate(-30deg); }
+
+/* Home */
+.hero { padding: 14px; border-radius: 28px; text-align: center; }
+.hero h1 { margin: 16px 0 0; font: 800 38px/1.05 var(--num); letter-spacing: -.02em; }
+.hero p { margin: 6px 0 2px; color: var(--ink2); font-size: 16px; }
+.mini-felt { height: 200px; border-radius: 999px; display: grid; place-items: center; position: relative;
+  background: radial-gradient(ellipse 120% 80% at 50% 42%, #27704a, #1d5a39 75%); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .12), inset 0 4px 24px rgba(0, 0, 0, .22); }
+.fan { position: relative; width: 200px; height: 140px; --w: 86px; }
+.fan .c { position: absolute; }
+.row { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 22px; text-align: left; width: 100%; }
+.row .go { width: 44px; height: 44px; border-radius: 12px; background: #1d5a39; color: #fff; display: grid; place-items: center; flex: none; }
+.row strong { display: block; font-size: 16px; }
+
+/* Create and lobby setup */
+.kv { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 6px; }
+.kv b { display: block; font: 800 18px/1.1 var(--num); }
+.tables { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.tables button { display: grid; gap: 4px; justify-items: center; font-size: 11px; font-weight: 600; line-height: 1.15; text-align: center; padding: 4px 2px; border-radius: 12px; min-height: 44px; }
+.tables .sw-t { width: 100%; height: 34px; border-radius: 10px; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .12); }
+.tables button[aria-pressed="true"] .sw-t { box-shadow: 0 0 0 3px var(--solid), 0 0 0 5px var(--ink); }
+
+/* Lobby */
+.invite { display: flex; gap: 12px; align-items: center; }
+.invite .code { margin: 2px 0 0; font: 800 34px/1.05 var(--num); letter-spacing: .08em; }
+.invite .link { margin-top: 4px; font-size: 12px; overflow-wrap: anywhere; }
+.qr { width: 104px; height: 104px; flex: none; border-radius: 12px; overflow: hidden; background: #fff; padding: 0; }
+.qr svg { display: block; width: 100%; height: 100%; }
+.qr.big { position: fixed; inset: 0; margin: auto; width: min(80vw, 80vh, 360px); height: min(80vw, 80vh, 360px); z-index: 40; box-shadow: 0 0 0 100vmax rgba(0, 0, 0, .55); }
+.seats { padding: 6px 12px; border-radius: 22px; }
+.seat { display: flex; align-items: center; gap: 10px; min-height: 52px; padding: 0 2px; }
+.seat + .seat { border-top: 1px solid var(--hair); }
+.seat .nm { flex: 1; min-width: 0; font-size: 16px; font-weight: 700; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.seat .nm span.n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 100%; }
+.seat.open { color: var(--ink2); font-weight: 600; }
+.seat .no { width: 14px; font-size: 13px; color: var(--ink2); font-weight: 600; }
+.rd { display: inline-flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 700; white-space: nowrap; }
+.rd.not { color: var(--ink2); }
+.rd svg { width: 16px; height: 16px; }
+.toggle { width: 51px; height: 31px; border-radius: 999px; background: #8a8a8e; position: relative; flex: none; }
+.toggle::after { content: ""; position: absolute; top: 2px; left: 2px; width: 27px; height: 27px; border-radius: 50%; background: #fff; box-shadow: 0 2px 4px rgba(0, 0, 0, .2); transition: left .2s; }
+.toggle[aria-checked="true"] { background: #1a6b40; }
+.toggle[aria-checked="true"]::after { left: 22px; }
+.ready-row { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; min-height: 44px; }
+.conn { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
+.conn.off { background: transparent; box-shadow: inset 0 0 0 2px var(--ink2); }
+
+/* ---- Cards (original design, after the canvas): index top left, a large suit or a court figure bottom right. */
+.c { --w: calc(56px * var(--k)); position: relative; flex: none; display: block; width: var(--w); height: calc(var(--w) * 1.43); border-radius: calc(var(--w) * .16);
+  background: var(--face, var(--card)); color: var(--blk2, var(--blk)); font-family: var(--cfont, var(--num)); text-align: left; padding: 0;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, .06), 0 3px 10px rgba(0, 0, 0, .25), inset 0 0 0 1px rgba(0, 0, 0, .07); transition: transform .2s, box-shadow .2s; }
+.c.r { color: var(--red2, var(--red)); }
+.c .i { position: absolute; top: calc(var(--w) * .08); left: calc(var(--w) * .1); display: flex; flex-direction: column; align-items: center;
+  font-weight: var(--iw, 800); font-size: calc(var(--w) * .31); line-height: 1; letter-spacing: -.05em; }
+.c .i small { font-size: calc(var(--w) * .24); margin-top: calc(var(--w) * .03); letter-spacing: 0; }
+.c .m { position: absolute; right: calc(var(--w) * .1); bottom: calc(var(--w) * .08); font-size: calc(var(--w) * .5); line-height: 1; }
+.c .m.ace { font-size: calc(var(--w) * .62); }
+.c .art { position: absolute; right: calc(var(--w) * .07); bottom: calc(var(--w) * .07); width: 60%; height: 70%; }
+.c .art .frame { stroke-opacity: .35; }
+.c.back { background-color: var(--pc); background-image: var(--pat); background-size: var(--pat-size, auto); background-position: center;
+  box-shadow: inset 0 0 0 calc(var(--w) * .06) var(--pc), inset 0 0 0 calc(var(--w) * .085) var(--ring, rgba(255, 255, 255, .75)), 0 3px 10px rgba(0, 0, 0, .22); }
+[data-back="image"] { --pat: var(--back-img); --pat-size: cover; }
+/* Back colours and patterns (canvas: CardBacks). */
+:root, [data-back-color="felt"] { --pc: #1d5a39; }
+[data-back-color="cobalt"] { --pc: #1f6fd6; } [data-back-color="tangerine"] { --pc: #cf6900; } [data-back-color="forest"] { --pc: #1c7f3e; }
+[data-back-color="violet"] { --pc: #9850dc; } [data-back-color="teal"] { --pc: #0c7c78; } [data-back-color="rose"] { --pc: #cc2f7c; }
+[data-back-color="gold"] { --pc: #b07f00; } [data-back-color="scarlet"] { --pc: #d42f3a; } [data-back-color="slate"] { --pc: #62738a; }
+[data-back-color="sky"] { --pc: #1f93c9; } [data-back-color="ink"] { --pc: #1d1d1f; }
+.p-stripes, [data-back="stripes"] { --pat: repeating-linear-gradient(45deg, rgba(255, 255, 255, .24) 0 3px, transparent 3px 9px); }
+.p-waves, [data-back="waves"] { --pat: radial-gradient(circle at 50% 100%, transparent 0 4px, rgba(255, 255, 255, .32) 4px 6px, transparent 6px), radial-gradient(circle at 50% 0, transparent 0 4px, rgba(255, 255, 255, .32) 4px 6px, transparent 6px); --pat-size: 12px 7px; }
+.p-diamonds, [data-back="diamonds"] { --pat: conic-gradient(from 45deg, rgba(255, 255, 255, .26) 0 25%, transparent 0 50%, rgba(255, 255, 255, .26) 0 75%, transparent 0); --pat-size: 12px 12px; }
+.p-crosshatch, [data-back="crosshatch"] { --pat: repeating-linear-gradient(45deg, rgba(255, 255, 255, .24) 0 1.5px, transparent 1.5px 7px), repeating-linear-gradient(-45deg, rgba(255, 255, 255, .24) 0 1.5px, transparent 1.5px 7px); }
+.p-dots, [data-back="dots"] { --pat: radial-gradient(circle, rgba(255, 255, 255, .42) 0 1.8px, transparent 2.3px); --pat-size: 9px 9px; }
+.p-plain, [data-back="plain"] { --pat: none; }
+/* Six face themes (canvas: CardThemes), every rank and suit colour measured on its face. */
+[data-face="classic"] { --face: #fff; --blk2: #1d1d1f; --red2: #c8102e; --cfont: var(--num); --iw: 800; }
+[data-face="minimal"] { --face: #fff; --blk2: #111; --red2: #d0021b; --cfont: var(--text); --iw: 600; }
+:root[data-face="minimal"] .c:not(.pv .c) .art .frame, .pv[data-face="minimal"] .c .art .frame { display: none; }
+[data-face="lux"] { --face: #17171a; --blk2: #ece6d6; --red2: #ff7b7b; --cfont: Georgia, "Times New Roman", serif; }
+:root[data-face="lux"] .c:not(.pv .c):not(.back), .pv[data-face="lux"] .c:not(.back) { box-shadow: inset 0 0 0 1.5px #d4af37, 0 3px 10px rgba(0, 0, 0, .35); }
+:root[data-face="lux"] .c:not(.pv .c) .art .frame, .pv[data-face="lux"] .c .art .frame { stroke: #d4af37; stroke-opacity: 1; }
+[data-face="vintage"] { --face: #f3e9d2; --blk2: #2a2420; --red2: #a3262a; --cfont: Georgia, "Times New Roman", serif; --iw: 700; }
+:root[data-face="vintage"] .c:not(.pv .c):not(.back), .pv[data-face="vintage"] .c:not(.back) { box-shadow: inset 0 0 0 2px #f3e9d2, inset 0 0 0 3px rgba(42, 36, 32, .45), 0 3px 10px rgba(0, 0, 0, .22); }
+[data-face="nordic"] { --face: #fbfaf7; --blk2: #2e3440; --red2: #b3352f; --cfont: var(--text); --iw: 500; }
+:root[data-face="sig"] .c:not(.pv .c):not(.back)::after, .pv[data-face="sig"] .c:not(.back)::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--w) * .07); border-radius: 0 0 calc(var(--w) * .16) calc(var(--w) * .16);
+  background: linear-gradient(90deg, #f07c1b 0 33%, #f1b300 33% 66%, #1f73da 66%); }
+/* High contrast: pure black and a deep red on white, a firm edge, heavier figures. Wins over the theme. */
+.hc { --face: #fff; --blk2: #000; --red2: #b00000; --iw: 800; }
+:root.hc .c:not(.back) { box-shadow: inset 0 0 0 2px #000, 0 3px 10px rgba(0, 0, 0, .3); }
+:root.hc .c:not(.back)::after { display: none; }
+/* Unplayable: a grey face (not just fainter), still readable. */
+.c.no { background: var(--dim); color: var(--dim-ink); box-shadow: 0 1px 3px rgba(0, 0, 0, .2), inset 0 0 0 1px rgba(0, 0, 0, .1); }
+.c.no.r { color: var(--dim-red); }
+.c.win { box-shadow: 0 0 0 3px var(--win), 0 6px 18px rgba(0, 0, 0, .35); }
+.c.pen { box-shadow: 0 0 0 3px var(--pen), 0 6px 18px rgba(0, 0, 0, .35); }
+.c.xs { --w: 21px; } .c.xs .m, .c.xs .art { display: none; } .c.xs .i { top: 2px; left: 3px; font-size: 11px; } .c.xs .i small { font-size: 9px; margin: 0; }
+.c.sm { --w: calc(44px * var(--k)); }
+.c.md { --w: calc(62px * var(--k)); }
+.c.lg { --w: calc(76px * var(--k)); }
+
+/* ---- Game screen on the table theme. */
+#game { position: fixed; inset: 0; z-index: 1; overflow: hidden; color: var(--on); --on: #fff; --on2: #d4e8db; --tA: #27704a; --tB: #1d5a39;
+  --glass: rgba(255, 255, 255, .9); --ink2: #5f5f64;
+  background: radial-gradient(ellipse 120% 80% at 50% 42%, var(--tA), var(--tB) 75%);
+  padding: calc(max(10px, env(safe-area-inset-top)) + 14px) max(16px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  display: grid; gap: 8px; grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: "top" "opps" "felt" "me" "hand" "act"; grid-template-rows: auto auto minmax(150px, 1fr) auto auto auto; }
+:root[data-theme="dark"] #game { --glass: rgba(28, 28, 30, .88); --ink2: #a1a1a6; --edge: rgba(255, 255, 255, .13); }
+#game::before { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: radial-gradient(rgba(255, 255, 255, .04) 1px, transparent 1.3px); background-size: 4px 4px; }
+#game[data-table="felt"] { --tA: #27704a; --tB: #1d5a39; }
+:root[data-theme="dark"] #game[data-table="felt"] { --tA: #1a4a30; --tB: #123a25; --on2: #c4dccc; }
+#game[data-table="charcoal"] { --tA: #35383d; --tB: #26282c; --on2: #c9ccd1; }
+#game[data-table="navy"] { --tA: #22395f; --tB: #182a4a; --on2: #c8d4ea; }
+#game[data-table="wood"] { --tA: #70452a; --tB: #5e3920; --on2: #efd9c4; }
+#game[data-table="wood"]::before { background-image: repeating-linear-gradient(92deg, rgba(0, 0, 0, .07) 0 2px, transparent 2px 9px, rgba(255, 255, 255, .03) 9px 11px, transparent 11px 23px); background-size: auto; }
+#game[data-table="light"] { --tA: #f2f0ea; --tB: #e9e6df; --on: #1d1d1f; --on2: #55555a; --win: #9a6c00; } /* gold is 1.3:1 on this table; this is 3.7:1 */
+#game[data-table="dark"] { --tA: #1f1f22; --tB: #141416; --on: #f5f5f7; --on2: #a8a8ad; }
+#game[data-table="sig"] { --tA: #262c55; --tB: #1b2040; --on2: #cdd2ee; }
+#game[data-table="sig"]::before { background-image: radial-gradient(40vmax 30vmax at 15% 10%, rgba(240, 124, 27, .14), transparent 60%), radial-gradient(40vmax 30vmax at 90% 90%, rgba(31, 115, 218, .18), transparent 60%); background-size: auto; }
+#game > * { position: relative; min-width: 0; }
+#game .glass { background: var(--glass); color: var(--ink); border-radius: 18px; -webkit-backdrop-filter: blur(24px) saturate(160%); backdrop-filter: blur(24px) saturate(160%); }
+.on2 { margin: 0; font-size: 13px; font-weight: 600; color: var(--on2); }
+.top { grid-area: top; min-height: 48px; padding-right: 58px; display: flex; align-items: center; gap: 8px; }
+.top .tt { flex: 1; min-width: 0; }
+dialog h2:focus { outline: none; }
+.top h1 { margin: 0; font: 800 24px/1.1 var(--num); letter-spacing: -.02em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chip { min-height: 44px; min-width: 44px; padding: 0 12px; border-radius: 999px; background: var(--glass); color: var(--ink); font: 700 15px var(--num); display: inline-flex; align-items: center; justify-content: center; gap: 5px; box-shadow: var(--shadow); flex: none; }
+.chip .r { color: var(--red); }
+#opps { grid-area: opps; display: grid; grid-template-columns: repeat(var(--cols, 3), minmax(0, 1fr)); gap: 8px; }
+.opp { padding: 7px 9px; min-width: 0; position: relative; }
+.opp .nm { display: flex; align-items: center; gap: 6px; }
+.opp strong { font-size: 14px; line-height: 1.1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1; }
+.opp .cap { font-size: 12px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.opp.now { box-shadow: 0 0 0 3px var(--pc), 0 0 0 5.5px rgba(255, 255, 255, .92), var(--shadow); }
+.opp .caps { display: flex; gap: 2px; margin-top: 4px; flex-wrap: wrap; }
+.opp .caps:empty { display: none; }
+.ptag { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; white-space: nowrap; }
+.dots { display: inline-flex; gap: 3px; } .dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: blink 1.2s infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 50% { opacity: .3; } }
+.off-tag { font-size: 11px; font-weight: 700; color: var(--ink2); }
+/* Five to seven opponents in portrait: smaller avatar and type so names stay readable four to a row; away shows in the count line. */
+#opps.tight { gap: 6px; }
+#opps.tight .opp { padding: 6px 7px; border-radius: 14px; }
+#opps.tight .opp .nm { gap: 4px; }
+#opps.tight .opp .av { width: 18px; height: 18px; font-size: 10px; }
+#opps.tight .opp strong { font-size: 13px; }
+#opps:not(.tight) .opp .cap { white-space: normal; } /* hand, tricks and points wrap rather than lose the points */
+#opps.tight .opp .cap { font-size: 11px; letter-spacing: -.01em; }
+#opps.tight .opp .cap .c.back { --w: 11px; margin-right: 3px; }
+#opps.tight .off-tag { display: none; }
+/* The felt: an oval, trick spots placed on a ring by script (viewer at the bottom, clockwise). */
+.felt { grid-area: felt; position: relative; border-radius: 999px; min-height: 0;
+  background: radial-gradient(ellipse at 50% 45%, rgba(255, 255, 255, .07), rgba(0, 0, 0, .08) 70%); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .12), inset 0 4px 24px rgba(0, 0, 0, .22); }
+#game[data-table="light"] .felt { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .08), inset 0 4px 24px rgba(0, 0, 0, .08); }
+.spot { position: absolute; display: flex; flex-direction: column; align-items: center; gap: 3px; transform: translate(-50%, -50%); }
+.who { display: inline-flex; align-items: center; gap: 4px; max-width: 86px; padding: 1px 7px 1px 4px; border-radius: 999px; background: var(--glass); color: var(--ink); font-size: 12px; font-weight: 700; line-height: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.who i { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.who > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.ttag { position: absolute; top: -11px; left: 50%; transform: translateX(-50%); z-index: 2; padding: 1px 7px; border-radius: 999px; background: var(--glass); color: var(--ink); font: 800 11px var(--text); white-space: nowrap; box-shadow: 0 2px 6px rgba(0, 0, 0, .2); letter-spacing: 0; }
+.ttag.w { background: #1d1d1f; color: #fff; }
+.hole { width: var(--w); height: calc(var(--w) * 1.43); border-radius: calc(var(--w) * .16); border: 2px dashed rgba(255, 255, 255, .45); }
+.felt { --cw: calc(56px * var(--k)); } .felt.small { --cw: calc(44px * var(--k)); }
+.felt .c, .felt .hole { --w: var(--cw); }
+.felt .spot { left: calc(50% + var(--x) * (50% - var(--cw) * .75 - 8px)); top: calc(50% + var(--y) * (50% - var(--cw) * .86 - 10px)); }
+#game[data-table="light"] .hole { border-color: rgba(0, 0, 0, .3); }
+/* Seven or eight seats: a rounded rectangle with three rows of spots a side, each spot clear of its neighbours. */
+.felt.ring { border-radius: 40px; }
+@media not all and (orientation: landscape) and (max-height: 540px) { .felt.ring .spot { top: calc(50% + var(--y) * (50% - var(--cw) * .95 - 2px)); } }
+.felt.small .who { max-width: 76px; }
+.mid { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 6px 14px; border-radius: 999px; text-align: center; white-space: nowrap; z-index: 3; }
+.mid .cap { font-size: 11px; display: block; line-height: 1.1; }
+.mid strong { font: 800 16px/1.2 var(--num); }
+.felt.small .mid:not(.won):not(.kit) { padding: 3px 9px; } .felt.small .mid:not(.won):not(.kit) .cap { display: none; } .felt.small .mid strong { font-size: 14px; }
+.mid.won { width: 200px; padding: 10px 12px; border-radius: 20px; white-space: normal; }
+.mid.won p { margin: 0; font: 800 18px/1.15 var(--num); }
+.badge { display: inline-grid; place-items: center; min-width: 54px; height: 34px; padding: 0 10px; border-radius: 999px; background: var(--pen); color: #fff; font: 800 20px var(--num); }
+.badge.zero { background: var(--fill); color: var(--ink); }
+.mid.kit { width: min(300px, 92%); padding: 12px; border-radius: 22px; white-space: normal; }
+.kit-cards { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.kit-line { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--ink2); margin-top: 2px; }
+.kit-line .c.back { --w: 12px; display: inline-block; }
+.kitty-stack { position: absolute; right: 8%; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; z-index: 1; }
+.kitty-stack .c { --w: calc(34px * var(--k)); }
+.kitty-stack .c + .c { margin-top: calc(var(--w) * -1.35); }
+.fx { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
+.fx .c { position: absolute; left: 0; top: 0; }
+/* Viewer row, hand and action */
+.me { grid-area: me; display: flex; align-items: center; gap: 8px; min-height: 30px; }
+.me h2 { margin: 0; flex: 1; font-size: 14px; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me .ptag { margin: 0; }
+.sortbtn { min-height: 44px; padding: 0 4px; color: var(--on); font-size: 13px; font-weight: 600; flex: none; }
+.jump { display: flex; gap: 6px; } .jump .chip { min-height: 40px; padding: 0 10px; font-size: 14px; }
+.handwrap { grid-area: hand; min-width: 0; }
+.hand { display: flex; flex-direction: column; align-items: center; }
+.hrow { display: flex; justify-content: center; padding-top: 20px; }
+.hrow .c + .c { margin-left: var(--ov, -14px); }
+/* Two rows overlap so the felt keeps its height: the back row keeps its index and a band over 44px to tap, and the
+   front row's padding lets taps through to it. */
+.hrow { pointer-events: none; } .hrow .c { pointer-events: auto; }
+.hrow + .hrow { margin-top: -44px; }
+.hand.scroll { overflow-x: auto; margin: 0 -16px; padding: 0 16px 4px; align-items: flex-start; overscroll-behavior-x: contain;
+  -webkit-mask-image: linear-gradient(90deg, #000 88%, transparent); mask-image: linear-gradient(90deg, #000 88%, transparent); }
+.hand.scroll .hrow { justify-content: flex-start; width: max-content; padding-right: 40px; }
+.hand .c { cursor: pointer; touch-action: manipulation; }
+.hand .c { --w: calc(62px * var(--k)); } .hand.scroll .c { --w: calc(56px * var(--k)); }
+.hand .c.up { transform: translateY(-10px); }
+.hand .c.sel { transform: translateY(-20px); box-shadow: 0 0 0 3px #fff, 0 0 0 5.5px #1d1d1f, 0 14px 26px rgba(0, 0, 0, .35); z-index: 2; }
+.hand .c.gone { visibility: hidden; }
+/* Focus on the table in its own ink (white, or near-black on the light table), and a focused card comes to the front. */
+#game :focus-visible { outline: 3px solid var(--on); outline-offset: 2px; }
+.hand .c:focus-visible { z-index: 3; }
+.hand .c.drag { z-index: 5; transition: none; box-shadow: 0 0 0 3px var(--win), 0 16px 30px rgba(0, 0, 0, .4); }
+.act { grid-area: act; display: grid; gap: 6px; }
+.wait { min-height: 52px; padding: 8px 16px; border-radius: 999px !important; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; font-size: 16px; text-align: center; }
+.act .on2 { text-align: center; font-weight: 500; min-height: 18px; }
+#game .btn:not(.primary) { background: var(--glass); color: var(--ink); box-shadow: var(--shadow); }
+#game .btn.primary { min-height: 54px; }
+#game .btn.primary:disabled { background: var(--glass); color: var(--ink2); }
+.offline { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 8px); transform: translateX(-50%); z-index: 30; padding: 6px 14px; border-radius: 999px; background: #1d1d1f; color: #fff; font-size: 14px; font-weight: 600; }
+
+/* ---- Results (round and final), on the house cream. */
+.rhead { display: grid; grid-template-columns: 28px minmax(0, 1fr) repeat(var(--n, 2), 54px) 66px; gap: 8px; padding: 0 11px; }
+.rhead span { font-size: 12px; font-weight: 700; color: var(--ink2); text-align: center; }
+.rlist { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.rrow { display: grid; grid-template-columns: 28px minmax(0, 1fr) repeat(var(--n, 2), 54px) 66px; gap: 8px; align-items: center; padding: 10px; border-radius: 18px;
+  transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease; }
+.rank { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--sub); font: 700 14px var(--num); flex: none; }
+.rank.first { background: var(--accent); color: #fff; }
+:root[data-theme="dark"] .rank.first { background: #0071e3; }
+.rrow .who2 { min-width: 0; display: grid; gap: 2px; }
+.rrow .who2 > span:first-child { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.rrow .who2 strong { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mv { font-size: 12px; font-weight: 600; color: var(--ink2); }
+.t { height: 44px; border-radius: 11px; border: 2px solid var(--c, var(--hair)); background: color-mix(in srgb, var(--c, var(--fill)) var(--mix), var(--cell)); display: grid; place-items: center;
+  font: 800 19px/1 var(--num); font-variant-numeric: tabular-nums; color: var(--ink); transition: background-color .2s, color .2s, border-color .2s, box-shadow .2s; }
+.t.total { border: 0; background: var(--ink); color: var(--canvas); height: 48px; font-size: 21px; }
+.t.now { background: #fff; color: #1d1d1f; box-shadow: 0 2px 10px rgba(0, 0, 0, .18); }
+.t.mute { opacity: .45; }
+.rrow.win { box-shadow: 0 0 0 3px var(--accent), 0 8px 28px color-mix(in srgb, var(--accent) 45%, transparent); }
+.rrow.dim { opacity: .72; filter: grayscale(.6); } /* still 4.5:1 for the names in both themes */
+#final .rrow { display: flex; flex-direction: column; align-items: stretch; gap: 6px; padding: 9px 10px; }
+#final .rrow .line { display: flex; align-items: center; gap: 8px; }
+#final .rrow .line strong { flex: 1; font-size: 16px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#final .tot { font: 800 26px/1 var(--num); font-variant-numeric: tabular-nums; }
+#final .eq { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; }
+#final .eq .t { height: 34px; font-size: 15px; border-width: 1.5px; border-radius: 9px; }
+#final .rrow.win { animation: glow 1.8s ease-in-out infinite; }
+@keyframes glow { 50% { box-shadow: 0 0 0 3px var(--accent), 0 10px 46px color-mix(in srgb, var(--accent) 80%, transparent); } }
+.hd6 { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 0 11px; }
+.hd6 span { text-align: center; font-size: 11px; font-weight: 700; color: var(--ink2); }
+.hd6 span.on { color: var(--ink); }
+.crown { width: 60px; height: 60px; margin: 0 auto 8px; border-radius: 50%; display: grid; place-items: center; font: 800 28px/1 var(--num); }
+.winhead { text-align: center; }
+.winhead h1 { margin: 0; font: 800 30px/1.15 var(--num); }
+.nextbox { padding: 12px 14px; display: flex; gap: 12px; align-items: center; border-radius: 20px; }
+.nextbox .n { width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, var(--c) var(--mix), var(--cell)); border: 2px solid var(--c); font: 800 18px var(--num); flex: none; }
+.rside { display: flex; flex-direction: column; gap: 10px; flex: 1; }
+
+/* ---- Sheets */
+/* Sheets open over the busy table: near-solid glass so they stay readable. */
+dialog.sheet { --glass: var(--glass-menu); --glass-strong: var(--solid); }
+dialog.sheet > div { grid-template-columns: minmax(0, 1fr); } /* a wide demo row must not widen the sheet past the screen */
+dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; height: 5px; border-radius: 3px; background: var(--ink2); opacity: .35; margin: -12px 0 2px; }
+.appearance { display: flex; align-items: center; gap: 12px; }
+.appearance .segmented { flex: 1; }
+.tb { width: 100%; border-collapse: collapse; font-size: 15px; }
+.tb th { font-size: 12px; font-weight: 700; color: var(--ink2); text-align: right; padding: 6px 4px; }
+.tb th:first-child, .tb td:first-child { text-align: left; }
+.tb td { padding: 8px 4px; border-top: 1px solid var(--hair); text-align: right; font: 700 16px var(--num); font-variant-numeric: tabular-nums; }
+.tb td:first-child { font: 600 15px var(--text); }
+.tb .pl { display: inline-flex; align-items: center; gap: 6px; max-width: 150px; }
+.tb .pl span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rl { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 8px; align-items: center; min-height: 32px; font-size: 14px; }
+.rl b { font: 800 14px var(--num); text-align: center; }
+.rl.now { font-weight: 700; }
+.scwrap { overflow-x: auto; margin: 0 -18px; padding: 0 18px; }
+.sc6 { border-collapse: collapse; font-size: 14px; min-width: 100%; }
+.sc6 th, .sc6 td { padding: 6px 6px; text-align: right; border-top: 1px solid var(--hair); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.sc6 th:first-child, .sc6 td:first-child { text-align: left; position: sticky; left: 0; background: var(--glass-strong); }
+.sc6 thead th { font-size: 12px; color: var(--ink2); border-top: 0; }
+.sc6 td small { display: block; font-size: 11px; color: var(--ink2); font-weight: 500; }
+.sc6 tfoot td { font: 800 16px var(--num); }
+.pick { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.pick > button { display: grid; justify-items: center; gap: 6px; padding: 8px 4px; border-radius: 16px; background: var(--fill); font-size: 13px; font-weight: 600; line-height: 1.15; }
+.pick > button[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--ink); background: var(--solid); }
+.pick .pv { display: flex; gap: 4px; justify-content: center; --k: .8; }
+.pick.backs .c.back { --w: 40px; }
+.swatch-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch-row button { width: 44px; height: 44px; border-radius: 50%; }
+.swatch-row button[aria-pressed="true"] { box-shadow: 0 0 0 3px var(--solid), 0 0 0 6px var(--ink); }
+.pat-row button { border-radius: 12px; background-color: #62738a; background-image: var(--pat); background-size: var(--pat-size, auto); }
+.preview { display: flex; gap: 12px; align-items: center; justify-content: center; padding: 12px; border-radius: 18px; background: var(--fill); --k: 1.1; }
+.opp .cap .c.back { display: inline-block; vertical-align: -5px; margin-right: 5px; --w: 14px; box-shadow: inset 0 0 0 1px var(--pc), inset 0 0 0 2px rgba(255, 255, 255, .75); }
+.howto h3 { color: var(--ink) !important; font-size: 16px !important; }
+.howto ol, .howto ul { margin: 0; padding-left: 20px; color: var(--ink2); font-size: 15px; }
+.howto li + li { margin-top: 4px; }
+.ex { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; padding: 8px 10px; border-radius: 14px; background: radial-gradient(ellipse at 50% 45%, #27704a, #1d5a39); color: #fff; font-size: 14px; font-weight: 600; --k: .8; }
+.ex .c.sm { --w: 38px; }
+.demo { grid-template-columns: minmax(0, 1fr); border-radius: 20px; padding: 12px; background: radial-gradient(ellipse at 50% 45%, #27704a, #1d5a39); color: #fff; display: grid; gap: 8px; --glass: rgba(255, 255, 255, .92); --ink: #1d1d1f; }
+.demo .dtrick { display: flex; justify-content: center; gap: 12px; min-height: 100px; align-items: flex-end; }
+.demo .dtrick .spot { position: static; transform: none; }
+.demo .hrow { padding-top: 14px; flex-wrap: nowrap; }
+.demo .hrow .c { --w: 44px; } .demo .hrow .c + .c { margin-left: -22px; } /* thirteen cards fit a 375px phone */
+.demo .msg { margin: 0; font-size: 15px; font-weight: 600; min-height: 42px; text-align: center; color: #fff; } /* not the sheet's grey: about 2:1 on the felt */
+.cutrows { display: grid; gap: 10px; }
+.cutrow { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+.cutrow .spot { position: static; transform: none; }
+.cutfelt { border-radius: 22px; padding: 14px 8px; background: radial-gradient(ellipse at 50% 45%, #27704a, #1d5a39); --glass: rgba(255, 255, 255, .92); --ink: #1d1d1f; }
+#toast { position: fixed; left: 50%; bottom: calc(env(safe-area-inset-bottom) + 90px); transform: translateX(-50%); z-index: 50; max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 999px;
+  background: #1d1d1f; color: #fff; font-size: 15px; font-weight: 600; box-shadow: 0 8px 24px rgba(0, 0, 0, .3); text-align: center; }
+#toast:empty { display: none; }
+:root.still *, :root.still ::before, :root.still ::after { animation: none !important; transition: none !important; }
+
+/* ---- Phone landscape: opponents left, the felt in the middle, scores and the action right, the hand along the bottom. */
+@media (orientation: landscape) and (max-height: 540px) {
+  .app { max-width: 980px; padding-right: calc(max(16px, env(safe-area-inset-right)) + 58px); padding-top: max(10px, env(safe-area-inset-top)); }
+  .menu { top: max(10px, env(safe-area-inset-top)); }
+  .menu.open .item { --col: calc(clamp(0, var(--i) - 3, 1) + clamp(0, var(--i) - 6, 1)); --row: calc(var(--i) - 3 * var(--col));
+    transform: translate(calc(var(--col) * -184px), calc(var(--row) * 58px)); }
+  .head { padding-right: 0; }
+  #home, #form, #lobby { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; align-content: start; }
+  #home > .hero { grid-row: span 6; } #home .mini-felt { height: 150px; }
+  #form > .head, #lobby > .head { grid-column: 1 / -1; }
+  #game { padding-top: max(8px, env(safe-area-inset-top)); padding-bottom: max(6px, env(safe-area-inset-bottom)); gap: 6px 12px;
+    grid-template-columns: 180px minmax(0, 1fr) 176px; grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-areas: "opps felt side" "me me act" "hand hand act"; }
+  .top { display: none; }
+  .ltop { display: block !important; }
+  #opps { display: flex; flex-direction: column; gap: 5px; overflow-y: auto; }
+  .opp { padding: 5px 8px; border-radius: 14px !important; }
+  .opp .cap { margin: 1px 0 0; font-size: 11px; }
+  .opp .ptag { margin-top: 2px; }
+  .opp .caps { display: none; }
+  /* Five to seven opponents: one line each so all of them fit the column; the turn shows in the ring and the header. */
+  #opps.many { gap: 3px; }
+  #opps.many .opp { display: flex; align-items: center; gap: 6px; padding: 3px 8px; min-height: 30px; }
+  #opps.many .opp .av { width: 20px; height: 20px; font-size: 11px; }
+  #opps.many .opp .nm { flex: 1; min-width: 0; }
+  #opps.many .opp .cap { margin: 0; flex: none; }
+  #opps.many .opp .ptag { display: none; }
+  .side { grid-area: side; display: flex !important; flex-direction: column; gap: 8px; padding-top: 56px; min-height: 0; overflow-y: auto; }
+  .act { grid-area: act; align-self: end; }
+  .act .on2 { display: none; }
+  .me { min-height: 0; }
+  .hrow { padding-top: 14px; }
+  .wait { min-height: 44px; font-size: 14px; overflow-wrap: anywhere; }
+  #gTitle2 { overflow-wrap: anywhere; } /* a 20-letter name has no space to break at */
+  #game .btn.primary { min-height: 48px; font-size: 16px; }
+  .felt { --cw: calc(40px * var(--k)); } .felt.small { --cw: calc(34px * var(--k)); }
+  .mid { padding: 3px 10px; } .mid strong { font-size: 14px; } .mid.won { width: 170px; padding: 6px 8px; } .mid.won p { font-size: 15px; } .badge { height: 28px; min-width: 44px; font-size: 17px; }
+  .mid.kit { width: min(320px, 96%); padding: 8px; } .mid.kit .cap.soft { display: none; } .kit-cards .c.sm { --w: 30px; }
+  .hand .c { --w: calc(50px * var(--k)); }
+  .rhead, .rrow { grid-template-columns: 28px minmax(0, 1fr) repeat(var(--n, 2), 50px) 60px; }
+  #results, #final { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 10px 16px; align-content: start; }
+  #results > *, #final > * { grid-column: 1; }
+  #results > .rside, #final > .rside { grid-column: 2; grid-row: 1 / span 9; display: flex; flex-direction: column; gap: 10px; }
+}
+.side, .ltop { display: none; }
+.sc { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; gap: 6px; align-items: center; font-size: 13px; font-weight: 600; min-height: 24px; }
+.sc span:nth-child(2) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sc b { font: 800 15px var(--num); }
+
+/* ---- Tablets and desktops: a real oval table with seats around it, scores in a side column. */
+@media (min-width: 700px) and (min-height: 600px) {
+  .app { max-width: 720px; }
+  #home, #form, #lobby, #results, #final { max-width: 560px; width: 100%; margin: 0 auto; }
+  #game { padding: 24px; gap: 14px 24px; grid-template-columns: minmax(0, 1fr) 300px; grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "top side" "felt side" "me side" "hand act"; }
+  .top h1 { font-size: 32px; }
+  .side { display: flex !important; flex-direction: column; gap: 10px; padding-top: 60px; }
+  .felt { margin: 70px 200px 20px; }
+  #opps { display: contents; }
+  .opp { position: absolute; z-index: 4; width: 160px; padding: 10px 12px; transform: translate(-50%, -50%); grid-area: felt; }
+  .opp strong { font-size: 16px; }
+  .felt { --cw: calc(68px * var(--k)); } .felt.small { --cw: calc(54px * var(--k)); }
+  .opp { left: calc(50% + var(--x) * (50% - 82px)); top: calc(50% + var(--y) * (50% - 44px)); }
+  .hand .c { --w: calc(70px * var(--k)); }
+  .hrow .c + .c { margin-left: var(--ov, -16px); }
+  .act { align-self: end; }
+  .who { max-width: 120px; font-size: 13px; }
+}
+/* Tablets: the same oval, one column (the scores live behind the Scores chip). */
+@media (min-width: 700px) and (min-height: 600px) and (max-width: 1099px) {
+  #game { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "felt" "me" "hand" "act"; grid-template-rows: auto minmax(0, 1fr) auto auto auto; }
+  .side { display: none !important; }
+  .felt { margin: 70px 150px 30px; }
+  .act { max-width: 420px; width: 100%; justify-self: center; }
+}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position: absolute" aria-hidden="true">
+  <!-- Court figures, original line drawings: crown (King), tiara (Queen), cap with a feather (Jack). -->
+  <symbol id="art-K" viewBox="0 0 40 56"><rect class="frame" x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor"/><path d="M11 19 L12.5 9 L16.5 14 L20 7 L23.5 14 L27.5 9 L29 19 Z" fill="currentColor"/><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M15 30 Q20 38 25 30" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 54 Q7 39 20 38 Q33 39 33 54" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M20 42 L20 54" stroke="currentColor" stroke-width="1.2"/></symbol>
+  <symbol id="art-Q" viewBox="0 0 40 56"><rect class="frame" x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor"/><path d="M12.5 18 Q20 10 27.5 18 Z" fill="currentColor"/><circle cx="13" cy="13" r="1.6" fill="currentColor"/><circle cx="20" cy="9.5" r="1.8" fill="currentColor"/><circle cx="27" cy="13" r="1.6" fill="currentColor"/><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M13 24 Q12 36 17 37 M27 24 Q28 36 23 37" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 54 Q8 40 20 39 Q32 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="20" cy="45" r="2" fill="currentColor"/></symbol>
+  <symbol id="art-J" viewBox="0 0 40 56"><rect class="frame" x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor"/><path d="M12 19 L28 19 L26.5 12 Q20 8 13.5 12 Z" fill="currentColor"/><path d="M26.5 12 Q33 7 32 16" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 54 Q7 40 20 39 Q33 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M14 39 L20 45 L26 39" fill="none" stroke="currentColor" stroke-width="1.4"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+</svg>
+
+<nav class="menu" id="menu" aria-label="Canadian Salad">
+  <button class="menu-trigger glass" aria-controls="menuItems">
+    <svg class="bars" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
+    <svg class="x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>
+  </button>
+  <div class="menu-items" id="menuItems">
+    <a class="item glass" href="../index.html">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg>
+      <span class="glass">Games</span>
+    </a>
+    <button class="item glass" id="mScores" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 20V11M12 20V4M18 20v-6"/></svg>
+      <span class="glass">Scores</span>
+    </button>
+    <button class="item glass" id="mHome" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>
+      <span class="glass">Salad home</span>
+    </button>
+    <button class="item glass" id="mLeave" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4"/><path d="M9 8l-4 4 4 4"/><path d="M5 12h10"/></svg>
+      <span class="glass">Leave room</span>
+    </button>
+    <button class="item glass" id="mHow">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z"/><path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3"/><path d="M9 7h6"/></svg>
+      <span class="glass">How to play</span>
+    </button>
+    <button class="item glass" id="mSettings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>
+      <span class="glass">Settings</span>
+    </button>
+  </div>
+</nav>
+
+<div class="app" id="house">
+  <section id="home" class="page" hidden>
+    <div style="height: 40px"></div>
+    <section class="glass hero" aria-label="Canadian Salad">
+      <div class="mini-felt"><div class="fan" id="fan" aria-hidden="true"></div></div>
+      <h1>Canadian Salad</h1>
+      <p>Six rounds of tricks. Lowest score wins.</p>
+    </section>
+    <button class="glass row" id="rejoin" hidden>
+      <span class="go" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+      <span style="flex: 1; min-width: 0"><strong>Back to your table</strong><span class="cap soft" id="rejoinNote"></span></span>
+    </button>
+    <p class="note err" id="homeNote" role="alert" hidden></p>
+    <div class="grow"></div>
+    <button class="btn primary" id="createBtn">Create game</button>
+    <button class="btn big" id="joinBtn">Join game</button>
+    <div class="two">
+      <button class="btn" id="howBtn">How to play</button>
+      <button class="btn" id="setBtn">Settings</button>
+    </div>
+    <p class="cap soft center">2 to 8 players, each on their own device</p>
+  </section>
+
+  <form id="form" class="page" hidden novalidate>
+    <div class="head"><h1 id="formTitle">Create a game</h1><p class="cap soft" id="formLede"></p></div>
+    <section class="glass group" id="codeGroup">
+      <label class="field" for="code">Room code<input class="text" id="code" maxlength="9" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="next" placeholder="ABCDEF"></label>
+    </section>
+    <section class="glass group">
+      <label class="field" for="name">Your name<input class="text" id="name" maxlength="20" autocomplete="nickname" enterkeyhint="done"></label>
+      <h2 id="colorTitle">Your colour</h2>
+      <div class="swatches" id="swatches" role="radiogroup" aria-labelledby="colorTitle"></div>
+    </section>
+    <section class="glass group" id="setupGroup"></section>
+    <p class="note err" id="formErr" role="alert"></p>
+    <div class="grow"></div>
+    <button class="btn primary" id="formGo">Create game</button>
+    <button class="btn" type="button" id="formBack">Back</button>
+  </form>
+
+  <section id="lobby" class="page" hidden>
+    <div class="head"><h1>Lobby</h1><p class="cap soft" id="lobbyLede"></p></div>
+    <section class="glass group" aria-label="Invite">
+      <div class="invite">
+        <div style="flex: 1; min-width: 0">
+          <p class="cap">Room code</p>
+          <p class="code" id="lobbyCode"></p>
+          <p class="cap soft link" id="lobbyLink"></p>
+        </div>
+        <button class="qr" id="qr" aria-label="QR code for the invite link. Tap to enlarge."></button>
+      </div>
+      <div class="three">
+        <button class="btn sm" id="copyLink"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg>Copy link</button>
+        <button class="btn sm" id="copyCode"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/></svg>Copy code</button>
+        <button class="btn sm" id="share"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>Share</button>
+      </div>
+    </section>
+    <section class="glass seats" aria-labelledby="seatsTitle">
+      <div style="display: flex; justify-content: space-between; align-items: baseline; padding: 6px 2px 2px"><h2 class="cap" id="seatsTitle" style="color: var(--ink); font-size: 14px"></h2><span class="cap soft">clockwise order</span></div>
+      <div id="seatList"></div>
+    </section>
+    <section class="glass group" id="lobbySetup" aria-label="Game setup"></section>
+    <div class="grow"></div>
+    <button class="btn primary" id="startBtn">Start game</button>
+    <p class="cap soft center" id="startNote" role="status"></p>
+  </section>
+
+  <section id="results" class="page" hidden>
+    <div class="head"><p class="cap" id="resCap"></p><h1 id="resTitle"></h1><p class="cap soft" id="resLede"></p></div>
+    <div class="rhead" id="resHead" aria-hidden="true"></div>
+    <ol class="rlist" id="resList"></ol>
+    <button class="btn" id="resSkip" hidden style="align-self: center">Skip</button>
+    <div class="rside">
+      <section class="glass nextbox" id="resNext"></section>
+      <div class="grow"></div>
+      <button class="btn primary" id="nextRound">Next round</button>
+      <p class="cap soft center" id="resNote" role="status"></p>
+      <button class="btn" id="resScorecard">Detailed scorecard</button>
+    </div>
+  </section>
+
+  <section id="final" class="page" hidden>
+    <div style="height: 32px"></div>
+    <div class="winhead"><div class="crown" id="crown" aria-hidden="true"></div><h1 id="finTitle"></h1><p class="cap soft" id="finLede"></p></div>
+    <div class="hd6" id="finHead" aria-hidden="true"></div>
+    <ol class="rlist" id="finList" aria-label="Final ranking, lowest first"></ol>
+    <button class="btn" id="finSkip" hidden style="align-self: center">Skip</button>
+    <div class="rside">
+      <div class="grow"></div>
+      <button class="btn primary" id="rematch">Rematch</button>
+      <p class="cap soft center" id="rematchNote" role="status"></p>
+      <button class="btn" id="finScorecard">Detailed scorecard</button>
+      <div class="two">
+        <button class="btn" id="newGame">New game</button>
+        <a class="btn" href="../index.html">Return to Games</a>
+      </div>
+    </div>
+  </section>
+</div>
+
+<section id="game" hidden aria-label="Card table">
+  <div class="top">
+    <div class="tt"><h1 id="gTitle"></h1><p class="on2" id="gRound"></p></div>
+    <button class="chip" id="gScores"></button>
+  </div>
+  <div id="opps"></div>
+  <section class="felt" id="felt" aria-label="Table">
+    <div id="spots"></div>
+    <div id="mid"></div>
+    <div id="kittyStack"></div>
+    <div class="fx" id="fx"></div>
+  </section>
+  <div class="side">
+    <div class="ltop"><h1 id="gTitle2" style="margin: 0; font: 800 22px/1.1 var(--num)"></h1><p class="on2" id="gRound2"></p></div>
+    <section class="glass" style="padding: 8px 10px" aria-label="Scores"><p class="cap" style="margin-bottom: 2px" id="sideCap">Total · lowest is best</p><div id="sideScores"></div></section>
+  </div>
+  <div class="me">
+    <span id="meAv"></span>
+    <h2 id="meName"></h2>
+    <span class="ptag" id="meTurn" hidden>Your turn</span>
+    <button class="sortbtn" id="sortBtn"></button>
+  </div>
+  <div class="handwrap">
+    <div class="jump" id="jump" role="group" aria-label="Jump to suit" hidden></div>
+    <div class="hand" id="hand" role="group" aria-label="Your hand"></div>
+  </div>
+  <div class="act">
+    <button class="btn primary" id="playBtn" hidden></button>
+    <div class="glass wait" id="waitBox" role="status" hidden></div>
+    <button class="btn" id="contBtn" hidden>Continue</button>
+    <p class="on2" id="gNote" aria-live="polite"></p>
+  </div>
+</section>
+
+<div class="offline" id="offline" role="status" hidden>Reconnecting…</div>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<dialog class="sheet glass" id="scoresSheet" aria-labelledby="scoresTitle"><div>
+  <h2 id="scoresTitle">Scores</h2>
+  <p id="scoresLede"></p>
+  <table class="tb"><thead><tr><th scope="col">Player</th><th scope="col">In hand</th><th scope="col">Tricks</th><th scope="col">This round</th><th scope="col">Total</th></tr></thead><tbody id="scoresBody"></tbody></table>
+  <p id="kittyNote" hidden></p>
+  <h3>The six rounds</h3>
+  <div id="roundList"></div>
+  <p>Trick winners and captured cards are public, even when scores are hidden until round end.</p>
+  <button class="btn" id="scorecardFromScores">Detailed scorecard</button>
+  <button class="btn" data-close>Done</button>
+</div></dialog>
+
+<dialog class="sheet glass" id="scorecardSheet" aria-labelledby="scTitle"><div>
+  <h2 id="scTitle">Scorecard</h2>
+  <p>Points each round, lowest total wins. The small line is what was taken.</p>
+  <div class="scwrap"><table class="sc6" id="scTable"></table></div>
+  <button class="btn" data-close>Done</button>
+</div></dialog>
+
+<dialog class="sheet glass" id="cutSheet" aria-labelledby="cutTitle"><div>
+  <h2 id="cutTitle">Cut for dealer</h2>
+  <p id="cutLede">Everyone cuts one card. The highest rank deals; a tie cuts again.</p>
+  <div class="cutfelt"><div class="cutrows" id="cutRows"></div></div>
+  <p id="cutResult" style="color: var(--ink); font-weight: 700"></p>
+  <button class="btn primary" data-close>To the table</button>
+</div></dialog>
+
+<dialog class="sheet glass" id="playerSheet" aria-labelledby="playerTitle"><div>
+  <h2 id="playerTitle">Your name and colour</h2>
+  <label class="field" for="pName">Name<input class="text" id="pName" maxlength="20" autocomplete="nickname"></label>
+  <div class="swatches" id="pSwatches" role="radiogroup" aria-label="Your colour"></div>
+  <p class="note err" id="pErr" role="alert"></p>
+  <button class="btn primary" id="pSave">Save</button>
+  <button class="btn" data-close>Cancel</button>
+</div></dialog>
+
+<dialog class="sheet glass" id="leaveSheet" aria-labelledby="leaveTitle"><div>
+  <h2 id="leaveTitle"></h2>
+  <p id="leaveNote"></p>
+  <button class="btn danger" id="leaveGo"></button>
+  <button class="btn" data-close>Stay</button>
+</div></dialog>
+
+<dialog class="sheet glass" id="settingsSheet" aria-labelledby="settingsTitle"><div id="settingsBody">
+  <h2 id="settingsTitle">Settings</h2>
+</div></dialog>
+
+<dialog class="sheet glass howto" id="howSheet" aria-labelledby="howTitle"><div id="howBody">
+  <h2 id="howTitle">How to play</h2>
+</div></dialog>
+
+<script src="../config.js"></script>
+<script src="../platform.js"></script>
+<script type="module" src="ui/app.js"></script>
+</body>
+</html>

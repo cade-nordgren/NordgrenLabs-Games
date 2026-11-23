@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Detailed scorecard</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 0% 0%,rgba(26,107,64,.16),transparent 60%),radial-gradient(420px 360px at 100% 100%,rgba(31,115,218,.12),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:20px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button,.s a.btn{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-decoration:none}
+.btn{min-height:44px;padding:0 16px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.av{width:26px;height:26px;border-radius:50%;display:inline-grid;place-items:center;font:800 12px var(--num)}
+table{width:100%;border-collapse:collapse}
+th{font-size:12px;font-weight:700;color:var(--ink2);padding:6px 4px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+td{padding:8px 4px;border-top:1px solid var(--hair);text-align:right;font:700 17px var(--num);font-variant-numeric:tabular-nums}
+td:first-child{font:600 14px var(--text)}
+td:first-child b{display:inline-block;width:20px;font:800 13px var(--num);color:var(--ink2)}
+tr.sum td{border-top:2px solid var(--ink);font-size:20px;font-weight:800}
+.lo{display:inline-block;min-width:34px;padding:1px 6px;border-radius:8px;background:rgba(26,107,64,.14);box-shadow:inset 0 0 0 1.5px #1a6b40}
+.sm td{font-size:15px;padding:6px 4px}
+.sm td:first-child{font-size:13px}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 12px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="min-height: 48px; padding-right: 58px; display: flex; align-items: center; gap: 8px">
+<a class="btn" href="Final.dc.html" aria-label="Back to results" style="width: 44px; padding: 0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+<div><h1 style="margin: 0; font: 800 24px/1.1 var(--num)">Scorecard</h1><p class="cap" style="font-weight: 500">Room BXMRTW · 4 players · 1 deck</p></div>
+</div>
+
+<section class="glass" style="padding: 8px 12px 10px">
+<table>
+<caption class="cap" style="text-align: left; padding: 4px 4px 2px; color: var(--ink); font-size: 14px">Points by round · lowest marked</caption>
+<thead><tr><th scope="col">Round</th><th scope="col"><span class="av" style="background: #1f6fd6; color: #fff" aria-label="Alex">A</span></th><th scope="col"><span class="av" style="background: #cf6900; color: #1d1d1f" aria-label="Brooke">B</span></th><th scope="col"><span class="av" style="background: #1c7f3e; color: #fff" aria-label="Sam">S</span></th><th scope="col"><span class="av" style="background: #9850dc; color: #fff" aria-label="Dana">D</span></th></tr></thead>
+<tbody>
+<tr><td><b>1</b>No Tricks</td><td>30</td><td>40</td><td><span class="lo">20</span></td><td>40</td></tr>
+<tr><td><b>2</b>No Hearts</td><td>20</td><td>60</td><td><span class="lo">10</span></td><td>40</td></tr>
+<tr><td><b>3</b>No Queens</td><td>25</td><td><span class="lo">0</span></td><td>50</td><td>25</td></tr>
+<tr><td><b>4</b>No K♠︎</td><td><span class="lo">0</span></td><td><span class="lo">0</span></td><td><span class="lo">0</span></td><td>100</td></tr>
+<tr><td><b>5</b>No Last Trick</td><td><span class="lo">0</span></td><td>100</td><td><span class="lo">0</span></td><td><span class="lo">0</span></td></tr>
+<tr><td><b>6</b>Salad</td><td>75</td><td>215</td><td><span class="lo">30</span></td><td>240</td></tr>
+<tr class="sum"><td>Total</td><td>150</td><td>415</td><td><span class="lo">110</span></td><td>445</td></tr>
+<tr><td>Rank</td><td>2nd</td><td>3rd</td><td>1st</td><td>4th</td></tr>
+</tbody>
+</table>
+</section>
+
+<section class="glass" style="padding: 8px 12px 10px">
+<table class="sm">
+<caption class="cap" style="text-align: left; padding: 4px 4px 2px; color: var(--ink); font-size: 14px">Round 6 by category</caption>
+<thead><tr><th scope="col">Category</th><th scope="col">Alex</th><th scope="col">Brooke</th><th scope="col">Sam</th><th scope="col">Dana</th></tr></thead>
+<tbody>
+<tr><td>Tricks · 10</td><td>30</td><td>40</td><td>20</td><td>40</td></tr>
+<tr><td>Hearts · 10</td><td>20</td><td>50</td><td>10</td><td>50</td></tr>
+<tr><td>Queens · 25</td><td>25</td><td>25</td><td>0</td><td>50</td></tr>
+<tr><td>K♠︎ · 100</td><td>0</td><td>100</td><td>0</td><td>0</td></tr>
+<tr><td>Last trick · 100</td><td>0</td><td>0</td><td>0</td><td>100</td></tr>
+</tbody>
+</table>
+</section>
+
+<p class="cap" style="font-weight: 500; text-align: center; display: flex; gap: 6px; justify-content: center; align-items: center"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a6b40" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>All 1,120 penalty points accounted for.</p>
+<div style="flex: 1"></div>
+<a class="btn" href="Final.dc.html" style="min-height: 50px">Back to results</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -309,5 +309,7 @@
     });
   };
 
-  window.NL = { saves, identity, ready, person, get settled() { return settled; }, account, theme: { get, set }, menu, segmented };
+  // Session token for a game's own API calls (null when signed out or without sign-in); fresh skips ClerkJS's cache.
+  const sessionToken = fresh => ready.then(() => token(fresh));
+  window.NL = { saves, identity, ready, person, get settled() { return settled; }, account, theme: { get, set }, menu, segmented, token: sessionToken };
 })();

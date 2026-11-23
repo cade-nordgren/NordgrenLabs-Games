@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Card themes</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 100% 0%,rgba(26,107,64,.16),transparent 60%),radial-gradient(420px 360px at 0% 100%,rgba(240,124,27,.12),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:20px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button,.s a.btn{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-decoration:none;text-align:left}
+.btn{min-height:44px;padding:0 16px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.th{width:100%;display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:18px}
+.th[aria-pressed="true"]{box-shadow:0 0 0 3px #1d1d1f,var(--shadow)}
+.c{position:relative;flex:none;display:block;width:50px;height:72px;border-radius:8px;background:var(--face);color:var(--blk);box-shadow:0 1px 0 rgba(0,0,0,.06),0 3px 8px rgba(0,0,0,.16),inset 0 0 0 1px rgba(0,0,0,.08);font-family:var(--font);text-align:left;overflow:hidden}
+.c.r{color:var(--redc)}
+.c .i{position:absolute;top:4px;left:5px;display:flex;flex-direction:column;align-items:center;font-weight:800;font-size:16px;line-height:1;letter-spacing:-.04em}
+.c .i small{font-size:12px;margin-top:2px;letter-spacing:0}
+.c .art{position:absolute;right:4px;bottom:4px;width:60%;height:70%}
+.back{background-color:var(--pc)}
+.t-classic{--face:#fff;--blk:#1d1d1f;--redc:#c8102e;--font:var(--num)}
+.t-classic .back{--pc:#1f6fd6;background-image:repeating-linear-gradient(45deg,rgba(255,255,255,.24) 0 3px,transparent 3px 9px);box-shadow:inset 0 0 0 4px var(--pc),inset 0 0 0 5.5px rgba(255,255,255,.75),0 3px 8px rgba(0,0,0,.16)}
+.t-minimal{--face:#fff;--blk:#111;--redc:#d0021b;--font:var(--text)}
+.t-minimal .c .i{font-weight:600;font-size:18px;letter-spacing:-.02em}
+.t-minimal .art path,.t-minimal .art circle{stroke-width:1}
+.t-minimal .art rect{display:none}
+.t-minimal .back{--pc:#1d1d1f;box-shadow:inset 0 0 0 5px var(--pc),inset 0 0 0 6px rgba(255,255,255,.6),0 3px 8px rgba(0,0,0,.16)}
+.t-lux{--face:#17171a;--blk:#ece6d6;--redc:#ff7b7b;--font:Georgia,"Times New Roman",serif}
+.t-lux .c:not(.back){box-shadow:inset 0 0 0 1.5px #d4af37,0 3px 8px rgba(0,0,0,.3)}
+.t-lux .art rect{stroke:#d4af37;stroke-opacity:1}
+.t-lux .back{--pc:#121214;background-image:conic-gradient(from 45deg,rgba(212,175,55,.5) 0 25%,transparent 0 50%,rgba(212,175,55,.5) 0 75%,transparent 0);background-size:10px 10px;box-shadow:inset 0 0 0 4px var(--pc),inset 0 0 0 5.5px #d4af37,0 3px 8px rgba(0,0,0,.3)}
+.t-vintage{--face:#f3e9d2;--blk:#2a2420;--redc:#a3262a;--font:Georgia,"Times New Roman",serif}
+.t-vintage .c:not(.back){box-shadow:inset 0 0 0 2px #f3e9d2,inset 0 0 0 3px rgba(42,36,32,.45),0 3px 8px rgba(0,0,0,.16)}
+.t-vintage .c .i{font-weight:700}
+.t-vintage .back{--pc:#7a1f2b;background-image:repeating-linear-gradient(45deg,rgba(243,233,210,.3) 0 1.5px,transparent 1.5px 6px),repeating-linear-gradient(-45deg,rgba(243,233,210,.3) 0 1.5px,transparent 1.5px 6px);box-shadow:inset 0 0 0 4px var(--pc),inset 0 0 0 5.5px #f3e9d2,0 3px 8px rgba(0,0,0,.16)}
+.t-nordic{--face:#fbfaf7;--blk:#2e3440;--redc:#b3352f;--font:var(--text)}
+.t-nordic .c .i{font-weight:500}
+.t-nordic .art path,.t-nordic .art circle{stroke-width:1.2}
+.t-nordic .back{--pc:#5d7468;background-image:repeating-linear-gradient(0deg,rgba(255,255,255,.22) 0 1px,transparent 1px 6px);box-shadow:inset 0 0 0 4px var(--pc),inset 0 0 0 5px rgba(255,255,255,.7),0 3px 8px rgba(0,0,0,.16)}
+.t-sig{--face:#fff;--blk:#1d1d1f;--redc:#c8102e;--font:var(--num)}
+.t-sig .c:not(.back)::after{content:"";position:absolute;left:0;right:0;bottom:0;height:4px;background:linear-gradient(90deg,#f07c1b 0 33%,#f1b300 33% 66%,#1f73da 66%)}
+.t-sig .back{--pc:#1b2040;background-image:radial-gradient(circle at 30% 30%,rgba(240,124,27,.55),transparent 45%),radial-gradient(circle at 70% 75%,rgba(31,115,218,.6),transparent 45%),repeating-radial-gradient(circle at 50% 50%,rgba(255,255,255,.18) 0 1px,transparent 1px 6px);box-shadow:inset 0 0 0 4px var(--pc),inset 0 0 0 5.5px rgba(255,255,255,.75),0 3px 8px rgba(0,0,0,.2)}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 8px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="min-height: 48px; padding-right: 58px; display: flex; align-items: center; gap: 8px">
+<a class="btn" href="Settings.dc.html" aria-label="Back to settings" style="width: 44px; padding: 0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+<div><h1 style="margin: 0; font: 800 24px/1.1 var(--num)">Card themes</h1><p class="cap" style="font-weight: 500">Only on this device. Others keep their own.</p></div>
+</div>
+<div role="group" aria-label="Card theme" style="display: flex; flex-direction: column; gap: 8px; margin-top: 4px">
+<sc-for list="{{themes}}" as="t" hint-placeholder-count="6">
+<button class="{{t.cls}}" aria-pressed="{{t.pressed}}" onClick="{{t.pick}}">
+<span style="flex: 1; min-width: 0"><strong style="display: flex; align-items: center; gap: 6px; font-size: 16px">{{t.name}}<sc-if value="{{t.on}}" hint-placeholder-val="{{ false }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if></strong><span class="cap" style="font-weight: 500; display: block; line-height: 1.3">{{t.desc}}</span></span>
+<span style="display: flex; gap: 5px" aria-hidden="true">
+<span class="c r"><span class="i">Q<small>♥︎</small></span><svg class="art" viewBox="0 0 40 56"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12.5 18 Q20 10 27.5 18 Z" fill="currentColor"></path><circle cx="13" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="9.5" r="1.8" fill="currentColor"></circle><circle cx="27" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M13 24 Q12 36 17 37 M27 24 Q28 36 23 37" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q8 40 20 39 Q32 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="45" r="2" fill="currentColor"></circle></svg></span>
+<span class="c"><span class="i">K<small>♠︎</small></span><svg class="art" viewBox="0 0 40 56"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M11 19 L12.5 9 L16.5 14 L20 7 L23.5 14 L27.5 9 L29 19 Z" fill="currentColor"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M15 30 Q20 38 25 30" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q7 39 20 38 Q33 39 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M20 42 L20 54" stroke="currentColor" stroke-width="1.2"></path></svg></span>
+<span class="c back"></span>
+</span>
+</button>
+</sc-for>
+</div>
+<p class="cap" style="font-weight: 500; text-align: center; margin-top: 4px">Every theme keeps the rank and suit in the corner, red and dark suits, and the same court figures.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { pick: 0 }; }
+  renderVals() {
+    const T = [['classic', 'Classic', 'White card, rounded numerals, framed court figures'],
+      ['minimal', 'Minimal Modern', 'Plain faces, light lines, no frame'],
+      ['lux', 'Dark Luxury', 'Black card, ivory and coral suits, gold edge'],
+      ['vintage', 'Vintage', 'Aged paper, serif ranks, double border'],
+      ['nordic', 'Nordic', 'Soft white, slate ink, quiet lines'],
+      ['sig', 'NordgrenLabs Signature', 'House colours along the foot']];
+    return { themes: T.map(([k, name, desc], i) => ({ name, desc, on: i === this.state.pick, pressed: i === this.state.pick ? 'true' : 'false',
+      cls: 'glass th t-' + k, pick: () => this.setState({ pick: i }) })) };
+  }
+}
+</script>
+</body>
+</html>

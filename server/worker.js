@@ -3,6 +3,7 @@
 import { verify, verifyCookie, devPerson, AUTHORIZED_PARTY } from './seam.js';
 import { handleSaves } from './saves.js';
 import { handleRooms } from './rooms.js';
+import { handleSalad, saladAllow } from './salad.js';
 
 const REQUIRED = ['CLERK_PUBLISHABLE_KEY', 'CLERK_JWT_KEY', 'CLERK_ISSUER'];
 // What the sign-in page and a home-screen install need (phones fetch these without a usable session), nothing else. Exact paths, so any other file,
@@ -45,7 +46,7 @@ export default {
       const id = /^\/api\/saves\/([^/]+)$/.exec(pathname)?.[1];
       const room = /^\/api\/bomb\/rooms(?:\/([^/]+)(\/actions)?)?$/.exec(pathname);
       const allow = pathname === '/api/me' || pathname === '/api/saves' ? 'GET' : id ? 'GET, PUT, DELETE'
-        : room ? (room[1] && !room[2] && room[1] !== 'join' ? 'GET' : 'POST') : null;
+        : room ? (room[1] && !room[2] && room[1] !== 'join' ? 'GET' : 'POST') : saladAllow(pathname);
       if (!allow) return json(404, { error: 'not_found' });
       if (!allow.split(', ').includes(request.method)) return json(405, { error: 'method_not_allowed' }, { Allow: allow });
       const dev = devPerson(request.headers.get('x-nl-dev-person') ?? undefined, env.CLERK_JWT_KEY);
@@ -56,6 +57,7 @@ export default {
       if (pathname === '/api/me') return json(200, { personPublicId: r.personPublicId });
       try {
         if (room) return json(...await handleRooms(env.DB, request, r.personPublicId, room[1], !!room[2], searchParams.get('since')));
+        if (pathname.startsWith('/api/salad/')) return json(...await handleSalad(env.DB, request, r.personPublicId, pathname, searchParams));
         return json(...await handleSaves(env.DB, request, r.personPublicId, id, searchParams.get('game')));
       } catch {
         return json(503, { error: 'unavailable' });

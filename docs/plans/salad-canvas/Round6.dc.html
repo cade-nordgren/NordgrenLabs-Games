@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Round 6 breakdown</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--cell:#fff;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 50% 0%,rgba(26,107,64,.2),transparent 60%),radial-gradient(360px 320px at 100% 60%,rgba(240,124,27,.12),transparent 60%),radial-gradient(420px 360px at 0% 100%,rgba(31,115,218,.12),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:20px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.btn.primary{min-height:56px;padding:0 18px;border-radius:999px;background:var(--primary);color:#fff;font-weight:600;font-size:18px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:800 11px var(--num);flex:none}
+.rank{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--fill);color:var(--ink2);font:700 13px var(--num);flex:none}
+.rank.first{background:var(--accent);color:#fff}
+.grid6{display:grid;grid-template-columns:repeat(5,minmax(0,1fr)) 1.25fr;gap:5px}
+.hd span{font-size:11px;font-weight:700;color:var(--ink2);text-align:center;display:flex;align-items:center;justify-content:center;gap:3px}
+.hd i{width:8px;height:8px;border-radius:2px;background:var(--c)}
+.t{height:46px;border-radius:10px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 14%,var(--cell));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+.t b{font:800 18px/1 var(--num);font-variant-numeric:tabular-nums}
+.t small{font:600 10px/1 var(--text);color:#55555a}
+.t.zero b{color:#55555a}
+.t.total{border:0;background:var(--ink);color:var(--canvas)}
+.t.total small{color:#d1d1d6}
+.prow{padding:10px;border-radius:18px;display:flex;flex-direction:column;gap:8px}
+.done{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;background:var(--fill);font-size:12px;font-weight:700}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 10px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="min-height: 48px; padding-right: 58px">
+<p class="cap">Round 6 of 6 complete</p>
+<h1 style="margin: 0; font: 800 30px/1.1 var(--num); letter-spacing: -.02em">Canadian Salad</h1>
+<p class="cap" style="font-weight: 500; margin-top: 2px">Everything counts. Each category is counted in turn, then the round total.</p>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 5px" aria-label="Categories counted">
+<span class="done">Tricks ✓︎</span><span class="done">Hearts ✓︎</span><span class="done">Queens ✓︎</span><span class="done">King of Spades ✓︎</span><span class="done">Last trick ✓︎</span>
+</div>
+
+<div class="grid6 hd" aria-hidden="true" style="padding: 0 11px">
+<span style="--c: #1f6fd6"><i></i>Tricks</span><span style="--c: #d42f3a"><i></i>Hearts</span><span style="--c: #9046d6"><i></i>Queens</span><span style="--c: #3a3a3c"><i></i>K♠︎</span><span style="--c: #c45f00"><i></i>Last</span><span>Round</span>
+</div>
+
+<ol style="list-style: none; margin: 0; padding: 0; display: grid; gap: 8px" aria-label="Round 6 by player">
+<li class="glass prow">
+<div style="display: flex; align-items: center; gap: 8px"><span class="rank first">1</span><span class="av" style="background: #1c7f3e; color: #fff">S</span><strong style="flex: 1; font-size: 16px">Sam</strong><span class="cap">80 → <b style="font: 800 18px var(--num); color: var(--ink)">110</b></span></div>
+<div class="grid6"><span class="t" style="--c: #1f6fd6"><b>20</b><small>2 tricks</small></span><span class="t" style="--c: #d42f3a"><b>10</b><small>1 heart</small></span><span class="t zero" style="--c: #9046d6"><b>0</b><small>none</small></span><span class="t zero" style="--c: #3a3a3c"><b>0</b><small>no</small></span><span class="t zero" style="--c: #c45f00"><b>0</b><small>no</small></span><span class="t total"><b>+30</b><small>round</small></span></div>
+</li>
+<li class="glass prow">
+<div style="display: flex; align-items: center; gap: 8px"><span class="rank">2</span><span class="av" style="background: #1f6fd6; color: #fff">A</span><strong style="flex: 1; font-size: 16px">Alex</strong><span class="cap">75 → <b style="font: 800 18px var(--num); color: var(--ink)">150</b></span></div>
+<div class="grid6"><span class="t" style="--c: #1f6fd6"><b>30</b><small>3 tricks</small></span><span class="t" style="--c: #d42f3a"><b>20</b><small>2 hearts</small></span><span class="t" style="--c: #9046d6"><b>25</b><small>1 queen</small></span><span class="t zero" style="--c: #3a3a3c"><b>0</b><small>no</small></span><span class="t zero" style="--c: #c45f00"><b>0</b><small>no</small></span><span class="t total"><b>+75</b><small>round</small></span></div>
+</li>
+<li class="glass prow">
+<div style="display: flex; align-items: center; gap: 8px"><span class="rank">3</span><span class="av" style="background: #cf6900; color: #1d1d1f">B</span><strong style="flex: 1; font-size: 16px">Brooke</strong><span class="cap">200 → <b style="font: 800 18px var(--num); color: var(--ink)">415</b></span></div>
+<div class="grid6"><span class="t" style="--c: #1f6fd6"><b>40</b><small>4 tricks</small></span><span class="t" style="--c: #d42f3a"><b>50</b><small>5 hearts</small></span><span class="t" style="--c: #9046d6"><b>25</b><small>1 queen</small></span><span class="t" style="--c: #3a3a3c"><b>100</b><small>K♠︎</small></span><span class="t zero" style="--c: #c45f00"><b>0</b><small>no</small></span><span class="t total"><b>+215</b><small>round</small></span></div>
+</li>
+<li class="glass prow">
+<div style="display: flex; align-items: center; gap: 8px"><span class="rank">4</span><span class="av" style="background: #9850dc; color: #fff">D</span><strong style="flex: 1; font-size: 16px">Dana</strong><span class="cap">205 → <b style="font: 800 18px var(--num); color: var(--ink)">445</b></span></div>
+<div class="grid6"><span class="t" style="--c: #1f6fd6"><b>40</b><small>4 tricks</small></span><span class="t" style="--c: #d42f3a"><b>50</b><small>5 hearts</small></span><span class="t" style="--c: #9046d6"><b>50</b><small>2 queens</small></span><span class="t zero" style="--c: #3a3a3c"><b>0</b><small>no</small></span><span class="t" style="--c: #c45f00"><b>100</b><small>last</small></span><span class="t total"><b>+240</b><small>round</small></span></div>
+</li>
+</ol>
+<p class="cap" style="font-weight: 500; text-align: center">Round 6 handed out 560, as much as rounds 1 to 5 together.</p>
+
+<div style="flex: 1"></div>
+<button class="btn primary">See final results</button>
+<p class="cap" style="font-weight: 500; text-align: center">Host only. Others wait on this screen.</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

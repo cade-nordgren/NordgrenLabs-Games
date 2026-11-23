@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Table, tablet and desktop</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--ink:#1d1d1f;--ink2:#5f5f64;--primary:#0071e3;--glass:rgba(255,255,255,.9);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.08),0 10px 30px rgba(0,0,0,.18);--on:#fff;--on2:#d4e8db;--card:#fff;--red:#c8102e;--blk:#1d1d1f;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:radial-gradient(ellipse 80% 90% at 38% 42%,#27704a,#1d5a39 75%);color:var(--on);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1.3px);background-size:4px 4px}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:24px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;z-index:3}
+.glass{background:var(--glass);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid var(--edge);border-radius:20px;box-shadow:var(--shadow);color:var(--ink)}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.btn{min-height:44px;padding:0 18px;border-radius:999px;background:var(--glass);color:var(--ink);font-weight:600;font-size:15px;box-shadow:var(--shadow)}
+.btn.primary{min-height:56px;padding:0 28px;background:var(--primary);color:#fff;font-size:18px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.on2{margin:0;font-size:14px;font-weight:600;color:var(--on2)}
+.av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:800 14px var(--num);flex:none}
+.av.s{width:24px;height:24px;font-size:11px}
+.oval{position:relative;border-radius:50%;background:radial-gradient(ellipse at 50% 45%,#2c7a51,#215f3e 72%);box-shadow:0 0 0 14px #5e3920,0 0 0 16px #47291a,0 24px 50px rgba(0,0,0,.35),inset 0 4px 30px rgba(0,0,0,.3)}
+.seat{position:absolute;width:190px;padding:10px 12px}
+.seat.now{box-shadow:0 0 0 3px var(--pc),0 0 0 5.5px rgba(255,255,255,.92),var(--shadow)}
+.spot{position:absolute;width:96px;display:flex;flex-direction:column;align-items:center;gap:4px}
+.who{display:inline-flex;align-items:center;gap:5px;padding:2px 9px 2px 5px;border-radius:999px;background:var(--glass);color:var(--ink);font-size:13px;font-weight:700;white-space:nowrap}
+.who i{width:11px;height:11px;border-radius:50%}
+.ttag{position:absolute;top:-12px;left:50%;transform:translateX(-50%);z-index:2;padding:1px 8px;border-radius:999px;background:var(--glass);color:var(--ink);font-size:12px;font-weight:800;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.ttag.w{background:#1d1d1f;color:#fff}
+.hole{width:72px;height:104px;border-radius:11px;border:2px dashed rgba(255,255,255,.45)}
+.c{position:relative;flex:none;display:block;width:72px;height:104px;border-radius:11px;background:var(--card);color:var(--blk);box-shadow:0 1px 0 rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.25),inset 0 0 0 1px rgba(0,0,0,.07);font-family:var(--num);text-align:left}
+.c.r{color:var(--red)}
+.c .i{position:absolute;top:7px;left:8px;display:flex;flex-direction:column;align-items:center;font-weight:800;font-size:22px;line-height:1;letter-spacing:-.05em}
+.c .i small{font-size:17px;margin-top:2px;letter-spacing:0}
+.c .m{position:absolute;right:7px;bottom:6px;font-size:36px;line-height:1}
+.c .art{position:absolute;right:6px;bottom:6px;width:60%;height:70%}
+.c.xs{width:24px;height:34px;border-radius:5px}.c.xs .i{font-size:12px;top:3px;left:4px}.c.xs .i small{font-size:10px;margin-top:0}
+.c.hd{width:84px;height:120px;border-radius:12px}.c.hd .i{font-size:25px;top:8px;left:9px}.c.hd .i small{font-size:19px}.c.hd .m{font-size:42px;right:8px;bottom:7px}
+.c.win{box-shadow:0 0 0 3px #ffd23f,0 6px 18px rgba(0,0,0,.35)}
+.c.up{transform:translateY(-14px)}
+.c.sel{transform:translateY(-26px);box-shadow:0 0 0 3px #fff,0 0 0 5.5px #1d1d1f,0 14px 26px rgba(0,0,0,.35)}
+.c.no{background:#d7d7d2;color:#3a3a3c}
+.c.no.r{color:#9e1a2c}
+.hrow{display:flex;padding-top:28px}
+.hrow .c+.c{margin-left:-20px}
+.tb{width:100%;border-collapse:collapse}
+.tb td{padding:7px 2px;border-top:1px solid var(--hair);font-size:15px;font-weight:600}
+.tb td.n{text-align:right;font:800 18px var(--num);font-variant-numeric:tabular-nums}
+.rk{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;background:var(--fill);color:var(--ink2);font:700 12px var(--num)}
+.rk.first{background:#0071e3;color:#fff}
+.rl{display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:30px;font-size:14px}
+.rl b{font:800 13px var(--num);text-align:center}
+.lead{padding:1px 7px;border-radius:999px;background:#1a6b40;color:#fff;font-size:11px;font-weight:800}
+.ptag{display:inline-flex;align-items:center;gap:4px;padding:1px 8px;border-radius:999px;font-size:12px;font-weight:800}
+</style>
+</helmet>
+<div class="s" style="width: 1280px; height: 800px; padding: 24px; display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 24px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+
+<main style="display: flex; flex-direction: column; gap: 18px; min-width: 0">
+<div style="display: flex; align-items: baseline; gap: 16px">
+<h1 style="margin: 0; font: 800 32px/1.1 var(--num); letter-spacing: -.02em">Your turn</h1>
+<p class="on2">Round 2 of 6 · No Hearts · Trick 4 of 13 · Room BXMRTW</p>
+</div>
+
+<section class="oval" aria-label="Table: 3 of 4 cards played" style="height: 430px; margin: 16px 28px 0">
+<section class="glass seat" style="left: calc(50% - 95px); top: -26px; --pc: #1c7f3e" aria-label="Sam, 9 cards, 0 points this round">
+<div style="display: flex; align-items: center; gap: 8px"><span class="av" style="background: #1c7f3e; color: #fff">S</span><span style="flex: 1"><strong style="display: block; font-size: 16px">Sam</strong><span class="cap">9 cards · 0 pts</span></span></div>
+</section>
+<section class="glass seat" style="left: -40px; top: 150px; --pc: #cf6900" aria-label="Brooke, 9 cards, 20 points this round">
+<div style="display: flex; align-items: center; gap: 8px"><span class="av" style="background: #cf6900; color: #1d1d1f">B</span><span style="flex: 1"><strong style="display: block; font-size: 16px">Brooke</strong><span class="cap">9 cards · 20 pts</span></span></div>
+<div style="display: flex; gap: 3px; margin-top: 8px" aria-label="Captured: 2 hearts"><span class="c xs r"><span class="i">J<small>♥︎</small></span></span><span class="c xs r"><span class="i">5<small>♥︎</small></span></span></div>
+</section>
+<section class="glass seat" style="right: -40px; top: 150px; --pc: #9850dc" aria-label="Dana, 9 cards, 10 points this round">
+<div style="display: flex; align-items: center; gap: 8px"><span class="av" style="background: #9850dc; color: #fff">D</span><span style="flex: 1"><strong style="display: block; font-size: 16px">Dana</strong><span class="cap">9 cards · 10 pts</span></span></div>
+<div style="display: flex; gap: 3px; margin-top: 8px" aria-label="Captured: 1 heart"><span class="c xs r"><span class="i">2<small>♥︎</small></span></span></div>
+</section>
+
+<div class="spot" style="left: calc(50% - 48px); top: 74px"><span class="c r" role="img" aria-label="Sam played the 4 of hearts"><span class="i">4<small>♥︎</small></span><span class="m">♥︎</span></span><span class="who"><i style="background: #1c7f3e"></i>Sam</span></div>
+<div class="spot" style="left: 190px; top: 150px"><span class="c r" role="img" aria-label="Brooke led the 9 of hearts"><span class="ttag">Led</span><span class="i">9<small>♥︎</small></span><span class="m">♥︎</span></span><span class="who"><i style="background: #cf6900"></i>Brooke</span></div>
+<div class="spot" style="right: 190px; top: 150px"><span class="c r win" role="img" aria-label="Dana played the Queen of hearts, winning"><span class="ttag w">Winning</span><span class="i">Q<small>♥︎</small></span><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12.5 18 Q20 10 27.5 18 Z" fill="currentColor"></path><circle cx="13" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="9.5" r="1.8" fill="currentColor"></circle><circle cx="27" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M13 24 Q12 36 17 37 M27 24 Q28 36 23 37" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q8 40 20 39 Q32 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="45" r="2" fill="currentColor"></circle></svg></span><span class="who"><i style="background: #9850dc"></i>Dana</span></div>
+<div class="spot" style="left: calc(50% - 48px); bottom: 30px"><span class="hole" aria-hidden="true"></span><span class="who"><i style="background: #1f6fd6"></i>You</span></div>
+<div class="glass" style="position: absolute; left: 50%; top: 52%; transform: translate(-50%, -50%); padding: 6px 16px; border-radius: 999px; text-align: center"><span class="cap" style="font-size: 12px; display: block; line-height: 1.1">Lead suit</span><strong style="font: 800 18px/1.2 var(--num)"><span style="color: #c8102e">♥︎</span> Hearts</strong></div>
+</section>
+
+<div style="flex: 1"></div>
+<section aria-label="Your hand" style="display: flex; align-items: flex-end; gap: 20px">
+<div style="width: 150px; flex: none; padding-bottom: 8px">
+<div style="display: flex; align-items: center; gap: 8px"><span class="av s" style="background: #1f6fd6; color: #fff">A</span><strong style="font-size: 16px">Alex · 10 cards</strong></div>
+<span class="ptag" style="background: #1f6fd6; color: #fff; margin-top: 6px">Your turn</span>
+<p class="on2" style="margin-top: 6px; font-size: 13px">Follow hearts: 3 of your cards can be played.</p>
+</div>
+<div class="hrow" style="flex: 1; justify-content: center">
+<sc-for list="{{hand}}" as="k" hint-placeholder-count="10"><button class="{{k.cls}}" aria-label="{{k.aria}}" aria-pressed="{{k.pressed}}" disabled="{{k.off}}"><span class="i">{{k.r}}<small>{{k.s}}</small></span><sc-if value="{{k.pip}}" hint-placeholder-val="{{ true }}"><span class="m">{{k.s}}</span></sc-if><sc-if value="{{k.isK}}" hint-placeholder-val="{{ false }}"><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M11 19 L12.5 9 L16.5 14 L20 7 L23.5 14 L27.5 9 L29 19 Z" fill="currentColor"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M15 30 Q20 38 25 30" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q7 39 20 38 Q33 39 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M20 42 L20 54" stroke="currentColor" stroke-width="1.2"></path></svg></sc-if><sc-if value="{{k.isQ}}" hint-placeholder-val="{{ false }}"><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12.5 18 Q20 10 27.5 18 Z" fill="currentColor"></path><circle cx="13" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="9.5" r="1.8" fill="currentColor"></circle><circle cx="27" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M13 24 Q12 36 17 37 M27 24 Q28 36 23 37" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q8 40 20 39 Q32 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="45" r="2" fill="currentColor"></circle></svg></sc-if><sc-if value="{{k.isJ}}" hint-placeholder-val="{{ false }}"><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12 19 L28 19 L26.5 12 Q20 8 13.5 12 Z" fill="currentColor"></path><path d="M26.5 12 Q33 7 32 16" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M7 54 Q7 40 20 39 Q33 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 39 L20 45 L26 39" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg></sc-if></button></sc-for>
+</div>
+<div style="display: flex; flex-direction: column; gap: 8px; align-items: stretch; padding-bottom: 6px">
+<button class="btn primary" aria-label="Play the 3 of hearts">Play 3♥︎</button>
+<button class="btn" aria-label="Sort hand, now by suit then rank">Sort: suit</button>
+</div>
+</section>
+</main>
+
+<aside style="display: flex; flex-direction: column; gap: 12px; padding-top: 64px; min-height: 0">
+<section class="glass" style="padding: 14px 16px">
+<p class="cap">Round 2 of 6</p>
+<h2 style="margin: 0; font: 800 24px/1.15 var(--num)">No Hearts</h2>
+<p class="cap" style="font-weight: 500; margin-top: 2px">Every heart you take scores 10. Trick 4 of 13, 39 cards still to play.</p>
+</section>
+<section class="glass" style="padding: 12px 16px" aria-label="Scores">
+<div style="display: flex; justify-content: space-between"><h2 class="cap" style="color: var(--ink); font-size: 14px">Scores</h2><span class="cap" style="font-weight: 500">live · lowest is best</span></div>
+<table class="tb" style="margin-top: 6px">
+<tbody>
+<tr><td style="width: 32px"><span class="rk first">1</span></td><td><span style="display: inline-flex; align-items: center; gap: 8px"><span class="av s" style="background: #1c7f3e; color: #fff">S</span>Sam</span></td><td class="n">20</td></tr>
+<tr><td><span class="rk">2</span></td><td><span style="display: inline-flex; align-items: center; gap: 8px"><span class="av s" style="background: #1f6fd6; color: #fff">A</span>Alex (you)</span></td><td class="n">40</td></tr>
+<tr><td><span class="rk">3</span></td><td><span style="display: inline-flex; align-items: center; gap: 8px"><span class="av s" style="background: #9850dc; color: #fff">D</span>Dana</span></td><td class="n">50</td></tr>
+<tr><td><span class="rk">4</span></td><td><span style="display: inline-flex; align-items: center; gap: 8px"><span class="av s" style="background: #cf6900; color: #1d1d1f">B</span>Brooke</span></td><td class="n">60</td></tr>
+</tbody>
+</table>
+</section>
+<section class="glass" style="padding: 12px 16px" aria-label="The six rounds">
+<h2 class="cap" style="color: var(--ink); font-size: 14px; margin-bottom: 4px">The six rounds</h2>
+<div class="rl"><b><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#1a6b40" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-label="done" role="img"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></b><span>No Tricks · 10 a trick</span><span class="cap">Done</span></div>
+<div class="rl" style="font-weight: 700"><b>2</b><span>No Hearts · 10 a heart</span><span class="lead">Now</span></div>
+<div class="rl"><b>3</b><span>No Queens · 25 a queen</span><span></span></div>
+<div class="rl"><b>4</b><span>No King of Spades · 100</span><span></span></div>
+<div class="rl"><b>5</b><span>No Last Trick · 100</span><span></span></div>
+<div class="rl"><b>6</b><span>Canadian Salad · all</span><span></span></div>
+</section>
+</aside>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const SU = { S: ['♠︎', 'spades', 0], H: ['♥︎', 'hearts', 1], D: ['♦︎', 'diamonds', 1], C: ['♣︎', 'clubs', 0] };
+    const RN = { A: 'Ace', K: 'King', Q: 'Queen', J: 'Jack' };
+    const hand = ['AS', '10S', '5S', 'KH', '7H', '3H', 'QC', '6C', 'JD', '8D'].map((code) => {
+      const r = code.slice(0, -1), su = code.slice(-1), u = SU[su], ok = su === 'H', sel = code === '3H';
+      return { r, s: u[0], isK: r === 'K', isQ: r === 'Q', isJ: r === 'J', pip: !['K', 'Q', 'J'].includes(r),
+        cls: 'c hd' + (u[2] ? ' r' : '') + (sel ? ' sel' : ok ? ' up' : ' no'), off: !ok, pressed: sel ? 'true' : 'false',
+        aria: (RN[r] || r) + ' of ' + u[1] + (sel ? ', selected' : ok ? ', playable' : ", can't be played") };
+    });
+    return { hand };
+  }
+}
+</script>
+</body>
+</html>
