@@ -1,7 +1,8 @@
 // The Worker (docs/decisions/0002, 0003). It runs first for every request: /api/* and /config.js are its own, and every
 // other path is a file from site/ through the ASSETS binding, behind the sign-in gate when Clerk is configured.
-import { verify, verifyCookie, AUTHORIZED_PARTY } from './seam.js';
+import { verify, verifyCookie, devPerson, AUTHORIZED_PARTY } from './seam.js';
 import { handleSaves } from './saves.js';
+import { handleRooms } from './rooms.js';
 
 const REQUIRED = ['CLERK_PUBLISHABLE_KEY', 'CLERK_JWT_KEY', 'CLERK_ISSUER'];
 // What the sign-in page and a home-screen install need (phones fetch these without a usable session), nothing else. Exact paths, so any other file,
@@ -42,15 +43,19 @@ export default {
 
     if (pathname === '/api' || pathname.startsWith('/api/')) {
       const id = /^\/api\/saves\/([^/]+)$/.exec(pathname)?.[1];
-      const allow = pathname === '/api/me' || pathname === '/api/saves' ? 'GET' : id ? 'GET, PUT, DELETE' : null;
+      const room = /^\/api\/bomb\/rooms(?:\/([^/]+)(\/actions)?)?$/.exec(pathname);
+      const allow = pathname === '/api/me' || pathname === '/api/saves' ? 'GET' : id ? 'GET, PUT, DELETE'
+        : room ? (room[1] && !room[2] && room[1] !== 'join' ? 'GET' : 'POST') : null;
       if (!allow) return json(404, { error: 'not_found' });
       if (!allow.split(', ').includes(request.method)) return json(405, { error: 'method_not_allowed' }, { Allow: allow });
-      const r = await verify(request.headers.get('authorization') ?? undefined,
+      const dev = devPerson(request.headers.get('x-nl-dev-person') ?? undefined, env.CLERK_JWT_KEY);
+      const r = dev ? { ok: true, personPublicId: dev } : await verify(request.headers.get('authorization') ?? undefined,
         { jwtKey: env.CLERK_JWT_KEY, issuer: env.CLERK_ISSUER, authorizedParty: AUTHORIZED_PARTY });
       if (!r.ok) return json(401, { error: 'unauthenticated' });
       if (r.personPublicId === null) return json(403, { error: 'not_associated' });
       if (pathname === '/api/me') return json(200, { personPublicId: r.personPublicId });
       try {
+        if (room) return json(...await handleRooms(env.DB, request, r.personPublicId, room[1], !!room[2], searchParams.get('since')));
         return json(...await handleSaves(env.DB, request, r.personPublicId, id, searchParams.get('game')));
       } catch {
         return json(503, { error: 'unavailable' });

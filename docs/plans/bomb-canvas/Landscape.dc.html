@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bomb, phone landscape</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--solid:#fff;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--card:#fff;--red:#c8102e;--blk:#1d1d1f;--deck:#3a3a3c;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 300px at 0% 0%,rgba(240,124,27,.16),transparent 60%),radial-gradient(420px 300px at 100% 100%,rgba(31,115,218,.16),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:12px;right:16px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;z-index:2}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:20px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.s button:disabled{opacity:.35;cursor:default}
+.btn{min-height:44px;padding:0 16px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px}
+.btn.ink{background:var(--ink);color:var(--canvas)}
+.btn.primary{min-height:50px;background:var(--primary);color:#fff;font-size:17px}
+.cap{margin:0;font-size:12px;font-weight:600;color:var(--ink2)}
+.av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:700 12px var(--num);flex:none}
+.c{position:relative;flex:none;display:block;width:56px;height:80px;border-radius:9px;background:var(--card);color:var(--blk);box-shadow:0 1px 0 rgba(0,0,0,.06),0 3px 10px rgba(0,0,0,.14),inset 0 0 0 1px rgba(0,0,0,.07);font-family:var(--num);text-align:left}
+.c.r{color:var(--red)}
+.c .i{position:absolute;top:5px;left:6px;display:flex;flex-direction:column;align-items:center;font-weight:800;font-size:17px;line-height:1;letter-spacing:-.05em}
+.c .i small{font-size:13px;margin-top:2px;letter-spacing:0}
+.c .m{position:absolute;right:6px;bottom:5px;font-size:28px;line-height:1}
+.c.xs{width:34px;height:48px;border-radius:6px}.c.xs .i{font-size:12px;top:3px;left:4px}.c.xs .i small{font-size:10px;margin-top:1px}.c.xs .m{font-size:15px;right:3px;bottom:2px}
+.c.sel{transform:translateY(-12px);box-shadow:0 0 0 3px var(--accent),0 12px 24px rgba(0,0,0,.22)}
+.back{background:repeating-linear-gradient(45deg,rgba(255,255,255,.14) 0 2px,transparent 2px 6px),var(--pc);box-shadow:inset 0 0 0 2px var(--pc),inset 0 0 0 3.5px rgba(255,255,255,.75),0 2px 8px rgba(0,0,0,.16)}
+.back::after{content:"";position:absolute;left:50%;top:50%;width:10px;height:10px;margin:-5px;border-radius:50%;background:rgba(255,255,255,.9);box-shadow:0 0 0 2px var(--pc),0 0 0 3.5px rgba(255,255,255,.6)}
+.slot{position:relative;width:34px;height:56px;flex:none}
+.slot>.c{position:absolute;left:0}
+.slot>.back{top:0}.slot>.up{top:8px}
+.opp-waves .back{background:radial-gradient(circle at 50% 100%,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px) 0 0/12px 7px,radial-gradient(circle at 50% 0,transparent 0 4px,rgba(255,255,255,.32) 4px 6px,transparent 6px) 6px 3.5px/12px 7px,var(--pc)}
+</style>
+</helmet>
+<div class="s" style="width: 844px; height: 390px; padding: 12px 16px; display: grid; grid-template-columns: minmax(0, 1fr) 210px; gap: 12px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+
+<div style="display: flex; flex-direction: column; gap: 10px; min-width: 0">
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<section class="glass opp-waves" aria-label="Brooke" style="padding: 8px 12px; display: flex; align-items: center; gap: 10px; --pc: #d96c00">
+<span class="av" style="background: #d96c00; color: #1d1d1f">B</span>
+<div style="flex: 1; min-width: 0; line-height: 1.2"><strong style="font-size: 15px">Brooke</strong><div class="cap" style="font-weight: 500">7 in hand</div></div>
+<sc-for list="{{opp}}" as="k" hint-placeholder-count="4"><div class="slot"><div class="c xs back"></div><div class="{{k.cls}} up"><span class="i">{{k.r}}<small>{{k.s}}</small></span><span class="m">{{k.s}}</span></div></div></sc-for>
+</section>
+<section class="glass" aria-label="Your table" style="padding: 8px 12px; display: flex; align-items: center; gap: 10px; --pc: #1f6fd6">
+<span class="av" style="background: #1f6fd6; color: #fff">A</span>
+<div style="flex: 1; min-width: 0; line-height: 1.2"><strong style="font-size: 15px">Your table</strong><div class="cap" style="font-weight: 500">after your hand</div></div>
+<sc-for list="{{mine}}" as="k" hint-placeholder-count="4"><div class="slot"><div class="c xs back"></div><div class="{{k.cls}} up"><span class="i">{{k.r}}<small>{{k.s}}</small></span><span class="m">{{k.s}}</span></div></div></sc-for>
+</section>
+</div>
+
+<section class="glass" aria-label="Table" style="padding: 10px 16px; display: flex; align-items: center; gap: 22px">
+<div style="display: flex; align-items: center; gap: 10px; --pc: var(--deck)">
+<div style="position: relative; width: 44px; height: 64px"><div class="c back" style="position: absolute; width: 42px; height: 60px; top: 0; left: 0"></div><div class="c back" style="position: absolute; width: 42px; height: 60px; top: 3px; left: 2px"></div></div>
+<span class="cap" style="line-height: 1.2">Deck<br><strong style="color: var(--ink); font: 800 16px var(--num)">14</strong></span>
+</div>
+<div style="display: flex; align-items: center; gap: 12px; flex: 1">
+<div style="position: relative; width: 100px; height: 82px">
+<sc-for list="{{pile}}" as="k" hint-placeholder-count="3"><div class="{{k.cls}}" style="position: absolute; top: 1px; left: {{k.x}}px; transform: rotate({{k.rot}}deg)"><span class="i">{{k.r}}<small>{{k.s}}</small></span><span class="m">{{k.s}}</span></div></sc-for>
+</div>
+<span class="cap">Pile · 6</span>
+</div>
+<div style="text-align: center; line-height: 1.1"><p class="cap">To beat</p><div style="font: 800 38px/1.05 var(--num)">Q</div><p class="cap" style="font-weight: 500">or a 2 or 10</p></div>
+</section>
+
+<section aria-label="Your hand" style="flex: 1; min-height: 0; display: flex; flex-direction: column">
+<h2 class="cap" style="color: var(--ink); font-size: 13px">Alex · your hand · 5</h2>
+<div style="display: flex; gap: 8px; padding-top: 14px">
+<sc-for list="{{hand}}" as="k" hint-placeholder-count="5"><button class="{{k.cls}}" aria-label="{{k.name}}"><span class="i">{{k.r}}<small>{{k.s}}</small></span><span class="m">{{k.s}}</span></button></sc-for>
+</div>
+</section>
+</div>
+
+<div style="display: flex; flex-direction: column; gap: 8px; padding-top: 60px">
+<div class="glass" style="padding: 10px 12px; border-radius: 16px; text-align: center"><strong style="font-size: 15px">Your turn</strong><div class="cap" style="font-weight: 500">2 Queens selected</div></div>
+<div style="flex: 1"></div>
+<button class="btn">Pick up 6</button>
+<button class="btn ink">Play 2 Queens</button>
+<button class="btn primary" disabled>Next turn</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":844,"height":390}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const SU = { S: ['♠︎', 'spades', 0], H: ['♥︎', 'hearts', 1], D: ['♦︎', 'diamonds', 1], C: ['♣︎', 'clubs', 0] };
+    const RN = { A: 'Ace', K: 'King', Q: 'Queen', J: 'Jack' };
+    const card = (code, size, extra) => { const r = code.slice(0, -1), u = SU[code.slice(-1)]; return { r, s: u[0], name: (RN[r] || r) + ' of ' + u[1], cls: 'c ' + size + (u[2] ? ' r' : '') + (extra ? ' ' + extra : '') }; };
+    return {
+      opp: ['KS', '9D', 'AC', '5H'].map((c) => card(c, 'xs')),
+      mine: ['AS', 'KH', '10C', '2D'].map((c) => card(c, 'xs')),
+      pile: ['6C', '9H', 'QD'].map((c, i) => ({ ...card(c, ''), x: i * 20, rot: [-6, 3, -2][i] })),
+      hand: ['4C', '7H', 'QS', 'QH', 'AD'].map((c) => card(c, '', c === 'QS' || c === 'QH' ? 'sel' : ''))
+    };
+  }
+}
+</script>
+</body>
+</html>

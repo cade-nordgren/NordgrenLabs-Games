@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Bomb results</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--solid:#fff;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--cell:#fff;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 50% 10%,rgba(240,124,27,.22),transparent 60%),radial-gradient(420px 360px at 70% 100%,rgba(31,115,218,.12),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:22px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.btn{min-height:44px;padding:0 18px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px}
+.btn.primary{min-height:54px;background:var(--primary);color:#fff;font-size:18px}
+.row{padding:12px 12px 12px;border-radius:20px;display:grid;grid-template-columns:28px minmax(0,1fr);gap:10px 10px;align-items:center}
+.rank{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--fill);color:var(--ink2);font:700 14px var(--num)}
+.rank.first{background:var(--accent);color:#fff}
+.stats{grid-column:1/-1;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.t{height:58px;border-radius:12px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 14%,var(--cell));display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.t b{font:800 24px/1 var(--num);font-variant-numeric:tabular-nums}
+.t small{font:600 11px/1 var(--text);color:var(--ink2)}
+.win{box-shadow:0 0 0 3px var(--accent),0 8px 28px color-mix(in srgb,var(--accent) 45%,transparent)}
+.dim{opacity:.6;filter:grayscale(.6)}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 16px; display: flex; flex-direction: column; gap: 12px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="height: 48px"></div>
+<div style="text-align: center; margin-bottom: 8px">
+<div style="width: 72px; height: 72px; margin: 0 auto 12px; border-radius: 50%; background: #d96c00; color: #1d1d1f; display: grid; place-items: center; font: 800 34px/1 var(--num); box-shadow: 0 0 0 6px rgba(240,124,27,.2)">B</div>
+<h2 style="margin: 0; font: 800 30px/1.15 var(--num)">Brooke wins!</h2>
+<p style="margin: 6px 0 0; color: var(--ink2)">Every card played on the last face-down card</p>
+</div>
+
+<div class="glass row win">
+<span class="rank first">1</span>
+<strong style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Brooke</strong>
+<div class="stats" style="--c: #d96c00">
+<div class="t"><b>0</b><small>cards left</small></div>
+<div class="t"><b>3</b><small>bombs</small></div>
+<div class="t"><b>2</b><small>pickups</small></div>
+</div>
+</div>
+
+<div class="glass row dim">
+<span class="rank">2</span>
+<strong style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Alex</strong>
+<div class="stats" style="--c: #1f6fd6">
+<div class="t"><b>9</b><small>cards left</small></div>
+<div class="t"><b>2</b><small>bombs</small></div>
+<div class="t"><b>4</b><small>pickups</small></div>
+</div>
+</div>
+
+<div class="glass" style="padding: 12px 16px; border-radius: 18px; display: flex; justify-content: space-around; text-align: center">
+<div><b style="font: 800 22px/1 var(--num)">41</b><div style="font-size: 13px; font-weight: 600; color: var(--ink2)">turns</div></div>
+<div><b style="font: 800 22px/1 var(--num)">18 min</b><div style="font-size: 13px; font-weight: 600; color: var(--ink2)">game time</div></div>
+</div>
+
+<div style="flex: 1"></div>
+<button class="btn primary">Rematch</button>
+<button class="btn" style="min-height: 50px">New game</button>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

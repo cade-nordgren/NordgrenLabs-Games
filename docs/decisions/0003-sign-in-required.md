@@ -46,3 +46,13 @@ Every request now invokes the Worker and counts toward the free plan's 100,000 r
 - Saves are written to the browser first and uploaded from there (an outbox): a save survives a failed upload, a closed tab or no network, and is tagged with its owner so it is only ever uploaded into that person's account. A save made before any sign-in still moves to the first account.
 - The last known saves list and first name are cached per person in this browser, shown at once on the next load and refreshed from the server; the cache is chosen by the `nl_person_id` in the cookie the Worker just accepted, and cleared on sign-out or a change of person.
 - `/api/me` is no longer called by the client: the person id is read from the token ClerkJS already holds. The route stays.
+
+## Deploy record, 2026-11-18
+
+- Deployed from branch `release/bank-only` at `782edc0` (this work merged into the Bank-only release; Tidevault and Dungeon companion still unpublished). Version ID `02df0301-4b4c-44fd-b709-9ebdb3257109`. The version before it, to roll back to, is `7f29e51d-3614-445f-8689-606a08209558`.
+- Checked on the live origin, signed out: `/`, `/bank/`, `/bank/index.html`, `/style.css`, `/platform.js`, `/signin`, an unpublished game path, an unknown path and look-alike paths under `/icons/` all answer 401 with the sign-in page and `no-store`; the six install files and `/config.js` answer 200; `/api/me` answers 401 with no header and with a cookie; a junk or unsigned `__session` cookie on a page answers 401.
+- Changed in review before deploy: the gate accepts ClerkJS's suffixed cookie name (`__session_<suffix>`) as well as `__session`, checking at most four candidates.
+- Owner check, 2026-11-18: a real sign-in through the gate reached the site ("Yes, I'm in"), so ClerkJS's session cookie is accepted by the Worker on the live origin.
+- Owner check, 2026-11-18: deleting a saved game works on an iPhone (the two-step confirm no longer depends on focus).
+- Owner check, 2026-11-18: asked about the three checks still open (coming back signed in after the token expires, sign-out landing on the sign-in page, and the home-screen app showing the die icon and the name Games), the owner reported "everything works".
+- Not separately reported: a save made on one device appearing on a second, and the stored Workers Logs view. These are the owner's checks in `docs/runbooks/deploy.md`.

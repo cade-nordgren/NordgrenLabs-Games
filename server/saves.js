@@ -11,15 +11,15 @@ const valid = r => !!r && typeof r === 'object' && r.schemaVersion === 1 && UUID
   && typeof r.title === 'string' && (r.status === 'in_progress' || r.status === 'finished')
   && ISO.test(r.createdAt) && ISO.test(r.updatedAt) && !!r.state && typeof r.state === 'object';
 
-// Resolves null once the body passes MAX_BYTES and stops reading; nothing past the cap is buffered.
-async function readBody(request) {
+// Resolves null once the body passes max and stops reading; nothing past the cap is buffered.
+export async function readBody(request, max = MAX_BYTES) {
   if (!request.body) return '';
   const reader = request.body.getReader();
   const chunks = [];
   let size = 0;
   for (let r = await reader.read(); !r.done; r = await reader.read()) {
     size += r.value.byteLength;
-    if (size > MAX_BYTES) {
+    if (size > max) {
       await reader.cancel();
       return null;
     }

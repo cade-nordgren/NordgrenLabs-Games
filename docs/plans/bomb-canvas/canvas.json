@@ -1,0 +1,38 @@
+{
+  "v": 3,
+  "createdOnFiles": {"v": 1, "at": "2026-11-23T12:00:00Z"},
+  "title": "Bomb",
+  "launch": {"view": "canvas"},
+  "pages": [],
+  "boards": {
+    "Main.dc.html": {"x": 0, "y": 0, "w": 390, "h": 844, "title": "1 Setup: mode, players, card styles, decks"},
+    "MainDark.dc.html": {"x": 470, "y": 0, "w": 390, "h": 844, "title": "2 Setup, dark"},
+    "Styles.dc.html": {"x": 940, "y": 0, "w": 390, "h": 844, "title": "3 Card style picker"},
+    "Draw.dc.html": {"x": 1410, "y": 0, "w": 390, "h": 844, "title": "4 Draw for first turn: tie, then Sam starts"},
+    "FaceUp.dc.html": {"x": 1880, "y": 0, "w": 390, "h": 844, "title": "5 Private: choose 4 face-up cards"},
+    "Handoff.dc.html": {"x": 2350, "y": 0, "w": 390, "h": 844, "title": "6 Pass the device (one phone)"},
+    "Turn.dc.html": {"x": 0, "y": 1244, "w": 390, "h": 844, "title": "7 Your turn: two Queens selected"},
+    "Played.dc.html": {"x": 470, "y": 1244, "w": 390, "h": 844, "title": "8 Played: Next Turn ready"},
+    "Bomb.dc.html": {"x": 940, "y": 1244, "w": 390, "h": 844, "title": "9 BOMB: 10 clears the pile"},
+    "BigHand.dc.html": {"x": 1410, "y": 1244, "w": 390, "h": 844, "title": "10 Big hand after a pickup"},
+    "FaceDown.dc.html": {"x": 1880, "y": 1244, "w": 390, "h": 844, "title": "11 Face-down: pick one blind"},
+    "Reveal.dc.html": {"x": 2350, "y": 1244, "w": 390, "h": 844, "title": "12 Face-down too low: take the pile"},
+    "TurnDark.dc.html": {"x": 2820, "y": 1244, "w": 390, "h": 844, "title": "13 Your turn, dark"},
+    "Lobby.dc.html": {"x": 0, "y": 2488, "w": 390, "h": 844, "title": "14 Online lobby: room code and seats"},
+    "OnlineTurn.dc.html": {"x": 470, "y": 2488, "w": 390, "h": 844, "title": "15 Online, 4 players: your turn"},
+    "OnlineWaiting.dc.html": {"x": 940, "y": 2488, "w": 390, "h": 844, "title": "16 Online: waiting for Brooke"},
+    "OnlineTurnDark.dc.html": {"x": 1410, "y": 2488, "w": 390, "h": 844, "title": "17 Online: your turn, dark"},
+    "OnlineLandscape.dc.html": {"x": 1880, "y": 2488, "w": 844, "h": 390, "title": "18 Online, phone landscape"},
+    "Results.dc.html": {"x": 0, "y": 3732, "w": 390, "h": 844, "title": "19 Results"},
+    "Landscape.dc.html": {"x": 470, "y": 3732, "w": 844, "h": 390, "title": "20 One phone, landscape"}
+  },
+  "order": ["Main.dc.html", "MainDark.dc.html", "Styles.dc.html", "Draw.dc.html", "FaceUp.dc.html", "Handoff.dc.html", "Turn.dc.html", "Played.dc.html", "Bomb.dc.html", "BigHand.dc.html", "FaceDown.dc.html", "Reveal.dc.html", "TurnDark.dc.html", "Lobby.dc.html", "OnlineTurn.dc.html", "OnlineWaiting.dc.html", "OnlineTurnDark.dc.html", "OnlineLandscape.dc.html", "Results.dc.html", "Landscape.dc.html"],
+  "notes": {
+    "t1": {"x": 0, "y": -260, "text": "Before the game", "kind": "title1", "maxW": 2740},
+    "t2": {"x": 0, "y": 984, "text": "One phone", "kind": "title1", "maxW": 3210},
+    "t3": {"x": 0, "y": 2228, "text": "Online", "kind": "title1", "maxW": 2724},
+    "t4": {"x": 0, "y": 3472, "text": "Results and other layouts", "kind": "title1", "maxW": 1314},
+    "n1": {"x": 2820, "y": 0, "w": 380, "fill": "orange", "text": "Design notes\n\n• Same look as Crossix: cream ground, glass panels, rounded numerals, the floating menu circle top right.\n• Digital cards only. Setup picks This phone or Online, 2 to 6 players, and 1 to 4 decks shuffled together.\n• Draw for first turn: everyone draws one card, highest rank starts. Equal ranks of different suits tie and only those players draw again. No dice anywhere.\n• Each player picks a card style (12 colour and pattern backs). The colour of the back is that player's colour everywhere; two players can't hold the same style. Names on a player colour use dark or white ink, whichever passes 4.5:1.\n• Online turns pass by themselves as soon as a play or pickup resolves. Next Turn appears only on one phone, where the device changes hands.\n• Online, every other player is a compact panel across the top; the one to move is ringed in their colour.\n• The handoff screen shows no cards at all, and it is also what appears after a refresh."}
+  },
+  "designSystems": []
+}
