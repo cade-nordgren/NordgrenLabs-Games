@@ -276,6 +276,7 @@
 
   // ---- Sheets swipe away like an iPhone's: drag a dialog.sheet down and let go past a third of it, or flick it.
   // A drag only starts when nothing under the finger is scrolled down, so long sheets still scroll first.
+  // Not from a slider or a Dots board: a finger there is doing something else.
   let sheet = null, x0 = 0, y0 = 0, t0 = 0, dy = 0, dragging = false;
   const settle = (d, to, then) => {
     const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -285,7 +286,7 @@
   };
   document.addEventListener('touchstart', e => {
     sheet = e.touches.length === 1 ? e.target.closest?.('dialog.sheet[open]') : null;
-    if (!sheet || e.target.closest('input[type=range]')) return void (sheet = null);
+    if (!sheet || e.target.closest('input[type=range], svg.board')) return void (sheet = null);
     for (let el = e.target; el && el !== sheet.parentNode; el = el.parentElement) if (el.scrollTop > 0) return void (sheet = null);
     ({ clientX: x0, clientY: y0 } = e.touches[0]); t0 = e.timeStamp; dy = 0; dragging = false;
   }, { passive: true });

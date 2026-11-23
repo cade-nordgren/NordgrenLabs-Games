@@ -756,35 +756,10 @@ $('newKeep').onclick = () => $('newSheet').close();
 // ---- Sheets: Esc and a backdrop click close them.
 for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };
 const still = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
-// Like an iPhone sheet: drag down while it is scrolled to the top, let go past a quarter of its height (or flick) to dismiss.
+// Sheets swipe away like an iPhone's: that lives in the shared platform.js.
 for (const d of document.querySelectorAll('dialog.sheet')) {
   const h = d.querySelector('h2'); // focus the title on open, so a tall sheet opens at its top, not scrolled to its Done button
   if (h) { h.tabIndex = -1; h.autofocus = true; }
-  let y0 = null, dy = 0, t0 = 0, drag = false;
-  d.addEventListener('touchstart', e => {
-    y0 = d.open && d.scrollTop <= 0 && e.touches.length === 1 ? e.touches[0].clientY : null;
-    dy = 0; t0 = e.timeStamp; drag = false;
-  }, { passive: true });
-  d.addEventListener('touchmove', e => {
-    if (y0 === null) return;
-    dy = e.touches[0].clientY - y0;
-    if (!drag && dy <= 0) { y0 = null; return; } // an upward move scrolls the sheet as usual
-    drag = true;
-    e.preventDefault();
-    d.style.transition = 'none';
-    d.style.transform = `translateY(${Math.max(0, dy)}px)`;
-  }, { passive: false });
-  d.addEventListener('touchend', e => {
-    if (!drag) { y0 = null; return; }
-    y0 = null; drag = false;
-    const flick = dy / Math.max(1, e.timeStamp - t0) > 0.5 && dy > 30;
-    d.style.transition = still() ? 'none' : 'transform .22s ease-out';
-    if (dy > d.offsetHeight / 4 || flick) {
-      d.style.transform = 'translateY(calc(100% + 40px))';
-      setTimeout(() => { d.close(); d.style.transition = d.style.transform = ''; }, still() ? 0 : 200);
-    } else d.style.transform = '';
-  });
-  d.addEventListener('close', () => { d.style.transition = d.style.transform = ''; });
 }
 $('scoresBtn').onclick = () => { renderScores(); $('scoresSheet').showModal(); };
 $('rulesBtn').onclick = () => $('rulesSheet').showModal();
