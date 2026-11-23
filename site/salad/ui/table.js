@@ -296,9 +296,12 @@ function layoutHand() {
   else if (n <= 2 * fit && !landscapePhone.matches && n <= 20) { const h = Math.ceil(n / 2); rows = [handEls.slice(0, h), handEls.slice(h)]; }
   else rows = null;
   if (!rows) {
+    // Too many to fit: scroll sideways, each card showing at least 44px to tap; a portrait phone stacks two rows.
     box.classList.add('scroll');
-    box.style.setProperty('--ov', `${-Math.round(w * 0.42)}px`);
-    const r = el('div', 'hrow'); r.append(...handEls); box.replaceChildren(r);
+    const sw = handEls[0].getBoundingClientRect().width || 56;
+    box.style.setProperty('--ov', `${-Math.max(0, Math.round(sw - 44))}px`);
+    const h = landscapePhone.matches ? n : Math.ceil(n / 2);
+    box.replaceChildren(...[handEls.slice(0, h), handEls.slice(h)].filter(r => r.length).map(cards => { const r = el('div', 'hrow'); r.append(...cards); return r; }));
     box.scrollLeft = scroller;
     $('jump').hidden = false;
     return;

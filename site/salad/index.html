@@ -291,6 +291,9 @@ dialog h2:focus { outline: none; }
 .hand .c.up { transform: translateY(-10px); }
 .hand .c.sel { transform: translateY(-20px); box-shadow: 0 0 0 3px #fff, 0 0 0 5.5px #1d1d1f, 0 14px 26px rgba(0, 0, 0, .35); z-index: 2; }
 .hand .c.gone { visibility: hidden; }
+/* Focus on the table in its own ink (white, or near-black on the light table), and a focused card comes to the front. */
+#game :focus-visible { outline: 3px solid var(--on); outline-offset: 2px; }
+.hand .c:focus-visible { z-index: 3; }
 .hand .c.drag { z-index: 5; transition: none; box-shadow: 0 0 0 3px var(--win), 0 16px 30px rgba(0, 0, 0, .4); }
 .act { grid-area: act; display: grid; gap: 6px; }
 .wait { min-height: 52px; padding: 8px 16px; border-radius: 999px !important; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; font-size: 16px; text-align: center; }
