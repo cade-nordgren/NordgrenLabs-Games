@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Round 2 results</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--cell:#fff;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 50% 0%,rgba(212,47,58,.14),transparent 60%),radial-gradient(420px 360px at 0% 100%,rgba(26,107,64,.16),transparent 60%),radial-gradient(360px 320px at 100% 70%,rgba(31,115,218,.12),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:20px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.btn{min-height:44px;padding:0 18px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px}
+.btn.primary{min-height:56px;background:var(--primary);color:#fff;font-size:18px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:800 12px var(--num);flex:none}
+.rank{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:var(--fill);color:var(--ink2);font:700 14px var(--num)}
+.rank.first{background:var(--accent);color:#fff}
+.rrow{display:grid;grid-template-columns:28px minmax(0,1fr) 54px 54px 66px;gap:8px;align-items:center;padding:10px 10px;border-radius:18px}
+.head{display:grid;grid-template-columns:28px minmax(0,1fr) 54px 54px 66px;gap:8px;padding:0 11px}
+.head span{font-size:12px;font-weight:700;color:var(--ink2);text-align:center}
+.t{height:44px;border-radius:11px;border:2px solid var(--c);background:color-mix(in srgb,var(--c) 14%,var(--cell));display:grid;place-items:center;font:800 20px/1 var(--num);font-variant-numeric:tabular-nums}
+.t.total{border:0;background:var(--ink);color:var(--canvas);height:48px;font-size:22px}
+.t.now{background:#fff;color:#1d1d1f;border:2px solid var(--c);box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.mv{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:600;color:var(--ink2)}
+.win{box-shadow:0 0 0 3px var(--accent),0 8px 28px color-mix(in srgb,var(--accent) 45%,transparent)}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 10px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="min-height: 48px; padding-right: 58px">
+<p class="cap">Round 2 of 6 complete</p>
+<h1 style="margin: 0; font: 800 30px/1.1 var(--num); letter-spacing: -.02em">No Hearts</h1>
+<p class="cap" style="font-weight: 500; margin-top: 2px">13 hearts at 10 each: 130 points handed out. Lowest total ranks first.</p>
+</div>
+
+<div class="head" aria-hidden="true" style="margin-top: 6px"><span></span><span style="text-align: left">Player</span><span>Hearts</span><span>Round</span><span>Total</span></div>
+<ol style="list-style: none; margin: 0; padding: 0; display: grid; gap: 8px" aria-label="Standings after round 2">
+<li class="glass rrow win" style="--c: #d42f3a">
+<span class="rank first">1</span>
+<span style="min-width: 0"><span style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: #1c7f3e; color: #fff">S</span><strong style="font-size: 16px">Sam</strong></span><span class="mv"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg>Still 1st · was 20</span></span>
+<span class="t" aria-label="1 heart">1</span><span class="t" aria-label="plus 10">+10</span><span class="t total" aria-label="total 30">30</span>
+</li>
+<li class="glass rrow" style="--c: #d42f3a">
+<span class="rank">2</span>
+<span style="min-width: 0"><span style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: #1f6fd6; color: #fff">A</span><strong style="font-size: 16px">Alex</strong></span><span class="mv"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg>Still 2nd · was 30</span></span>
+<span class="t" aria-label="2 hearts">2</span><span class="t" aria-label="plus 20">+20</span><span class="t total" aria-label="total 50">50</span>
+</li>
+<li class="glass rrow" style="--c: #d42f3a">
+<span class="rank">3</span>
+<span style="min-width: 0"><span style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: #9850dc; color: #fff">D</span><strong style="font-size: 16px">Dana</strong></span><span class="mv"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"></path></svg>3rd, no longer tied · was 40</span></span>
+<span class="t" aria-label="4 hearts">4</span><span class="t" aria-label="plus 40">+40</span><span class="t total" aria-label="total 80">80</span>
+</li>
+<li class="glass rrow" style="--c: #d42f3a">
+<span class="rank">4</span>
+<span style="min-width: 0"><span style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: #cf6900; color: #1d1d1f">B</span><strong style="font-size: 16px">Brooke</strong></span><span class="mv"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6"></path></svg>Down from joint 3rd · 40</span></span>
+<span class="t" aria-label="6 hearts">6</span><span class="t" aria-label="plus 60">+60</span><span class="t now" aria-label="total counting up to 100">94</span>
+</li>
+</ol>
+<p class="cap" style="font-weight: 500; text-align: center">Totals tick up from last round's score. Brooke's is still counting.</p>
+<button class="btn" style="align-self: center">Skip</button>
+
+<section class="glass" style="padding: 12px 14px; display: flex; gap: 12px; align-items: center">
+<span aria-hidden="true" style="width: 44px; height: 44px; border-radius: 12px; display: grid; place-items: center; background: color-mix(in srgb, #9046d6 14%, #fff); border: 2px solid #9046d6; font: 800 18px var(--num)">3</span>
+<span style="flex: 1"><strong style="display: block; font-size: 16px">Next: No Queens</strong><span class="cap" style="font-weight: 500">25 for each queen you take. Alex deals, Brooke leads.</span></span>
+</section>
+
+<div style="flex: 1"></div>
+<button class="btn primary">Next round</button>
+<p class="cap" style="font-weight: 500; text-align: center">You're the host. Everyone else sees "Waiting for Alex to start round 3".</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Canadian Salad table</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--ink:#1d1d1f;--ink2:#5f5f64;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.9);--solid:#fff;--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.08),0 10px 30px rgba(0,0,0,.18);--on:#fff;--on2:#d4e8db;--feltA:#27704a;--feltB:#1d5a39;--card:#fff;--red:#c8102e;--blk:#1d1d1f;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:radial-gradient(ellipse 120% 80% at 50% 42%,var(--feltA),var(--feltB) 75%);color:var(--on);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s.dark{--ink:#f5f5f7;--ink2:#a1a1a6;--glass:rgba(28,28,30,.88);--solid:#1c1c1e;--edge:rgba(255,255,255,.13);--hair:rgba(255,255,255,.14);--fill:rgba(120,120,128,.26);--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 36px rgba(0,0,0,.5);--on2:#c4dccc;--feltA:#1a4a30;--feltB:#123a25;--card:#f2f2f4}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1.3px);background-size:4px 4px}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid var(--edge);border-radius:18px;box-shadow:var(--shadow);color:var(--ink)}
+.s button,.s a.btn{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-decoration:none}
+.btn{min-height:50px;padding:0 18px;border-radius:999px;background:var(--glass);color:var(--ink);font-weight:600;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;box-shadow:var(--shadow)}
+.btn.primary{min-height:56px;background:var(--primary);color:#fff;font-size:18px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.on2{margin:0;font-size:13px;font-weight:600;color:var(--on2)}
+.av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:800 12px var(--num);flex:none}
+.opp{padding:8px 9px;min-width:0}
+.opp.now{box-shadow:0 0 0 3px var(--pc),0 0 0 5.5px rgba(255,255,255,.92),var(--shadow)}
+.ptag{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:1px 8px;border-radius:999px;font-size:11px;font-weight:800}
+.felt{position:relative;border-radius:999px;background:radial-gradient(ellipse at 50% 45%,rgba(255,255,255,.07),rgba(0,0,0,.08) 70%);box-shadow:inset 0 0 0 2px rgba(255,255,255,.12),inset 0 4px 24px rgba(0,0,0,.22)}
+.spot{position:absolute;display:flex;flex-direction:column;align-items:center;gap:3px}
+.who{display:inline-flex;align-items:center;gap:4px;max-width:100%;padding:1px 7px 1px 4px;border-radius:999px;background:var(--glass);color:var(--ink);font-size:12px;font-weight:700;line-height:16px;white-space:nowrap}
+.who i{width:10px;height:10px;border-radius:50%;flex:none}
+.ttag{position:absolute;top:-11px;left:50%;transform:translateX(-50%);z-index:2;padding:1px 7px;border-radius:999px;background:var(--glass);color:var(--ink);font-size:11px;font-weight:800;white-space:nowrap;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+.ttag.w{background:#1d1d1f;color:#fff}
+.hole{width:56px;height:80px;border-radius:9px;border:2px dashed rgba(255,255,255,.45)}
+.hole.sm{width:44px;height:62px;border-radius:7px}
+.c{position:relative;flex:none;display:block;width:56px;height:80px;border-radius:9px;background:var(--card);color:var(--blk);box-shadow:0 1px 0 rgba(0,0,0,.06),0 3px 10px rgba(0,0,0,.25),inset 0 0 0 1px rgba(0,0,0,.07);font-family:var(--num);text-align:left;transition:transform .2s}
+.c.r{color:var(--red)}
+.c .i{position:absolute;top:5px;left:6px;display:flex;flex-direction:column;align-items:center;font-weight:800;font-size:17px;line-height:1;letter-spacing:-.05em}
+.c .i small{font-size:13px;margin-top:2px;letter-spacing:0}
+.c .m{position:absolute;right:6px;bottom:5px;font-size:28px;line-height:1}
+.c .art{position:absolute;right:4px;bottom:4px;width:60%;height:70%}
+.c.md{width:62px;height:88px;border-radius:10px}.c.md .i{font-size:19px;top:6px;left:7px}.c.md .i small{font-size:15px}.c.md .m{font-size:30px}
+.c.sm{width:44px;height:62px;border-radius:7px}.c.sm .i{font-size:14px;top:4px;left:5px}.c.sm .i small{font-size:11px}.c.sm .m{font-size:20px;right:4px;bottom:3px}.c.sm .art{right:3px;bottom:3px}
+.c.win{box-shadow:0 0 0 3px #ffd23f,0 6px 18px rgba(0,0,0,.35)}
+.c.up{transform:translateY(-10px)}
+.c.sel{transform:translateY(-20px);box-shadow:0 0 0 3px #fff,0 0 0 5.5px #1d1d1f,0 14px 26px rgba(0,0,0,.35)}
+.c.no{background:#d7d7d2;color:#3a3a3c;box-shadow:0 1px 3px rgba(0,0,0,.2),inset 0 0 0 1px rgba(0,0,0,.1)}
+.c.no.r{color:#9e1a2c}
+.c:disabled{cursor:default}
+.hrow{display:flex;justify-content:center;padding-top:20px}
+.hrow .c+.c{margin-left:-14px}
+.big{overflow-x:auto;margin:0 -16px;padding:0 16px 4px;-webkit-mask-image:linear-gradient(90deg,#000 82%,transparent);mask-image:linear-gradient(90deg,#000 82%,transparent)}
+.big .hrow{justify-content:flex-start;width:max-content;padding-top:16px}
+.big .hrow .c+.c{margin-left:-12px}
+.chip{min-height:44px;min-width:44px;padding:0 12px;border-radius:999px;background:var(--glass);color:var(--ink);font:700 15px var(--num);display:inline-flex;align-items:center;justify-content:center;gap:5px;box-shadow:var(--shadow)}
+.chip .r{color:var(--red)}
+.badge{display:inline-grid;place-items:center;min-width:54px;height:34px;padding:0 10px;border-radius:999px;background:#d70015;color:#fff;font:800 20px var(--num)}
+.dots{display:inline-flex;gap:4px}.dots i{width:7px;height:7px;border-radius:50%;background:var(--ink2)}.dots i+i{opacity:.6}.dots i+i+i{opacity:.3}
+.scrim{position:absolute;inset:0;z-index:5;background:rgba(0,0,0,.5)}
+.sheet{position:absolute;left:0;right:0;bottom:0;z-index:6;padding:10px 16px 20px;border-radius:26px 26px 0 0;background:var(--solid);color:var(--ink);box-shadow:0 -10px 40px rgba(0,0,0,.3)}
+.grab{width:36px;height:5px;border-radius:3px;background:var(--ink2);opacity:.45;margin:0 auto 6px}
+.tb{width:100%;border-collapse:collapse;font-size:15px}
+.tb th{font-size:12px;font-weight:700;color:var(--ink2);text-align:right;padding:6px 4px}
+.tb th:first-child,.tb td:first-child{text-align:left}
+.tb td{padding:8px 4px;border-top:1px solid var(--hair);text-align:right;font:700 17px var(--num);font-variant-numeric:tabular-nums}
+.tb td:first-child{font:600 15px var(--text)}
+.rl{display:grid;grid-template-columns:24px minmax(0,1fr) auto;gap:8px;align-items:center;min-height:34px;font-size:14px}
+.rl b{font:800 14px var(--num);text-align:center}
+.lead{padding:1px 7px;border-radius:999px;background:#1a6b40;color:#fff;font-size:11px;font-weight:800}
+</style>
+</helmet>
+<div class="{{rootCls}}" style="width: 390px; height: 844px; padding: 24px 16px 16px; display: flex; flex-direction: column; gap: 10px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+
+<div style="min-height: 48px; padding-right: 58px; display: flex; align-items: center; gap: 8px">
+<div style="flex: 1; min-width: 0">
+<h1 style="margin: 0; font: 800 26px/1.1 var(--num); letter-spacing: -.02em">{{title}}</h1>
+<p class="on2">{{round}}</p>
+</div>
+<a class="chip" href="Scoreboard.dc.html" aria-label="Scores, you have {{you}}" style="text-decoration: none">Scores <span style="font-weight: 800">{{you}}</span></a>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat({{cols}}, minmax(0, 1fr)); gap: 8px">
+<sc-for list="{{opps}}" as="o" hint-placeholder-count="3">
+<section class="{{o.cls}}" aria-label="{{o.aria}}" style="--pc: {{o.hex}}">
+<div style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: {{o.hex}}; color: {{o.ink}}">{{o.initial}}</span><strong style="font-size: 14px; line-height: 1.1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">{{o.name}}</strong></div>
+<p class="cap" style="font-size: 12px; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{o.status}}</p>
+<sc-if value="{{o.now}}" hint-placeholder-val="{{ false }}"><span class="ptag" style="background: {{o.hex}}; color: {{o.ink}}"><span class="dots" aria-hidden="true" style="--ink2: {{o.ink}}"><i></i><i></i><i></i></span>Playing</span></sc-if>
+</section>
+</sc-for>
+</div>
+
+<section class="felt" aria-label="Table: {{trickAria}}" style="height: {{H}}px">
+<sc-if value="{{showTrick}}" hint-placeholder-val="{{ true }}">
+<sc-for list="{{spots}}" as="t" hint-placeholder-count="4">
+<div class="spot" style="left: {{t.left}}px; top: {{t.top}}px; width: {{t.ww}}px">
+<sc-if value="{{t.has}}" hint-placeholder-val="{{ true }}"><span class="{{t.cls}}" role="img" aria-label="{{t.aria}}"><sc-if value="{{t.hasTag}}" hint-placeholder-val="{{ false }}"><span class="{{t.tagCls}}">{{t.tag}}</span></sc-if><span class="i">{{t.r}}<small>{{t.s}}</small></span><sc-if value="{{t.pip}}" hint-placeholder-val="{{ true }}"><span class="m">{{t.s}}</span></sc-if><sc-if value="{{t.isK}}" hint-placeholder-val="{{ false }}"><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M11 19 L12.5 9 L16.5 14 L20 7 L23.5 14 L27.5 9 L29 19 Z" fill="currentColor"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M15 30 Q20 38 25 30" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q7 39 20 38 Q33 39 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M20 42 L20 54" stroke="currentColor" stroke-width="1.2"></path></svg></sc-if><sc-if value="{{t.isQ}}" hint-placeholder-val="{{ false }}"><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12.5 18 Q20 10 27.5 18 Z" fill="currentColor"></path><circle cx="13" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="9.5" r="1.8" fill="currentColor"></circle><circle cx="27" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M13 24 Q12 36 17 37 M27 24 Q28 36 23 37" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q8 40 20 39 Q32 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="45" r="2" fill="currentColor"></circle></svg></sc-if><sc-if value="{{t.isJ}}" hint-placeholder-val="{{ false }}"><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12 19 L28 19 L26.5 12 Q20 8 13.5 12 Z" fill="currentColor"></path><path d="M26.5 12 Q33 7 32 16" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M7 54 Q7 40 20 39 Q33 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 39 L20 45 L26 39" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg></sc-if></span></sc-if>
+<sc-if value="{{t.empty}}" hint-placeholder-val="{{ false }}"><span class="{{t.holeCls}}" aria-hidden="true"></span></sc-if>
+<span class="who"><i style="background: {{t.hex}}"></i>{{t.name}}</span>
+</div>
+</sc-for>
+</sc-if>
+
+<sc-if value="{{showLead}}" hint-placeholder-val="{{ true }}">
+<div class="glass" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); padding: 6px 14px; border-radius: 999px; text-align: center; white-space: nowrap">
+<span class="cap" style="font-size: 11px; display: block; line-height: 1.1">{{leadCap}}</span><strong style="font: 800 16px/1.2 var(--num)"><span style="color: {{leadColor}}">{{leadSym}}</span> {{leadName}}</strong>
+</div>
+</sc-if>
+
+<sc-if value="{{showWon}}" hint-placeholder-val="{{ false }}">
+<div class="glass" role="status" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 184px; padding: 10px 12px; text-align: center; border-radius: 20px">
+<p style="margin: 0; font: 800 18px/1.15 var(--num)">Brooke takes it</p>
+<div style="display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 6px"><span class="badge" aria-label="plus 30 points">+30</span><span class="cap" style="text-align: left; line-height: 1.2">3 hearts<br>10 each</span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{showKitty}}" hint-placeholder-val="{{ false }}">
+<div class="glass" role="status" style="position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 290px; padding: 14px; text-align: center; border-radius: 22px">
+<p class="cap">Sam won trick 1 with the A♦︎</p>
+<p style="margin: 2px 0 10px; font: 800 22px/1.15 var(--num)">Kitty to Sam</p>
+<div style="display: flex; justify-content: center; gap: 12px">
+<span class="c md win" role="img" aria-label="Queen of spades"><span class="ttag w">+25</span><span class="i">Q<small>♠︎</small></span><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12.5 18 Q20 10 27.5 18 Z" fill="currentColor"></path><circle cx="13" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="9.5" r="1.8" fill="currentColor"></circle><circle cx="27" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M13 24 Q12 36 17 37 M27 24 Q28 36 23 37" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q8 40 20 39 Q32 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="45" r="2" fill="currentColor"></circle></svg></span>
+<span class="c md r" role="img" aria-label="4 of hearts"><span class="i">4<small>♥︎</small></span><span class="m">♥︎</span></span>
+</div>
+<p class="cap" style="font-weight: 500; margin-top: 10px">5 players share 52 cards: 10 each and 2 left over. The kitty is face up for everyone and is not a trick. In No Queens the Q♠︎ scores 25.</p>
+</div>
+</sc-if>
+</section>
+
+<section aria-label="Your hand" style="min-width: 0">
+<div style="display: flex; align-items: center; gap: 8px; min-height: 30px">
+<span class="av" style="background: #1f6fd6; color: #fff">A</span>
+<h2 style="margin: 0; flex: 1; font-size: 14px; font-weight: 700">Alex · {{handCount}} cards</h2>
+<sc-if value="{{myTurn}}" hint-placeholder-val="{{ true }}"><span class="ptag" style="margin: 0; background: #1f6fd6; color: #fff">Your turn</span></sc-if>
+<button class="on2" style="min-height: 44px; padding: 0 4px; color: var(--on)" aria-label="Sort hand, now by suit then rank">Sort: suit</button>
+</div>
+<sc-if value="{{big}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; gap: 6px; margin-top: 2px" role="group" aria-label="Jump to suit">
+<button class="chip">♠︎ 8</button><button class="chip"><span class="r">♥︎</span> 7</button><button class="chip">♣︎ 6</button><button class="chip"><span class="r">♦︎</span> 5</button>
+<span class="on2" style="align-self: center; margin-left: auto; text-align: right; line-height: 1.2">Swipe for<br>all 26</span>
+</div>
+</sc-if>
+<div class="{{handWrap}}">
+<sc-for list="{{rows}}" as="row" hint-placeholder-count="2">
+<div class="hrow">
+<sc-for list="{{row.cards}}" as="k" hint-placeholder-count="5"><button class="{{k.cls}}" aria-label="{{k.aria}}" aria-pressed="{{k.pressed}}" disabled="{{k.off}}"><span class="i">{{k.r}}<small>{{k.s}}</small></span><sc-if value="{{k.pip}}" hint-placeholder-val="{{ true }}"><span class="m">{{k.s}}</span></sc-if><sc-if value="{{k.isK}}" hint-placeholder-val="{{ false }}"><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M11 19 L12.5 9 L16.5 14 L20 7 L23.5 14 L27.5 9 L29 19 Z" fill="currentColor"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M15 30 Q20 38 25 30" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q7 39 20 38 Q33 39 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M20 42 L20 54" stroke="currentColor" stroke-width="1.2"></path></svg></sc-if><sc-if value="{{k.isQ}}" hint-placeholder-val="{{ false }}"><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12.5 18 Q20 10 27.5 18 Z" fill="currentColor"></path><circle cx="13" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="9.5" r="1.8" fill="currentColor"></circle><circle cx="27" cy="13" r="1.6" fill="currentColor"></circle><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M13 24 Q12 36 17 37 M27 24 Q28 36 23 37" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q8 40 20 39 Q32 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="45" r="2" fill="currentColor"></circle></svg></sc-if><sc-if value="{{k.isJ}}" hint-placeholder-val="{{ false }}"><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12 19 L28 19 L26.5 12 Q20 8 13.5 12 Z" fill="currentColor"></path><path d="M26.5 12 Q33 7 32 16" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M7 54 Q7 40 20 39 Q33 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 39 L20 45 L26 39" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg></sc-if></button></sc-for>
+</div>
+</sc-for>
+</div>
+</section>
+
+<div style="flex: 1"></div>
+<sc-if value="{{showPlay}}" hint-placeholder-val="{{ true }}">
+<button class="btn primary" aria-label="{{playAria}}">{{playLabel}}</button>
+</sc-if>
+<sc-if value="{{showWait}}" hint-placeholder-val="{{ false }}">
+<div class="glass" role="status" style="min-height: 52px; padding: 8px 16px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 10px">
+<span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><strong style="font-size: 16px">{{waitLabel}}</strong>
+</div>
+</sc-if>
+<sc-if value="{{showContinue}}" hint-placeholder-val="{{ false }}">
+<button class="btn">Continue</button>
+</sc-if>
+<p class="on2" style="text-align: center; font-weight: 500">{{note}}</p>
+
+<sc-if value="{{sheet}}" hint-placeholder-val="{{ false }}">
+<div class="scrim" aria-hidden="true"></div>
+<section class="sheet" role="dialog" aria-label="Scores">
+<div class="grab" aria-hidden="true"></div>
+<div style="display: flex; align-items: center; gap: 8px">
+<h2 style="margin: 0; flex: 1; font: 800 24px/1.1 var(--num)">Scores</h2>
+<button class="chip" aria-label="Close scores" style="width: 44px; padding: 0"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"></path></svg></button>
+</div>
+<p class="cap" style="font-weight: 500; margin-top: 2px">Round 2 of 6 · No Hearts · Trick 4 of 13 · Live scores · lowest is best</p>
+<table class="tb" style="margin-top: 8px">
+<thead><tr><th scope="col">Player</th><th scope="col">In hand</th><th scope="col">This round</th><th scope="col">Total</th></tr></thead>
+<tbody>
+<tr><td><span style="display: inline-flex; align-items: center; gap: 8px"><span class="av" style="background: #1f6fd6; color: #fff">A</span>Alex (you)</span></td><td>10</td><td>10</td><td>40</td></tr>
+<tr><td><span style="display: inline-flex; align-items: center; gap: 8px"><span class="av" style="background: #cf6900; color: #1d1d1f">B</span>Brooke</span></td><td>9</td><td>20</td><td>60</td></tr>
+<tr><td><span style="display: inline-flex; align-items: center; gap: 8px"><span class="av" style="background: #1c7f3e; color: #fff">S</span>Sam <span class="lead">Lowest</span></span></td><td>9</td><td>0</td><td>20</td></tr>
+<tr><td><span style="display: inline-flex; align-items: center; gap: 8px"><span class="av" style="background: #9850dc; color: #fff">D</span>Dana</span></td><td>9</td><td>10</td><td>50</td></tr>
+</tbody>
+</table>
+<h3 class="cap" style="margin-top: 14px; color: var(--ink); font-size: 14px">The six rounds</h3>
+<div class="rl"><b aria-label="done"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1a6b40" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></b><span>No Tricks <span class="cap" style="display: inline">· 10 a trick</span></span><span class="cap">Done</span></div>
+<div class="rl" style="font-weight: 700"><b>2</b><span>No Hearts <span class="cap" style="display: inline">· 10 a heart</span></span><span class="lead">Now</span></div>
+<div class="rl"><b>3</b><span>No Queens <span class="cap" style="display: inline">· 25 a queen</span></span><span></span></div>
+<div class="rl"><b>4</b><span>No King of Spades <span class="cap" style="display: inline">· 100</span></span><span></span></div>
+<div class="rl"><b>5</b><span>No Last Trick <span class="cap" style="display: inline">· 100</span></span><span></span></div>
+<div class="rl"><b>6</b><span>Canadian Salad <span class="cap" style="display: inline">· all of them</span></span><span></span></div>
+<p class="cap" style="font-weight: 500; margin-top: 8px">Trick winners and captured cards are public, even when the host hides scores until round end.</p>
+</section>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"mode":{"editor":"enum","options":["turn","waiting","won","kitty","eight","big"],"default":"turn"},"dark":{"editor":"boolean","default":false},"sheet":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const mode = this.props.mode || 'turn';
+    const P = { A: ['Alex', '#1f6fd6', '#fff'], B: ['Brooke', '#cf6900', '#1d1d1f'], S: ['Sam', '#1c7f3e', '#fff'], D: ['Dana', '#9850dc', '#fff'],
+      E: ['Eli', '#0c7c78', '#fff'], F: ['Fern', '#cc2f7c', '#fff'], G: ['Gus', '#b07f00', '#1d1d1f'], H: ['Hana', '#6064e0', '#fff'] };
+    const SU = { S: ['♠︎', 'spades', 0, 'Spades'], H: ['♥︎', 'hearts', 1, 'Hearts'], D: ['♦︎', 'diamonds', 1, 'Diamonds'], C: ['♣︎', 'clubs', 0, 'Clubs'] };
+    const RN = { A: 'Ace', K: 'King', Q: 'Queen', J: 'Jack' };
+    const card = (code) => { const r = code.slice(0, -1), su = code.slice(-1), u = SU[su]; return { r, s: u[0], suit: su, red: !!u[2], name: (RN[r] || r) + ' of ' + u[1], isK: r === 'K', isQ: r === 'Q', isJ: r === 'J', pip: !['K', 'Q', 'J'].includes(r) }; };
+    const four = ['A', 'B', 'S', 'D'];
+    const M = {
+      turn: { seats: four, title: 'Your turn', round: 'Round 2 of 6 · No Hearts · Trick 4 of 13', you: 40, plays: { B: '9H', S: '4H', D: 'QH' }, lead: 'B', win: 'D', now: 'A',
+        count: { B: 9, S: 9, D: 9 }, pts: { B: 20, S: 0, D: 10 }, follow: 'H', sel: '3H', H: 300,
+        hand: ['AS', '10S', '5S', 'KH', '7H', '3H', 'QC', '6C', 'JD', '8D'], play: 'Play 3♥︎', playAria: 'Play the 3 of hearts', note: 'Follow hearts: 3 of your cards can be played.' },
+      waiting: { seats: four, title: "Dana's turn", round: 'Round 2 of 6 · No Hearts · Trick 4 of 13', you: 40, plays: { B: '9H', S: '4H' }, lead: 'B', win: 'B', now: 'D',
+        count: { B: 9, S: 9, D: 10 }, pts: { B: 20, S: 0, D: 10 }, H: 300,
+        hand: ['AS', '10S', '5S', 'KH', '7H', '3H', 'QC', '6C', 'JD', '8D'], wait: 'Waiting for Dana', note: 'You play next, after Dana.' },
+      won: { seats: four, title: 'Brooke takes it', round: 'Round 2 of 6 · No Hearts · Trick 4 of 13', you: 40, plays: { B: 'KH', S: '4H', D: '9C', A: '3H' }, lead: 'B', win: 'B', winWord: 'Wins',
+        count: { B: 9, S: 9, D: 9 }, pts: { B: 50, S: 0, D: 10 }, H: 300, won: true,
+        hand: ['AS', '10S', '5S', '7H', 'QC', '6C', 'JD', '8D', '5D'], cont: true, note: 'Brooke leads trick 5. Moving on in a moment; tap Continue to skip.' },
+      kitty: { seats: ['A', 'B', 'S', 'D', 'E'], title: 'Sam takes the kitty', round: 'Round 3 of 6 · No Queens · Trick 1 of 10', you: 50, plays: {}, now: 'S',
+        count: { B: 9, S: 9, D: 9, E: 9 }, pts: { B: 0, S: 25, D: 0, E: 0 }, H: 300, kitty: true,
+        hand: ['KS', '8S', '2S', 'JH', '6H', 'KC', '9C', '4C', 'QD'], cont: true, note: 'Sam leads trick 2.' },
+      eight: { seats: ['A', 'B', 'S', 'D', 'E', 'F', 'G', 'H'], title: "Eli's turn", round: 'Round 1 of 6 · No Tricks · Trick 2 of 13 · 2 decks', you: 0,
+        plays: { H: '10S', A: 'JS', B: '4S', S: 'JS', D: '2S' }, lead: 'H', win: 'S', now: 'E',
+        count: { B: 12, S: 12, D: 12, E: 13, F: 13, G: 13, H: 12 }, H: 290, compact: true,
+        hand: ['AS', '9S', 'KH', '7H', '2H', 'QC', 'JC', '5C', '3C', 'AD', '10D', '6D'], wait: 'Waiting for Eli', note: "Two J♠︎ played: Sam's, the later one, is winning." },
+      big: { seats: four, title: 'Your turn', round: 'Round 1 of 6 · No Tricks · Trick 1 of 26 · 2 decks', you: 0, plays: {}, lead: 'A', now: 'A',
+        count: { B: 26, S: 26, D: 26 }, pts: { B: 0, S: 0, D: 0 }, sel: '2C', H: 200, big: true,
+        hand: ['AS', 'AS', 'KS', 'QS', '10S', '9S', '7S', '4S', 'KH', 'QH', 'JH', '8H', '8H', '5H', '3H', 'AC', 'JC', '9C', '6C', '2C', '2C', 'QD', '10D', '7D', '6D', '3D'],
+        play: 'Play 2♣︎', playAria: 'Play a 2 of clubs', note: 'You lead: any card. 26 cards each, so the hand scrolls.' }
+    }[mode];
+    const n = M.seats.length, eight = n === 8, H = M.H;
+    const ch = eight ? 62 : 80, ww = eight ? 70 : 76, wh = ch + 21;
+    const rect8 = [[179, 250], [45, 250], [45, 150], [45, 50], [179, 50], [313, 50], [313, 150], [313, 250]];
+    const spots = M.seats.map((id, i) => {
+      let x, y;
+      if (eight) { x = rect8[i][0]; y = rect8[i][1] * H / 300; }
+      else { const a = (90 + i * 360 / n) * Math.PI / 180; x = 179 + 135 * Math.cos(a); y = H / 2 + 90 * Math.sin(a); }
+      const code = M.plays[id], k = code ? card(code) : {};
+      const tags = []; if (code && M.lead === id) tags.push('Led'); if (code && M.win === id) tags.push(M.winWord || 'Winning');
+      const nm = id === 'A' ? 'You' : P[id][0];
+      return { ...k, has: !!code, empty: !code, ww, left: Math.round(x - ww / 2), top: Math.round(y - wh / 2), name: nm, hex: P[id][1],
+        cls: 'c' + (eight ? ' sm' : '') + (k.red ? ' r' : '') + (code && M.win === id ? ' win' : ''), holeCls: 'hole' + (eight ? ' sm' : ''),
+        hasTag: tags.length > 0, tag: tags.join(' · '), tagCls: 'ttag' + (code && M.win === id ? ' w' : ''),
+        aria: code ? nm + ' played the ' + k.name + (tags.length ? ', ' + tags.join(', ') : '') : nm + ' has not played' };
+    });
+    const opps = M.seats.slice(1).map((id) => {
+      const [name, hex, ink] = P[id], now = M.now === id;
+      const status = M.count[id] + ' cards' + (M.pts && !M.compact ? ' · ' + M.pts[id] + ' pts' : '');
+      return { name, hex, ink, initial: name[0], now, cls: 'glass opp' + (now ? ' now' : ''), status, aria: name + ', ' + status + (now ? ', playing now' : '') };
+    });
+    const mine = M.now === 'A' && !M.won && !M.kitty;
+    const hand = M.hand.map((code, i) => {
+      const k = card(code), sel = mine && code === M.sel && M.hand.indexOf(code) === i;
+      const ok = mine && (!M.follow || k.suit === M.follow);
+      const state = !mine ? '' : sel ? ' sel' : ok ? ' up' : ' no';
+      return { ...k, cls: 'c' + (M.big ? '' : ' md') + (k.red ? ' r' : '') + state, pressed: sel ? 'true' : 'false', off: !ok,
+        aria: k.name + (mine ? (ok ? (sel ? ', selected' : ', playable') : ", can't be played") : '') };
+    });
+    const per = M.big ? 13 : Math.ceil(hand.length / Math.ceil(hand.length / 7));
+    const rows = []; for (let i = 0; i < hand.length; i += per) rows.push({ cards: hand.slice(i, i + per) });
+    const leadSuit = mode === 'eight' ? 'S' : 'H';
+    return {
+      rootCls: 's' + (this.props.dark ? ' dark' : ''),
+      title: M.title, round: M.round, you: M.you, cols: n === 4 ? 3 : 4, opps, spots, H,
+      trickAria: Object.keys(M.plays).length + ' of ' + n + ' cards played',
+      showTrick: !M.kitty, showWon: !!M.won, showKitty: !!M.kitty, showLead: !M.won && !M.kitty,
+      leadCap: M.big ? 'You lead' : 'Lead suit', leadSym: M.big ? '' : SU[leadSuit][0], leadName: M.big ? 'Any card' : SU[leadSuit][3],
+      leadColor: SU[leadSuit][2] ? '#c8102e' : 'inherit',
+      handCount: hand.length, myTurn: mine, big: !!M.big, handWrap: M.big ? 'big' : '', rows,
+      showPlay: !!M.play, playLabel: M.play, playAria: M.playAria, showWait: !!M.wait, waitLabel: M.wait, showContinue: !!M.cont, note: M.note,
+      sheet: !!this.props.sheet
+    };
+  }
+}
+</script>
+</body>
+</html>

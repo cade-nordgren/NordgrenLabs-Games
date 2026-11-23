@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Cut for dealer</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--ink:#1d1d1f;--ink2:#5f5f64;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.9);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.08),0 10px 30px rgba(0,0,0,.18);--on:#fff;--on2:#d4e8db;--card:#fff;--red:#c8102e;--blk:#1d1d1f;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:radial-gradient(ellipse 120% 80% at 50% 45%,#27704a,#1d5a39 75%);color:var(--on);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background-image:radial-gradient(rgba(255,255,255,.04) 1px,transparent 1.3px);background-size:4px 4px}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center;color:var(--ink)}
+.glass{background:var(--glass);backdrop-filter:blur(24px) saturate(160%);-webkit-backdrop-filter:blur(24px) saturate(160%);border:1px solid var(--edge);border-radius:20px;box-shadow:var(--shadow);color:var(--ink)}
+.s button{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer}
+.btn{min-height:44px;padding:0 18px;border-radius:999px;background:var(--fill);font-weight:600;font-size:15px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.av{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;font:800 12px var(--num);flex:none}
+.c{position:relative;flex:none;display:block;width:62px;height:90px;border-radius:10px;background:var(--card);color:var(--blk);box-shadow:0 1px 0 rgba(0,0,0,.06),0 4px 12px rgba(0,0,0,.25),inset 0 0 0 1px rgba(0,0,0,.07);font-family:var(--num);text-align:left}
+.c.r{color:var(--red)}
+.c .i{position:absolute;top:6px;left:7px;display:flex;flex-direction:column;align-items:center;font-weight:800;font-size:19px;line-height:1;letter-spacing:-.05em}
+.c .i small{font-size:15px;margin-top:2px;letter-spacing:0}
+.c .m{position:absolute;right:6px;bottom:6px;font-size:32px;line-height:1}
+.c .art{position:absolute;right:5px;bottom:5px;width:60%;height:70%}
+.pl{padding:12px;display:flex;flex-direction:column;align-items:center;gap:8px}
+.pl.tie{box-shadow:0 0 0 3px #ffd23f,var(--shadow)}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:999px;background:#1d1d1f;color:#fff;font-size:12px;font-weight:700}
+.dots{display:inline-flex;gap:4px}.dots i{width:7px;height:7px;border-radius:50%;background:var(--ink2)}.dots i+i{opacity:.6}.dots i+i+i{opacity:.3}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 12px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="min-height: 48px; padding-right: 58px; display: flex; flex-direction: column; justify-content: center">
+<h1 style="margin: 0; font: 800 26px/1.1 var(--num); letter-spacing: -.02em">Cut for dealer</h1>
+<p style="margin: 0; font-size: 14px; font-weight: 500; color: var(--on2)">Highest card deals. Ties cut again.</p>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px">
+<section class="glass pl" aria-label="Alex cut the 9 of clubs">
+<div style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: #1f6fd6; color: #fff">A</span><strong style="font-size: 15px">Alex</strong></div>
+<span class="c"><span class="i">9<small>♣︎</small></span><span class="m">♣︎</span></span>
+<span class="cap">9</span>
+</section>
+<section class="glass pl tie" aria-label="Brooke cut the King of diamonds, tied">
+<div style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: #cf6900; color: #1d1d1f">B</span><strong style="font-size: 15px">Brooke</strong></div>
+<span class="c r"><span class="i">K<small>♦︎</small></span><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M11 19 L12.5 9 L16.5 14 L20 7 L23.5 14 L27.5 9 L29 19 Z" fill="currentColor"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M15 30 Q20 38 25 30" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q7 39 20 38 Q33 39 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M20 42 L20 54" stroke="currentColor" stroke-width="1.2"></path></svg></span>
+<span class="tag">Tie · King</span>
+</section>
+<section class="glass pl tie" aria-label="Sam cut the King of spades, tied">
+<div style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: #1c7f3e; color: #fff">S</span><strong style="font-size: 15px">Sam</strong></div>
+<span class="c"><span class="i">K<small>♠︎</small></span><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M11 19 L12.5 9 L16.5 14 L20 7 L23.5 14 L27.5 9 L29 19 Z" fill="currentColor"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M15 30 Q20 38 25 30" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M7 54 Q7 39 20 38 Q33 39 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M20 42 L20 54" stroke="currentColor" stroke-width="1.2"></path></svg></span>
+<span class="tag">Tie · King</span>
+</section>
+<section class="glass pl" aria-label="Dana cut the 4 of hearts">
+<div style="display: flex; align-items: center; gap: 6px"><span class="av" style="background: #9850dc; color: #fff">D</span><strong style="font-size: 15px">Dana</strong></div>
+<span class="c r"><span class="i">4<small>♥︎</small></span><span class="m">♥︎</span></span>
+<span class="cap">4</span>
+</section>
+</div>
+
+<section class="glass" style="padding: 12px 14px" aria-label="Cut again">
+<h2 class="cap" style="color: var(--ink); font-size: 14px">Brooke and Sam cut again</h2>
+<div style="display: flex; justify-content: center; gap: 28px; margin-top: 8px">
+<div style="display: flex; align-items: center; gap: 10px"><span class="av" style="background: #cf6900; color: #1d1d1f">B</span><span class="c r" style="width: 50px; height: 72px"><span class="i">7<small>♥︎</small></span><span class="m" style="font-size: 24px">♥︎</span></span></div>
+<div style="display: flex; align-items: center; gap: 10px"><span class="av" style="background: #1c7f3e; color: #fff">S</span><span class="c" style="width: 50px; height: 72px; box-shadow: 0 0 0 3px #ffd23f, 0 4px 12px rgba(0,0,0,.25)"><span class="i">J<small>♣︎</small></span><svg class="art" viewBox="0 0 40 56" aria-hidden="true"><rect x="1.5" y="1.5" width="37" height="53" rx="4" fill="none" stroke="currentColor" stroke-opacity=".35"></rect><path d="M12 19 L28 19 L26.5 12 Q20 8 13.5 12 Z" fill="currentColor"></path><path d="M26.5 12 Q33 7 32 16" fill="none" stroke="currentColor" stroke-width="1.6"></path><circle cx="20" cy="26" r="6" fill="none" stroke="currentColor" stroke-width="1.6"></circle><path d="M7 54 Q7 40 20 39 Q33 40 33 54" fill="none" stroke="currentColor" stroke-width="1.6"></path><path d="M14 39 L20 45 L26 39" fill="none" stroke="currentColor" stroke-width="1.4"></path></svg></span><span class="tag">Highest</span></div>
+</div>
+</section>
+
+<section class="glass" style="padding: 16px; text-align: center" role="status">
+<div style="width: 56px; height: 56px; margin: 0 auto 8px; border-radius: 50%; background: #1c7f3e; color: #fff; display: grid; place-items: center; font: 800 26px/1 var(--num)">S</div>
+<p style="margin: 0; font: 800 24px/1.15 var(--num)">Sam deals round 1</p>
+<p class="cap" style="font-weight: 500; font-size: 14px; margin-top: 4px">Dana, clockwise of Sam, leads the first trick. The deal moves one seat each round.</p>
+</section>
+
+<div style="flex: 1"></div>
+<div style="display: flex; align-items: center; justify-content: center; gap: 12px">
+<span class="glass" style="min-height: 44px; padding: 0 16px; border-radius: 999px; display: inline-flex; align-items: center; gap: 10px"><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><strong style="font-size: 15px">Dealing 13 cards each</strong></span>
+<button class="btn glass" style="border-radius: 999px">Skip</button>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

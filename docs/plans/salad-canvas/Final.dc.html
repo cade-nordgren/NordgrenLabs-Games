@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Final results</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--cell:#fff;--mix:14%;--sub:#55555a;--r1:#1f6fd6;--r2:#d42f3a;--r3:#9046d6;--r4:#3a3a3c;--r5:#c45f00;--r6:#1c7f3e;--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s.dark{--canvas:#000;--ink:#f5f5f7;--ink2:#a1a1a6;--accent:#2997ff;--primary:#0071e3;--glass:rgba(44,44,46,.6);--edge:rgba(255,255,255,.13);--hair:rgba(255,255,255,.14);--fill:rgba(120,120,128,.26);--shadow:0 1px 2px rgba(0,0,0,.3),0 12px 40px rgba(0,0,0,.5);--cell:#1c1c1e;--mix:22%;--sub:#c7c7cc;--r1:#3d8bf0;--r2:#f0535d;--r3:#b07ff0;--r4:#8e8e93;--r5:#f08a2c;--r6:#3db86a}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 50% 8%,rgba(26,107,64,.24),transparent 60%),radial-gradient(420px 360px at 70% 100%,rgba(31,115,218,.12),transparent 60%),radial-gradient(300px 300px at 0% 60%,rgba(240,124,27,.10),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:20px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button,.s a.btn{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-decoration:none}
+.btn{min-height:48px;padding:0 14px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+.btn.primary{min-height:56px;background:var(--primary);color:#fff;font-size:18px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.av{width:24px;height:24px;border-radius:50%;display:grid;place-items:center;font:800 11px var(--num);flex:none}
+.rank{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:var(--fill);color:var(--ink2);font:700 13px var(--num);flex:none}
+.rank.first{background:var(--accent);color:#fff}
+.rrow{padding:9px 10px;border-radius:18px;display:flex;flex-direction:column;gap:6px}
+.win{box-shadow:0 0 0 3px var(--accent),0 8px 28px color-mix(in srgb,var(--accent) 45%,transparent)}
+.eq{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px}
+.t{height:36px;border-radius:9px;border:1.5px solid var(--c);background:color-mix(in srgb,var(--c) var(--mix),var(--cell));display:grid;place-items:center;font:800 16px/1 var(--num);font-variant-numeric:tabular-nums;color:var(--ink)}
+.hd{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:4px;padding:0 11px}
+.hd span{text-align:center;font-size:11px;font-weight:700;color:var(--ink2)}
+.tot{font:800 26px/1 var(--num);font-variant-numeric:tabular-nums}
+</style>
+</helmet>
+<div class="{{rootCls}}" style="width: 390px; height: 844px; padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 9px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="height: 40px"></div>
+<div style="text-align: center">
+<div style="width: 60px; height: 60px; margin: 0 auto 8px; border-radius: 50%; background: #1c7f3e; color: #fff; display: grid; place-items: center; font: 800 28px/1 var(--num); box-shadow: 0 0 0 6px rgba(28,127,62,.22)">S</div>
+<h1 style="margin: 0; font: 800 30px/1.15 var(--num)">Sam wins!</h1>
+<p class="cap" style="font-size: 15px; font-weight: 500; margin-top: 2px">Lowest score after six rounds: 110</p>
+</div>
+
+<div class="hd" aria-hidden="true" style="margin-top: 4px"><span>No Tricks</span><span>Hearts</span><span>Queens</span><span>K♠︎</span><span>Last</span><span>Salad</span></div>
+<ol style="list-style: none; margin: 0; padding: 0; display: grid; gap: 8px" aria-label="Final ranking, lowest first">
+<sc-for list="{{rows}}" as="p" hint-placeholder-count="4">
+<li class="{{p.cls}}" aria-label="{{p.aria}}">
+<div style="display: flex; align-items: center; gap: 8px"><span class="{{p.rankCls}}">{{p.rank}}</span><span class="av" style="background: {{p.hex}}; color: {{p.ink}}">{{p.initial}}</span><strong style="flex: 1; font-size: 16px">{{p.name}}</strong><span class="tot">{{p.total}}</span></div>
+<div class="eq" aria-hidden="true">
+<sc-for list="{{p.rounds}}" as="r" hint-placeholder-count="6"><span class="t" style="--c: var({{r.v}})">{{r.n}}</span></sc-for>
+</div>
+</li>
+</sc-for>
+</ol>
+<p class="cap" style="font-weight: 500; text-align: center">Each round's points counted up in turn, standings re-sorted after each. Equal totals share a rank.</p>
+
+<div style="flex: 1"></div>
+<button class="btn primary">Rematch</button>
+<p class="cap" style="font-weight: 500; text-align: center; margin-top: -3px" role="status">Ready for a rematch: Sam, Alex · 2 of 4</p>
+<a class="btn" href="Scorecard.dc.html">Detailed scorecard</a>
+<div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px">
+<a class="btn" href="Create.dc.html">New game</a>
+<a class="btn" href="Main.dc.html">Return to Games</a>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"dark":{"editor":"boolean","default":false},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    // Example game: 4 players, 1 deck, 1,120 points in all (560 over rounds 1 to 5, 560 in round 6).
+    const P = [['Sam', '#1c7f3e', '#fff', [20, 10, 50, 0, 0, 30]], ['Alex', '#1f6fd6', '#fff', [30, 20, 25, 0, 0, 75]],
+      ['Brooke', '#cf6900', '#1d1d1f', [40, 60, 0, 0, 100, 215]], ['Dana', '#9850dc', '#fff', [40, 40, 25, 100, 0, 240]]];
+    const rows = P.map(([name, hex, ink, r], i) => {
+      const total = r.reduce((a, b) => a + b, 0);
+      return { name, hex, ink, initial: name[0], total, rank: i + 1, rankCls: 'rank' + (i ? '' : ' first'), cls: 'glass rrow' + (i ? '' : ' win'),
+        rounds: r.map((n, j) => ({ n, v: '--r' + (j + 1) })), aria: (i + 1) + ', ' + name + ', ' + total + ' points' };
+    });
+    console.assert(rows.reduce((a, p) => a + p.total, 0) === 1120, 'example game should total 1,120');
+    return { rows, rootCls: 's' + (this.props.dark ? ' dark' : '') };
+  }
+}
+</script>
+</body>
+</html>

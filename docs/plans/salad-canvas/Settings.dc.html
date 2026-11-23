@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Settings</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 0% 0%,rgba(26,107,64,.16),transparent 60%),radial-gradient(420px 360px at 100% 50%,rgba(240,124,27,.10),transparent 60%),radial-gradient(420px 360px at 0% 100%,rgba(31,115,218,.12),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:20px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button,.s a{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-decoration:none}
+.btn{min-height:44px;padding:0 16px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px;display:inline-flex;align-items:center;justify-content:center}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+h2.g{margin:6px 4px 6px;font-size:13px;font-weight:700;color:var(--ink2);text-transform:uppercase;letter-spacing:.04em}
+.grp{padding:0 14px}
+.row{display:flex;align-items:center;gap:10px;min-height:52px;padding:6px 0;font-size:16px;font-weight:600}
+.row+.row{border-top:1px solid var(--hair)}
+.row>span:first-child{flex:1}
+.row small{display:block;font-size:12px;font-weight:500;color:var(--ink2)}
+.val{color:var(--ink2);font-weight:500;font-size:15px;display:inline-flex;align-items:center;gap:4px}
+.seg{display:grid;gap:3px;padding:3px;border-radius:12px;background:var(--fill)}
+.seg button{min-height:44px;padding:0 10px;border-radius:9px;font-size:14px;font-weight:600}
+.seg button[aria-pressed="true"]{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.toggle{width:51px;height:31px;border-radius:999px;position:relative;flex:none;background:#e9e9eb;box-shadow:inset 0 0 0 1.5px #8a8a8e}
+.toggle::after{content:"";position:absolute;top:2px;left:2px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.25)}
+.toggle[aria-checked="true"]{background:#1a6b40;box-shadow:none}
+.toggle[aria-checked="true"]::after{left:22px}
+.lock{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:var(--ink2)}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 1180px; padding: 24px 16px 24px; display: flex; flex-direction: column; gap: 6px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="min-height: 48px; padding-right: 58px; display: flex; align-items: center; gap: 8px; margin-bottom: 4px">
+<a class="btn" href="Main.dc.html" aria-label="Back" style="width: 44px; padding: 0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+<h1 style="margin: 0; font: 800 26px/1.1 var(--num)">Settings</h1>
+</div>
+
+<h2 class="g">Appearance</h2>
+<section class="glass grp"><div class="row" style="flex-direction: column; align-items: stretch"><div class="seg" role="group" aria-label="Appearance" style="grid-template-columns: repeat(3, minmax(0, 1fr))"><button aria-pressed="false">Light</button><button aria-pressed="false">Dark</button><button aria-pressed="true">Follow system</button></div></div></section>
+
+<h2 class="g">Cards</h2>
+<section class="glass grp">
+<a class="row" href="CardThemes.dc.html"><span>Card face</span><span class="val">Classic<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></a>
+<a class="row" href="CardBacks.dc.html"><span>Card back</span><span class="val">Felt Diamonds<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></a>
+<div class="row"><span>Card size<small>Larger cards scroll sooner</small></span><div class="seg" role="group" aria-label="Card size" style="grid-template-columns: repeat(2, minmax(0, 1fr))"><button aria-pressed="true">Normal</button><button aria-pressed="false">Large</button></div></div>
+<div class="row"><span>High-contrast cards<small>Bolder ranks and card edges</small></span><button class="toggle" role="switch" aria-checked="false" aria-label="High-contrast cards"></button></div>
+</section>
+
+<h2 class="g">Table</h2>
+<section class="glass grp">
+<a class="row" href="TableThemes.dc.html"><span>Table theme<small>Room default from the host</small></span><span class="val">Green Felt<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></span></a>
+</section>
+
+<h2 class="g">Gameplay</h2>
+<section class="glass grp">
+<div class="row" style="flex-direction: column; align-items: stretch; gap: 6px"><span>Sort my hand</span><div class="seg" role="group" aria-label="Sort my hand" style="grid-template-columns: repeat(3, minmax(0, 1fr))"><button aria-pressed="true">Suit, then rank</button><button aria-pressed="false">Rank, then suit</button><button aria-pressed="false">By hand</button></div></div>
+<div class="row" style="flex-direction: column; align-items: stretch; gap: 6px"><span>Animation speed</span><div class="seg" role="group" aria-label="Animation speed" style="grid-template-columns: repeat(3, minmax(0, 1fr))"><button aria-pressed="false">Slow</button><button aria-pressed="true">Normal</button><button aria-pressed="false">Fast</button></div></div>
+<div class="row"><span>Next trick by itself<small>Off: tap Continue after each trick</small></span><button class="toggle" role="switch" aria-checked="true" aria-label="Next trick by itself"></button></div>
+<div class="row"><span>Confirm before playing<small>Ask once more before a card goes down</small></span><button class="toggle" role="switch" aria-checked="false" aria-label="Confirm before playing"></button></div>
+</section>
+
+<h2 class="g">Sound</h2>
+<section class="glass grp">
+<div class="row"><span>Sound effects<small>Shuffle, card down, trick taken</small></span><button class="toggle" role="switch" aria-checked="false" aria-label="Sound effects"></button></div>
+</section>
+
+<h2 class="g">Accessibility</h2>
+<section class="glass grp">
+<div class="row"><span>Reduced motion<small>Cards fade into place instead of flying</small></span><button class="toggle" role="switch" aria-checked="false" aria-label="Reduced motion"></button></div>
+</section>
+
+<h2 class="g">Room · host only</h2>
+<section class="glass grp">
+<div class="row"><span>Seats</span><span class="val">Up to 4</span></div>
+<div class="row"><span>Decks<small>13 cards each, no kitty</small></span><span class="val">1 deck</span></div>
+<div class="row" style="flex-direction: column; align-items: stretch; gap: 6px"><span>Scores during play</span><div class="seg" role="group" aria-label="Scores during play" style="grid-template-columns: repeat(2, minmax(0, 1fr))"><button aria-pressed="true">Live</button><button aria-pressed="false">At round end</button></div></div>
+<div class="row"><span class="lock"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><rect x="5" y="11" width="14" height="10" rx="2"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>Seats and decks lock once the game starts.</span></div>
+</section>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

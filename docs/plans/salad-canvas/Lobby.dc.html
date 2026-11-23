@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Lobby</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--felt:#1a6b40;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 0% 0%,rgba(26,107,64,.18),transparent 60%),radial-gradient(360px 320px at 100% 40%,rgba(240,124,27,.13),transparent 60%),radial-gradient(420px 360px at 50% 100%,rgba(31,115,218,.14),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:22px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button,.s a.btn{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-decoration:none}
+.btn{min-height:50px;padding:0 18px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn.sm{min-height:44px;padding:0 10px;font-size:14px;gap:6px}
+.btn.primary{min-height:56px;background:var(--primary);color:#fff;font-size:18px}
+.btn:disabled{color:#55555a;cursor:default}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.av{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;font:800 14px var(--num);flex:none}
+.seat{display:flex;align-items:center;gap:10px;min-height:48px;padding:0 4px}
+.seat+.seat{border-top:1px solid var(--hair)}
+.tag{padding:2px 8px;border-radius:999px;background:var(--fill);font-size:12px;font-weight:700}
+.rd{display:inline-flex;align-items:center;gap:5px;font-size:14px;font-weight:700}
+.kv{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px 6px}
+.kv b{display:block;font:800 18px/1.1 var(--num)}
+.toggle{width:51px;height:31px;border-radius:999px;background:#1a6b40;position:relative;flex:none}
+.toggle::after{content:"";position:absolute;top:2px;left:22px;width:27px;height:27px;border-radius:50%;background:#fff;box-shadow:0 2px 4px rgba(0,0,0,.2)}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 10px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="min-height: 48px; padding-right: 58px; display: flex; flex-direction: column; justify-content: center">
+<h1 style="margin: 0; font: 800 26px/1.1 var(--num); letter-spacing: -.02em">Lobby</h1>
+<p class="cap" style="font-weight: 500">You're the host. Start when everyone's ready.</p>
+</div>
+
+<section class="glass" style="padding: 14px; display: flex; flex-direction: column; gap: 12px" aria-label="Invite">
+<div style="display: flex; gap: 12px; align-items: center">
+<div style="flex: 1; min-width: 0">
+<p class="cap">Room code</p>
+<p style="margin: 2px 0 0; font: 800 36px/1.05 var(--num); letter-spacing: .08em">BXMRTW</p>
+<p class="cap" style="font-weight: 500; margin-top: 4px">games.nordgrenlabs.com/salad/?room=BXMRTW</p>
+</div>
+<div role="img" aria-label="QR code for the invite link" style="width: 96px; height: 96px; flex: none; border-radius: 14px; background: #fff; border: 1.5px dashed #8e8e93; display: grid; place-items: center; text-align: center">
+<span><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#1d1d1f" stroke-width="1.8" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"></rect><rect x="14" y="3" width="7" height="7" rx="1"></rect><rect x="3" y="14" width="7" height="7" rx="1"></rect><path d="M14 14h3v3h-3zM18 18h3v3h-3zM14 20h2M20 14v2"></path></svg><span style="display: block; font-size: 11px; font-weight: 700; color: #55555a">QR code</span></span>
+</div>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px">
+<button class="btn sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"></path></svg>Copy link</button>
+<button class="btn sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"></path></svg>Copy code</button>
+<button class="btn sm"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>Share</button>
+</div>
+</section>
+
+<section class="glass" style="padding: 8px 12px" aria-label="Players">
+<div style="display: flex; justify-content: space-between; align-items: baseline; padding: 4px 4px 2px"><h2 class="cap" style="color: var(--ink); font-size: 14px">Players · 4 of 4 seats</h2><span class="cap" style="font-weight: 500">clockwise order</span></div>
+<div class="seat"><span class="cap" style="width: 14px">1</span><span class="av" style="background: #1f6fd6; color: #fff">A</span><strong style="flex: 1; font-size: 16px">Alex <span class="tag">Host</span> <span class="tag">You</span></strong><label class="rd" style="gap: 8px">Ready<button class="toggle" role="switch" aria-checked="true" aria-label="I'm ready"></button></label></div>
+<div class="seat"><span class="cap" style="width: 14px">2</span><span class="av" style="background: #cf6900; color: #1d1d1f">B</span><strong style="flex: 1; font-size: 16px">Brooke</strong><span class="rd"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#1a6b40"></circle><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>Ready</span></div>
+<div class="seat"><span class="cap" style="width: 14px">3</span><span class="av" style="background: #1c7f3e; color: #fff">S</span><strong style="flex: 1; font-size: 16px">Sam</strong><span class="rd"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#1a6b40"></circle><path d="M7 12.5l3.2 3.2L17 9" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"></path></svg>Ready</span></div>
+<div class="seat"><span class="cap" style="width: 14px">4</span><span class="av" style="background: #9850dc; color: #fff">D</span><strong style="flex: 1; font-size: 16px">Dana</strong><span class="rd" style="color: var(--ink2)"><svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" fill="none" stroke="#6e6e73" stroke-width="2" stroke-dasharray="3 3"></circle></svg>Not ready</span></div>
+</section>
+
+<section class="glass" style="padding: 12px 14px; display: flex; flex-direction: column; gap: 10px" aria-label="Game setup">
+<div style="display: flex; justify-content: space-between; align-items: center"><h2 class="cap" style="color: var(--ink); font-size: 14px">Game setup</h2><a class="btn sm" href="Create.dc.html" style="min-height: 44px">Edit</a></div>
+<div class="kv">
+<div><b>1 deck</b><span class="cap">52 cards</span></div>
+<div><b>13</b><span class="cap">cards each</span></div>
+<div><b>No</b><span class="cap">kitty</span></div>
+<div><b>13</b><span class="cap">tricks a round</span></div>
+<div><b>Live</b><span class="cap">scores</span></div>
+<div><b>25 min</b><span class="cap">about</span></div>
+</div>
+<p class="cap" style="font-weight: 500">Table: Classic Green Felt. Locked once the game starts.</p>
+</section>
+
+<div style="flex: 1"></div>
+<button class="btn primary" disabled style="background: var(--fill); color: #55555a">Start game</button>
+<p class="cap" style="text-align: center; font-weight: 500" role="status">Waiting for Dana to be ready</p>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Create a game</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--felt:#1a6b40;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 0% 0%,rgba(26,107,64,.18),transparent 60%),radial-gradient(360px 320px at 100% 40%,rgba(240,124,27,.13),transparent 60%),radial-gradient(420px 360px at 50% 100%,rgba(31,115,218,.14),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:22px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button,.s a.btn{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-decoration:none}
+.btn{min-height:50px;padding:0 18px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn.primary{min-height:56px;background:var(--primary);color:#fff;font-size:18px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.lbl{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px;font-size:14px;font-weight:700}
+.lbl span{font-weight:500;color:var(--ink2);font-size:13px}
+.field{width:100%;height:48px;border-radius:12px;border:1px solid var(--hair);background:#fff;padding:0 14px;font:600 17px var(--text);color:var(--ink)}
+.sw{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;justify-items:center}
+.sw button{width:44px;height:44px;border-radius:50%;display:grid;place-items:center}
+.sw button[aria-pressed="true"]{box-shadow:0 0 0 3px var(--canvas),0 0 0 5px var(--ink)}
+.seg{display:grid;gap:4px;padding:4px;border-radius:14px;background:var(--fill)}
+.seg button{min-height:44px;border-radius:10px;font-weight:600;font-size:15px;color:var(--ink)}
+.seg button[aria-pressed="true"]{background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.step{width:44px;height:44px;border-radius:50%;background:var(--fill);display:grid;place-items:center}
+.sec{padding:14px;display:flex;flex-direction:column;gap:14px}
+.warn{display:flex;gap:8px;align-items:flex-start;padding:8px 10px;border-radius:10px;background:rgba(207,105,0,.12);font-size:13px;font-weight:600;color:var(--ink)}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 12px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="min-height: 48px; padding-right: 58px; display: flex; align-items: center; gap: 8px">
+<a class="btn" href="Main.dc.html" aria-label="Back" style="width: 44px; min-height: 44px; padding: 0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+<h1 style="margin: 0; font: 800 26px/1.1 var(--num); letter-spacing: -.02em">Create a game</h1>
+</div>
+
+<section class="glass sec">
+<div><label class="lbl" for="nm">Your name <span>shown at the table</span></label><input class="field" id="nm" value="Alex" maxlength="16" autocomplete="nickname"></div>
+<div>
+<p class="lbl">Your colour <span>{{colourName}}</span></p>
+<div class="sw" role="group" aria-label="Player colour">
+<sc-for list="{{colours}}" as="c" hint-placeholder-count="12"><button style="background: {{c.hex}}; color: {{c.ink}}" aria-label="{{c.name}}" aria-pressed="{{c.pressed}}" onClick="{{c.pick}}"><sc-if value="{{c.on}}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></sc-if></button></sc-for>
+</div>
+</div>
+</section>
+
+<section class="glass sec">
+<a href="TableThemes.dc.html" style="display: flex; align-items: center; gap: 12px; color: inherit; text-decoration: none; min-height: 48px">
+<span aria-hidden="true" style="width: 64px; height: 44px; border-radius: 22px; background: radial-gradient(ellipse at 50% 42%,#27704a,#1d5a39 80%); box-shadow: inset 0 0 0 3px rgba(0,0,0,.14); flex: none"></span>
+<span style="flex: 1"><span class="cap" style="display: block">Table</span><strong style="font-size: 16px">Classic Green Felt</strong></span>
+<span class="cap" style="color: var(--ink)">Change</span><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg>
+</a>
+<div style="display: flex; align-items: center; gap: 12px">
+<span style="flex: 1"><span class="cap" style="display: block">Seats</span><strong style="font: 800 20px var(--num)">Up to {{players}} players</strong></span>
+<button class="step" aria-label="Fewer seats" onClick="{{less}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"></path></svg></button>
+<button class="step" aria-label="More seats" onClick="{{more}}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"></path></svg></button>
+</div>
+<div>
+<p class="lbl">Decks <span>whole 52-card decks</span></p>
+<div class="seg" role="group" aria-label="Decks" style="grid-template-columns: repeat(3, minmax(0, 1fr))">
+<sc-for list="{{deckOpts}}" as="d" hint-placeholder-count="3"><button aria-pressed="{{d.pressed}}" onClick="{{d.pick}}">{{d.label}}</button></sc-for>
+</div>
+<div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; margin-top: 10px; text-align: center">
+<div><b style="font: 800 22px/1 var(--num)">{{each}}</b><p class="cap">cards each</p></div>
+<div><b style="font: 800 22px/1 var(--num)">{{kitty}}</b><p class="cap">{{kittyLabel}}</p></div>
+<div><b style="font: 800 22px/1 var(--num)">{{each}}</b><p class="cap">tricks a round</p></div>
+</div>
+<sc-if value="{{long}}" hint-placeholder-val="{{ false }}"><div class="warn" style="margin-top: 8px"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true" style="flex: none; margin-top: 1px"><path d="M12 8v5M12 16.5v.5M10.3 3.8L2.6 17.5A2 2 0 0 0 4.3 20.5h15.4a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0z"></path></svg>Long game: {{each}} cards each, about {{mins}}.</div></sc-if>
+<sc-if value="{{short}}" hint-placeholder-val="{{ true }}"><p class="cap" style="text-align: center; font-weight: 500; margin-top: 6px">About {{mins}} for all six rounds</p></sc-if>
+</div>
+<div>
+<p class="lbl">Scores during play</p>
+<div class="seg" role="group" aria-label="Scores during play" style="grid-template-columns: repeat(2, minmax(0, 1fr))">
+<button aria-pressed="true">Live</button><button aria-pressed="false">At round end</button>
+</div>
+</div>
+</section>
+
+<div style="flex: 1"></div>
+<a class="btn primary" href="Lobby.dc.html">Create room</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  constructor(p) { super(p); this.state = { colour: 0, decks: 1, players: 4 }; }
+  renderVals() {
+    const C = [['Cobalt', '#1f6fd6', '#fff'], ['Tangerine', '#cf6900', '#1d1d1f'], ['Forest', '#1c7f3e', '#fff'], ['Violet', '#9850dc', '#fff'], ['Teal', '#0c7c78', '#fff'], ['Rose', '#cc2f7c', '#fff'],
+      ['Gold', '#b07f00', '#1d1d1f'], ['Indigo', '#6064e0', '#fff'], ['Scarlet', '#d42f3a', '#fff'], ['Slate', '#62738a', '#fff'], ['Sky', '#1f93c9', '#1d1d1f'], ['Lime', '#62970f', '#1d1d1f']];
+    const { colour, decks, players } = this.state;
+    const cards = 52 * decks, each = Math.floor(cards / players), kitty = cards % players;
+    // Rough length: four seconds a play, half a minute of results a round.
+    const m = Math.round((6 * each * players * 4) / 60 + 3);
+    const mins = m >= 60 ? '1 hr ' + (m - 60 ? (Math.round((m - 60) / 5) * 5) + ' min' : '') : (Math.round(m / 5) * 5) + ' min';
+    return {
+      colours: C.map(([name, hex, ink], i) => ({ name, hex, ink, on: i === colour, pressed: i === colour ? 'true' : 'false', pick: () => this.setState({ colour: i }) })),
+      colourName: C[colour][0],
+      deckOpts: [1, 2, 3].map((d) => ({ label: d + (d === 1 ? ' deck' : ' decks'), pressed: d === decks ? 'true' : 'false', pick: () => this.setState({ decks: d }) })),
+      players, each, kitty: kitty || 'No', kittyLabel: kitty ? 'card kitty' : 'kitty',
+      long: each > 26, short: each <= 26, mins,
+      less: () => this.setState({ players: Math.max(2, players - 1) }),
+      more: () => this.setState({ players: Math.min(8, players + 1) })
+    };
+  }
+}
+</script>
+</body>
+</html>

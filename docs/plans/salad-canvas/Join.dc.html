@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Join a game</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0}
+.s{--canvas:#f6f3ec;--ink:#1d1d1f;--ink2:#6e6e73;--accent:#0071e3;--primary:#0071e3;--felt:#1a6b40;--glass:rgba(255,255,255,.62);--edge:rgba(255,255,255,.8);--hair:rgba(60,60,67,.14);--fill:rgba(120,120,128,.13);--shadow:0 1px 2px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.08);--num:ui-rounded,"SF Pro Rounded",-apple-system,BlinkMacSystemFont,"Segoe UI Variable Display","Segoe UI",system-ui,sans-serif;--text:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;position:relative;overflow:hidden;box-sizing:border-box;background:var(--canvas);color:var(--ink);font:17px/1.4 var(--text);-webkit-font-smoothing:antialiased}
+.s *{box-sizing:border-box}
+.s::before{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(420px 360px at 0% 0%,rgba(26,107,64,.18),transparent 60%),radial-gradient(360px 320px at 100% 40%,rgba(240,124,27,.13),transparent 60%),radial-gradient(420px 360px at 50% 100%,rgba(31,115,218,.14),transparent 60%)}
+.s>*{position:relative;z-index:1}
+.s>.menu{position:absolute;top:24px;right:12px;width:48px;height:48px;border-radius:50%;display:grid;place-items:center}
+.glass{background:var(--glass);backdrop-filter:blur(28px) saturate(180%);-webkit-backdrop-filter:blur(28px) saturate(180%);border:1px solid var(--edge);border-radius:22px;box-shadow:var(--shadow),inset 0 1px 0 var(--edge)}
+.s button,.s a.btn{font:inherit;color:inherit;border:0;background:none;padding:0;cursor:pointer;text-decoration:none}
+.btn{min-height:50px;padding:0 18px;border-radius:999px;background:var(--fill);font-weight:600;font-size:16px;display:inline-flex;align-items:center;justify-content:center;gap:8px}
+.btn.primary{min-height:56px;background:var(--primary);color:#fff;font-size:18px}
+.cap{margin:0;font-size:13px;font-weight:600;color:var(--ink2)}
+.lbl{display:flex;justify-content:space-between;align-items:baseline;margin:0 0 6px;font-size:14px;font-weight:700}
+.lbl span{font-weight:500;color:var(--ink2);font-size:13px}
+.field{width:100%;height:48px;border-radius:12px;border:1px solid var(--hair);background:#fff;padding:0 14px;font:600 17px var(--text);color:var(--ink)}
+.code{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px}
+.code span{height:58px;border-radius:12px;background:#fff;border:1px solid var(--hair);display:grid;place-items:center;font:800 28px var(--num);letter-spacing:0}
+.code span.cur{border:2px solid var(--accent)}
+.sw{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;justify-items:center}
+.sw button{position:relative;width:44px;height:44px;border-radius:50%;display:grid;place-items:center}
+.sw button[aria-pressed="true"]{box-shadow:0 0 0 3px var(--canvas),0 0 0 5px var(--ink)}
+.sw button:disabled{cursor:not-allowed}
+.sw button:disabled::after{content:"";position:absolute;left:-3px;right:-3px;top:50%;height:3px;margin-top:-1.5px;background:var(--ink);transform:rotate(-45deg);border-radius:2px;box-shadow:0 0 0 1.5px var(--canvas)}
+.av{width:28px;height:28px;border-radius:50%;display:grid;place-items:center;font:800 13px var(--num);flex:none;box-shadow:0 0 0 2px #fff}
+.sec{padding:14px;display:flex;flex-direction:column;gap:14px}
+</style>
+</helmet>
+<div class="s" style="width: 390px; height: 844px; padding: 24px 16px 20px; display: flex; flex-direction: column; gap: 12px">
+<button class="glass menu" aria-label="Menu"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 7h16M4 12h16M4 17h16"></path></svg></button>
+<div style="min-height: 48px; padding-right: 58px; display: flex; align-items: center; gap: 8px">
+<a class="btn" href="Main.dc.html" aria-label="Back" style="width: 44px; min-height: 44px; padding: 0"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></a>
+<h1 style="margin: 0; font: 800 26px/1.1 var(--num); letter-spacing: -.02em">Join a game</h1>
+</div>
+
+<section class="glass sec">
+<div>
+<label class="lbl" for="code">Room code <span>6 letters, from the host</span></label>
+<div class="code" aria-hidden="true"><span>B</span><span>X</span><span>M</span><span>R</span><span>T</span><span class="cur">W</span></div>
+<input id="code" value="BXMRTW" autocapitalize="characters" autocomplete="off" inputmode="text" maxlength="6" style="position: absolute; width: 1px; height: 1px; opacity: 0">
+</div>
+<div style="display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 14px; background: rgba(26,107,64,.10)" role="status">
+<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#1a6b40" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+<span style="flex: 1; min-width: 0"><strong style="display: block; font-size: 15px">Alex's table</strong><span class="cap" style="font-weight: 500; color: #55555a">1 of 4 seats taken · 1 deck · Green Felt</span></span>
+<span style="display: flex"><span class="av" style="background: #1f6fd6; color: #fff">A</span></span>
+</div>
+</section>
+
+<section class="glass sec">
+<div><label class="lbl" for="nm">Your name <span>you can change it in the lobby</span></label><input class="field" id="nm" value="Brooke" maxlength="16" autocomplete="nickname"></div>
+<div>
+<p class="lbl">Your colour <span>Tangerine</span></p>
+<div class="sw" role="group" aria-label="Player colour">
+<button style="background: #1f6fd6" aria-label="Cobalt, taken by Alex" disabled></button>
+<button style="background: #cf6900; color: #1d1d1f" aria-label="Tangerine" aria-pressed="true"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg></button>
+<button style="background: #1c7f3e" aria-label="Forest" aria-pressed="false"></button>
+<button style="background: #9850dc" aria-label="Violet" aria-pressed="false"></button>
+<button style="background: #0c7c78" aria-label="Teal" aria-pressed="false"></button>
+<button style="background: #cc2f7c" aria-label="Rose" aria-pressed="false"></button>
+<button style="background: #b07f00" aria-label="Gold" aria-pressed="false"></button>
+<button style="background: #6064e0" aria-label="Indigo" aria-pressed="false"></button>
+<button style="background: #d42f3a" aria-label="Scarlet" aria-pressed="false"></button>
+<button style="background: #62738a" aria-label="Slate" aria-pressed="false"></button>
+<button style="background: #1f93c9" aria-label="Sky" aria-pressed="false"></button>
+<button style="background: #62970f" aria-label="Lime" aria-pressed="false"></button>
+</div>
+<p class="cap" style="font-weight: 500; margin-top: 8px">Crossed out: already taken in this room.</p>
+</div>
+</section>
+
+<div style="flex: 1"></div>
+<p class="cap" style="text-align: center; font-weight: 500">Opened an invite link? The code is filled in for you.</p>
+<a class="btn primary" href="Lobby.dc.html">Join room</a>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
