@@ -4,10 +4,10 @@ import { MAX_PLAYERS, MIN_PLAYERS, allowedDecks } from '../engine/cards.js';
 import { createGame, reduce } from '../engine/reducer.js';
 import { viewFor } from '../engine/view.js';
 import { STYLES, style, styleLabel, freeStyle } from './styles.js';
-import { toggle, keepPlayable, canPlaySel, readGame, decksFor, listOf, plural, minutes, MAX_NAME,
+import { toggle, keepPlayable, canPlaySel, readGame, cleanArt, decksFor, listOf, plural, minutes, MAX_NAME,
   choosingSeat, leavers, firstLine } from './logic.js';
 import { $, el, still, say, back, toast, handoffScreen, chooseScreen, waitScreen, tableScreen,
-  snapshot, animate, clearFlyers, resultsScreen, stopResults, DECKS, cardDeck, setCardDeck, face } from './screens.js';
+  snapshot, animate, clearFlyers, resultsScreen, stopResults, DECKS, deckPreview } from './screens.js';
 import { createNet, browserAuth, reasonText } from './net.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -19,7 +19,7 @@ const tpl = id => $(id).content.firstElementChild.cloneNode(true);
 // ---- State, autosaved on every render. It belongs to whoever was signed in (owner), so a game in progress never
 // shows to the next person on this browser. game holds the engine state, names, styles and screen flags.
 const KEY = 'nl-bomb-v1', ROOM = 'nl-bomb-room';
-const fresh = () => ({ v: 1, owner: NL.person(), mode: 'local', roster: [], decks: null, me: { name: '', style: 'cobalt' }, oDecks: null, game: null });
+const fresh = () => ({ v: 1, owner: NL.person(), mode: 'local', roster: [], decks: null, art: cleanArt(), me: { name: '', style: 'cobalt' }, oDecks: null, game: null });
 let S = fresh();
 const okPerson = p => p && typeof p.name === 'string' && p.name.length <= MAX_NAME && !!style(p.style);
 try {
@@ -29,6 +29,7 @@ try {
     if (Array.isArray(s.roster)) S.roster = s.roster.filter(okPerson).slice(0, MAX_PLAYERS).map(p => ({ name: p.name, style: p.style }));
     S.roster = S.roster.filter((p, i) => S.roster.findIndex(q => q.style === p.style) === i);
     if ([1, 2, 3, 4].includes(s.decks)) S.decks = s.decks;
+    S.art = cleanArt(s.art);
     if ([1, 2, 3, 4].includes(s.oDecks)) S.oDecks = s.oDecks;
     if (okPerson(s.me)) S.me = { name: s.me.name, style: s.me.style };
     S.game = readGame(s.game); // stored data is a trust boundary: checkState and the roster are checked
@@ -51,9 +52,9 @@ let ready = false, from = null, sel = [], choose = { key: '', picks: [null, null
 let holdUntil = 0, revealPending = false, prevView = null, busy = false;
 
 // ---- One phone
-function startLocal(names, styles, decks) {
+function startLocal(names, styles, decks, art) {
   stopResults();
-  S.game = { g: createGame({ players: names.length, decks, seed: newSeed() }), names, styles, desc: names.map(() => false),
+  S.game = { g: createGame({ players: names.length, decks, seed: newSeed() }), names, styles, art: cleanArt(art), desc: names.map(() => false),
     saveId: null, createdAt: null, startedAt: null, endedAt: null };
   ready = false; from = null; sel = []; prevView = null; holdUntil = 0;
   render();
@@ -247,6 +248,7 @@ function renderLocalSetup() {
   $('decksDown').disabled = d <= ok[0];
   $('decksUp').disabled = d >= ok.at(-1);
   $('decksNote').textContent = `${d * 52} cards. Every player needs 13, so 1 deck suits 2 or 3 players and 2 decks suit 4 to 6. Up to 4 decks.`;
+  drawArt($('artSlots'), d, S.art, i => openDecks(i, S.art[i], id => { S.art[i] = id; render(); }));
   gate();
   drawSaves();
   function gate() {
@@ -275,7 +277,7 @@ $('start').onclick = () => {
   const r = S.roster.map(p => ({ ...p, name: p.name.trim() }));
   if (r.length < MIN_PLAYERS || r.some(p => !p.name)) return;
   S.roster = r;
-  startLocal(r.map(p => p.name), r.map(p => p.style), decksFor(r.length, S.decks));
+  startLocal(r.map(p => p.name), r.map(p => p.style), decksFor(r.length, S.decks), S.art);
 };
 
 function renderOnlineSetup() {
@@ -310,14 +312,14 @@ $('forget').onclick = () => { forgetRoom(); render(); };
 let onStyle = null;
 function openStyles(current, others, pick, who) {
   onStyle = pick;
-  $('styleNote').textContent = `${who}. A deck puts its own back on that player's cards; a colour is that player's colour.`;
+  $('styleNote').textContent = `${who}. The colour on the back is that player's colour.`;
   $('styleGrid').replaceChildren(...STYLES.map(s => {
     const by = others.find(o => o.style === s.id);
     const b = el('button', 'opt'), c = back(s.id);
     b.setAttribute('aria-pressed', s.id === current);
     b.disabled = !!by && s.id !== current;
     b.setAttribute('aria-label', `${styleLabel(s)}${by ? `, taken by ${by.name || 'another player'}` : ''}${s.id === current ? ', chosen' : ''}`);
-    b.append(c, el('b', '', s.name), el('small', '', by ? `Taken: ${by.name || 'player'}` : s.deck ? 'picture back' : s.pattern));
+    b.append(c, el('b', '', s.name), el('small', '', by ? `Taken: ${by.name || 'player'}` : s.pattern));
     if (s.id === current) { const t = el('span', 'tick'); t.append(tpl('tickIcon')); b.append(t); }
     b.onclick = () => { onStyle?.(s.id); $('styleSheet').close(); };
     return b;
@@ -362,6 +364,8 @@ function renderLobby() {
   $('lDecksDown').disabled = busy || r.decks <= ok[0];
   $('lDecksUp').disabled = busy || r.decks >= ok.at(-1);
   $('lDecksNote').textContent = host ? `${r.decks * 52} cards. 1 deck for 2 or 3 players, 2 decks for 4 to 6.` : `${r.decks * 52} cards. The host chooses.`;
+  const art = cleanArt(r.art);
+  drawArt($('lArtSlots'), r.decks, art, host && !busy ? i => openDecks(i, art[i], id => onlineSend({ type: 'SET_ART', art: art.map((a, k) => k === i ? id : a) })) : null);
   $('startRoom').hidden = !host;
   $('startRoom').disabled = busy || n < 2;
   $('startRoom').textContent = n < 2 ? 'Waiting for players' : `Start game with ${n}`;
@@ -411,7 +415,7 @@ function renderChoose(scr) {
   if (choose.key !== key) choose = { key, picks: mine.up?.length === 4 ? mine.up.map(c => c.id) : [null, null, null, null], on: null };
   const waitingNames = inRoom() ? scr.view.players.map((q, i) => !q.ready && i !== scr.seat ? scr.ps[i].name : null).filter(Boolean) : [];
   chooseScreen(scr.view, scr.ps, scr.seat, choose, {
-    online: inRoom(), waitingNames, desc: handDesc(scr.seat),
+    online: inRoom(), waitingNames, desc: handDesc(scr.seat), art: curArt(),
     onPick: id => {
       const at = choose.picks.indexOf(id);
       if (at >= 0) { choose.picks[at] = null; choose.on = null; }
@@ -449,13 +453,14 @@ function flipOrder(seat) {
 }
 
 // ---- Table
+const curArt = () => inRoom() ? cleanArt(O.view.room.art) : S.game?.art || cleanArt();
 function renderTable(scr, snap) {
   const view = scr.view, me = scr.seat;
   sel = view.you ? keepPlayable(sel, view.you.playable) : [];
   const info = inRoom() ? `Room ${O.view.room.code} · ${plural(scr.ps.length, 'player')} · ${plural(view.decks, 'deck')}`
     : `${plural(scr.ps.length, 'player')} · ${plural(view.decks, 'deck')} · turn ${view.turns + 1}`;
   tableScreen({
-    view, people: scr.ps, me, online: inRoom(), sel, info, desc: handDesc(me), onSort: () => flipOrder(me),
+    view, people: scr.ps, me, online: inRoom(), sel, info, desc: handDesc(me), art: curArt(), onSort: () => flipOrder(me),
     onCard: (c, ok) => {
       if (!ok) { if (view.you.source === 'hand' || view.you.source === 'up') say(`${c.rank === 2 || c.rank === 10 ? '' : 'Too low. '}That card can't be played now.`); return; }
       sel = toggle(sel, c, view.you.playable);
@@ -496,7 +501,7 @@ function renderResults(scr) {
 $('rematch').onclick = () => {
   if (inRoom()) return onlineSend({ type: 'REMATCH' });
   const G = S.game;
-  startLocal(G.names, G.styles, G.g.decks);
+  startLocal(G.names, G.styles, G.g.decks, G.art);
 };
 $('newGame').onclick = () => {
   if (inRoom()) return leaveSeat();
@@ -624,7 +629,7 @@ NL.menu($('menu'));
 const closeMenu = () => { if ($('menu').classList.contains('open')) $('menu').querySelector('.menu-trigger').click(); };
 const showTheme = NL.segmented($('themeSeg'), v => { NL.theme.set(v); showTheme(v); });
 twoTap($('restart'), on => { $('restart').querySelector('span').textContent = on ? 'Tap again to restart' : 'Restart'; },
-  () => !!S.game, () => { closeMenu(); const G = S.game; if (G) startLocal(G.names, G.styles, G.g.decks); });
+  () => !!S.game, () => { closeMenu(); const G = S.game; if (G) startLocal(G.names, G.styles, G.g.decks, G.art); });
 $('exitBtn').onclick = () => {
   const fin = S.game?.g.phase === 'over';
   $('endTitle').textContent = fin ? 'Leave the results?' : 'End this game?';
@@ -649,18 +654,47 @@ $('leaveYes').onclick = async () => {
 };
 $('leaveNo').onclick = () => $('leaveSheet').close();
 $('rulesBtn').onclick = () => $('rulesSheet').showModal();
-// Card faces on this device (one-deck games): Bomb's own drawn cards or a picture deck, each shown as its queen of hearts.
-function showDecks() {
-  $('deckGrid').replaceChildren(...[{ id: '', name: 'Standard' }, ...DECKS].map(d => {
-    const b = el('button', 'opt'), on = cardDeck() === d.id;
-    b.type = 'button';
-    b.setAttribute('aria-pressed', on);
-    b.append(face({ rank: 12, suit: 'H' }, { art: d.id }), el('b', '', d.name));
-    b.onclick = () => { setCardDeck(d.id); showDecks(); render(); };
+$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); $('settingsSheet').showModal(); };
+
+// ---- Deck art: one choice per deck in the game. The decks are shuffled together and each card keeps its own deck's
+// back and face. The picker and the setup row show each deck's back or its ace of spades (a toggle kept per device).
+const ART_CHOICES = [{ id: '', name: 'Standard' }, ...DECKS];
+const artName = id => ART_CHOICES.find(d => d.id === id)?.name || 'Standard';
+const VIEW_KEY = 'nl-bomb-deck-view';
+let artShow = (() => { try { return localStorage.getItem(VIEW_KEY) === 'ace' ? 'ace' : 'back'; } catch { return 'back'; } })();
+function drawArt(box, n, art, onPick) {
+  box.replaceChildren(...Array.from({ length: n }, (_, i) => {
+    const b = el(onPick ? 'button' : 'div', 'opt');
+    if (onPick) { b.type = 'button'; b.onclick = () => onPick(i); b.dataset.k = `${box.id}${i}`; }
+    b.setAttribute('aria-label', `Deck ${i + 1}: ${artName(art[i])}${onPick ? '. Change' : ''}`);
+    b.append(deckPreview(art[i], artShow), el('b', '', `Deck ${i + 1}`), el('small', '', artName(art[i])));
     return b;
   }));
 }
-$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); showDecks(); $('settingsSheet').showModal(); };
+let onArt = null, artFor = 0, artCur = '';
+function openDecks(i, current, pick) {
+  onArt = pick; artFor = i; artCur = current;
+  $('deckTitle').textContent = `Deck ${i + 1}`;
+  showArtView(artShow);
+  drawDeckGrid();
+  $('deckSheet').showModal();
+}
+function drawDeckGrid() {
+  $('deckGrid').replaceChildren(...ART_CHOICES.map(d => {
+    const b = el('button', 'opt');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', d.id === artCur);
+    b.append(deckPreview(d.id, artShow), el('b', '', d.name), el('small', '', d.id ? 'picture deck' : 'colour backs'));
+    if (d.id === artCur) { const t = el('span', 'tick'); t.append(tpl('tickIcon')); b.append(t); }
+    b.onclick = () => { $('deckSheet').close(); onArt?.(d.id); };
+    return b;
+  }));
+}
+const showArtView = NL.segmented($('deckView'), v => {
+  artShow = v; try { localStorage.setItem(VIEW_KEY, v); } catch {}
+  showArtView(v); drawDeckGrid(); render();
+});
+$('deckDone').onclick = () => $('deckSheet').close();
 $('rulesDone').onclick = () => $('rulesSheet').close();
 $('settingsDone').onclick = () => $('settingsSheet').close();
 for (const d of document.querySelectorAll('dialog')) d.onclick = e => { if (e.target === d) d.close(); };

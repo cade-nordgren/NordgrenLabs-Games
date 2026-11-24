@@ -26,30 +26,21 @@ export function paint(e, styleId) {
   e.style.setProperty('--pi', s.ink);
   return e;
 }
-// Picture deck from site/decks ('' for Bomb's own drawn cards), chosen in Settings and kept on this device.
-const DECK_KEY = 'nl-bomb-deck';
-let deck = (() => { try { const v = localStorage.getItem(DECK_KEY); return deckOf(v) ? v : ''; } catch { return ''; } })();
-export const cardDeck = () => deck;
-export function setCardDeck(id) {
-  deck = deckOf(id) ? id : '';
-  try { deck ? localStorage.setItem(DECK_KEY, deck) : localStorage.removeItem(DECK_KEY); } catch {}
-}
 export { DECKS };
-// One deck: each player's cards wear that player's style. More than one: the decks are shuffled together and deck d
-// is dressed in the style of player d (seat order, wrapping), so every card shows its own deck's back, and a picture
-// deck's face, whoever holds it. Set by the screens that draw cards.
-let tableDecks = null;
-const useDecks = (view, people) => { tableDecks = view.decks > 1 ? people.map(p => p.style) : null; };
-const deckStyle = d => tableDecks[d % tableDecks.length];
+// The picture deck each deck in the game wears ('' for Bomb's own drawn cards), chosen in setup and set by the screens
+// that draw cards. The decks are shuffled together and every card shows its own deck's back and face, whoever holds
+// it; a drawn deck's face-down cards wear the holder's colour, as before decks had art.
+let tableArt = [];
+const artOf = d => Number.isInteger(d) && deckOf(tableArt[d]) ? tableArt[d] : '';
 // The style on the back of face-down card i of a player (person who, view player q).
-const downStyle = (who, q, i) => tableDecks && Number.isInteger(q.downDeck?.[i]) ? deckStyle(q.downDeck[i]) : who.style;
+const downStyle = (who, q, i) => artOf(q.downDeck?.[i]) || who.style;
 // art: a deck id ('' for drawn cards) to preview instead of the one the card would wear.
 export function face(c, { button = false, cls = '', art: show } = {}) {
   const e = el(button ? 'button' : 'span', `card${isRed(c.suit) ? ' r' : ''}${cls ? ' ' + cls : ''}`);
   const i = el('span', 'i', label(c.rank));
   i.append(el('small', '', sym(c.suit)));
   e.append(i, el('span', 'm', sym(c.suit)));
-  const art = show !== undefined ? show : tableDecks && Number.isInteger(c.deck) ? style(deckStyle(c.deck))?.deck : deck;
+  const art = show !== undefined ? show : artOf(c.deck);
   const pic = faceUrl(art, label(c.rank), c.suit);
   if (pic) { const img = el('img', 'pic'); img.alt = ''; img.src = pic; e.append(img); }
   e.setAttribute('aria-label', cardName(c));
@@ -68,14 +59,16 @@ export function back(styleId, cls = '') {
   e.setAttribute('aria-hidden', 'true');
   return e;
 }
-// The draw pile wears the picture deck's back; players' own backs keep their colours, which say whose cards they are.
+// The draw pile: the next card's own back, or the plain deck back for drawn cards.
 export const deckBack = view => {
-  if (tableDecks && Number.isInteger(view?.nextDeck)) return back(deckStyle(view.nextDeck)); // the next card's own back
-  const e = el('span', 'card back deck'), pic = backUrl(deck);
-  if (pic) { e.classList.add('pic-back'); e.style.setProperty('--img', `url("${pic}")`); }
+  const a = artOf(view?.nextDeck);
+  if (a) return back(a);
+  const e = el('span', 'card back deck');
   e.setAttribute('aria-hidden', 'true');
   return e;
 };
+// A deck choice as the picker shows it: its back, or its ace of spades.
+export const deckPreview = (id, show) => show === 'ace' ? face({ rank: 14, suit: 'S' }, { art: id }) : id ? back(id) : deckBack(null);
 export function whoChip(person) {
   const c = paint(el('span', 'who'), person.style);
   c.append(el('i', '', initial(person.name)), el('span', '', person.name));
@@ -124,9 +117,9 @@ export function handoffScreen(view, people, seat, { choosing, from }) {
 }
 
 // ---- Face-up choice. picks: four ids or null (table positions); on: the position picked to swap, or null.
-export function chooseScreen(view, people, seat, ui, { onPick, onSlot, onConfirm, online, waitingNames, desc }) {
+export function chooseScreen(view, people, seat, ui, { onPick, onSlot, onConfirm, online, waitingNames, desc, art = [] }) {
   const p = people[seat], you = view.you, mine = view.players[seat];
-  useDecks(view, people);
+  tableArt = art;
   const nine = sortHand([...you.hand, ...(mine.up || [])], desc);
   // Where each card was before this redraw, so a card that changed table spots slides there (FLIP).
   const rects = sel => new Map([...document.querySelectorAll(sel)].map(e => [e.dataset.id, e.getBoundingClientRect()]));
@@ -198,7 +191,7 @@ export function waitScreen(view, people, me) {
 // onPick, onNext, onSort }
 export function tableScreen(ctx) {
   const { view, people, me, online } = ctx, you = view.you, mp = view.players[me], person = people[me];
-  useDecks(view, people);
+  tableArt = ctx.art || [];
   const myTurn = view.phase === 'play' && view.turn === me && !view.pending;
   $('tableInfo').textContent = ctx.info;
 

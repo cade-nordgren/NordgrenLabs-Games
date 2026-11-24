@@ -3,8 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { STYLES, COLOR_STYLES, THEME, contrast } from '../../site/bomb/ui/styles.js';
-import { DECKS } from '../../site/decks/decks.js';
+import { STYLES, DECK_STYLES, THEME, contrast } from '../../site/bomb/ui/styles.js';
 import { STYLES as SERVER_STYLES } from '../../server/rooms.js';
 
 const at = (a, b, min, what) => {
@@ -12,15 +11,16 @@ const at = (a, b, min, what) => {
   assert.ok(r >= min, `${what}: ${a} on ${b} is ${r.toFixed(2)}, needs ${min}`);
 };
 
-test('the picture decks, then twelve colours with their own patterns; every colour distinct', () => {
-  assert.equal(COLOR_STYLES.length, 12);
-  assert.equal(new Set(COLOR_STYLES.map(s => s.pattern)).size, 12);
-  assert.equal(new Set(STYLES.map(s => s.hex)).size, STYLES.length);
-  assert.deepEqual(STYLES.map(s => s.id), [...DECKS.map(d => d.id), 'cobalt', 'scarlet', 'forest', 'tangerine', 'violet', 'teal', 'rose', 'gold', 'indigo', 'slate', 'sky', 'lime']);
+test('twelve styles, distinct colours and patterns', () => {
+  assert.equal(STYLES.length, 12);
+  assert.equal(new Set(STYLES.map(s => s.hex)).size, 12);
+  assert.equal(new Set(STYLES.map(s => s.pattern)).size, 12);
+  assert.deepEqual(STYLES.map(s => s.id), ['cobalt', 'scarlet', 'forest', 'tangerine', 'violet', 'teal', 'rose', 'gold', 'indigo', 'slate', 'sky', 'lime']);
   assert.deepEqual(SERVER_STYLES, STYLES.map(s => s.id), 'same ids and order as the server');
 });
 
-for (const s of STYLES) {
+// Deck looks still colour a player from an older save or room, so they are held to the same contrast.
+for (const s of [...STYLES, ...DECK_STYLES]) {
   test(`${s.name} ${s.pattern}: names in its ink, and the back against both grounds`, () => {
     at(s.ink, s.hex, 4.5, `${s.id} ink`);
     // The other ink must not be the better one: we picked the stronger of white and dark.
@@ -65,5 +65,5 @@ test('index.html carries the same theme values as THEME', () => {
     assert.equal(val(dark, css), THEME.dark[key], `dark --${css}`);
   }
   assert.equal(val(dark, 'primary'), THEME.dark.primary, 'dark --primary');
-  for (const s of COLOR_STYLES) assert.ok(html.includes(`.p-${s.pattern} {`), `pattern .p-${s.pattern}`);
+  for (const s of STYLES) assert.ok(html.includes(`.p-${s.pattern} {`), `pattern .p-${s.pattern}`);
 });

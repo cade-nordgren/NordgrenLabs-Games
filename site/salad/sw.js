@@ -1,7 +1,7 @@
 // Canadian Salad offline shell: precache the page and its modules, serve from the cache at once and refresh the copy in
 // the background. The game itself needs the network (rooms live on the server); /api/ is never cached.
 // Bump VERSION whenever FILES changes; old caches are deleted on activate.
-const VERSION = 'salad-v9';
+const VERSION = 'salad-v10';
 const FILES = [
   './', 'manifest.webmanifest',
   'ui/app.js', 'ui/net.js', 'ui/table.js', 'ui/results.js', 'ui/cards.js', 'ui/colors.js', 'ui/prefs.js', 'ui/dom.js',
