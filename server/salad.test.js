@@ -81,7 +81,7 @@ test('create: host in seat 0, defaults, cleaned name, no person id or raw state 
   const { room, game, you } = r.body.view;
   assert.match(room.code, /^[ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/);
   assert.match(room.id, /^[0-9a-f-]{36}$/);
-  assert.deepEqual(room.config, { capacity: 4, decks: 1, tableTheme: 'felt', scoreDisplay: 'live' });
+  assert.deepEqual(room.config, { capacity: 4, decks: 1, tableTheme: 'felt', scoreDisplay: 'live', art: ['', '', ''] });
   assert.deepEqual(room.seats, [{ seat: 0, name: 'Ada', color: 'cobalt', ready: false, connected: true, rematch: false }]);
   assert.equal(room.phase, 'lobby');
   assert.equal(game, null);
@@ -94,7 +94,8 @@ test('create: host in seat 0, defaults, cleaned name, no person id or raw state 
 test('create refuses bad names, colours and configs', async () => {
   for (const [extra, error] of [[{ name: ' \u0001 ' }, 'invalid_name'], [{ name: 5 }, 'invalid_name'], [{ color: 'pink' }, 'invalid_color'],
     [{ config: { capacity: 9 } }, 'invalid_config'], [{ config: { decks: 4 } }, 'invalid_config'], [{ config: { decks: 1.5 } }, 'invalid_config'],
-    [{ config: { tableTheme: ['felt'] } }, 'invalid_config'], [{ config: { scoreDisplay: 'never' } }, 'invalid_config'], [{ config: 3 }, 'invalid_config']]) {
+    [{ config: { tableTheme: ['felt'] } }, 'invalid_config'], [{ config: { scoreDisplay: 'never' } }, 'invalid_config'], [{ config: 3 }, 'invalid_config'],
+    [{ config: { art: ['nope', '', ''] } }, 'invalid_config'], [{ config: { art: ['honor'] } }, 'invalid_config']]) {
     const r = await create(P[0], extra);
     assert.equal(r.status, 400, JSON.stringify(extra));
     assert.deepEqual(r.body, { error });
@@ -227,8 +228,8 @@ test('lobby rules: host-only config and start, readiness, colours, capacity', as
   assert.deepEqual(await act(P[1], id, v, { type: 'START' }).then(r => [r.status, r.body.error]), [403, 'not_host']);
   assert.equal((await act(P[0], id, v, { type: 'START' })).body.error, 'not_ready');
   assert.equal((await act(P[0], id, v, { type: 'SET_CONFIG', capacity: 1 })).body.error, 'invalid_config');
-  const cfg = await act(P[0], id, v, { type: 'SET_CONFIG', capacity: 2, decks: 3, tableTheme: 'midnight', scoreDisplay: 'roundEnd' });
-  assert.deepEqual(cfg.body.view.room.config, { capacity: 2, decks: 3, tableTheme: 'midnight', scoreDisplay: 'roundEnd' });
+  const cfg = await act(P[0], id, v, { type: 'SET_CONFIG', capacity: 2, decks: 3, tableTheme: 'midnight', scoreDisplay: 'roundEnd', art: ['honor', '', 'luxury'] });
+  assert.deepEqual(cfg.body.view.room.config, { capacity: 2, decks: 3, tableTheme: 'midnight', scoreDisplay: 'roundEnd', art: ['honor', '', 'luxury'] });
   v = cfg.body.version;
   assert.equal((await join(P[2], code)).body.error, 'full');
   assert.equal((await act(P[0], id, v, { type: 'SET_PLAYER', color: 'scarlet' })).body.error, 'color_taken');

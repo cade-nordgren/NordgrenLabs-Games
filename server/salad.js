@@ -5,6 +5,7 @@ import { createGame, reduce, checkState, SCORE_DISPLAYS } from '../site/salad/en
 import { viewFor } from '../site/salad/engine/view.js';
 import { describeConfig } from '../site/salad/engine/score.js';
 import { validPlayers, validDecks, defaultDecks } from '../site/salad/engine/cards.js';
+import { DECKS } from '../site/decks/decks.js';
 import { readBody } from './saves.js';
 
 export const COLORS = ['cobalt', 'scarlet', 'forest', 'tangerine', 'violet', 'teal', 'rose', 'gold', 'slate', 'sky'];
@@ -50,14 +51,18 @@ export function cleanName(n) {
   return [...s].slice(0, 20).join('').trim() || null;
 }
 
-// The four config fields over `base`, or null when anything is invalid.
+// The picture deck each of the three possible decks wears ('' for the drawn cards), ids from site/decks.
+const NO_ART = ['', '', ''];
+const okArt = a => Array.isArray(a) && a.length === 3 && a.every(x => x === '' || DECKS.some(d => d.id === x));
+// The config fields over `base`, or null when anything is invalid. A room from before art had none: Standard decks.
 function config(input, base) {
   if (input === undefined) return base;
   if (!input || typeof input !== 'object') return null;
-  const c = { ...base };
-  for (const k of ['capacity', 'decks', 'tableTheme', 'scoreDisplay']) if (input[k] !== undefined) c[k] = input[k];
+  const c = { art: NO_ART, ...base };
+  for (const k of ['capacity', 'decks', 'tableTheme', 'scoreDisplay', 'art']) if (input[k] !== undefined) c[k] = input[k];
   if (!validPlayers(c.capacity) || !validDecks(c.decks) || typeof c.tableTheme !== 'string' || !THEME.test(c.tableTheme)
-    || !SCORE_DISPLAYS.includes(c.scoreDisplay)) return null;
+    || !SCORE_DISPLAYS.includes(c.scoreDisplay) || !okArt(c.art)) return null;
+  c.art = [...c.art];
   try { describeConfig(c.capacity, c.decks); } catch { return null; }
   return c;
 }
@@ -118,7 +123,7 @@ async function create(db, person, body) {
   if (!name) return [400, { error: 'invalid_name' }];
   if (!COLORS.includes(body.color)) return [400, { error: 'invalid_color' }];
   const capacity = validPlayers(body.config?.capacity) ? body.config.capacity : 4;
-  const cfg = config(body.config, { capacity, decks: defaultDecks(capacity), tableTheme: 'felt', scoreDisplay: 'live' });
+  const cfg = config(body.config, { capacity, decks: defaultDecks(capacity), tableTheme: 'felt', scoreDisplay: 'live', art: NO_ART });
   if (!cfg) return [400, { error: 'invalid_config' }];
   const now = Date.now();
   const room = { v: 1, host: 0, config: cfg, seats: [seatOf(name, body.color, now)], game: null, recent: [] };

@@ -270,7 +270,11 @@ export function tableScreen(ctx) {
 
   // Your hand, sorted, in a tray that overlaps cards only when they do not fit.
   avatar($('handAvSmall'), person);
-  const hand = sortHand(you.hand, ctx.desc), tray = $('tray'), keep = tray.scrollLeft;
+  // With "2s and 10s to the side" on, the special cards sit apart at the end of the hand so they are not forgotten.
+  const special = c => c.rank === 2 || c.rank === 10, sorted = sortHand(you.hand, ctx.desc);
+  const hand = ctx.side ? [...sorted.filter(c => !special(c)), ...sorted.filter(special)] : sorted;
+  const firstAside = ctx.side && hand.find((c, i) => special(c) && i > 0)?.id;
+  const tray = $('tray'), keep = tray.scrollLeft;
   $('sortBtn').replaceChildren(el('span', '', ctx.desc ? 'High first' : 'Low first'));
   $('sortBtn').setAttribute('aria-label', `Hand order: ${ctx.desc ? 'high to low' : 'low to high'}. Change`);
   $('sortBtn').onclick = ctx.onSort;
@@ -280,11 +284,12 @@ export function tableScreen(ctx) {
   tray.replaceChildren(...hand.map(c => {
     const b = cardButton(c, myTurn && you.source === 'hand', ctx, 'hand');
     if (fresh.has(c.id)) b.classList.add('new');
+    if (c.id === firstAside) b.classList.add('aside');
     return b;
   }));
   if (!hand.length) tray.replaceChildren(el('p', 'empty-hand', you.source === 'up' ? 'Your hand is empty. Play from your table.' : 'Your hand is empty.'));
   tray.classList.toggle('locked', !myTurn || you.source !== 'hand');
-  fitTray(tray, hand.length);
+  fitTray(tray, hand.length, firstAside ? 22 : 0);
   tray.scrollLeft = keep;
   $('handTitleSmall').textContent = `${person.name} · your hand · ${hand.length}`;
   const overflow = tray.scrollWidth > tray.clientWidth + 2;
@@ -331,14 +336,14 @@ function cardButton(c, active, ctx, zone) {
 
 // Cards keep their full size; when the hand is wider than the tray they overlap, never closer than 44px apart, and
 // the tray scrolls sideways.
-function fitTray(tray, count) {
+function fitTray(tray, count, extra = 0) { // extra: the gap before the 2s and 10s set aside
   tray.style.removeProperty('--step');
   if (count < 2) return;
   const card = tray.querySelector('.card');
   if (!card) return;
   const w = card.getBoundingClientRect().width, room = tray.clientWidth - 32;
-  if (!w || count * (w + 6) - 6 <= room) return;
-  const step = Math.max(44, Math.min(w + 6, (room - w) / (count - 1)));
+  if (!w || count * (w + 6) - 6 + extra <= room) return;
+  const step = Math.max(44, Math.min(w + 6, (room - w - extra) / (count - 1)));
   tray.style.setProperty('--step', `${step}px`);
 }
 
