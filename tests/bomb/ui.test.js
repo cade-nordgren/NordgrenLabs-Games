@@ -102,7 +102,7 @@ test('local save round trip: exact cards come back, and bad saves are refused', 
   assert.equal(readGame({ ...save, names: ['Alex', 'Brooke'] }), null, 'names must match the seats');
   assert.equal(readGame({ ...save, names: ['Alex', '', 'Sam'] }), null);
   const lost = structuredClone(g);
-  lost.deck.pop();
+  lost.players[0].draw.pop();
   assert.equal(readGame({ ...save, g: lost }), null, 'a missing card fails checkState');
   assert.equal(readGame(null), null);
   assert.equal(readGame({ ...save, saveId: 'nope' }).saveId, null);

@@ -214,7 +214,7 @@ export function tableScreen(ctx) {
       if (!q.down[i] && !u) sp.append(el('span', 'card mini slot-empty up'));
       spots.append(sp);
     }
-    sec.append(whoChip(who), el('p', 'opp-sub', `${q.hand} in hand${active ? ' · their turn' : ''}`), spots);
+    sec.append(whoChip(who), el('p', 'opp-sub', `${q.hand} in hand${q.draw ? ` · ${q.draw} to draw` : ''}${active ? ' · their turn' : ''}`), spots);
     return sec;
   }));
   const now = opps.querySelector('.now');
@@ -226,7 +226,7 @@ export function tableScreen(ctx) {
   // Centre: deck, pile (top four fanned), and what to beat.
   $('deckStack').replaceChildren(...(view.deck ? [deckBack(view), deckBack(view)] : [el('span', 'card slot-empty')]));
   $('deckStack').querySelectorAll('.card').forEach(c => c.style.setProperty('--w', 'var(--dw)'));
-  $('deckCap').replaceChildren('Deck', el('br'), el('strong', '', view.deck || 'Empty'));
+  $('deckCap').replaceChildren(view.players[0].draw === null ? 'Deck' : 'Your deck', el('br'), el('strong', '', view.deck || 'Empty'));
   const top = view.pile.slice(-4), pile = $('pile');
   if (top.length) {
     const step = 16, w = `(var(--pw) + ${(top.length - 1) * step}px)`;
@@ -242,7 +242,7 @@ export function tableScreen(ctx) {
   const beat = beatInfo(view);
   $('beatRank').textContent = beat.rank;
   $('beatNote').textContent = beat.note;
-  $('centre').setAttribute('aria-label', `Deck ${view.deck || 'empty'}. Pile ${view.pile.length ? `${view.pile.length}, top ${cardName(view.pile.at(-1))}` : 'empty'}. To beat: ${beat.rank === 'Any' ? 'anything' : rankName(view.required)}, ${beat.note}.`);
+  $('centre').setAttribute('aria-label', `Deck ${view.deck || 'empty'}. Pile ${view.pile.length ? `${view.pile.length}${view.kitty ? `, ${view.kitty} of them the kitty` : ''}, top ${cardName(view.pile.at(-1))}` : 'empty'}. To beat: ${beat.rank === 'Any' ? 'anything' : rankName(view.required)}, ${beat.note}.`);
 
   // Your table: face-down backs, face-up cards over them.
   paint($('mineBox'), person.style);
@@ -355,6 +355,7 @@ function statusLine(ctx, myTurn) {
   else if (myTurn) {
     if (you.source === 'down') ask = 'Tap one face-down card. It turns over when you tap it.';
     else if (you.mustPickUp) ask = 'Nothing you have can beat it: pick up the pile.';
+    else if (view.opening) ask = `Your turn: open with your ${rankName(view.opening)}s. One or more.`;
     else if (you.source === 'up') ask = 'Your turn: play from your face-up cards.';
     else ask = ctx.sel.length ? '' : 'Your turn: choose cards to play.';
   } else if (view.phase === 'play') ask = `Waiting for ${people[view.turn].name}.`;
@@ -393,6 +394,7 @@ let animToken = 0;
 export const clearFlyers = () => { animToken++; document.querySelectorAll('.fly, .boom').forEach(e => e.remove()); };
 export async function animate(prev, view, snap, me) {
   const l = view.last;
+  if (prev && view.turns === prev.turns) return; // a redraw with no new move (a tap, a poll, a resize) leaves it playing
   clearFlyers();
   const my = animToken, stale = () => my !== animToken;
   if (!prev || !snap || !l || still() || view.turns !== prev.turns + 1) return;
@@ -448,8 +450,8 @@ export async function animate(prev, view, snap, me) {
         boom.append(el('b', '', 'BOMB!'));
         $('centre').append(boom);
         flips.forEach((f, k) => f.animate([{ transform: 'none', opacity: 1 }, { transform: `translate(${(k % 2 ? 1 : -1) * (40 + k * 18)}px, ${-30 - k * 10}px) rotate(${(k % 2 ? 1 : -1) * 40}deg) scale(.6)`, opacity: 0 }],
-          { duration: 600, easing: 'ease-in', fill: 'both' }));
-        await wait(900);
+          { duration: 1000, delay: 250, easing: 'ease-in', fill: 'both' }));
+        await wait(1500);
         boom.remove();
       } else if (l.cards[0].rank === 2) {
         $('beat').classList.remove('pulse'); void $('beat').offsetWidth; $('beat').classList.add('pulse');

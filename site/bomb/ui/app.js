@@ -5,7 +5,7 @@ import { createGame, reduce } from '../engine/reducer.js';
 import { viewFor } from '../engine/view.js';
 import { STYLES, style, styleLabel, freeStyle } from './styles.js';
 import { toggle, keepPlayable, canPlaySel, readGame, cleanArt, decksFor, listOf, plural, minutes, MAX_NAME,
-  choosingSeat, leavers, firstLine } from './logic.js';
+  choosingSeat, leavers, firstLine, rankName } from './logic.js';
 import { $, el, still, say, back, toast, handoffScreen, chooseScreen, waitScreen, tableScreen,
   snapshot, animate, clearFlyers, resultsScreen, stopResults, DECKS, deckPreview, avatar } from './screens.js';
 import { createNet, browserAuth, reasonText } from './net.js';
@@ -462,6 +462,7 @@ function renderTable(scr, snap) {
   tableScreen({
     view, people: scr.ps, me, online: inRoom(), sel, info, desc: handDesc(me), art: curArt(), side: sideOn(), onSort: () => flipOrder(me),
     onCard: (c, ok) => {
+      if (!ok && view.opening && view.turn === me) { say(`Open with your ${rankName(view.opening)}s first.`); return; }
       if (!ok) { if (view.you.source === 'hand' || view.you.source === 'up') say(`${c.rank === 2 || c.rank === 10 ? '' : 'Too low. '}That card can't be played now.`); return; }
       sel = toggle(sel, c, view.you.playable);
       render();

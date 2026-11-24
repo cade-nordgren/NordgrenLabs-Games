@@ -4,17 +4,22 @@ import { RANKS, fullDeck, allowedDecks, defaultDecks, canPlay, streak, shuffle }
 
 export const HAND = 5, TABLE = 4, DEAL = 9;
 
-const player = () => ({ hand: [], up: [], down: [], ready: false, bombs: 0, pickups: 0 });
+const player = () => ({ hand: [], up: [], down: [], draw: [], ready: false, bombs: 0, pickups: 0 });
 
 export function createGame({ players, decks = defaultDecks(players), seed }) {
   if (!allowedDecks(players).length) throw new Error('Bomb needs 2 to 6 players.');
   if (!allowedDecks(players).includes(decks)) throw new Error(`${players} players cannot use ${decks} deck(s).`);
   const g = {
-    v: 1, rng: seed | 0, decks, phase: 'choose', first: 0, firstWhy: null, turn: 0, pending: null, winner: null, turns: 0,
-    deck: [], pile: [], removed: [], players: Array.from({ length: players }, player), last: null,
+    v: 2, rng: seed | 0, decks, phase: 'choose', first: 0, firstWhy: null, turn: 0, pending: null, winner: null, turns: 0,
+    deck: [], pile: [], kitty: 0, removed: [], players: Array.from({ length: players }, player), last: null,
   };
-  g.deck = shuffle(fullDeck(decks), g);
-  for (const p of g.players) { p.down = g.deck.splice(0, TABLE); p.hand = g.deck.splice(0, DEAL); }
+  const cards = shuffle(fullDeck(decks), g);
+  for (const p of g.players) { p.down = cards.splice(0, TABLE); p.hand = cards.splice(0, DEAL); }
+  // The rest is split evenly into each player's own draw pile; what is left over (the kitty) starts the pile face up.
+  const each = Math.floor(cards.length / players);
+  for (const p of g.players) p.draw = cards.splice(0, each);
+  g.pile = cards;
+  g.kitty = cards.length;
   return g;
 }
 
@@ -35,9 +40,10 @@ export function pickFirst(players, g) {
 }
 
 // For tests and prepared scenarios: a play-phase state from card codes ('QH' is deck 0, 'QH1' deck 1, '10S').
-// Lists are in order: deck[0] is drawn first, pile's last card is on top, up/down are padded with empty slots to 4.
+// Lists are in order: draw[0] is drawn first, pile's last card is on top, up/down are padded with empty slots to 4.
+// kitty: how many of the pile's bottom cards are the kitty. A shared deck makes a version 1 game (one deck for all).
 // Every card not placed goes to removed. Throws on an unknown or repeated card; does not check the rules (checkState does).
-export function layout({ decks = 1, players, pile = [], deck = [], turn = 0 }) {
+export function layout({ decks = 1, players, pile = [], deck = [], kitty = 0, turn = 0 }) {
   const free = new Map(fullDeck(decks).map(c => [c.id, c]));
   const take = code => {
     if (code == null) return null;
@@ -48,11 +54,15 @@ export function layout({ decks = 1, players, pile = [], deck = [], turn = 0 }) {
     return c;
   };
   const slots = (codes = []) => [...codes, null, null, null, null].slice(0, TABLE).map(take);
+  const shared = deck.length > 0;
   const g = {
-    v: 1, rng: 0, decks, phase: 'play', first: turn, firstWhy: null, turn, pending: null, winner: null, turns: 0,
+    v: shared ? 1 : 2, rng: 0, decks, phase: 'play', first: turn, firstWhy: null, turn, pending: null, winner: null, turns: 0,
     deck: deck.map(take), pile: pile.map(take), removed: [], last: null,
-    players: players.map(p => ({ ...player(), ready: true, hand: (p.hand ?? []).map(take), up: slots(p.up), down: slots(p.down) })),
+    players: players.map(p => ({ ...player(), ready: true, hand: (p.hand ?? []).map(take), up: slots(p.up), down: slots(p.down),
+      draw: (p.draw ?? []).map(take) })),
   };
+  if (shared) g.players.forEach(p => delete p.draw);
+  else g.kitty = kitty;
   g.removed = [...free.values()];
   return g;
 }
@@ -61,15 +71,25 @@ export function layout({ decks = 1, players, pile = [], deck = [], turn = 0 }) {
 export const source = p => p.hand.length ? 'hand' : p.up.some(Boolean) ? 'up' : p.down.some(Boolean) ? 'down' : null;
 const isSeat = (g, s) => Number.isInteger(s) && s >= 0 && s < g.players.length;
 const onTurn = (g, seat) => g.phase === 'play' && !g.pending && seat === g.turn;
-const cardsLeft = p => p.hand.length + p.up.filter(Boolean).length + p.down.filter(Boolean).length;
+const cardsLeft = p => p.hand.length + p.up.filter(Boolean).length + p.down.filter(Boolean).length + (p.draw?.length ?? 0);
+// The kitty lies under the pile: it is picked up or bombed with it, but never sets the card to beat.
+export const livePile = g => g.kitty ? g.pile.slice(g.kitty) : g.pile;
+// Version 1 games (from before own draw piles) refill every hand from one shared deck.
+const drawPile = (g, p) => p.draw ?? g.deck;
+// The first play of the game must include the rank that decided who goes first; null when any legal play will do.
+export function opening(g) {
+  const r = g.phase === 'play' && g.turns === 0 ? g.firstWhy?.rank ?? null : null;
+  return r !== null && g.players[g.turn].hand.some(c => c.rank === r) ? r : null;
+}
 
 // Ids of the seat's cards that may be played now (hand or face-up); [] when it is not their turn or they play blind.
 export function playable(g, seat) {
   if (!onTurn(g, seat)) return [];
-  const p = g.players[seat], from = source(p);
-  return from === 'hand' || from === 'up' ? p[from].filter(c => c && canPlay(c.rank, g.pile)).map(c => c.id) : [];
+  const p = g.players[seat], from = source(p), open = opening(g);
+  const ok = c => open === null ? canPlay(c.rank, livePile(g)) : c.rank === open;
+  return from === 'hand' || from === 'up' ? p[from].filter(c => c && ok(c)).map(c => c.id) : [];
 }
-export const canPickUp = (g, seat) => onTurn(g, seat) && g.pile.length > 0;
+export const canPickUp = (g, seat) => onTurn(g, seat) && g.pile.length > 0 && opening(g) === null;
 // Stuck: nothing playable from hand or face-up. Face-down play is always possible, so never forced there.
 export const mustPickUp = (g, seat) =>
   canPickUp(g, seat) && ['hand', 'up'].includes(source(g.players[seat])) && !playable(g, seat).length;
@@ -82,10 +102,11 @@ function land(g, seat, cards, from) {
   const p = g.players[seat];
   g.pile.push(...cards);
   g.turns++;
-  const bomb = cards[0].rank === 10 || streak(g.pile) >= 4;
-  if (bomb) { g.removed.push(...g.pile); g.pile = []; p.bombs++; }
+  const bomb = cards[0].rank === 10 || streak(livePile(g)) >= 4;
+  if (bomb) { g.removed.push(...g.pile); g.pile = []; if (g.kitty) g.kitty = 0; p.bombs++; }
   let drew = 0;
-  while (p.hand.length < HAND && g.deck.length) { p.hand.push(g.deck.shift()); drew++; }
+  const src = drawPile(g, p);
+  while (p.hand.length < HAND && src.length) { p.hand.push(src.shift()); drew++; }
   g.last = { seat, type: 'play', from, cards, bomb, drew };
   if (!cardsLeft(p)) { g.phase = 'over'; g.winner = seat; }
   else if (!bomb && cards[0].rank !== 2) g.pending = { next: nextSeat(g, seat) };
@@ -95,6 +116,7 @@ function takePile(g, seat) {
   const p = g.players[seat], count = g.pile.length;
   p.hand.push(...g.pile);
   g.pile = [];
+  if (g.kitty) g.kitty = 0;
   p.pickups++;
   g.turns++;
   g.pending = { next: nextSeat(g, seat) };
@@ -124,7 +146,9 @@ const ACTIONS = {
     const p = g.players[seat], from = source(p);
     if (from !== 'hand' && from !== 'up') return false;
     const cards = ids.map(id => p[from].find(c => c?.id === id));
-    if (cards.some(c => !c || c.rank !== cards[0].rank) || !canPlay(cards[0].rank, g.pile)) return false;
+    if (cards.some(c => !c || c.rank !== cards[0].rank)) return false;
+    const open = opening(g);
+    if (open !== null ? cards[0].rank !== open : !canPlay(cards[0].rank, livePile(g))) return false;
     if (from === 'hand') p.hand = p.hand.filter(c => !ids.includes(c.id));
     else p.up = p.up.map(c => c && ids.includes(c.id) ? null : c);
     land(g, seat, cards, from);
@@ -136,7 +160,7 @@ const ACTIONS = {
     if (source(p) !== 'down' || !Number.isInteger(slot) || !p.down[slot]) return false;
     const c = p.down[slot];
     p.down[slot] = null;
-    if (canPlay(c.rank, g.pile)) land(g, seat, [c], 'down');
+    if (canPlay(c.rank, livePile(g))) land(g, seat, [c], 'down');
     else {
       g.pile.push(c);
       // Only rank and suit: the card is now in a hand, and views must never carry hand card ids of other players.
@@ -168,12 +192,13 @@ const fail = msg => { throw new Error('Invalid Bomb state: ' + msg); };
 const nat = x => Number.isInteger(x) && x >= 0;
 
 export function checkState(g) {
-  if (!g || typeof g !== 'object' || g.v !== 1) fail('not a version 1 game.');
-  const n = Array.isArray(g.players) ? g.players.length : 0;
+  if (!g || typeof g !== 'object' || ![1, 2].includes(g.v)) fail('not a version 1 or 2 game.');
+  const n = Array.isArray(g.players) ? g.players.length : 0, own = g.v === 2; // own: every player has their own draw pile
   if (!allowedDecks(n).includes(g.decks)) fail('bad player or deck count.');
   if (!['choose', 'play', 'over'].includes(g.phase)) fail('unknown phase.');
   if (!Number.isInteger(g.rng) || !nat(g.turns) || !isSeat(g, g.first) || !isSeat(g, g.turn)) fail('bad counters or seats.');
   if (![g.deck, g.pile, g.removed].every(Array.isArray)) fail('deck, pile and removed must be lists.');
+  if (own ? !nat(g.kitty) || g.kitty > g.pile.length || g.deck.length : 'kitty' in g) fail('bad kitty or shared deck.');
 
   // Every card exactly once across all zones, and each card is the real one for its id.
   const want = new Map(fullDeck(g.decks).map(c => [c.id, c]));
@@ -185,15 +210,18 @@ export function checkState(g) {
   [g.deck, g.pile, g.removed].forEach(z => z.forEach(claim));
   for (const p of g.players) {
     if (!p || ![p.hand, p.up, p.down].every(Array.isArray) || typeof p.ready !== 'boolean' || !nat(p.bombs) || !nat(p.pickups)) fail('bad player.');
+    if (own !== Array.isArray(p.draw)) fail('bad draw pile.');
     if (p.down.length !== TABLE) fail('every player has four face-down slots.');
     p.hand.forEach(claim);
+    if (own) p.draw.forEach(claim);
     [...p.up, ...p.down].forEach(c => c !== null && claim(c));
   }
   if (want.size) fail(`${want.size} card(s) missing.`);
 
   if (g.phase === 'choose') {
-    if (g.pile.length || g.removed.length || g.pending !== null || g.winner !== null || g.turns || g.last !== null || g.turn !== g.first) fail('play has not started.');
-    if (g.deck.length !== g.decks * 52 - n * 13) fail('deck does not match the deal.');
+    if (g.pile.length !== (g.kitty ?? 0) || g.removed.length || g.pending !== null || g.winner !== null || g.turns || g.last !== null || g.turn !== g.first) fail('play has not started.');
+    const rest = g.decks * 52 - n * 13;
+    if (own ? g.kitty !== rest % n || g.players.some(p => p.draw.length !== Math.floor(rest / n)) : g.deck.length !== rest) fail('cards do not match the deal.');
     if (g.players.every(p => p.ready)) fail('everyone confirmed but play has not started.');
     for (const p of g.players) {
       if (!p.down.every(Boolean) || ![0, TABLE].includes(p.up.length) || p.up.includes(null) || p.hand.length + p.up.length !== DEAL) fail('bad face-up choice.');
@@ -202,12 +230,15 @@ export function checkState(g) {
   } else {
     for (const p of g.players) {
       if (!p.ready || p.up.length !== TABLE) fail('every player has confirmed four face-up slots.');
-      if ((p.up.includes(null) || p.down.includes(null)) && g.deck.length) fail('table cards played before the deck ran out.');
+      const src = drawPile(g, p);
+      if ((p.up.includes(null) || p.down.includes(null)) && src.length) fail('table cards played before the deck ran out.');
       if (p.down.includes(null) && p.up.some(Boolean)) fail('face-down card played before the face-up cards.');
-      if (g.deck.length && p.hand.length < HAND) fail('a hand is short while the deck has cards.');
+      if (src.length && p.hand.length < HAND) fail('a hand is short while the deck has cards.');
     }
-    if (g.pile.some(c => c.rank === 10) || (g.pile.length && streak(g.pile) >= 4)) fail('the pile should have bombed.');
-    if (g.pile.some((c, i) => i && !canPlay(c.rank, g.pile.slice(0, i)))) fail('the pile is not a legal sequence.');
+    // Above the kitty: the opening play may be any rank, everything after it follows the rules.
+    const live = livePile(g);
+    if (live.some(c => c.rank === 10) || (live.length && streak(live) >= 4)) fail('the pile should have bombed.');
+    if (live.some((c, i) => i && !canPlay(c.rank, live.slice(0, i)))) fail('the pile is not a legal sequence.');
     const left = g.players.map(cardsLeft);
     if (g.phase === 'play') {
       if (g.winner !== null || left.includes(0)) fail('a player with no cards should have won.');

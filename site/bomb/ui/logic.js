@@ -37,7 +37,9 @@ export const playLabel = sel => sel.length ? `Play ${rankCount(sel[0].rank, sel.
 
 // The centre panel's "to beat": the rank (or Any) and a short note under it.
 export function beatInfo(view) {
+  if (view.opening) return { rank: label(view.opening), note: 'opens the game' };
   if (!view.pile.length) return { rank: 'Any', note: 'empty pile' };
+  if (view.pile.length <= (view.kitty || 0)) return { rank: 'Any', note: 'on the kitty' };
   if (view.required === null) return { rank: 'Any', note: 'reset by a 2' };
   const r = view.required;
   if (view.streak >= 2) return { rank: label(r), note: `${rankCount(r, view.streak)} in a row` };
