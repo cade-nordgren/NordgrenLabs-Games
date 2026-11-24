@@ -23,14 +23,16 @@ export function createGame({ players, decks, seed, scoreDisplay = 'live' }) {
     phase: 'play', cut: [], firstDealer: 0, round: 1, dealer: 0, turn: 0,
     hands: [], kitty: [], kittyTo: null, trick: null, tricks: [], history: [], totals: players.map(() => 0),
   };
-  const { dealer, cut } = cutForDealer(players.length, shuffle(shoe(decks), g), g);
+  const { dealer: high, cut } = cutForDealer(players.length, shuffle(shoe(decks), g), g);
   g.cut = cut;
-  g.firstDealer = g.dealer = dealer;
+  // Owner ruling 2026-11-24: the highest cut goes first, so it leads the first trick and the seat before it deals.
+  g.firstDealer = g.dealer = (high + players.length - 1) % players.length;
   deal(g);
   return g;
 }
 
-// The cut: every seat cuts one card, the highest rank deals, suits never break ties, and only the seats tied for
+// The cut: every seat cuts one card, the highest rank goes first (returned as `dealer`; createGame makes it the first
+// leader), suits never break ties, and only the seats tied for
 // highest cut again. Cut cards stay out until the shoe cannot serve a row, then everything is reshuffled.
 // Exported so tests can feed a rigged shoe (the last card of `cards` is cut first).
 export function cutForDealer(players, cards, g) {
@@ -148,7 +150,7 @@ export function layout({ players, decks = 1, round = 1, dealer = 0, hands = [], 
   }));
   return {
     v: 1, rng: 0, decks, scoreDisplay, players: list.map(({ name, color }) => ({ name, color })),
-    phase: 'play', cut: [list.map((_, seat) => ({ seat, rank: seat === firstDealer ? 14 : 2, suit: 'S' }))],
+    phase: 'play', cut: [list.map((_, seat) => ({ seat, rank: seat === (firstDealer + 1) % n ? 14 : 2, suit: 'S' }))],
     firstDealer, round, dealer, turn: (dealer + 1) % n, hands: h, kitty: k, kittyTo: null,
     trick: { n: 1, leader: (dealer + 1) % n, plays: [] }, tricks: [], history,
     totals: list.map((_, s) => s ? 0 : history.reduce((sum, r) => sum + r.breakdown[0].points.total, 0)),
@@ -181,7 +183,8 @@ export function checkState(g) {
     left = row.filter(c => c.rank === top).map(c => c.seat);
     if ((left.length === 1) !== (i === g.cut.length - 1)) fail('the cut stops exactly when one seat is highest.');
   });
-  if (left[0] !== g.firstDealer) fail('the cut does not name the first dealer.');
+  // The highest cut leads the first trick; rooms started before 2026-11-24 had it deal instead.
+  if (left[0] !== next(g, g.firstDealer) && left[0] !== g.firstDealer) fail('the cut does not name the first leader.');
 
   if (!Array.isArray(g.hands) || g.hands.length !== n || !g.hands.every(Array.isArray)) fail('bad hands.');
   if (!Array.isArray(g.kitty) || g.kitty.length !== cfg.kitty || !Array.isArray(g.tricks) || g.tricks.length > T) fail('bad kitty or tricks.');

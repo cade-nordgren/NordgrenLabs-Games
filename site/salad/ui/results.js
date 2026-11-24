@@ -3,9 +3,9 @@
 import * as net from './net.js';
 import { avatar, color } from './colors.js';
 import { prefs, still } from './prefs.js';
-import { ROUNDS, CATEGORIES, POINTS, standings } from '../engine/score.js';
+import { ROUNDS, CATEGORIES, standings } from '../engine/score.js';
 import { $, el, toast, plural, listOf, ordinal, errText } from './dom.js';
-import { cardName, short } from './cards.js';
+import { short } from './cards.js';
 import { sound } from './sound.js';
 
 // Round scores are hidden while a round is played when the room says so, or when this device prefers it.
@@ -254,7 +254,7 @@ export function renderFinal(v) {
 }
 
 function drawRematch(v) {
-  const g = v.game, seats = v.room.seats, mine = seats[v.you.seat], ready = seats.filter(s => s.rematch);
+  const seats = v.room.seats, mine = seats[v.you.seat], ready = seats.filter(s => s.rematch);
   $('rematch').textContent = mine.rematch ? 'Not ready for a rematch' : 'Rematch';
   $('rematch').classList.toggle('primary', !mine.rematch);
   $('rematchNote').textContent = ready.length ? `Ready for a rematch: ${listOf(ready.map(s => s.name))} · ${ready.length} of ${seats.length}` : 'A rematch starts when everyone taps Rematch.';
@@ -264,7 +264,6 @@ function drawRematch(v) {
     $('rematch').disabled = false;
     if (!r.ok) toast(errText(r.error));
   };
-  void g;
 }
 
 // ---- Live scoreboard sheet
@@ -338,4 +337,3 @@ export function openScorecard(v) {
   t.replaceChildren(thead, body, foot);
   $('scorecardSheet').showModal();
 }
-void POINTS; void cardName;

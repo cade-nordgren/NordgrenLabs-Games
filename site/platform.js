@@ -289,8 +289,11 @@
     if (!sheet || e.target.closest('input[type=range], svg.board')) return void (sheet = null);
     for (let el = e.target; el && el !== sheet.parentNode; el = el.parentElement) if (el.scrollTop > 0) return void (sheet = null);
     ({ clientX: x0, clientY: y0 } = e.touches[0]); t0 = e.timeStamp; dy = 0; dragging = false;
+    // Non-passive on the sheet alone: page scrolling elsewhere never waits for this listener (Android scroll jank).
+    if (!hooked.has(sheet)) { hooked.add(sheet); sheet.addEventListener('touchmove', move, { passive: false }); }
   }, { passive: true });
-  document.addEventListener('touchmove', e => {
+  const hooked = new WeakSet();
+  function move(e) {
     if (!sheet) return;
     dy = e.touches[0].clientY - y0;
     if (!dragging) {
@@ -302,7 +305,7 @@
     e.preventDefault(); // the sheet moves instead of the page behind it
     sheet.style.transition = 'none';
     sheet.style.transform = `translateY(${Math.max(0, dy)}px)`;
-  }, { passive: false });
+  }
   const drop = e => {
     const d = sheet; sheet = null;
     if (!d || !dragging) return;

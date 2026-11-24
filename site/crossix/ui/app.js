@@ -1,7 +1,7 @@
 // Crossix screens. All rules live in ../engine; this file dispatches actions and draws state.
 import { LANES, LAST, POINTS, MARKS_BEFORE_LAST, MAX_PENALTIES, MAX_PLAYERS, MAX_ONLINE, score, standings } from '../engine/lanes.js';
 import { canMark, isSkipped, cellChoice, pickedCells, canEnd, whiteSum, noPicks } from '../engine/moves.js';
-import { newGame, reduce, validState, endReason } from '../engine/reducer.js';
+import { newGame, reduce, validState, endReason, rollers, rollWinner } from '../engine/reducer.js';
 import { record, undo as undoHist, cleanHist, SAVE_CAP } from '../engine/history.js';
 import { mountDie, showDie } from './dice.js';
 import { createNet, browserAuth, reasonText } from '../../bomb/ui/net.js'; // Bomb's long-poll client, pointed at our rooms
@@ -49,7 +49,7 @@ const pickerOn = () => S.g?.mode === 'digital' && (prefs.picker === 'on' || narr
 // ---- State, autosaved on every render. It belongs to whoever was signed in (owner), so a game in progress never
 // shows to the next person on this browser.
 const KEY = 'nl-crossix-v1';
-const fresh = () => ({ v: 1, owner: NL.person(), names: [], mode: 'physical', g: null, hist: [], saveId: null, createdAt: null, sel: 0, compact: false, myName: '' });
+const fresh = () => ({ v: 1, owner: NL.person(), names: [], mode: 'physical', g: null, roll: null, hist: [], saveId: null, createdAt: null, sel: 0, compact: false, myName: '' });
 let S = fresh();
 const me = NL.identity();
 try {
@@ -140,19 +140,26 @@ function undo() {
 function start() {
   const names = S.names.map(n => n.trim()).filter(Boolean).slice(0, MAX_PLAYERS);
   if (!names.length) return render();
-  S.names = names;
-  Object.assign(S, { g: newGame({ mode: S.mode, names, seed: newSeed() }), hist: [], saveId: null, createdAt: null, sel: 0 });
-  render();
+  toRoll(S.mode, names);
 }
+// Play again, Restart and New game roll for who goes first again.
 function restart() {
   stopReveal();
-  const names = S.g.players.map(p => p.name);
-  Object.assign(S, { g: newGame({ mode: S.g.mode, names, seed: newSeed() }), hist: [], saveId: null, createdAt: null, sel: 0 });
+  toRoll(S.g.mode, S.g.players.map(p => p.name));
+}
+function begin(mode, names, first = 0, rolls = []) {
+  Object.assign(S, { g: newGame({ mode, names, seed: newSeed(), first, rolls }), roll: null, hist: [], saveId: null, createdAt: null, sel: first });
+  render();
+}
+// The roll for who goes first, unless there is only one player. Not autosaved: a reload goes back to setup.
+function toRoll(mode, names) {
+  if (names.length < 2) return begin(mode, names);
+  Object.assign(S, { g: null, names, mode, roll: { dice: mode, mode, names, rounds: [], cur: names.map(() => null) }, hist: [], saveId: null, createdAt: null, sel: 0 });
   render();
 }
 function toSetup() {
   stopReveal();
-  Object.assign(S, { g: null, hist: [], saveId: null, createdAt: null, sel: 0 });
+  Object.assign(S, { g: null, roll: null, hist: [], saveId: null, createdAt: null, sel: 0 });
   rolling = false;
   render();
   refreshSaves();
@@ -321,8 +328,9 @@ function gameOf(v) {
 function adoptView(view) {
   if (!view) return;
   const was = O.view?.game, g = view.game, t = g?.turn, sameRoll = was?.turn.phase === 'choose' && was.turn.n === t?.n;
-  const left = (O.view?.room.seats || []).filter(s => !view.room.seats.some(x => x.name === s.name)).map(s => s.name);
-  if (left.length) O.notice = `${listOf(left)} left.`;
+  // By seat id, not name: two players can share a name. The notice shows until the next view.
+  const left = (O.view?.room.seats || []).filter(s => !view.room.seats.some(x => x.id === s.id)).map(s => s.name);
+  O.notice = left.length ? `${listOf(left)} left.` : '';
   O.view = view;
   remember({ id: view.room.id, code: view.room.code });
   if (!g) { stopReveal(); Object.assign(S, { g: null, sel: 0 }); return render(); }
@@ -381,6 +389,8 @@ function renderOnlineSetup() {
 }
 $('meName').oninput = () => { S.myName = $('meName').value; save(); };
 $('create').onclick = () => enterRoom('create');
+// A Samsung keyboard adds a space after a word; codes are capitals only.
+$('joinCode').oninput = () => { const i = $('joinCode'), v = i.value.replace(/\s/g, '').toUpperCase(); if (v !== i.value) i.value = v; };
 $('joinRow').onsubmit = e => {
   e.preventDefault();
   if (!/^[A-Za-z]{6}$/.test($('joinCode').value.trim())) { O.error = 'A room code is six letters.'; render(); return; }
@@ -433,11 +443,11 @@ $('copy').onclick = async () => {
   try { await navigator.clipboard.writeText(O.view.room.code); shareNote('Code copied.'); } catch { shareNote(`The code is ${O.view.room.code}.`); }
 };
 
-// The host's way past a phone that has gone quiet (the server allows it after a minute unseen): roll for that player,
-// or end their choice with nothing crossed. No timers and no kicking.
+// Anyone's way past a phone that has gone quiet (the server allows it after a minute unseen), so a dead host phone
+// cannot stall the game: roll for that player, or end their choice with nothing crossed. No timers and no kicking.
 function renderSkips() {
   const v = O.view, t = S.g.turn, box = $('skips');
-  const who = inRoom() && v.you === v.room.host && S.g.status === 'playing' && !rolling
+  const who = inRoom() && S.g.status === 'playing' && !rolling
     ? v.room.seats.map((s, i) => i).filter(i => i !== v.you && !v.room.seats[i].connected && (t.phase === 'roll' ? i === t.active : !t.done[i])) : [];
   box.replaceChildren(...who.map(i => {
     const b = el('button', 'btn', `Skip ${v.room.seats[i].name}`);
@@ -572,19 +582,32 @@ function placeLanes(g) {
 }
 
 // ---- Rendering
+// Keep the screen on while a game is in play: a sleeping phone stops polling and shows as Away online (as in Keep).
+let wake = null; // a promise of the WakeLockSentinel while one is held or asked for
+function keepAwake(on) {
+  if (!on) { const w = wake; wake = null; w?.then(s => s?.release()).catch(() => {}); return; }
+  if (wake || document.hidden || !navigator.wakeLock) return;
+  const p = wake = navigator.wakeLock.request('screen').then(
+    s => { s.addEventListener('release', () => { if (wake === p) wake = null; }); return s; }, // the browser drops it when hidden
+    () => { if (wake === p) wake = null; return null; });
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) keepAwake(S.g?.status === 'playing'); });
+
 function render() {
   save();
-  const playing = !!S.g, lobby = inRoom() && !playing;
-  $('setupPage').hidden = playing || lobby;
+  keepAwake(S.g?.status === 'playing');
+  const playing = !!S.g, lobby = inRoom() && !playing, rollOff = !playing && !lobby && !!S.roll;
+  $('setupPage').hidden = playing || lobby || rollOff;
   $('lobbyPage').hidden = !lobby;
+  $('rollPage').hidden = !rollOff;
   $('gamePage').hidden = !playing;
-  $('gamesLink').hidden = playing;
+  $('gamesLink').hidden = playing || rollOff;
   $('undo').hidden = !playing || inRoom(); // online: no undo
   $('undo').disabled = !S.hist.length;
   for (const id of ['scoresBtn', 'exitBtn']) $(id).hidden = !playing;
   for (const id of ['newBtn', 'restart']) $(id).hidden = !playing || inRoom();
   $('conn').hidden = !(inRoom() && O.net === 'offline');
-  lobby ? renderLobby() : playing ? renderGame() : renderSetup();
+  lobby ? renderLobby() : playing ? renderGame() : rollOff ? renderRoll() : renderSetup();
   if ($('scoresSheet').open) renderScores();
 }
 
@@ -656,7 +679,7 @@ function renderGame() {
   $('gamePage').classList.toggle('digital', digital && !over);
   $('tray').hidden = !digital || over;
   // One player with their own dice has no chips: a title keeps the header from looking empty.
-  $('status').textContent = g.players.length === 1 && !digital && !over ? 'Your sheet' : '';
+  $('status').textContent = firstLine(g) || (g.players.length === 1 && !digital && !over ? 'Your sheet' : '');
   $('status').hidden = !$('status').textContent;
   if (over) return renderResults();
 
@@ -685,7 +708,7 @@ function renderGame() {
     b.classList.toggle('on', k < sheet.penalties || (next && tent));
     b.classList.toggle('tent', next && tent);
     b.classList.toggle('offer', next && canTick && !canEnd(g, S.sel));
-    b.disabled = digital ? !(next && canTick) : k > sheet.penalties; // physical: tap the next box to add, the last taken one to remove
+    b.disabled = digital ? !(next && canTick) : k > sheet.penalties || k < sheet.penalties - 1; // physical: tap the next box to add, the last taken one to remove
     b.setAttribute('aria-label', `Penalty ${k + 1}${k < sheet.penalties ? ', taken' : next && tent ? ', ticked this turn' : ''}`);
   });
   $('eq').hidden = hideScores();
@@ -693,6 +716,18 @@ function renderGame() {
   sc.lanes.forEach((v, l) => { eqEls.parts[l].textContent = v; });
   eqEls.pen.textContent = sc.penalty;
   eqEls.total.replaceChildren(el('small', '', 'Total'), String(sc.total));
+}
+
+// Who won the roll for first player, until play is under way: the first roll, or with your own dice (no turns kept
+// here) the first cross, penalty or closed colour, with the order of play after them. Online every phone shows it.
+function firstLine(g) {
+  const t = g.turn, f = g.first, n = g.players.length;
+  if (!g.rolls || g.status !== 'playing') return '';
+  if (t ? t.n > 1 || t.phase !== 'roll' : g.closed.some(Boolean) || g.players.some(p => p.penalties || p.marks.some(m => m.length))) return '';
+  const vals = g.rolls.filter(r => r[f] !== null).map(r => r[f]);
+  const who = inRoom() && f === O.view.you ? 'You go' : `${g.players[f].name} goes`;
+  const then = t ? '' : ` Then ${listOf([...Array(n - 1).keys()].map(k => g.players[(f + 1 + k) % n].name))}.`;
+  return `${who} first: rolled ${vals.join(', then ')}${vals.length > 1 ? ' after a tie' : ''}.${then}`;
 }
 
 function renderTray() {
@@ -757,6 +792,93 @@ function doneTap() {
   }
   if (change({ type: 'done', player: S.sel, value: !t.done[S.sel] })) buzz(8);
 }
+
+// ---- Who goes first (Dots and Boxes' roll, for 2 to 5 players): a D6 each, digital (the tray's dice) or physical (tap
+// what your die showed). Only those tied for the highest roll again, in any order.
+let rcards = [], tossing = false;
+const d6 = () => { const a = new Uint8Array(1); do crypto.getRandomValues(a); while (a[0] >= 252); return (a[0] % 6) + 1; }; // unbiased
+const lastRoll = (r, i) => r.rounds.findLast(x => x[i] !== null)?.[i] ?? null;
+function settleRound() {
+  const r = S.roll, who = rollers(r.rounds, r.names.length);
+  if (who.every(i => r.cur[i] !== null)) { r.rounds.push(r.cur.map((v, i) => who.includes(i) ? v : null)); r.cur = r.names.map(() => null); }
+}
+const inRound = (r, i) => rollWinner(r.rounds, r.names.length) === null && rollers(r.rounds, r.names.length).includes(i);
+async function rollDie(i) {
+  const r = S.roll;
+  if (tossing || !inRound(r, i) || r.cur[i] !== null) return;
+  const v = d6(), die = rcards[i].die;
+  tossing = true;
+  r.cur[i] = v;
+  buzz([8, 40, 8]);
+  renderRoll();
+  await showDie(die, v, 2, i);
+  die.dataset.shown = v;
+  tossing = false;
+  if (S.roll !== r) return; // left the page mid-roll
+  settleRound();
+  render();
+}
+function enterDie(i, v) {
+  const r = S.roll;
+  if (!inRound(r, i)) return;
+  r.cur[i] = v;
+  buzz(6);
+  settleRound();
+  render();
+}
+const showRollDice = NL.segmented($('rollSeg'), v => { const r = S.roll; Object.assign(r, { dice: v, rounds: [], cur: r.names.map(() => null) }); render(); });
+function renderRoll() {
+  const r = S.roll, n = r.names.length, win = rollWinner(r.rounds, n), who = rollers(r.rounds, n), digital = r.dice === 'digital';
+  showRollDice(r.dice);
+  if (rcards.length !== n) {
+    rcards = r.names.map((_, i) => {
+      const card = el('div', 'rcard glass'), name = el('div', 'who'), slot = el('div', 'slot'), btn = el('button', 'btn primary'), pad = el('div', 'pad');
+      slot.setAttribute('role', 'img');
+      const die = mountDie(slot);
+      showDie(die, (i % 6) + 1);
+      btn.onclick = () => rollDie(i);
+      pad.setAttribute('role', 'group');
+      const keys = [1, 2, 3, 4, 5, 6].map(v => { const b = el('button', '', v); b.onclick = () => enterDie(i, v); pad.append(b); return b; });
+      card.append(name, slot, btn, pad);
+      return { card, name, slot, die, btn, pad, keys };
+    });
+    $('rcards').replaceChildren(...rcards.map(c => c.card));
+  }
+  rcards.forEach((c, i) => {
+    const name = r.names[i], v = r.cur[i] ?? lastRoll(r, i), playing = win === null && who.includes(i);
+    c.name.textContent = name;
+    c.card.classList.toggle('win', win === i);
+    c.card.classList.toggle('out', win === null && !who.includes(i));
+    c.slot.hidden = !digital;
+    c.slot.classList.toggle('idle', win === null && r.cur[i] === null);
+    c.slot.setAttribute('aria-label', v ? `${name} rolled ${v}` : `${name}'s die, not rolled yet`);
+    if (!tossing && v && c.die.dataset.shown !== String(v)) { showDie(c.die, v); c.die.dataset.shown = v; }
+    c.btn.hidden = !digital || !playing;
+    c.btn.disabled = tossing || r.cur[i] !== null;
+    c.btn.textContent = r.rounds.length ? 'Roll again' : 'Roll';
+    c.btn.setAttribute('aria-label', `${c.btn.textContent} for ${name}`);
+    c.pad.hidden = digital;
+    c.pad.setAttribute('aria-label', `${name} rolled`);
+    const shown = r.cur[i] ?? (playing ? null : v); // a tie-break starts with nothing pressed
+    c.keys.forEach((b, k) => { b.setAttribute('aria-pressed', shown === k + 1); b.disabled = !playing; });
+  });
+  const order = w => listOf([...Array(n - 1).keys()].map(k => r.names[(w + 1 + k) % n]));
+  $('rollMsg').textContent = tossing ? 'Rolling…'
+    : win !== null ? `${r.names[win]} rolled ${lastRoll(r, win)} and goes first. Then ${order(win)}.`
+    : r.rounds.length && r.cur.every(d => d === null) ? `${listOf(who.map(i => r.names[i]))} tied on ${lastRoll(r, who[0])}, so ${digital ? 'they roll again' : 'they roll again and tap the new numbers'}.`
+    : digital ? 'Everyone rolls. Highest goes first.' : 'Everyone rolls a die and taps what it showed. Highest goes first.';
+  $('startGame').hidden = win === null || tossing;
+  $('fixRoll').hidden = win === null || digital;
+  // Focus never stays on <body> or on a button that just went away: move it to what comes next.
+  const a = document.activeElement;
+  if (a === document.body || ($('rollPage').contains(a) && (a.disabled || !a.offsetParent))) {
+    const to = !$('startGame').hidden ? $('startGame') : rcards.map(c => c.btn).find(b => !b.hidden && !b.disabled);
+    to?.focus({ preventScroll: true });
+  }
+}
+$('startGame').onclick = () => { const r = S.roll, w = rollWinner(r.rounds, r.names.length); if (w !== null) begin(r.mode, r.names, w, r.rounds); };
+$('fixRoll').firstElementChild.onclick = () => { S.roll.rounds.pop(); render(); };
+$('rollBack').onclick = () => { S.roll = null; render(); };
 
 // ---- Big lane picker: one lane, large, in order: the first six, then the next four and the last number with its lock.
 let pickLane = 0;
@@ -943,7 +1065,7 @@ $('exitBtn').onclick = () => {
   const fin = S.g?.status === 'over', online = inRoom();
   $('endTitle').textContent = online ? (fin ? 'Leave the room?' : 'Leave this game?') : fin ? 'Leave the final scores?' : 'End this game?';
   // Online games are not saved here: the server holds them, and a seat is kept while the game lasts.
-  $('endNote').textContent = online ? (fin ? 'Your seat goes to whoever joins next.' : 'Your seat stays in the game, and the host can skip your turns. Rejoin from Online while the game lasts.')
+  $('endNote').textContent = online ? (fin ? 'Your seat goes to whoever joins next.' : 'Your seat stays in the game, and the others can skip your turns. Rejoin from Online while the game lasts.')
     : fin ? 'Save the result to see it again later.' : 'Save it to pick up later from Saved games.';
   $('saveExit').hidden = online;
   $('discard').textContent = online ? 'Leave' : fin ? 'Exit without saving' : 'End without saving';
@@ -1002,12 +1124,17 @@ narrow.addEventListener('change', render);
 
 // ---- Start: a room link joins (or fills in the code); a reload while in a room reopens it.
 const linkCode = new URLSearchParams(location.search).get('room');
-if (linkCode && /^[A-Za-z]{6}$/.test(linkCode) && !S.g) {
-  history.replaceState(null, '', location.pathname);
+if (linkCode !== null) history.replaceState(null, '', location.pathname); // handled once, so a reload does not join again
+const joinLink = () => {
   S.mode = 'online';
   $('joinCode').value = linkCode.toUpperCase();
   if (S.myName.trim()) enterRoom('join');
   else { O.error = 'Enter your name, then tap Join.'; queueMicrotask(() => $('meName').focus()); }
+};
+if (linkCode && /^[A-Za-z]{6}$/.test(linkCode)) {
+  // A game on this phone goes to Saved games first; if that fails it stays open and the link does nothing.
+  if (S.g) saveGame().then(() => { toSetup(); joinLink(); render(); }, () => {});
+  else joinLink();
 } else if (!S.g && S.mode === 'online') {
   let again = null;
   try { again = sessionStorage.getItem(IN_ROOM); } catch {}

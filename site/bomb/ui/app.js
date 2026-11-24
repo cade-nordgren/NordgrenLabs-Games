@@ -80,7 +80,7 @@ function localSend(action) {
 // The last move plays out on the table before the results (no Next Turn needed).
 function endingSoon() {
   revealPending = true;
-  holdUntil = Date.now() + (still() ? 600 : 1800);
+  holdUntil = Date.now() + (still() ? 600 : 2400); // room for a face-down flip and the full BOMB!
   setTimeout(render, holdUntil - Date.now() + 20);
 }
 
@@ -706,7 +706,7 @@ for (const d of document.querySelectorAll('dialog.sheet')) { const h = d.querySe
 
 // Rotation and resizing change card sizes: refit the hand tray.
 let resizeTimer = 0;
-addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { if (!$('tablePage').hidden) render(); }, 120); });
+addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(function again() { if ($('tablePage').hidden) return; if (document.querySelector('.fly, .boom')) resizeTimer = setTimeout(again, 200); else render(); }, 120); });
 
 // ---- Start: a room link joins (or pre-fills the code); a refresh while in a room reopens it.
 const linkCode = new URLSearchParams(location.search).get('room');

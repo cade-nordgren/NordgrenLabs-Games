@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { LANES, POINTS, LAST, triangular, score, standings, emptySheet } from '../../site/crossix/engine/lanes.js';
 import { canMark, isSkipped, pickOptions, cellChoice, indexOf } from '../../site/crossix/engine/moves.js';
-import { newGame, reduce, validState, endReason } from '../../site/crossix/engine/reducer.js';
+import { newGame, reduce, validState, endReason, rollers, rollWinner, rollOff } from '../../site/crossix/engine/reducer.js';
 import { record, undo, cleanHist } from '../../site/crossix/engine/history.js';
 
 const R = 0, Y = 1, G = 2, B = 3;
@@ -333,6 +333,32 @@ test('serialise, validate and restore round trip', () => {
     { ...back, turn: { ...back.turn, done: [true, true].map((d, i) => i === 0) } },
   ];
   for (const b of bad) assert.equal(validState(b), false, JSON.stringify(b)?.slice(0, 80));
+});
+
+test('who goes first: the highest D6, only those tied for it roll again, and the turn starts there', () => {
+  assert.deepEqual(rollers([], 3), [0, 1, 2]);
+  assert.equal(rollWinner([], 1), 0, 'one player: no roll');
+  const rounds = [[6, 2, 6], [4, null, 4], [3, null, 5]];
+  assert.deepEqual(rollers(rounds.slice(0, 1), 3), [0, 2]);
+  assert.equal(rollWinner(rounds.slice(0, 2), 3), null);
+  assert.equal(rollWinner(rounds, 3), 2);
+  const dice = [6, 2, 6, 4, 4, 3, 5];
+  assert.deepEqual(rollOff(3, () => dice.shift()), rounds);
+  const g = newGame({ mode: 'digital', names: ['Ana', 'Ben', 'Cy'], seed: 1, first: 2, rolls: rounds });
+  assert.equal(g.turn.active, 2);
+  assert.ok(validState(g));
+  let s = rolled(g, [1, 1], [1, 1, 1, 1]);
+  for (const p of [0, 1]) s = act(s, done(p));
+  s = act(act(s, { type: 'penalty', player: 2, add: true }), done(2));
+  assert.equal(s.turn.active, 0, 'then round in seating order');
+  assert.ok(validState(newGame({ mode: 'physical', names: ['Ana', 'Ben'], seed: 1, first: 1, rolls: [[2, 5]] })));
+  // A save from before the roll has neither field: player 1 goes first.
+  const { first: _f, ...old } = dig();
+  assert.ok(validState(old));
+  for (const bad of [{ first: 3 }, { first: 0 }, { rolls: [] }, { rolls: [[6, 2, 6]] }, { rolls: [[6, 2, 6], [4, 1, 3]] },
+    { rolls: [[6, 2, 6], [3, null, 5], [1, null, 1]] }, { rolls: [[7, 2, 6], [3, null, 5]] }]) {
+    assert.equal(validState({ ...g, ...bad }), false, JSON.stringify(bad));
+  }
 });
 
 test('standings rank by total, ties share a rank', () => {

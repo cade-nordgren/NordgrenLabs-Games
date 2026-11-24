@@ -122,7 +122,7 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
 .key.ends { background: color-mix(in srgb, var(--danger) 18%, var(--glass-strong)); color: var(--danger); }
 .key.ends small { color: var(--danger); }
 
-#dice { display: flex; justify-content: center; gap: 30px; padding: 18px 0 14px; perspective: 700px; }
+#dice, #offDie { display: flex; justify-content: center; gap: 30px; padding: 18px 0 14px; perspective: 700px; }
 .die { --h: 32px; width: calc(var(--h) * 2); height: calc(var(--h) * 2); position: relative; transform-style: preserve-3d; transition: transform .9s cubic-bezier(.2, .8, .25, 1); }
 .face { position: absolute; inset: 0; border-radius: 12px; background: var(--die); box-shadow: inset 0 0 0 1px var(--die-edge); display: grid; grid-template: repeat(3, 1fr) / repeat(3, 1fr); padding: 9px; place-items: center; }
 .face i.pip { width: 10px; height: 10px; border-radius: 50%; background: var(--pip); }
@@ -134,12 +134,31 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
 .face:nth-child(6) { transform: rotateX(-90deg) translateZ(var(--h)); }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 
+/* Who rolls first */
+#off > h1 { margin-top: 2px; }
+#offSeg, #offList, #offPad { margin-top: 12px; }
+#offList { list-style: none; padding: 0; }
+#offList li { display: flex; align-items: center; justify-content: space-between; gap: 12px; border-top: 1px solid var(--hair); min-height: 50px; }
+#offList li.out { opacity: .4; }
+#offList li.now .name { color: var(--accent); }
+#offList b { font: 700 21px var(--num); }
+#off .btn { margin-top: 10px; }
+#off .btn:not(.primary) { width: 100%; }
+
 /* Short screens: denser rows and keys so more of the standings shows above the dock, still 44px or more to tap. */
 @media (max-height: 700px) {
   .hero { padding-bottom: 12px; }
   #msg { margin-top: 6px; }
   .row { min-height: 62px; padding: 7px 16px; }
   #dice { padding: 12px 0 8px; }
+}
+
+/* Three or more players upright: shorter pot and keys so every row shows above the pinned dock (4 players at 412 x 780). Two keep the roomy look. */
+@media (orientation: portrait) and (max-height: 900px) {
+  #game:has(#players li:nth-child(3)) .hero { padding-bottom: 12px; }
+  #game:has(#players li:nth-child(3)) #pot:not(.final) { font-size: clamp(56px, min(20vw, 10dvh), 80px); }
+  #game:has(#players li:nth-child(3)) .row { min-height: 62px; padding-block: 7px; }
+  #game:has(#players li:nth-child(3)) .key { aspect-ratio: auto; height: 56px; }
 }
 
 /* Phone in landscape: the board scrolls on the left, the dock stays whole at the bottom right.
@@ -162,7 +181,8 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
   #msg { margin-top: 4px; }
   /* --dock-rest: everything above the keys' bottom edge that is not keys: the menu and Undo circles (to 130px), a gap,
      and the dock's padding, turn line and gaps. */
-  .dock { flex: 0 0 min(340px, 48%); align-self: flex-end; bottom: max(12px, env(safe-area-inset-bottom)); --dock-rest: 214px; }
+  .dock { flex: 0 0 min(340px, 48%); align-self: flex-end; bottom: max(12px, env(safe-area-inset-bottom)); padding: 8px; --dock-rest: 206px; }
+  #turn { margin-top: 0; font-size: 18px; } /* 3 keys of 44px plus --dock-rest now fit a 350px tall screen */
   /* Square keys do not fit beside a phone's short side: keys take what is left under the Undo circle, at least 44px. */
   .key { aspect-ratio: auto; height: clamp(44px, calc((100dvh - max(12px, env(safe-area-inset-bottom)) - var(--dock-rest)) / 3), 74px); }
 }
@@ -240,6 +260,7 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
     <details class="glass group">
       <summary>How to play</summary>
       <ul>
+        <li>To start, everyone rolls one die. The highest rolls first, a tie rolls again, and the roll then goes round in the order players were added.</li>
         <li>Everyone shares one bank. Each roll of two dice adds its total.</li>
         <li>The first three rolls of a round are safe, and a seven is worth 70.</li>
         <li>From the fourth roll on, a seven ends the round and empties the bank. Doubles double it.</li>
@@ -247,6 +268,25 @@ body.live #phase { background: color-mix(in srgb, var(--danger) 16%, transparent
         <li>Highest score after the last round wins.</li>
       </ul>
     </details>
+  </main>
+
+  <main id="off" hidden>
+    <h1>Who rolls first?</h1>
+    <p class="lede">Everyone rolls one die. The highest goes first.</p>
+    <section class="glass group">
+      <div class="segmented" id="offSeg" role="group" aria-label="Dice">
+        <button value="tap">Tap your roll</button>
+        <button value="dice">Roll on screen</button>
+      </div>
+      <ul id="offList"></ul>
+      <p class="note" id="offMsg" role="status"></p>
+      <div id="offDie" aria-hidden="true"><div class="die"></div></div>
+      <div class="presets" id="offPad" role="group" aria-label="What you rolled"></div>
+      <button class="btn primary" id="offRoll">Roll</button>
+    </section>
+    <button class="btn primary" id="offGo">Start game</button>
+    <button class="btn" id="offReset">Start over</button>
+    <button class="btn" id="offBack">Back</button>
   </main>
 
   <main id="game" hidden>
@@ -356,6 +396,11 @@ function standings(scores, inRound, pot, byPotential) {
 console.assert(standings([5, 9, 5], [true, true, true], 40, false).join() === '1,0,2', 'highest first, ties keep entry order');
 console.assert(standings([10, 0, 30], [false, true, false], 25, true).join() === '2,1,0', 'potential adds the bank only for players still in');
 
+// Who rolls first: of the players still in (cand), those who rolled the highest. More than one means they roll again.
+const leaders = (cand, v) => { const top = Math.max(...cand.map(i => v[i])); return cand.filter(i => v[i] === top); };
+console.assert(leaders([0, 1, 2], [3, 6, 6]).join() === '1,2', 'a tie for highest keeps only the tied');
+console.assert(leaders([1, 2], [3, 2, 5]).join() === '2', 'a re-roll only counts the players in it');
+
 // A saved or autosaved game is outside data: check its shape before playing it.
 const okGame = s => !!s && Array.isArray(s.names) && s.names.length >= 2 && s.names.every(n => typeof n === 'string')
   && Number.isInteger(s.rounds) && s.rounds >= 1 && s.rounds <= 99 && (s.mode === 'tap' || s.mode === 'dice')
@@ -368,12 +413,14 @@ const okGame = s => !!s && Array.isArray(s.names) && s.names.length >= 2 && s.na
 // (owner), so a game in progress never shows to the next person on this browser.
 const KEY = 'nl-bank-v2';
 const me = NL.identity(); // the cached name, if this browser knows this person already
-let S = { names: me ? [me.displayName] : [], rounds: 15, mode: 'tap', sort: 'score', g: null, hist: [], saveId: null, createdAt: null, owner: NL.person() };
+let S = { names: me ? [me.displayName] : [], rounds: 15, mode: 'tap', sort: 'score', g: null, hist: [], saveId: null, createdAt: null, off: null, owner: NL.person() };
 try {
   const saved = JSON.parse(localStorage.getItem(KEY));
   if (saved && Array.isArray(saved.names) && (saved.g === null || okGame(saved)) && (!saved.owner || saved.owner === S.owner)) {
     S = { ...S, ...saved, owner: S.owner };
   }
+  const o = S.off; // a roll-off in progress has to fit the roster, or it is dropped
+  if (o && !(Array.isArray(o.v) && o.v.length === S.names.length && Array.isArray(o.cand) && o.cand.length && o.cand.every(i => i in o.v))) S.off = null;
 } catch {}
 const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
 // A signed-in name can arrive later: pre-fill it only into an empty roster before any game. Until then the roster shows
@@ -392,21 +439,29 @@ function change(fn, isRoll) {
   fn(S.g);
   render();
 }
-// On-screen dice can't be re-rolled by undoing; tapped rolls can always be corrected.
-const canUndo = () => S.hist.length > 0 && !(S.mode === 'dice' && S.hist.at(-1).roll);
+// On-screen dice can't be re-rolled by undoing; tapped rolls can always be corrected. Not while a roll is still tumbling: it lands after the undo.
+const canUndo = () => S.hist.length > 0 && !rolling && !(S.mode === 'dice' && S.hist.at(-1).roll);
 function undo() {
   if (!canUndo()) return;
   S.g = JSON.parse(S.hist.pop().g);
   render();
 }
 
+// Start game and Play again open the roll-off; the game itself begins when it has a winner.
 function start() {
   S.names = S.names.map(n => n.trim()).filter(Boolean);
   if (S.names.length < 2) return render();
-  S.g = { round: 1, pot: 0, rolls: 0, turn: 0, ended: false, bust: false, msg: '', dice: null,
+  Object.assign(S, { g: null, hist: [], saveId: null, createdAt: null, off: { cand: S.names.map((_, i) => i), v: S.names.map(() => null), tied: null } });
+  scrollTo(0, 0);
+  render();
+}
+
+// g.turn is the roller, so starting it at the winner keeps the rotation, Undo and saves right with no extra field.
+function begin(first) {
+  S.g = { round: 1, pot: 0, rolls: 0, turn: first, ended: false, bust: false, msg: '', dice: null,
           scores: S.names.map(() => 0), banked: S.names.map(() => null) };
-  S.hist = [];
-  S.saveId = S.createdAt = null;
+  S.off = null;
+  scrollTo(0, 0);
   render();
 }
 
@@ -477,7 +532,7 @@ async function resume(id) {
     return drawSaves();
   }
   const { names, rounds, mode, g, hist } = r.state;
-  Object.assign(S, { names, rounds, mode, g, hist, saveId: r.id, createdAt: r.createdAt });
+  Object.assign(S, { names, rounds, mode, g, hist, off: null, saveId: r.id, createdAt: r.createdAt });
   render();
 }
 
@@ -605,15 +660,15 @@ function renderKeys(live) {
 // ---- On-screen dice: two CSS cubes that turn to the face rolled.
 const PIPS = [, [4], [0, 8], [0, 4, 8], [0, 2, 6, 8], [0, 2, 4, 6, 8], [0, 2, 3, 5, 6, 8]];
 const SHOW = { 1: [0, 0], 6: [0, 180], 2: [0, -90], 5: [0, 90], 3: [-90, 0], 4: [90, 0] }; // cube turn that brings each face forward
-const dieEls = [...document.querySelectorAll('.die')];
-for (const d of dieEls) for (const v of [1, 6, 2, 5, 3, 4]) { // order matches the .face:nth-child transforms
+const dieEls = [...document.querySelectorAll('#dice .die')];
+for (const d of document.querySelectorAll('.die')) for (const v of [1, 6, 2, 5, 3, 4]) { // order matches the .face:nth-child transforms
   const f = el('div', 'face');
   for (let p = 0; p < 9; p++) f.append(el('i', PIPS[v].includes(p) ? 'pip' : ''));
   d.append(f);
 }
 let spins = 0, rolling = false;
+const turn = (d, v, kx, ky) => d.style.transform = `rotateX(${SHOW[v][0] + 360 * kx}deg) rotateY(${SHOW[v][1] + 360 * ky}deg)`;
 function showDice([a, b]) {
-  const turn = (d, v, kx, ky) => d.style.transform = `rotateX(${SHOW[v][0] + 360 * kx}deg) rotateY(${SHOW[v][1] + 360 * ky}deg)`;
   turn(dieEls[0], a, spins, spins);
   turn(dieEls[1], b, -spins, 2 * spins);
 }
@@ -621,13 +676,46 @@ function rollDice() {
   if (rolling) return;
   const a = 1 + Math.floor(Math.random() * 6), b = 1 + Math.floor(Math.random() * 6);
   rolling = true; spins++;
-  $('roll').disabled = true;
+  $('roll').disabled = $('undo').disabled = true;
   showDice([a, b]);
   setTimeout(() => { rolling = false; if (S.g) roll(a + b, a === b, [a, b]); }, still() ? 0 : 950);
 }
 
+// ---- Who rolls first: one die each (tapped in, or rolled on screen like the game's dice). The highest goes first;
+// players tied for highest roll again, the others wait.
+const offNext = () => S.off.cand.find(c => S.off.v[c] === null);
+function offRoll(i, v) {
+  const o = S.off;
+  o.v[i] = v;
+  o.tied = null;
+  if (offNext() === undefined) {
+    o.cand = leaders(o.cand, o.v);
+    if (o.cand.length > 1) { o.tied = o.v[o.cand[0]]; o.cand.forEach(c => o.v[c] = null); }
+  }
+  render();
+}
+for (let n = 1; n <= 6; n++) {
+  const b = el('button', '', n);
+  b.setAttribute('aria-label', `Rolled ${n}`);
+  b.onclick = () => { navigator.vibrate?.(8); offRoll(offNext(), n); };
+  $('offPad').append(b);
+}
+$('offRoll').onclick = () => {
+  const o = S.off, i = offNext();
+  if (rolling || i === undefined) return;
+  const v = 1 + Math.floor(Math.random() * 6);
+  rolling = true; spins++;
+  turn($('offDie').firstElementChild, v, spins, spins);
+  render();
+  setTimeout(() => { rolling = false; if (S.off === o) offRoll(i, v); }, still() ? 0 : 950);
+};
+$('offGo').onclick = () => begin(S.off.cand[0]);
+$('offReset').onclick = () => { S.off.cand = S.names.map((_, i) => i); S.off.v = S.names.map(() => null); S.off.tied = null; render(); };
+$('offBack').onclick = () => { S.off = null; render(); };
+
 // ---- Rendering
 const showMode = NL.segmented($('modeSeg'), v => { S.mode = v; render(); });
+const showOffMode = NL.segmented($('offSeg'), v => { S.mode = v; render(); });
 const showSort = NL.segmented($('sortSeg'), v => { S.sort = v; render(); });
 const showTheme = NL.segmented($('themeSeg'), v => { NL.theme.set(v); showTheme(v); });
 NL.menu($('menu'));
@@ -661,6 +749,23 @@ function renderSetup() {
     ? 'Roll your own dice, then tap the total.'
     : 'The game rolls two dice for you.';
   drawSaves();
+}
+
+function renderOff() {
+  const o = S.off, now = offNext(), win = o.cand.length === 1 ? o.cand[0] : null, tap = S.mode === 'tap';
+  showOffMode(S.mode);
+  $('offList').replaceChildren(...S.names.map((n, i) => {
+    const li = el('li', i === (win ?? now) ? 'now' : o.cand.includes(i) ? '' : 'out');
+    li.append(el('span', 'name', n), el('b', '', o.v[i] ?? '–'));
+    return li;
+  }));
+  $('offMsg').textContent = win !== null ? `${S.names[win]} goes first.`
+    : `${o.tied ? `Tied on ${o.tied}, so ${listOf(o.cand.map(i => S.names[i]))} roll again. ` : ''}${S.names[now]}, ${tap ? 'tap what you rolled.' : 'roll the die.'}`;
+  $('offDie').hidden = tap;
+  $('offPad').hidden = !tap || win !== null;
+  $('offRoll').hidden = tap || win !== null;
+  $('offRoll').disabled = $('offReset').disabled = rolling;
+  $('offGo').hidden = win === null;
 }
 
 // Row elements are kept per player so they can glide to their new place when the order changes.
@@ -739,15 +844,16 @@ function renderGame() {
 
 function render() {
   save();
-  const playing = !!S.g;
-  $('setup').hidden = playing;
+  const playing = !!S.g, off = !playing && !!S.off;
+  $('setup').hidden = playing || off;
+  $('off').hidden = !off;
   $('game').hidden = !playing;
   $('gamesLink').hidden = playing;
   $('endBtn').hidden = $('undo').hidden = !playing;
   $('undo').disabled = !canUndo();
   showSort(S.sort);
   if (!playing) document.body.classList.remove('live');
-  playing ? renderGame() : renderSetup();
+  playing ? renderGame() : off ? renderOff() : renderSetup();
 }
 
 // ---- Setup controls
@@ -786,7 +892,7 @@ $('undo').onclick = undo;
 $('roll').onclick = rollDice;
 $('next').onclick = nextRound;
 $('again').onclick = start;
-const toSetup = () => { Object.assign(S, { g: null, hist: [], saveId: null, createdAt: null }); render(); refreshSaves(); };
+const toSetup = () => { Object.assign(S, { g: null, hist: [], saveId: null, createdAt: null, off: null }); render(); refreshSaves(); };
 $('edit').onclick = toSetup;
 
 // ---- Sheets. Esc and a backdrop click close them (for End game that means keep playing).

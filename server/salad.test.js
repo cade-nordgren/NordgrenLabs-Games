@@ -11,6 +11,7 @@ import { getPlatformProxy } from 'wrangler';
 import worker from './worker.js';
 import { POLL, cleanName } from './salad.js';
 import { expectedTotal } from '../site/salad/engine/score.js';
+import { reduce, legalCards } from '../site/salad/engine/reducer.js';
 
 const ISSUER = 'https://clerk.nordgrenlabs.com';
 const { publicKey, privateKey } = crypto.generateKeyPairSync('rsa', { modulusLength: 2048, publicExponent: 0x10001 });
@@ -267,6 +268,34 @@ test('leave: the host passes to the next seat, seats close up, the leaver gets 4
   await act(P[0], l.id, v, { type: 'LEAVE' });
   assert.equal(await env.DB.prepare('SELECT count(*) AS n FROM salad_rooms WHERE id = ?').bind(l.id).first('n'), 0);
   assert.equal(await env.DB.prepare('SELECT count(*) AS n FROM salad_members WHERE room_id = ?').bind(l.id).first('n'), 0);
+});
+
+test('leave a finished game: the seat frees and the rest are back in the lobby, free to start again', async () => {
+  const l = await started(3);
+  const room = await stored(l.id);
+  let g = room.game; // played out here rather than over HTTP: only the end matters
+  while (g.phase !== 'over') g = reduce(g, g.phase === 'roundEnd' ? { type: 'NEXT_ROUND' } : { type: 'PLAY_CARD', seat: g.turn, card: legalCards(g, g.turn)[0] });
+  room.game = g;
+  await env.DB.prepare('UPDATE salad_rooms SET state = ? WHERE id = ?').bind(JSON.stringify(room), l.id).run();
+  let r = await act(P[1], l.id, l.v, { type: 'REMATCH_READY' });
+  r = await act(P[2], l.id, r.body.version, { type: 'LEAVE' });
+  assert.deepEqual(r.body, { version: l.v + 2, view: null });
+  assert.equal((await get(P[2], l.id)).status, 404);
+  const b = (await get(P[1], l.id)).body.view;
+  assert.equal(b.room.phase, 'lobby');
+  assert.equal(b.game, null);
+  assert.deepEqual(b.room.seats.map(s => [s.name, s.ready, s.rematch]), [['Host', false, false], ['P1', false, false]]);
+  r = await act(P[1], l.id, l.v + 2, { type: 'SET_READY', ready: true });
+  assert.equal((await act(P[0], l.id, r.body.version, { type: 'START' })).status, 200);
+});
+
+test('a change to the setup clears ready; the same setup again does not', async () => {
+  const l = await lobby(3, { capacity: 4 });
+  let r = await act(P[0], l.id, l.v, { type: 'SET_CONFIG', decks: 1 }); // already 1 deck
+  assert.deepEqual(r.body.view.room.seats.map(s => s.ready), [false, true, true]);
+  r = await act(P[0], l.id, r.body.version, { type: 'SET_CONFIG', decks: 2 });
+  assert.deepEqual(r.body.view.room.seats.map(s => s.ready), [false, false, false]);
+  assert.equal((await act(P[0], l.id, r.body.version, { type: 'START' })).body.error, 'not_ready');
 });
 
 test('reconnect mid-hand: a new request and a rejoin return the same hand', async () => {

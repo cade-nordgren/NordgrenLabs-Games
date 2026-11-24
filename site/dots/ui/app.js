@@ -137,7 +137,14 @@ const me = NL.identity();
 // Pre-fill the first player only into a roster this device never set, with no game in progress.
 const prefill = i => { if (i?.displayName && !storedPlayers && !S.g) { prefs.players[0].name = i.displayName.slice(0, MAX_NAME); storedPlayers = true; } };
 prefill(me);
-const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch {} };
+let saveWarned = false;
+const save = () => {
+  let ok = false;
+  // Storage full: the undo history is the bulk of the save, so retry once with only the last 20 snapshots.
+  try { localStorage.setItem(KEY, JSON.stringify(S)); ok = true; } catch { try { localStorage.setItem(KEY, JSON.stringify({ ...S, hist: S.hist.slice(-20) })); ok = true; } catch {} }
+  if (ok) saveWarned = false;
+  else if (!saveWarned) { saveWarned = true; $('saveWarn').hidden = false; setTimeout(() => { $('saveWarn').hidden = true; }, 6000); } // once per failure streak
+};
 NL.ready.then(i => { if (!me) { prefill(i); if (!S.g) render(); } });
 NL.account($('account'));
 
@@ -477,6 +484,7 @@ function openEditor(id) {
   $('layoutDelete').hidden = !l;
   armDelete(false);
   paintEditor();
+  edStart = edState();
   $('editSheet').showModal();
 }
 const edMask = () => ed.cells.map(r => r.map(on => (on ? '#' : '.')).join(''));
@@ -525,17 +533,27 @@ $('layoutSave').onclick = () => {
   layouts = ed.id ? layouts.map(l => (l.id === id ? { id, name, mask } : l)) : [...layouts, { id, name, mask }];
   if (!saveLayouts()) { layouts = before; $('editCount').textContent = 'Could not save on this device.'; return; }
   pickId = `custom:${id}`; pickCat = 'custom';
-  $('editSheet').close();
+  edClose();
   render();
 };
 const armDelete = twoTap($('layoutDelete'), on => { $('layoutDelete').textContent = on ? 'Tap again to delete' : 'Delete'; }, () => true, () => !!ed?.id, () => {
   layouts = layouts.filter(l => l.id !== ed.id);
   saveLayouts();
   if (prefs.board === `custom:${ed.id}`) { prefs.board = 'sq-4x4'; savePrefs(); }
-  $('editSheet').close();
+  edClose();
   render();
 });
-$('layoutCancel').onclick = () => $('editSheet').close();
+// A backdrop tap, a swipe down (platform.js calls close()) and Esc would drop unsaved edits, so they ask first.
+// Save, Delete and Cancel use edClose, the real close.
+const edSheet = $('editSheet'), edClose = HTMLDialogElement.prototype.close.bind(edSheet);
+let edStart = '';
+const edState = () => JSON.stringify([edMask(), $('layoutName').value.trim()]);
+const askDiscard = () => { if (ed && edSheet.open && edState() !== edStart) { if (!$('discardSheet').open) $('discardSheet').showModal(); return true; } return false; };
+edSheet.close = () => { if (!askDiscard()) edClose(); };
+edSheet.oncancel = e => { if (askDiscard()) e.preventDefault(); };
+$('keepEditing').onclick = () => $('discardSheet').close();
+$('discardEdits').onclick = () => { $('discardSheet').close(); edClose(); };
+$('layoutCancel').onclick = () => edClose();
 
 // ---- Who goes first: a D6 each, digital (Crossix's dice) or physical (type in what you rolled). Ties roll again.
 const dice = [], pads = [];

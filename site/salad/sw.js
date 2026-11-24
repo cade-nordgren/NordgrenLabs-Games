@@ -1,7 +1,7 @@
 // Canadian Salad offline shell: precache the page and its modules, serve from the cache at once and refresh the copy in
 // the background. The game itself needs the network (rooms live on the server); /api/ is never cached.
 // Bump VERSION whenever FILES changes; old caches are deleted on activate.
-const VERSION = 'salad-v11';
+const VERSION = 'salad-v12';
 const FILES = [
   './', 'manifest.webmanifest',
   'ui/app.js', 'ui/net.js', 'ui/table.js', 'ui/results.js', 'ui/cards.js', 'ui/colors.js', 'ui/prefs.js', 'ui/dom.js',
@@ -33,8 +33,23 @@ self.addEventListener('fetch', e => {
   const req = e.request, url = new URL(req.url);
   if (req.method !== 'GET' || url.origin !== location.origin || url.pathname.startsWith('/api/')) return;
   const key = req.mode === 'navigate' ? self.registration.scope : req;
+  if (req.mode === 'navigate') {
+    // The page itself goes to the network first, so a signed-out visit (or a sign-out) gets the Worker's sign-in page.
+    // The saved copy is only for no connection, or one too slow to answer within a few seconds.
+    e.respondWith(caches.open(VERSION).then(async cache => {
+      try {
+        const res = await Promise.race([fetch(req), new Promise((_, late) => setTimeout(late, 4000))]);
+        if (res.ok) cache.put(key, clean(res.clone()));
+        return clean(res);
+      } catch {
+        const hit = await cache.match(key, { ignoreSearch: true });
+        return hit ? clean(hit) : fetch(req);
+      }
+    }));
+    return;
+  }
   e.respondWith(caches.open(VERSION).then(async cache => {
-    const hit = await cache.match(key, { ignoreSearch: req.mode === 'navigate' });
+    const hit = await cache.match(key);
     // Only a real file goes in the cache: the Worker answers 401 with its sign-in page when the cookie is gone.
     const fresh = fetch(req).then(res => {
       if (res.ok) cache.put(key, clean(res.clone()));

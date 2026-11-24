@@ -414,6 +414,7 @@ test('the opening play must include the rank that decided who goes first', () =>
   assert.deepEqual(ranks(both.pile), [12, 3, 3]);
   g.firstWhy = { rank: null, count: 0, tied: true };
   assert.equal(playable(g, 0).length, 5, 'picked at random: any card opens');
+  no(g, { type: 'pickUp', seat: 0 }); // nothing to pick up while the pile is only the kitty
 });
 
 test('checkState rejects broken states', () => {

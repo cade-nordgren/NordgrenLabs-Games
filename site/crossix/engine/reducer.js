@@ -12,15 +12,36 @@ export function rand(g) {
 }
 const d6 = g => 1 + Math.floor(rand(g) * 6);
 
-export function newGame({ mode, names, seed }) {
+// Who goes first: everyone rolls a D6, the highest goes first, and only those tied for the highest roll again. rounds
+// holds one array per round with a die per player (null for a player out of that round).
+export function rollers(rounds, n) {
+  const last = rounds.at(-1);
+  if (!last) return [...Array(n).keys()];
+  const top = Math.max(...last.filter(d => d !== null));
+  return last.flatMap((d, i) => d === top ? [i] : []);
+}
+export const rollWinner = (rounds, n) => { const r = rollers(rounds, n); return r.length === 1 ? r[0] : null; };
+// The whole roll for first player at once (online, on the server): die() gives 1 to 6.
+export function rollOff(n, die) {
+  const rounds = [];
+  while (rollWinner(rounds, n) === null) {
+    const who = rollers(rounds, n);
+    rounds.push([...Array(n).keys()].map(i => who.includes(i) ? die() : null));
+  }
+  return rounds;
+}
+
+// first: the player who won the roll for first player (rolls); play goes round in seating order from them.
+export function newGame({ mode, names, seed, first = 0, rolls = [] }) {
   return {
-    v: 1, mode, seed: seed | 0, rng: seed | 0,
+    v: 1, mode, seed: seed | 0, rng: seed | 0, first,
+    ...(rolls.length && { rolls }),
     players: names.map(emptySheet),
     closed: [false, false, false, false],
     status: 'playing',
     // Digital only. phase: roll, choose (everyone picks at once, each taps Done), over. picks and done are per player
     // during choose and empty otherwise.
-    turn: mode === 'digital' ? { n: 1, active: 0, phase: 'roll', dice: null, picks: [], done: [] } : null,
+    turn: mode === 'digital' ? { n: 1, active: first, phase: 'roll', dice: null, picks: [], done: [] } : null,
   };
 }
 
@@ -147,12 +168,21 @@ export function reduce(g, a) {
 const isInt = (x, lo, hi) => Number.isInteger(x) && x >= lo && x <= hi;
 const isBools = (a, len) => Array.isArray(a) && a.length === len && a.every(b => typeof b === 'boolean');
 
+// Each round holds a die for exactly those still rolling, and only while it is undecided.
+const okRolls = (r, n) => Array.isArray(r) && r.length <= 100 && r.every((round, k) => {
+  const who = rollers(r.slice(0, k), n);
+  return who.length > 1 && Array.isArray(round) && round.length === n && round.every((d, i) => who.includes(i) ? isInt(d, 1, 6) : d === null);
+});
+
 export function validState(g) {
   try {
     if (!g || typeof g !== 'object' || g.v !== 1 || (g.mode !== 'physical' && g.mode !== 'digital')) return false;
     if (!Number.isInteger(g.seed) || !Number.isInteger(g.rng) || !['playing', 'over'].includes(g.status)) return false;
     if (!Array.isArray(g.players) || g.players.length < 1 || g.players.length > MAX_ONLINE || !isBools(g.closed, 4)) return false;
-    const t = g.turn;
+    const t = g.turn, n = g.players.length;
+    // first and rolls are missing in saves from before them: player 1 went first
+    if (g.first !== undefined && !isInt(g.first, 0, n - 1)) return false;
+    if (g.rolls !== undefined && !(okRolls(g.rolls, n) && rollWinner(g.rolls, n) === (g.first ?? 0))) return false;
     for (const p of g.players) {
       if (!p || typeof p.name !== 'string' || p.name.length > 40 || !isInt(p.penalties, 0, MAX_PENALTIES)) return false;
       if (!Array.isArray(p.marks) || p.marks.length !== 4 || !isBools(p.locks, 4)) return false;
@@ -164,7 +194,6 @@ export function validState(g) {
       }
     }
     if (g.mode === 'physical') return t === null;
-    const n = g.players.length;
     if (!t || !isInt(t.n, 1, 1e6) || !isInt(t.active, 0, n - 1)) return false;
     if (!['roll', 'choose', 'over'].includes(t.phase) || (t.phase === 'over') !== (g.status === 'over')) return false;
     if (t.dice !== null) {

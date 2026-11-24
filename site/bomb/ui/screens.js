@@ -242,7 +242,7 @@ export function tableScreen(ctx) {
   const beat = beatInfo(view);
   $('beatRank').textContent = beat.rank;
   $('beatNote').textContent = beat.note;
-  $('centre').setAttribute('aria-label', `Deck ${view.deck || 'empty'}. Pile ${view.pile.length ? `${view.pile.length}${view.kitty ? `, ${view.kitty} of them the kitty` : ''}, top ${cardName(view.pile.at(-1))}` : 'empty'}. To beat: ${beat.rank === 'Any' ? 'anything' : rankName(view.required)}, ${beat.note}.`);
+  $('centre').setAttribute('aria-label', `Deck ${view.deck || 'empty'}. Pile ${view.pile.length ? `${view.pile.length}${view.kitty ? `, ${view.kitty} of them the kitty` : ''}, top ${cardName(view.pile.at(-1))}` : 'empty'}. To beat: ${beat.rank === 'Any' ? 'anything' : rankName(view.opening ?? view.required)}, ${beat.note}.`);
 
   // Your table: face-down backs, face-up cards over them.
   paint($('mineBox'), person.style);
@@ -416,8 +416,9 @@ export async function animate(prev, view, snap, me) {
       const ends = l.seat === me ? view.you.hand.slice(-l.drew).map(c => $('tray').querySelector(`[data-id="${c.id}"]`)).filter(Boolean) : [];
       const panel = document.querySelector(`#opps [data-seat="${l.seat}"]`);
       ends.forEach(e => { e.style.visibility = 'hidden'; drawn.push(e); });
+      const own = view.players[l.seat].draw !== null; // own draw piles: other players draw from their own deck, not the centre one
       const legs = l.seat === me ? ends.map(e => [centreOf(e.getBoundingClientRect()), e.getBoundingClientRect().width])
-        : panel ? Array.from({ length: l.drew }, () => [centreOf(panel.getBoundingClientRect()), dw]) : [];
+        : panel && !own ? Array.from({ length: l.drew }, () => [centreOf(panel.getBoundingClientRect()), dw]) : [];
       legs.forEach(([to, w], k) => {
         const f = flyer(null, to, w);
         drawn.push(f);
