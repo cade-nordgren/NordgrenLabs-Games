@@ -11,6 +11,8 @@ export const DECKS = [
   { id: 'classic-deck', name: 'Classic Deck', color: '#b8323f' },
   { id: 'dark', name: 'Dark Deck', color: '#8e7230' },
   { id: 'parchment', name: 'Parchment Deck', color: '#8b5a2b' },
+  { id: 'nordic-deck', name: 'Nordic Deck', color: '#566a7d' },
+  { id: 'luxury', name: 'Luxury Deck', color: '#a5502f' },
 ];
 export const deckOf = id => DECKS.find(d => d.id === id) || null;
 

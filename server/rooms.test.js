@@ -72,7 +72,7 @@ test('create: the creator is the host in seat 0 of a lobby, with a 6-letter code
   assert.equal(r.body.version, 1);
   assert.match(r.body.view.room.code, /^[ABCDEFGHJKMNPQRSTUVWXYZ]{6}$/);
   assert.deepEqual(r.body.view, {
-    room: { id: r.body.id, code: r.body.view.room.code, phase: 'lobby', host: 0, decks: 1, rematch: [], startedAt: null, endedAt: null,
+    room: { id: r.body.id, code: r.body.view.room.code, phase: 'lobby', host: 0, decks: 1, art: ['', '', '', ''], rematch: [], startedAt: null, endedAt: null,
       seats: [{ name: 'Alex', style: 'cobalt', connected: true }] },
     game: null, you: 0,
   });
@@ -102,7 +102,7 @@ test('join: a taken style gets the first free one; joining again is a reconnect 
   const c = await create(P[0], { style: 'scarlet' });
   const code = c.body.view.room.code;
   const r = await join(P[1], code, { style: 'scarlet' });
-  assert.equal(r.body.view.room.seats[1].style, STYLES[0]); // the first free style: a picture deck
+  assert.equal(r.body.view.room.seats[1].style, 'cobalt');
   const again = await join(P[1], code, { name: 'Other', style: 'lime' });
   assert.equal(again.status, 200);
   assert.equal(again.body.version, r.body.version);
@@ -136,6 +136,7 @@ test('lobby: SET_PLAYER, SET_DECKS and START with their permissions', async () =
   const j = await join(P[1], c.body.view.room.code);
   v = j.body.version;
   await expect409(P[1], { type: 'SET_DECKS', decks: 2 }, 'not_host');
+  await expect409(P[1], { type: 'SET_ART', art: ['honor'] }, 'not_host');
   await expect409(P[1], { type: 'START' }, 'not_host');
   await expect409(P[1], { type: 'SET_PLAYER', name: 'B', style: 'cobalt' }, 'style_taken');
   await expect409(P[1], { type: 'REMATCH' }, 'not_over');
@@ -147,6 +148,11 @@ test('lobby: SET_PLAYER, SET_DECKS and START with their permissions', async () =
   r = await act(P[0], id, { type: 'SET_DECKS', decks: 3 }, v);
   assert.equal(r.body.view.room.decks, 3);
   v = r.body.version;
+  // Deck art: the host picks a picture deck per deck; unknown ids and wrong shapes are refused as bad actions.
+  r = await act(P[0], id, { type: 'SET_ART', art: ['honor', '', 'odium'] }, v);
+  assert.deepEqual(r.body.view.room.art, ['honor', '', 'odium', '']);
+  v = r.body.version;
+  for (const art of [['nope'], [], ['honor', '', '', '', ''], 'honor']) assert.equal((await act(P[0], id, { type: 'SET_ART', art }, v)).status, 400);
   for (let i = 2; i < 5; i++) v = (await join(P[i], c.body.view.room.code, { style: STYLES[i] })).body.version;
   r = await act(P[0], id, { type: 'SET_DECKS', decks: 1 }, v);
   v = r.body.version;

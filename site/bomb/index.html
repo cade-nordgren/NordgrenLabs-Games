@@ -143,6 +143,8 @@ button.card[aria-disabled="true"] { cursor: default; }
 
 /* ---- Style picker sheet */
 .styles { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 8px; }
+.styles.art { margin-top: 14px; }
+#deckView { margin: 4px 0 16px; }
 .opt { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 2px; border-radius: 14px; text-align: center; min-width: 0; }
 .opt .card { --w: min(60px, 15vw); }
 .opt b { font-size: 13px; line-height: 1.1; }
@@ -488,7 +490,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
             <input id="newName" maxlength="20" placeholder="Add a player" aria-label="New player name" autocomplete="off" enterkeyhint="done">
             <button class="circle add" aria-label="Add player">+</button>
           </form>
-          <p class="note">Tap a card to pick a deck or a colour. Each player's cards show their own back.</p>
+          <p class="note">Tap a card to pick its style. The colour on the back is that player's colour.</p>
         </section>
         <section class="glass group">
           <div class="decks">
@@ -500,6 +502,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
             </div>
           </div>
           <p class="note" id="decksNote"></p>
+          <div class="styles art" id="artSlots"></div>
         </section>
         <div class="spacer"></div>
         <p class="note center" id="startHint">Digital cards only. Whoever holds the most 3s after choosing goes first.</p>
@@ -572,6 +575,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
           </div>
         </div>
         <p class="note" id="lDecksNote"></p>
+        <div class="styles art" id="lArtSlots"></div>
       </section>
       <div class="spacer"></div>
       <p class="note center err" id="lobbyErr" role="status" hidden></p>
@@ -677,6 +681,16 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   </div>
 </dialog>
 
+<dialog class="sheet glass" id="deckSheet" aria-labelledby="deckTitle">
+  <div>
+    <h2 id="deckTitle">Deck</h2>
+    <p>The decks are shuffled together; every card keeps its own deck's back and face. Standard decks show each player's colour on their face-down cards.</p>
+    <div class="segmented" id="deckView" role="group" aria-label="Show"><button value="back">Backs</button><button value="ace">Ace of spades</button></div>
+    <div class="styles" id="deckGrid"></div>
+    <button class="btn" id="deckDone">Done</button>
+  </div>
+</dialog>
+
 <dialog class="sheet glass" id="endSheet" aria-labelledby="endTitle">
   <div>
     <h2 id="endTitle">End this game?</h2>
@@ -763,8 +777,6 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
         <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor" stroke="none"/>
       </svg>
     </div>
-    <h3 id="deckTitle">Cards</h3>
-    <div class="styles" id="deckGrid" role="group" aria-labelledby="deckTitle"></div>
     <p>Game saves on this phone stay in this browser's storage. Anyone with the phone and developer tools could read them, hidden cards included.</p>
     <div class="account" id="account" hidden><h3>Account</h3></div>
     <button class="btn" id="settingsDone">Done</button>

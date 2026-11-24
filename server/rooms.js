@@ -9,8 +9,8 @@ import { viewFor } from '../site/bomb/engine/view.js';
 import { DECKS } from '../site/decks/decks.js';
 import { readBody } from './saves.js';
 
-// Same order and ids as the client's styles (site/bomb/ui/styles.js): the picture decks, then the twelve colours.
-export const STYLES = [...DECKS.map(d => d.id), 'cobalt', 'scarlet', 'forest', 'tangerine', 'violet', 'teal', 'rose', 'gold', 'indigo', 'slate',
+// Same order and ids as the plan's table of card styles (site/bomb/ui/styles.js).
+export const STYLES = ['cobalt', 'scarlet', 'forest', 'tangerine', 'violet', 'teal', 'rose', 'gold', 'indigo', 'slate',
   'sky', 'lime'];
 // The free plan allows 50 D1 queries per request: a poll makes at most hold / interval + 4. Tests shorten both.
 export const timing = { hold: 20000, interval: 700 };
@@ -95,6 +95,9 @@ async function json(request) {
   }
 }
 
+// The picture deck each deck wears ('' for the drawn cards): one per possible deck, ids from site/decks.
+const okArt = a => Array.isArray(a) && a.length >= 1 && a.length <= MAX_DECKS && a.every(x => x === '' || DECKS.some(d => d.id === x));
+const NO_ART = Array.from({ length: MAX_DECKS }, () => '');
 // The action as the server will use it, or null when its shape is wrong. Fields not listed are dropped.
 function parseAction(a) {
   if (!a || typeof a !== 'object' || typeof a.type !== 'string') return null;
@@ -106,6 +109,7 @@ function parseAction(a) {
       return name && STYLES.includes(a.style) ? { type: a.type, name, style: a.style } : null;
     }
     case 'SET_DECKS': return isInt(a.decks, 1, MAX_DECKS) ? { type: a.type, decks: a.decks } : null;
+    case 'SET_ART': return okArt(a.art) ? { type: a.type, art: a.art.slice() } : null;
     case 'START': case 'LEAVE': case 'REMATCH': case 'confirm': case 'pickUp': return { type: a.type };
     case 'arrange': return ids(4, 4) && { type: a.type, ids: a.ids };
     case 'play': return ids(1, 4 * MAX_DECKS) && { type: a.type, ids: a.ids }; // at most every copy of one rank
@@ -135,11 +139,11 @@ export const BOMB = {
     const taken = new Set(room.seats.map(s => s.style));
     return { style: taken.has(body.style) ? STYLES.find(s => !taken.has(s)) : body.style };
   },
-  settings: body => isInt(body.decks, 1, MAX_DECKS) ? { decks: body.decks } : 'decks',
-  roomView: room => ({ decks: room.decks }),
+  settings: body => isInt(body.decks, 1, MAX_DECKS) ? { decks: body.decks, art: NO_ART.slice() } : 'decks',
+  roomView: room => ({ decks: room.decks, art: room.art || NO_ART.slice() }),
   seatView: s => ({ style: s.style }),
   parse: parseAction,
-  anyVersion: new Set(['SET_PLAYER', 'SET_DECKS']),
+  anyVersion: new Set(['SET_PLAYER', 'SET_DECKS', 'SET_ART']),
   start: room => allowedDecks(room.seats.length).includes(room.decks)
     ? createGame({ players: room.seats.length, decks: room.decks, seed: seed() }) : 'decks',
   apply(room, next, seat, a) {
@@ -154,6 +158,11 @@ export const BOMB = {
         if (!lobby) return 'started';
         if (seat !== 0) return 'not_host';
         next.decks = a.decks;
+        return next;
+      case 'SET_ART':
+        if (!lobby) return 'started';
+        if (seat !== 0) return 'not_host';
+        next.art = NO_ART.map((x, i) => a.art[i] ?? x);
         return next;
       default: {
         if (lobby) return 'not_started';

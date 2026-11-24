@@ -2,6 +2,7 @@
 import { label, MIN_PLAYERS, MAX_PLAYERS, allowedDecks, defaultDecks } from '../engine/cards.js';
 import { checkState, FIRST_ORDER } from '../engine/reducer.js';
 import { STYLES } from './styles.js';
+import { deckOf } from '../../decks/decks.js';
 
 export const SUIT = { S: ['♠', 'spades'], H: ['♥', 'hearts'], D: ['♦', 'diamonds'], C: ['♣', 'clubs'] };
 export const isRed = suit => suit === 'H' || suit === 'D';
@@ -96,12 +97,14 @@ export const okRoster = (names, styles) => Array.isArray(names) && Array.isArray
   && names.length >= MIN_PLAYERS && names.length <= MAX_PLAYERS && names.every(okName)
   && styles.every(s => STYLES.some(x => x.id === s)) && new Set(styles).size === styles.length;
 
+// Which picture deck each of the four possible decks wears ('' for Bomb's own drawn cards). Unknown ids become ''.
+export const cleanArt = a => Array.from({ length: 4 }, (_, i) => Array.isArray(a) && deckOf(a[i]) ? a[i] : '');
 export function readGame(x) {
   if (!x || typeof x !== 'object') return null;
   try { checkState(x.g); } catch { return null; }
   if (!okRoster(x.names, x.styles) || x.names.length !== x.g.players.length) return null;
   return {
-    g: x.g, names: x.names, styles: x.styles,
+    g: x.g, names: x.names, styles: x.styles, art: cleanArt(x.art),
     desc: x.names.map((_, i) => Array.isArray(x.desc) && x.desc[i] === true), // hand order per player: true is high to low
     saveId: UUID.test(x.saveId) ? x.saveId : null,
     createdAt: ISO.test(x.createdAt) ? x.createdAt : null,
