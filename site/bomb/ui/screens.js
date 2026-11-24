@@ -270,10 +270,12 @@ export function tableScreen(ctx) {
 
   // Your hand, sorted, in a tray that overlaps cards only when they do not fit.
   avatar($('handAvSmall'), person);
-  // With "2s and 10s to the side" on, the special cards sit apart at the end of the hand so they are not forgotten.
+  // With 2s and 10s set to Left or Right, the special cards sit apart at that end of the hand so they are not forgotten.
   const special = c => c.rank === 2 || c.rank === 10, sorted = sortHand(you.hand, ctx.desc);
-  const hand = ctx.side ? [...sorted.filter(c => !special(c)), ...sorted.filter(special)] : sorted;
-  const firstAside = ctx.side && hand.find((c, i) => special(c) && i > 0)?.id;
+  const rest = sorted.filter(c => !special(c)), spec = sorted.filter(special);
+  const hand = ctx.side === 'left' ? [...spec, ...rest] : ctx.side === 'right' ? [...rest, ...spec] : sorted;
+  // The gap goes before the second group, when both groups have cards.
+  const firstAside = ctx.side !== 'off' && rest.length && spec.length ? hand[ctx.side === 'left' ? spec.length : rest.length].id : null;
   const tray = $('tray'), keep = tray.scrollLeft;
   $('sortBtn').replaceChildren(el('span', '', ctx.desc ? 'High first' : 'Low first'));
   $('sortBtn').setAttribute('aria-label', `Hand order: ${ctx.desc ? 'high to low' : 'low to high'}. Change`);

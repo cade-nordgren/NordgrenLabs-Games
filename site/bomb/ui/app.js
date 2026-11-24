@@ -54,7 +54,7 @@ let holdUntil = 0, revealPending = false, prevView = null, busy = false;
 // ---- One phone
 function startLocal(names, styles, decks, art) {
   stopResults();
-  S.game = { g: createGame({ players: names.length, decks, seed: newSeed() }), names, styles, art: cleanArt(art), desc: names.map(() => false),
+  S.game = { g: createGame({ players: names.length, decks, seed: newSeed() }), names, styles, art: cleanArt(art), desc: names.map(() => true),
     saveId: null, createdAt: null, startedAt: null, endedAt: null };
   ready = false; from = null; sel = []; prevView = null; holdUntil = 0;
   render();
@@ -440,11 +440,11 @@ function renderChoose(scr) {
 }
 function renderWait(scr) { waitScreen(scr.view, scr.ps, scr.seat); }
 
-// ---- Hand order, low to high unless the player chose high to low: per player in the local game, per device online.
+// ---- Hand order, high to low unless the player chose low to high: per player in the local game, per device online.
 const ORDER = 'nl-bomb-order';
 const handDesc = seat => {
   if (!inRoom()) return !!S.game.desc?.[seat];
-  try { return localStorage.getItem(ORDER) === 'desc'; } catch { return false; }
+  try { return localStorage.getItem(ORDER) !== 'asc'; } catch { return true; }
 };
 function flipOrder(seat) {
   if (!inRoom()) { S.game.desc ||= S.game.names.map(() => false); S.game.desc[seat] = !S.game.desc[seat]; }
@@ -656,9 +656,10 @@ $('leaveYes').onclick = async () => {
 $('leaveNo').onclick = () => $('leaveSheet').close();
 $('rulesBtn').onclick = () => $('rulesSheet').showModal();
 const SIDE_KEY = 'nl-bomb-specials';
-const sideOn = () => { try { return localStorage.getItem(SIDE_KEY) !== 'off'; } catch { return true; } }; // on unless switched off
+// 'off', 'left' or 'right'; right unless chosen otherwise ('on' is the older name for right).
+const sideOn = () => { try { const v = localStorage.getItem(SIDE_KEY); return v === 'off' || v === 'left' ? v : 'right'; } catch { return 'right'; } };
 const showSide = NL.segmented($('sideSeg'), v => { try { localStorage.setItem(SIDE_KEY, v); } catch {} showSide(v); render(); });
-$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); showSide(sideOn() ? 'on' : 'off'); $('settingsSheet').showModal(); };
+$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); showSide(sideOn()); $('settingsSheet').showModal(); };
 
 // ---- Deck art: one choice per deck in the game. The decks are shuffled together and each card keeps its own deck's
 // back and face. The picker and the setup row show each deck's back or its ace of spades (a toggle kept per device).
