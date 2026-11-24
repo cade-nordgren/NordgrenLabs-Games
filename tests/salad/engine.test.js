@@ -189,11 +189,15 @@ test('deal: equal hands of floor(52*decks/players), the remainder is the kitty, 
 });
 
 test('describeConfig for the lobby', () => {
-  assert.deepEqual(describeConfig(4, 1), { cardsEach: 13, kitty: 0, tricks: 13, hearts: 13, queens: 4, kingsOfSpades: 1, long: false });
-  assert.deepEqual(describeConfig(3, 1), { cardsEach: 17, kitty: 1, tricks: 17, hearts: 13, queens: 4, kingsOfSpades: 1, long: false });
-  assert.deepEqual(describeConfig(7, 2), { cardsEach: 14, kitty: 6, tricks: 14, hearts: 26, queens: 8, kingsOfSpades: 2, long: false });
-  assert.deepEqual(describeConfig(P(8), 3), { cardsEach: 19, kitty: 4, tricks: 19, hearts: 39, queens: 12, kingsOfSpades: 3, long: false });
-  assert.equal(describeConfig(2, 1).long, false);
+  assert.deepEqual(describeConfig(4, 1), { cardsEach: 13, kitty: 0, tricks: 13, hearts: 13, queens: 4, kingsOfSpades: 1, long: false, short: false });
+  assert.deepEqual(describeConfig(3, 1), { cardsEach: 17, kitty: 1, tricks: 17, hearts: 13, queens: 4, kingsOfSpades: 1, long: false, short: false });
+  assert.deepEqual(describeConfig(7, 2), { cardsEach: 14, kitty: 6, tricks: 14, hearts: 26, queens: 8, kingsOfSpades: 2, long: false, short: false });
+  assert.deepEqual(describeConfig(P(8), 3), { cardsEach: 19, kitty: 4, tricks: 19, hearts: 39, queens: 12, kingsOfSpades: 3, long: false, short: false });
+  assert.equal(describeConfig(2, 1).long, true, 'the full deck to two players is a longer game');
+  assert.equal(describeConfig(3, 1).long, false);
+  assert.equal(describeConfig(8, 1).short, true);
+  assert.equal(describeConfig(7, 1).short, true);
+  assert.equal(describeConfig(6, 1).short, false);
   assert.equal(describeConfig(2, 2).long, true);
   assert.equal(describeConfig(3, 2).long, true);
   assert.throws(() => describeConfig(9, 1));
@@ -279,7 +283,7 @@ test('dealer cut: highest rank deals, only tied seats cut again', () => {
   assert.ok([0, 1].includes(tie.dealer) && tie.cut.length >= 2);
 });
 
-test('a new game: the cut is kept, the seat after the dealer leads, round 1', () => {
+test('a new game: the cut is kept, the highest cut leads and the seat before it deals, round 1', () => {
   for (let seed = 0; seed < 20; seed++) {
     const g = createGame({ players: P(5), decks: 1, seed });
     checkState(g);
@@ -287,7 +291,7 @@ test('a new game: the cut is kept, the seat after the dealer leads, round 1', ()
     assert.equal(g.turn, (g.dealer + 1) % 5);
     assert.equal(g.round, 1);
     const top = Math.max(...g.cut.at(-1).map(c => c.rank));
-    assert.deepEqual(g.cut.at(-1).filter(c => c.rank === top).map(c => c.seat), [g.dealer]);
+    assert.deepEqual(g.cut.at(-1).filter(c => c.rank === top).map(c => c.seat), [g.turn], 'the highest cut goes first');
     assert.deepEqual(viewFor(g, 0).cut, g.cut);
   }
   assert.throws(() => createGame({ players: P(1), decks: 1, seed: 1 }));
@@ -369,7 +373,7 @@ test("scoreDisplay 'roundEnd' hides this round's penalties until the round ends"
   for (let i = 0; i < 4; i++) g = act(g, { type: 'PLAY_CARD', seat: g.turn, card: legalCards(g, g.turn)[0] });
   let v = viewFor(g, 0);
   assert.equal(v.last.penalty, null);
-  assert.ok(v.seats.every(x => x.captured === null && x.roundScore === null));
+  assert.ok(v.seats.every(x => Array.isArray(x.captured) && x.roundScore === null), 'captured cards stay public');
   assert.equal(v.seats.reduce((s, x) => s + x.tricks, 0), 1, 'trick counts stay public');
   assert.deepEqual(v.totals, g.totals);
   g = finishRound(g);

@@ -9,7 +9,7 @@ import path from 'node:path';
 import { getPlatformProxy } from 'wrangler';
 import worker from './worker.js';
 import { timing } from './rooms.js';
-import { validState } from '../site/crossix/engine/reducer.js';
+import { validState, rollers, rollWinner } from '../site/crossix/engine/reducer.js';
 import { pickOptions, noPicks } from '../site/crossix/engine/moves.js';
 import { MAX_PENALTIES } from '../site/crossix/engine/lanes.js';
 
@@ -62,11 +62,31 @@ async function room(n) {
   for (let i = 1; i < n; i++) assert.equal((await join(P[i], c.body.view.room.code, `P${i}`)).status, 200);
   return { id: c.body.id, code: c.body.view.room.code };
 }
+// The stored roll for first player is the server's own: each seat a D6, only those tied for the highest again.
+function assertRolls(g) {
+  const n = g.players.length;
+  assert.ok(g.rolls.length >= 1);
+  g.rolls.forEach((round, k) => {
+    const who = rollers(g.rolls.slice(0, k), n);
+    assert.ok(who.length > 1, 'no round after it is decided');
+    round.forEach((d, i) => assert.ok(who.includes(i) ? Number.isInteger(d) && d >= 1 && d <= 6 : d === null, `round ${k} seat ${i}`));
+  });
+  const last = g.rolls.at(-1), top = Math.max(...last.filter(d => d !== null));
+  assert.equal(last[g.first], top, 'the first seat rolled the highest');
+  assert.equal(last.filter(d => d === top).length, 1, 'and alone');
+  assert.equal(rollWinner(g.rolls, n), g.first);
+  assert.equal(g.turn.active, g.first, 'the turn starts there');
+}
+// Started with seat 0 first (stored as if seat 0 won the roll), so a test knows who rolls.
 async function started(n) {
   const r = await room(n);
   const s = await act(P[0], r.id, { type: 'START' }, await version(r.id));
   assert.equal(s.status, 200);
-  return { ...r, v: s.body.version, view: s.body.view };
+  assertRolls(s.body.view.game);
+  const rolls = JSON.stringify([[6, ...Array(n - 1).fill(1)]]);
+  await db.prepare("UPDATE rooms SET state = json_set(state, '$.game.first', 0, '$.game.turn.active', 0, '$.game.rolls', json(?)) WHERE id = ?").bind(rolls, r.id).run();
+  assert.ok(validState(await rawGame(r.id)));
+  return { ...r, v: s.body.version, view: (await poll(P[0], r.id)).body.view };
 }
 // Puts known dice on the roll in the stored state (the engine treats state as data), keeping it valid.
 async function setDice(id, dice) {
@@ -94,7 +114,7 @@ test('create, join, start: a room of up to 8 with a 6-letter code; a 9th is refu
   assert.equal(c.status, 200);
   assert.deepEqual(c.body.view, {
     room: { id: c.body.id, code: c.body.view.room.code, phase: 'lobby', host: 0, rematch: [], startedAt: null, endedAt: null,
-      seats: [{ name: 'Ana', connected: true }] },
+      seats: [{ name: 'Ana', id: 0, connected: true }] },
     game: null, you: 0,
   });
   const code = c.body.view.room.code;
@@ -116,7 +136,8 @@ test('create, join, start: a room of up to 8 with a 6-letter code; a 9th is refu
   const g = s.body.view.game;
   assert.equal(g.players.length, 8);
   assert.equal(g.mode, 'digital');
-  assert.deepEqual([g.turn.phase, g.turn.active, g.turn.n], ['roll', 0, 1]);
+  assert.deepEqual([g.turn.phase, g.turn.n], ['roll', 1]);
+  assertRolls(g);
   assert.ok(validState(await rawGame(c.body.id)));
   assertPrivate(s, 0);
   assert.deepEqual((await join(P[8], code)).body, { error: 'conflict', reason: 'started' });
@@ -207,7 +228,7 @@ test('stale expect on a roll is 409 with the view; a repeated actionId applies o
   assert.equal(await version(id), v + 4);
 });
 
-test('Skip: host only, only for a seat unseen for a minute; rolls for the roller, ends a choice, the roller takes the penalty', async () => {
+test('Skip: any player, only for a seat unseen for a minute; rolls for the roller, ends a choice, the roller takes the penalty', async () => {
   const { id, v } = await started(3);
   assert.equal((await act(P[0], id, { type: 'skip', seat: 0 }, v)).body.reason, 'illegal', 'not yourself');
   assert.equal((await act(P[0], id, { type: 'skip', seat: 5 }, v)).body.reason, 'illegal', 'no such seat');
@@ -221,12 +242,11 @@ test('Skip: host only, only for a seat unseen for a minute; rolls for the roller
   await away(id, P[2]);
   let host = await poll(P[0], id);
   assert.deepEqual(host.body.view.room.seats.map(s => s.connected), [true, true, false]);
-  assert.equal((await act(P[1], id, { type: 'skip', seat: 2 }, host.body.version)).body.reason, 'not_host');
   assert.equal((await act(P[0], id, { type: 'skip', seat: 1 }, host.body.version)).body.reason, 'not_away');
   assert.equal((await act(P[0], id, { type: 'skip', seat: 2 }, host.body.version)).body.reason, 'illegal', 'seat 2 is not rolling');
-  // Seat 1 rolls; away seat 2 is skipped: done with nothing.
+  // Seat 1 rolls; away seat 2 is skipped, by a player who is not the host: done with nothing.
   r = await act(P[1], id, { type: 'roll' }, host.body.version);
-  r = await act(P[0], id, { type: 'skip', seat: 2 }, r.body.version);
+  r = await act(P[1], id, { type: 'skip', seat: 2 }, r.body.version);
   assert.equal(r.status, 200);
   assert.deepEqual(r.body.view.game.turn.done, [false, false, true]);
   assert.equal((await act(P[0], id, { type: 'skip', seat: 2 }, r.body.version)).body.reason, 'illegal', 'already done');
@@ -246,6 +266,22 @@ test('Skip: host only, only for a seat unseen for a minute; rolls for the roller
   await poll(P[2], id);
   host = await poll(P[0], id);
   assert.deepEqual(host.body.view.room.seats.map(s => s.connected), [true, true, true]);
+});
+
+test('who goes first: the server rolls a D6 per seat, ties for the highest roll again, the first seat rolled highest', async () => {
+  // Eight seats tie for the highest about half the time; keep starting rooms until one did.
+  let tie = false;
+  for (let k = 0; k < 30 && !tie; k++) {
+    const { id } = await room(8);
+    const s = await act(P[0], id, { type: 'START' }, await version(id));
+    const g = s.body.view.game, raw = await rawGame(id);
+    assertRolls(g);
+    assert.deepEqual([raw.first, raw.rolls], [g.first, g.rolls], 'the view shows the stored roll');
+    assert.equal((await act(P[(g.first + 1) % 8], id, { type: 'roll' }, s.body.version)).body.reason, 'not_your_turn');
+    assert.equal((await act(P[g.first], id, { type: 'roll' }, s.body.version)).status, 200, 'the first seat rolls');
+    tie = g.rolls.length > 1;
+  }
+  assert.ok(tie, 'a tie came up and was rolled again');
 });
 
 test('a timed-out poll still sends the view, so who is away stays current', async () => {
@@ -309,7 +345,8 @@ test('a seeded random game to the end through the API, then a rematch and a leav
     assert.equal(r.body.view.room.phase, 'over');
     r = await act(P[n - 1], id, { type: 'REMATCH' }, 0);
     assert.equal(r.body.view.room.phase, 'game');
-    assert.deepEqual(r.body.view.game.turn, { n: 1, active: 0, phase: 'roll', dice: null, picks: [], done: [] });
+    assertRolls(r.body.view.game); // a rematch rolls again for who goes first
+    assert.deepEqual(r.body.view.game.turn, { n: 1, active: r.body.view.game.first, phase: 'roll', dice: null, picks: [], done: [] });
     assert.equal((await act(P[1], id, { type: 'LEAVE' }, 0)).body.reason, 'started', 'no leaving mid-game');
     if (n === 3) {
       r = await playToEnd(id, n, s + 1);
@@ -318,6 +355,7 @@ test('a seeded random game to the end through the API, then a rematch and a leav
       r = await poll(P[0], id);
       assert.equal(r.body.view.room.phase, 'lobby', 'the rest go back to the lobby');
       assert.deepEqual(r.body.view.room.seats.map(x => x.name), ['Host', 'P2']);
+      assert.deepEqual(r.body.view.room.seats.map(x => x.id), [0, 2], 'seat ids stay with the player, so phones see who left');
       assert.equal((await join(P[9], code)).status, 200, 'and can be joined again');
     }
   }

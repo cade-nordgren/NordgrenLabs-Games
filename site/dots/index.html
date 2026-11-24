@@ -159,8 +159,9 @@ svg.thumb .pre { fill: none; stroke: var(--ink); stroke-width: 3.5; vector-effec
 .stack { display: grid; gap: 10px; margin-top: 16px; }
 
 /* ---- Game: player panels beside the menu and Undo circles (which reach 106px down), the board, then the turn bar. */
-.app:has(#gamePage:not([hidden])) { height: 100dvh; min-height: 0; }
-.app:has(#gamePage.over:not([hidden])) { height: auto; min-height: 100dvh; }
+/* Playing: pinned to the screen, not 100dvh (html zoom and large text overshoot that), so the stage shrinks and Next turn stays on it. */
+.app:has(#gamePage:not([hidden])) { position: fixed; inset: 0; min-height: 0; overflow: auto; }
+.app:has(#gamePage.over:not([hidden])) { position: static; overflow: visible; height: auto; min-height: 100dvh; }
 main { display: contents; }
 #gamePage { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 .head { padding-right: 58px; min-height: 106px; margin-bottom: 8px; display: grid; gap: 8px; align-content: start; }
@@ -203,6 +204,8 @@ svg.board .wait { opacity: .35; }
 #msg { margin: 0; min-height: 2.8em; display: flex; align-items: center; justify-content: center; text-align: center; font-weight: 600; font-size: 16px; line-height: 1.4; }
 #msg .mk { display: inline-grid; width: 22px; height: 22px; font-size: 12px; border-radius: 6px; margin-right: 6px; flex: none; }
 #boardName { margin: 0; font-size: 13px; color: var(--ink2); text-align: center; }
+/* Autosave failed: a short note over the top edge, clear of the menu circles and taps. */
+#saveWarn { position: fixed; z-index: 30; top: max(4px, env(safe-area-inset-top)); left: 16px; right: 74px; margin: 0; padding: 6px 12px; border-radius: 12px; background: var(--solid); box-shadow: var(--shadow); pointer-events: none; }
 
 /* ---- Results: Crossix's finish list, one row per player, counted up row by row on the board. */
 #results { padding-top: 12px; cursor: pointer; }
@@ -213,7 +216,7 @@ svg.board .wait { opacity: .35; }
 .rrow { display: grid; grid-template-columns: 26px 34px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 18px;
   transition: opacity .6s ease, filter .6s ease, box-shadow .6s ease; }
 .rank { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--ink2); font: 700 14px var(--num); }
-.rank.first { background: var(--line-c); color: #fff; }
+.rank.first { background: var(--fill-c); color: var(--ink-c); box-shadow: inset 0 0 0 2px var(--line-c); } /* the marker's own pair, measured 4.5:1 in colors.js; white on the line was 4.1 */
 .rrow .mk { width: 34px; height: 34px; border-radius: 50%; font-size: 16px; }
 .rrow .who { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rrow .t { min-width: 56px; height: 42px; padding: 0 10px; border-radius: 11px; display: grid; place-items: center; font: 800 22px/1 var(--num); font-variant-numeric: tabular-nums;
@@ -226,7 +229,8 @@ svg.board .wait { opacity: .35; }
 @keyframes glow { 50% { box-shadow: 0 0 0 3px var(--line-c), 0 10px 46px color-mix(in srgb, var(--line-c) 80%, transparent); } }
 #skip { display: block; margin: 14px auto 0; }
 /* The results board stays clear of the menu and Undo circles. */
-#gamePage.over #stage { flex: none; height: min(46dvh, 92vw); padding-right: 58px; }
+/* svh: the board does not resize when the address bar hides, under the finger that taps Rematch. */
+#gamePage.over #stage { flex: none; height: min(42svh, 92vw); padding-right: 58px; }
 
 /* ---- Sheets (copied from Crossix) */
 .rules p { margin: 0 0 4px; }
@@ -315,7 +319,12 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   .rrow .t { height: 36px; }
   #after .stack { margin-top: 10px; display: flex; gap: 8px; }
   #after .stack .btn { flex: 1; margin: 0; min-height: 44px; font-size: 16px; }
-  #tutStage { height: 52dvh; }
+  /* Tutorial sheet: the board beside the text, so Next turn and Done show without a scroll on a ~350px tall screen. */
+  #tutSheet { width: min(100% - 24px, 640px); }
+  #tutSheet > div { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 6px 14px; padding-block: 14px; }
+  #tutSheet > div > * { grid-column: 2; }
+  #tutSheet > div > #tutStage { grid-column: 1; grid-row: 1 / span 5; align-self: center; height: min(52dvh, 260px); }
+  #tutNext { min-height: 48px; }
 }
 </style>
 </head>
@@ -483,6 +492,15 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   </div>
 </dialog>
 
+<dialog class="sheet glass" id="discardSheet" aria-labelledby="discardTitle">
+  <div>
+    <h2 id="discardTitle">Discard changes?</h2>
+    <p>Your edits to this layout are not saved yet.</p>
+    <button class="btn primary" id="keepEditing">Keep editing</button>
+    <button class="btn danger" id="discardEdits">Discard</button>
+  </div>
+</dialog>
+
 <dialog class="sheet glass rules" id="rulesSheet" aria-labelledby="rulesTitle">
   <div>
     <h2 id="rulesTitle">How to play</h2>
@@ -546,6 +564,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 
 <template id="xIcon"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></template>
 <template id="plusIcon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></template>
+
+<p class="note bad" id="saveWarn" role="status" hidden>Could not save this game on this phone.</p>
 
 <script src="../config.js"></script>
 <script src="../platform.js"></script>

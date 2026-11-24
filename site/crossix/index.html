@@ -84,7 +84,22 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 #modeSeg { margin-top: 12px; }
 #startHint { text-align: center; }
 
-/* ---- Online: Bomb's lobby (room code, seats filling in, the host's Start); a seat is just a name. */
+/* ---- Who goes first: Dots and Boxes' roll, a card per player (two across); out of a tie-break they dim. */
+#rollSeg { margin-bottom: 14px; }
+.rcards { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.rcard { padding: 14px 10px; display: grid; justify-items: center; align-content: start; gap: 10px; text-align: center; border-radius: 22px; transition: box-shadow .3s, opacity .3s; }
+.rcard .who { max-width: 100%; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rcard .slot { --h: 22px; }
+.rcard.win { box-shadow: 0 0 0 3px var(--accent), var(--shadow); }
+.rcard.out { opacity: .45; }
+.rcard .btn { width: 100%; }
+.pad { display: grid; grid-template-columns: repeat(3, 40px); gap: 6px; }
+.pad button { height: 44px; border-radius: 12px; background: var(--fill); font: 700 18px var(--num); }
+.pad button[aria-pressed="true"] { background: var(--ink); color: var(--canvas); }
+.pad button[aria-pressed="true"]:disabled { opacity: 1; }
+#rollMsg { margin: 16px 0 12px; text-align: center; font-weight: 600; min-height: 1.4em; }
+
+/* ---- Online: Bomb's lobby (room code, seats filling in, the host's Start); a seat is a name. */
 .row { display: flex; align-items: center; gap: 8px; border-top: 1px solid var(--hair); min-height: 50px; margin-top: 8px; }
 .row input { flex: 1; min-width: 0; border: 0; background: none; padding: 12px 0; outline: none; font-size: 17px; }
 .row input:focus-visible { box-shadow: inset 0 -2px 0 var(--accent); }
@@ -111,6 +126,12 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 .pill { display: inline-flex; align-items: center; padding: 4px 10px; border-radius: 999px; background: var(--fill); font-size: 13px; font-weight: 600; white-space: nowrap; }
 .off { opacity: .55; }
 #lobbyPage > .btn, #lobbyPage > .wait { margin-top: 10px; }
+.wait { min-height: 50px; padding: 8px 16px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 10px; font-weight: 700; }
+.wait span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dots { display: inline-flex; gap: 4px; }
+.dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink2); animation: dot 1.2s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: .2s; } .dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes dot { 50% { opacity: .25; } }
 #lobbyPage > .btn:not(.primary) { width: 100%; }
 #skips { display: flex; flex-wrap: wrap; gap: 6px; }
 #skips .btn { min-height: 40px; font-size: 15px; }
@@ -259,7 +280,7 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 .eq { display: flex; align-items: center; gap: 3px; margin-top: 12px; font: 700 15px var(--num); color: var(--ink2); }
 .eq .t { flex: 1 1 0; min-width: 0; height: 44px; border-radius: 10px; display: grid; place-items: center; color: var(--ink); font: 800 18px var(--num); font-variant-numeric: tabular-nums;
   border: 2px solid var(--c, var(--hair)); background: color-mix(in srgb, var(--c, var(--fill)) 14%, var(--cell)); }
-.eq .total { flex: 1.6 1 0; height: 52px; border: 0; background: var(--ink); color: var(--canvas); font-size: 24px; line-height: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
+.eq .total { flex: 1.6 1 0; height: auto; min-height: 52px; padding-block: 4px; border: 0; background: var(--ink); color: var(--canvas); font-size: 24px; line-height: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; }
 .eq .total small { font: 600 10px/1 var(--text); opacity: .75; }
 
 /* ---- Standings (Scores tab and results) */
@@ -284,9 +305,9 @@ details summary { font-weight: 600; cursor: pointer; min-height: 24px; }
 .rrow .rank.first { background: var(--accent); color: #fff; }
 .rrow .who { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rrow .eq { margin: 0; gap: 2px; font-size: 12px; }
-.rrow .t { flex: none; width: var(--b); height: 36px; border-width: 1.5px; border-radius: 9px; font: 800 clamp(13px, 3.9vw, 18px)/1 var(--num); font-variant-numeric: tabular-nums;
+.rrow .t { flex: none; min-width: var(--b); padding: 0 2px; height: 36px; border-width: 1.5px; border-radius: 9px; font: 800 clamp(13px, 3.9vw, 18px)/1 var(--num); font-variant-numeric: tabular-nums;
   transition: background-color .2s, color .2s, border-color .2s, box-shadow .2s; }
-.rrow .t.total { display: grid; place-items: center; width: calc(var(--b) * 1.25); height: 40px; font-size: clamp(15px, 4.6vw, 21px); }
+.rrow .t.total { display: grid; place-items: center; min-width: calc(var(--b) * 1.25); height: 40px; font-size: clamp(15px, 4.6vw, 21px); }
 /* While counting: the column being counted is solid white with a thin edge in its colour; the rest are grey. */
 .rrow .t.mute { background: var(--fill); border-color: transparent; color: var(--ink2); }
 .rrow .t.now { background: #fff; color: #1d1d1f; border-color: var(--c, #8e8e93); box-shadow: 0 2px 10px rgb(0 0 0 / .18); }
@@ -391,9 +412,13 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   .pbox { width: 34px; height: 34px; }
   #eq { margin-top: 8px; gap: 2px; font-size: 12px; }
   #eq .t { height: 38px; font-size: 15px; border-radius: 8px; }
-  #eq .total { height: 44px; font-size: 20px; }
+  #eq .total { height: auto; min-height: 44px; font-size: 20px; }
 
 }
+.pagehead { display: flex; align-items: center; gap: 10px; min-height: 48px; padding-right: 58px; margin-bottom: 12px; } /* Dots' roll screen header */
+.pagehead h2 { font: 700 24px/1.1 var(--num); flex: 1; margin: 0; }
+.back { width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center; background: var(--fill); color: var(--ink); flex: none; }
+.back svg { width: 22px; height: 22px; }
 </style>
 </head>
 <body>
@@ -497,7 +522,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <section class="glass group" id="joinGroup" hidden>
         <h2 id="joinTitle">Join a room</h2>
         <form class="row" id="joinRow">
-          <input id="joinCode" maxlength="6" placeholder="6-letter code" aria-labelledby="joinTitle" autocomplete="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go">
+          <input id="joinCode" maxlength="6" placeholder="6-letter code" aria-labelledby="joinTitle" autocomplete="off" autocorrect="off" autocapitalize="characters" spellcheck="false" enterkeyhint="go">
           <button class="btn ink" id="join">Join</button>
         </form>
       </section>
@@ -523,6 +548,21 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <button class="btn primary" id="startRoom">Start game</button>
       <div class="wait glass" id="lobbyWait" role="status" hidden><span class="dots" aria-hidden="true"><i></i><i></i><i></i></span><span id="lobbyWaitText"></span></div>
       <button class="btn" id="leaveLobby">Leave</button>
+    </section>
+
+    <section id="rollPage" class="page" hidden>
+      <div class="pagehead">
+        <button class="back" id="rollBack" aria-label="Back to setup"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg></button>
+        <h2>Who goes first?</h2>
+      </div>
+      <div class="segmented" id="rollSeg" role="group" aria-label="Dice">
+        <button value="digital">Digital dice</button>
+        <button value="physical">Physical dice</button>
+      </div>
+      <div class="rcards" id="rcards"></div>
+      <p id="rollMsg" role="status"></p>
+      <button class="btn primary" id="startGame" hidden>Start game</button>
+      <div class="stack" id="fixRoll" hidden><button class="btn">Enter the numbers again</button></div>
     </section>
 
     <section id="gamePage" class="page" hidden>
@@ -620,6 +660,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <li>Cross numbers off from left to right only. Anything you skip is gone for good.</li>
       <li>The last number in a lane (12 or 2) needs five crosses in that lane first. It shares a cell with the lock: crossing it counts as two crosses and closes that colour for everyone.</li>
     </ul>
+    <h3>Who goes first</h3>
+    <p>Everyone rolls one die, on screen or with real dice (then tap what it showed). The highest goes first; if several tie for the highest, only they roll again. Play then goes round in seating order. Online, the game rolls for everyone when the host starts. Every new game rolls again.</p>
     <h3>A turn with digital dice</h3>
     <ol>
       <li>The active player rolls six dice: two white, red, yellow, green and blue.</li>
@@ -631,7 +673,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
     </ol>
     <p>Several players can lock the same colour on one roll. A colour locked on a roll closes once everyone is done, and its die leaves the game.</p>
     <h3>Online</h3>
-    <p>Two to eight players, each on their own phone, with digital dice. Picks stay hidden until everyone has ended their turn. If a phone has been away for a minute, the host can skip that player: they cross nothing, and a skipped roller takes a penalty.</p>
+    <p>Two to eight players, each on their own phone, with digital dice. Picks stay hidden until everyone has ended their turn. If a phone has been away for a minute, anyone else can skip that player: they cross nothing, and a skipped roller takes a penalty.</p>
     <h3>With your own dice</h3>
     <p>Play the same turns at the table and tap what you cross. Tapping a lane's last cell (the 12 or 2 with the lock) before it has five crosses closes that colour as locked by another player away from this device; tap it again to reopen.</p>
     <p>The app can't see your dice, so it can't tell a white-sum cross from a white-plus-colour cross. Every tap puts down the plain X straight away, with no dice colours.</p>

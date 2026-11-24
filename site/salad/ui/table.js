@@ -388,7 +388,12 @@ const endDrag = e => {
   if (!was) return;
   drag.el.classList.remove('drag');
   drag.el.style.transform = '';
-  if (!drag.moved) return;
+  // The click that ends a long press must not select or play the card, moved or not. A touch's click can come a
+  // moment after pointerup, so the guard outlasts it; the next pointerdown clears it anyway.
+  const moved = drag.moved;
+  drag.moved = true;
+  setTimeout(() => { drag.moved = false; }, 300);
+  if (!moved) return;
   // Drop before the card whose centre is nearest the finger.
   let best = 0, bestD = Infinity;
   handEls.forEach((c, i) => {
@@ -399,7 +404,6 @@ const endDrag = e => {
   const from = handIds.indexOf(id);
   moveCard(id, best > from ? best - 1 : best);
   renderTable(view);
-  setTimeout(() => { drag.moved = false; }, 0);
 };
 $('hand').addEventListener('pointerup', endDrag);
 $('hand').addEventListener('pointercancel', endDrag);

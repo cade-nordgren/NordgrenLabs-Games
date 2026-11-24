@@ -251,6 +251,8 @@ function apply(room, seat, a) {
       const c = config(a, room.config);
       if (!c) return [400, 'invalid_config'];
       if (c.capacity < room.seats.length) return [409, 'capacity_below_players'];
+      // Ready meant ready for that setup: a change asks everyone again.
+      if (JSON.stringify(c) !== JSON.stringify(room.config)) for (const s of room.seats) s.ready = false;
       room.config = c;
       return null;
     }
@@ -263,7 +265,13 @@ function apply(room, seat, a) {
         seed: seed(), scoreDisplay: room.config.scoreDisplay });
       return null;
     case 'LEAVE':
-      if (!lobby) return [409, 'in_game'];
+      if (!lobby && room.game.phase !== 'over') return [409, 'in_game'];
+      // Leaving a finished game ends it: the rest are back in the lobby to start again or leave, not left waiting on a
+      // rematch that needs every seat.
+      if (!lobby) {
+        room.game = null;
+        for (const s of room.seats) { s.ready = false; s.rematch = false; }
+      }
       room.seats.splice(seat, 1);
       if (host) room.host = room.seats.length ? seat % room.seats.length : 0;
       else if (room.host > seat) room.host--;

@@ -15,7 +15,7 @@ The traditional six-round trick-taking game (No Tricks, No Hearts, No Queens, No
 - **Defaults (my call):** 1 deck for 2 to 5 players, 2 decks for 6 to 8. The lobby shows cards each, kitty size, tricks per round and a long-game warning above 26 cards each. Classic default is 4 players, 1 deck, 13 each.
 - **Identical cards:** the last identical highest lead-suit card played wins the trick (owner's rule).
 - **Scoring:** as the spec; every count derived from the cards actually in the round. Expected total per game = `10*T + 10*H + 25*Q + 100*K + 100` twice over (once across rounds 1 to 5, once in round 6), where T tricks per round, H hearts, Q queens, K kings of spades in the shoe. 4 players, 1 deck: 1,120.
-- **Dealer:** a card cut at the start (highest rank deals, tied players cut again). Dealer moves one seat clockwise each round; the player clockwise of the dealer leads.
+- **Dealer:** a card cut at the start (tied players cut again; suits never break a tie). Owner ruling 2026-11-24: the highest cut goes first, leading the first trick, so the seat before it is the first dealer (before that the highest cut dealt). Dealer moves one seat clockwise each round; the player clockwise of the dealer leads.
 - **Flow:** a play is applied the moment the server accepts it; no Next Turn. A finished trick is resolved by the server at once; phones animate it and anyone may tap to skip the animation. After a round the host presses Next Round. After round 6, final results; Rematch is a ready-up by every seated player.
 - **Ties:** tied lowest scores are joint winners; equal scores share a rank.
 

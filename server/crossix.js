@@ -1,7 +1,7 @@
 // Crossix online rooms: rooms.js with this adapter (docs/plans/crossix-online-contract.md). The engine in
 // site/crossix/engine owns every rule; here: who may act, the server's roll, picks hidden until the roll resolves, Skip.
 // Tentative picks stay on the phone: a player sends their final picks once, with Done, and the engine checks them.
-import { newGame, reduce, validState } from '../site/crossix/engine/reducer.js';
+import { newGame, reduce, validState, rand, rollOff, rollWinner } from '../site/crossix/engine/reducer.js';
 import { noPicks } from '../site/crossix/engine/moves.js';
 import { MAX_ONLINE } from '../site/crossix/engine/lanes.js';
 import { isInt, seed } from './rooms.js';
@@ -63,11 +63,11 @@ function apply(room, next, seat, a, cur) {
       if (a.n !== t.n || t.phase !== 'choose') return 'stale';
       game = a.type === 'done' ? finish(g, seat, a.picks) : reduce(g, { type: 'done', player: seat, value: false });
       break;
-    // The host moves the game on past a phone that has not polled for a minute: rolls for them, or ends their choice
-    // with nothing picked (the roller then takes the penalty, as the rules give for marking nothing).
+    // Any player moves the game on past a phone that has not polled for a minute (not only the host, whose phone can die
+    // too): rolls for them, or ends their choice with nothing picked (the roller then takes the penalty, as the rules give
+    // for marking nothing).
     case 'skip': {
       const k = a.seat;
-      if (seat !== 0) return 'not_host';
       if (k === seat || !room.seats[k]) return 'illegal';
       if (cur.view.room.seats[k].connected) return 'not_away';
       if (t.phase === 'roll') game = k === t.active ? reduce(g, { type: 'roll' }) : null;
@@ -84,14 +84,19 @@ function apply(room, next, seat, a, cur) {
 
 export const CROSSIX = {
   kind: 'crossix', max: MAX_ONLINE,
-  seat: () => ({}), // a seat is just a name
+  // A seat is a name and an id never reused in the room, so phones can tell which of two same-named players left.
+  seat: (_, room) => ({ id: room ? Math.max(-1, ...room.seats.map(s => s.id ?? -1)) + 1 : 0 }),
   settings: () => ({}),
   roomView: () => ({}),
-  seatView: () => ({}),
+  seatView: s => ({ id: s.id }),
   parse,
   anyVersion: new Set(['done', 'reopen']), // a player's own picks do not depend on anyone else's Done
-  // Online always rolls on screen. The seed comes from crypto here and never leaves the server.
-  start: room => newGame({ mode: 'digital', names: room.seats.map(s => s.name), seed: seed() }),
+  // Online always rolls on screen. The seed comes from crypto here and never leaves the server. Who goes first is the
+  // server's roll too (a seed of its own, so it tells nothing about the game's dice); rematches roll again.
+  start(room) {
+    const n = room.seats.length, r = { rng: seed() }, rolls = rollOff(n, () => 1 + Math.floor(rand(r) * 6));
+    return newGame({ mode: 'digital', names: room.seats.map(s => s.name), seed: seed(), first: rollWinner(rolls, n), rolls });
+  },
   apply,
   // Everything is public but the seed, the dice to come (rng) and other players' picks before the roll resolves.
   view(g, seat) {

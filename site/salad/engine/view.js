@@ -21,8 +21,8 @@ export function viewFor(g, seat = null) {
     seats: g.players.map((_, s) => ({
       hand: g.hands[s].length,
       tricks: won(s).length,
-      captured: hide ? null
-        : [...won(s).flatMap(t => t.plays.map(p => p.card)), ...(g.kittyTo === s ? g.kitty : [])].filter(isPenaltyCard),
+      // Spec 18: captured cards stay public even while the round's points are hidden.
+      captured: [...won(s).flatMap(t => t.plays.map(p => p.card)), ...(g.kittyTo === s ? g.kitty : [])].filter(isPenaltyCard),
       roundScore: hide ? null : sumBreakdowns(won(s).map(t => t.penalty), g.round),
     })),
     totals: g.totals, history: g.history, standings: standings(g.totals),

@@ -50,7 +50,7 @@
 ::-webkit-scrollbar { display: none; }
 [hidden] { display: none !important; }
 /* iOS otherwise enlarges text when the phone turns to landscape. */
-html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; overscroll-behavior-y: none; } /* no accidental pull-to-refresh mid-game */
 /* iOS 26 home-screen apps open one status bar short of the screen (owner's iPhone: screen 852, innerHeight and dvh 793,
    lvh 852), with a black bar along the bottom, until the page is first scrolled. A page as tall as the real screen has
    something to scroll, and platform.js gives it that first scroll at load. Elsewhere lvh is the viewport, so no change. */

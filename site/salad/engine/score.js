@@ -47,7 +47,9 @@ export function describeConfig(players, decks) {
   const cardsEach = Math.floor(52 * decks / n);
   return {
     cardsEach, kitty: 52 * decks - cardsEach * n, tricks: cardsEach,
-    hearts: 13 * decks, queens: 4 * decks, kingsOfSpades: decks, long: cardsEach > 26,
+    hearts: 13 * decks, queens: 4 * decks, kingsOfSpades: decks,
+    // Spec 6: the full deck to two players counts as long; under 8 tricks (7 or 8 players on one deck) as short.
+    long: cardsEach >= 26, short: cardsEach < 8,
   };
 }
 

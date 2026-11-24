@@ -89,7 +89,8 @@ export function playable(g, seat) {
   const ok = c => open === null ? canPlay(c.rank, livePile(g)) : c.rank === open;
   return from === 'hand' || from === 'up' ? p[from].filter(c => c && ok(c)).map(c => c.id) : [];
 }
-export const canPickUp = (g, seat) => onTurn(g, seat) && g.pile.length > 0 && opening(g) === null;
+// Nothing to pick up while the pile is only the kitty: anything can be played on it.
+export const canPickUp = (g, seat) => onTurn(g, seat) && livePile(g).length > 0 && opening(g) === null;
 // Stuck: nothing playable from hand or face-up. Face-down play is always possible, so never forced there.
 export const mustPickUp = (g, seat) =>
   canPickUp(g, seat) && ['hand', 'up'].includes(source(g.players[seat])) && !playable(g, seat).length;

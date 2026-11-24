@@ -28,19 +28,31 @@ function show(id) {
   for (const p of pages) $(p).hidden = p !== id;
   $('house').hidden = id === 'game';
   $('game').hidden = id !== 'game';
-  const inRoom = !!net.state.view, inGame = net.state.view?.room.phase === 'game';
+  const inRoom = !!net.state.view, inGame = net.state.view?.room.phase === 'game', over = net.state.view?.game?.phase === 'over';
   $('mScores').hidden = !inGame;
-  $('mHome').hidden = !inGame;
-  $('mLeave').hidden = !(inRoom && !inGame);
+  $('mHome').hidden = !inGame || over; // after the game, Home would keep the seat and hold up the others' rematch
+  $('mLeave').hidden = !inRoom || (inGame && !over);
   document.body.classList.toggle('live', id === 'game');
 }
 
 let current = null;
+// The last finished game on screen: when someone leaves it the room goes back to the lobby, but the others keep
+// their final scores until they tap Back to lobby.
+let held = null;
 export function render() {
   setTableArt(net.state.view?.room?.config?.art);
   const v = net.state.view;
-  if (!v) { stopReveals(); current = screen === 'home' ? 'home' : 'form'; show(current); if (current === 'home') renderHome(); return; }
-  if (v.room.phase === 'lobby') { current = 'lobby'; show('lobby'); renderLobby(v); return; }
+  if (!v) { held = null; stopReveals(); current = screen === 'home' ? 'home' : 'form'; show(current); if (current === 'home') renderHome(); return; }
+  if (v.room.phase === 'lobby' && held && current === 'final') {
+    if (!held.left) { held.left = true; toast('Someone left, so the room is back in the lobby.'); }
+    renderFinal(held);
+    $('rematch').textContent = 'Back to lobby';
+    $('rematch').classList.add('primary');
+    $('rematchNote').textContent = 'Someone left this game. A new game starts from the lobby.';
+    $('rematch').onclick = () => { held = null; render(); };
+    return;
+  }
+  if (v.room.phase === 'lobby') { held = null; current = 'lobby'; show('lobby'); renderLobby(v); return; }
   const g = v.game;
   renderTable(v); // keeps the trick animation going even when results take over
   let next = 'game';
@@ -50,7 +62,7 @@ export function render() {
   current = next;
   show(next);
   if (next === 'results') renderResults(v);
-  if (next === 'final') renderFinal(v);
+  if (next === 'final') { held = v; renderFinal(v); }
   maybeCut(v);
 }
 onIdle(render);
@@ -162,9 +174,10 @@ function drawSetup(box, cfg, seated, onSet) {
   kv.append(cell(plural(cfg.decks, 'deck'), `${52 * cfg.decks} cards`), cell(String(d.cardsEach), 'cards each'), cell(d.kitty ? String(d.kitty) : 'No', d.kitty ? 'in the kitty' : 'kitty'),
     cell(String(d.tricks), 'tricks a round'), cell(cfg.scoreDisplay === 'live' ? 'Live' : 'Round end', 'scores'), cell(`${minutes(players, d.tricks)} min`, 'about'));
   kids.push(kv);
-  kids.push(el('p', 'cap soft', seated ? `Counted for the ${plural(players, 'player')} seated now; it updates as people join.` : `Counted for ${plural(players, 'player')}.`));
+  kids.push(el('p', 'cap soft', seated ? `Counted for ${plural(players, 'player')}${seated < players ? ` (${plural(seated, 'player')} seated now)` : ' seated now'}; it updates as people join.` : `Counted for ${plural(players, 'player')}.`));
   if (d.kitty) kids.push(el('p', 'cap soft', `${52 * cfg.decks} cards do not split evenly, so ${plural(d.kitty, 'card')} form a kitty: the winner of each round's first trick takes it, face up.`));
-  if (d.long) kids.push(el('p', 'warn', `Long game: ${d.cardsEach} cards each and ${d.tricks} tricks in every round. Fewer decks make it shorter.`));
+  if (d.long) kids.push(el('p', 'warn', `Long game: ${d.cardsEach} cards each and ${d.tricks} tricks in every round.${cfg.decks > 1 ? ' Fewer decks make it shorter.' : ''}`));
+  if (d.short) kids.push(el('p', 'warn', `Short game: ${d.cardsEach} cards each and ${d.tricks} tricks in every round. More decks make it longer.`));
   if (onSet) {
     const tT = el('h3', 'cap', 'Table'); tT.id = 'tT' + box.id;
     const tiles = el('div', 'tables');
@@ -245,7 +258,7 @@ $('formBack').onclick = () => { screen = 'home'; render(); };
 // ---- Lobby
 let lobbyKey = '', qrCode = '';
 function renderLobby(v) {
-  const { room, you } = v, host = room.seats[room.host], mine = room.seats[you.seat];
+  const { room, you } = v, host = room.seats[room.host];
   $('lobbyLede').textContent = you.host ? 'You’re the host. Start when everyone’s ready.' : `${host.name} is the host and starts the game.`;
   $('lobbyCode').textContent = room.code;
   $('lobbyLink').textContent = net.shareLink(room.code).replace(/^https?:\/\//, '');
@@ -304,7 +317,6 @@ function renderLobby(v) {
   $('startNote').textContent = !you.host ? `Waiting for ${host.name} to start the game.`
     : room.seats.length < 2 ? 'Share the code: you need at least 2 players.'
     : waiting.length ? `Waiting for ${listOf(waiting)} to be ready.` : 'Everyone is ready.';
-  void mine;
 }
 $('startBtn').onclick = async () => {
   $('startBtn').disabled = true;
@@ -369,7 +381,7 @@ function maybeCut(v) {
   $('cutRows').replaceChildren(...rows);
   const name = s => s === v.you.seat ? 'You' : g.players[s].name;
   const leader = (g.dealer + 1) % g.players.length;
-  $('cutResult').textContent = `${name(g.dealer)} ${g.dealer === v.you.seat ? 'deal' : 'deals'}. ${name(leader)} ${leader === v.you.seat ? 'lead' : 'leads'} the first trick.`;
+  $('cutResult').textContent = `${name(leader)} ${leader === v.you.seat ? 'go' : 'goes'} first and ${leader === v.you.seat ? 'lead' : 'leads'} the first trick. ${name(g.dealer)} ${g.dealer === v.you.seat ? 'deal' : 'deals'}.`;
   $('cutSheet').showModal();
 }
 
@@ -377,14 +389,26 @@ function maybeCut(v) {
 NL.menu($('menu'));
 $('mScores').onclick = () => openScores(net.state.view);
 $('gScores').onclick = () => openScores(net.state.view);
-$('newGame').onclick = () => { net.detach(); net.forgetRoom(); openForm('create'); };
+$('newGame').onclick = async () => {
+  $('newGame').disabled = true;
+  await net.act({ type: 'LEAVE' }); // frees the seat so the others are not left waiting on a rematch
+  $('newGame').disabled = false;
+  net.detach(); net.forgetRoom(); openForm('create');
+};
+$('finGames').onclick = async e => {
+  e.preventDefault();
+  const href = e.currentTarget.href;
+  await Promise.race([net.act({ type: 'LEAVE' }), new Promise(r => setTimeout(r, 3000))]); // never hold them on a bad connection
+  location.href = href;
+};
 $('mHow').onclick = () => openHow();
 $('mSettings').onclick = () => openSettings(net.state.view);
 $('mHome').onclick = () => { net.detach(); screen = 'home'; render(); };
 $('mLeave').onclick = () => {
   const v = net.state.view;
   $('leaveTitle').textContent = 'Leave this room?';
-  $('leaveNote').textContent = v.you.host && v.room.seats.length > 1 ? 'You give up your seat, and the next player becomes host.' : 'You give up your seat.';
+  $('leaveNote').textContent = (v.you.host && v.room.seats.length > 1 ? 'You give up your seat, and the next player becomes host.' : 'You give up your seat.')
+    + (v.game && v.room.seats.length > 1 ? ' The others go back to the lobby.' : '');
   $('leaveGo').textContent = 'Leave room';
   $('leaveSheet').showModal();
 };
@@ -425,5 +449,5 @@ net.onChange(e => {
   render();
 })();
 
-window.addEventListener('resize', () => { if (net.state.view?.game) renderTable(net.state.view, true); });
+window.addEventListener('resize', () => { if (net.state.view?.game) renderTable(net.state.view); });
 if ('serviceWorker' in navigator && !net.isDev) navigator.serviceWorker.register('sw.js', { scope: '/salad/' }).catch(() => {});

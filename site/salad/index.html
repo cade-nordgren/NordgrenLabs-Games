@@ -127,8 +127,6 @@ input.text:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 6
 .toggle[aria-checked="true"] { background: #1a6b40; }
 .toggle[aria-checked="true"]::after { left: 22px; }
 .ready-row { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; min-height: 44px; }
-.conn { width: 8px; height: 8px; border-radius: 50%; background: var(--good); flex: none; }
-.conn.off { background: transparent; box-shadow: inset 0 0 0 2px var(--ink2); }
 
 /* ---- Cards (original design, after the canvas): index top left, a large suit or a court figure bottom right. */
 .c { --w: calc(56px * var(--k)); position: relative; flex: none; display: block; width: var(--w); height: calc(var(--w) * 1.43); border-radius: calc(var(--w) * .16);
@@ -192,6 +190,11 @@ input.text:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 6
 .c > .pic { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: inherit; pointer-events: none; }
 .c:has(> .pic):not(.xs) > :not(.pic) { visibility: hidden; }
 .c.xs > .pic { display: none; }
+/* Unplayable with a picture deck: the picture greyed and faded over the grey face, as a drawn card turns grey. */
+.c.no > .pic { filter: grayscale(1); opacity: .5; }
+/* High contrast: the picture sits inside the firm edge drawn cards get, and fades less so the index stays readable. */
+:root.hc .c > .pic { inset: 2px; width: calc(100% - 4px); height: calc(100% - 4px); }
+:root.hc .c.no > .pic { opacity: .7; }
 .c.xs { --w: 21px; } .c.xs .m, .c.xs .art { display: none; } .c.xs .i { top: 2px; left: 3px; font-size: 11px; } .c.xs .i small { font-size: 9px; margin: 0; }
 .c.sm { --w: calc(44px * var(--k)); }
 .c.md { --w: calc(62px * var(--k)); }
@@ -279,9 +282,6 @@ dialog h2:focus { outline: none; }
 .kit-cards { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
 .kit-line { display: flex; align-items: center; justify-content: center; gap: 5px; font-size: 11px; font-weight: 700; color: var(--ink2); margin-top: 2px; }
 .kit-line .c.back { --w: 12px; display: inline-block; }
-.kitty-stack { position: absolute; right: 8%; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; z-index: 1; }
-.kitty-stack .c { --w: calc(34px * var(--k)); }
-.kitty-stack .c + .c { margin-top: calc(var(--w) * -1.35); }
 .fx { position: absolute; inset: 0; pointer-events: none; z-index: 5; }
 .fx .c { position: absolute; left: 0; top: 0; }
 /* Viewer row, hand and action */
@@ -305,7 +305,6 @@ dialog h2:focus { outline: none; }
 .hand .c { --w: calc(62px * var(--k)); } .hand.scroll .c { --w: calc(56px * var(--k)); }
 .hand .c.up { transform: translateY(-10px); }
 .hand .c.sel { transform: translateY(-20px); box-shadow: 0 0 0 3px #fff, 0 0 0 5.5px #1d1d1f, 0 14px 26px rgba(0, 0, 0, .35); z-index: 2; }
-.hand .c.gone { visibility: hidden; }
 /* Focus on the table in its own ink (white, or near-black on the light table), and a focused card comes to the front. */
 #game :focus-visible { outline: 3px solid var(--on); outline-offset: 2px; }
 .hand .c:focus-visible { z-index: 3; }
@@ -316,6 +315,12 @@ dialog h2:focus { outline: none; }
 #game .btn:not(.primary) { background: var(--glass); color: var(--ink); box-shadow: var(--shadow); }
 #game .btn.primary { min-height: 54px; }
 #game .btn.primary:disabled { background: var(--glass); color: var(--ink2); }
+/* A tall table (big text, a short screen, eight players) scrolls under Play instead of pushing it off the bottom. */
+@media (orientation: portrait) and (max-width: 699px) {
+  #game { overflow: hidden auto; overscroll-behavior: contain; grid-template-rows: max-content max-content minmax(150px, 1fr) max-content max-content max-content; } /* rows keep their content's height and the table scrolls, rather than squashing the header */
+  #game > .act { position: sticky; bottom: 0; z-index: 4; margin: 0 -16px calc(-1 * max(12px, env(safe-area-inset-bottom)));
+    padding: 0 16px max(12px, env(safe-area-inset-bottom)); background: linear-gradient(to bottom, transparent, var(--tB) 10px); }
+}
 .offline { position: fixed; left: 50%; top: calc(env(safe-area-inset-top) + 8px); transform: translateX(-50%); z-index: 30; padding: 6px 14px; border-radius: 999px; background: #1d1d1f; color: #fff; font-size: 14px; font-weight: 600; }
 
 /* ---- Results (round and final), on the house cream. */
@@ -624,7 +629,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
       <button class="btn" id="finScorecard">Detailed scorecard</button>
       <div class="two">
         <button class="btn" id="newGame">New game</button>
-        <a class="btn" href="../index.html">Return to Games</a>
+        <a class="btn" id="finGames" href="../index.html">Return to Games</a>
       </div>
     </div>
   </section>
@@ -639,7 +644,6 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   <section class="felt" id="felt" aria-label="Table">
     <div id="spots"></div>
     <div id="mid"></div>
-    <div id="kittyStack"></div>
     <div class="fx" id="fx"></div>
   </section>
   <div class="side">
@@ -687,8 +691,8 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 </div></dialog>
 
 <dialog class="sheet glass" id="cutSheet" aria-labelledby="cutTitle"><div>
-  <h2 id="cutTitle">Cut for dealer</h2>
-  <p id="cutLede">Everyone cuts one card. The highest rank deals; a tie cuts again.</p>
+  <h2 id="cutTitle">Who goes first?</h2>
+  <p id="cutLede">Everyone cuts one card. The highest rank goes first; suits don't count, so a tie cuts again.</p>
   <div class="cutfelt"><div class="cutrows" id="cutRows"></div></div>
   <p id="cutResult" style="color: var(--ink); font-weight: 700"></p>
   <button class="btn primary" data-close>To the table</button>
