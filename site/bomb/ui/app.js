@@ -656,7 +656,7 @@ $('leaveYes').onclick = async () => {
 $('leaveNo').onclick = () => $('leaveSheet').close();
 $('rulesBtn').onclick = () => $('rulesSheet').showModal();
 const SIDE_KEY = 'nl-bomb-specials';
-const sideOn = () => { try { return localStorage.getItem(SIDE_KEY) === 'on'; } catch { return false; } };
+const sideOn = () => { try { return localStorage.getItem(SIDE_KEY) !== 'off'; } catch { return true; } }; // on unless switched off
 const showSide = NL.segmented($('sideSeg'), v => { try { localStorage.setItem(SIDE_KEY, v); } catch {} showSide(v); render(); });
 $('settingsBtn').onclick = () => { showTheme(NL.theme.get()); showSide(sideOn() ? 'on' : 'off'); $('settingsSheet').showModal(); };
 
