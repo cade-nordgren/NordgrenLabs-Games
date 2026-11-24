@@ -340,6 +340,14 @@ test('spec v12 fix 5: the card queue draws each card and finishes inside the sam
   assert.equal(done, 2, 'no cards: released at once');
 });
 
+test('spec v12 fix 1: a result card closed by a back swipe is acknowledged or put back, never dropped (static)', () => {
+  const app = src('ui/app.js');
+  const close = app.match(/\$\('roll'\)\.addEventListener\('close', \(\) => \{([\s\S]*?)\n\}\);/)[1];
+  const guard = close.indexOf("if ($('roll').dataset.mode === 'result') { if (cardReady) queue.next(); else $('roll').showModal(); return; }");
+  assert.ok(guard > 0, 'a closed result card advances the queue once the dice land, else reopens');
+  assert.ok(guard < close.indexOf("$('roll').dataset.mode = '';"), 'before the voluntary-roll back-out clears the mode');
+});
+
 test('spec v12 fix 5: the UI never gates state on frames or animation events; Continue releases the table in its own handler', () => {
   for (const f of ['ui/app.js', 'ui/board.js', 'ui/dice.js', 'ui/words.js', 'ui/results.js', 'ui/daylight.js', 'ui/undo.js']) {
     assert.doesNotMatch(src(f), /requestAnimationFrame|animationend|transitionend|onanimationend|ontransitionend/, f);

@@ -839,7 +839,8 @@ function renderTitle() {
   $('startReason').textContent = REPORT.fullStartAllowed ? '' : STATUS.start;
   $('fixtures').disabled = !FX_REPORT.fixturePlayable;
   $('mixed').disabled = !STATUS.mixedAllowed;
-  $('mixed').hidden = REPORT.fullStartAllowed; // everything approved (spec v14): Start game is the way in
+  // everything approved (spec v14): Start game is the way in, so Play-test and its words go
+  for (const id of ['mixed', 'mixedHead', 'mixedNote', 'mixedReason']) $(id).hidden = REPORT.fullStartAllowed;
   $('mixedReason').textContent = STATUS.play;
   drawSaves();
 }
@@ -1038,7 +1039,7 @@ function renderDraft(v) {
   const g = S.game, c = content(), la = legalActions(g, c);
   const { step } = g.setup;
   const seat = la[0].seat;
-  // Who goes first (design canvas): its own calm stone screen. The later setup steps keep their look until rebuilt.
+  // Who goes first (design canvas): its own calm stone screen.
   const first = step === 'first-player' || (firstWait && step === 'heroes');
   const look = first || ['heroes', 'rings', 'towers'].includes(step); // the rebuilt setup screens
   $('draft').classList.toggle('dfirst', look);
@@ -2227,6 +2228,9 @@ $('roll').addEventListener('cancel', e => {
 // Backing out of a voluntary roll (the dialog's own close). Results never end here: cardsDone clears the mode first.
 $('roll').addEventListener('close', () => {
   if ($('roll').open || !$('roll').dataset.mode) return;
+  // Android Chrome honours the cancel's preventDefault only once per tap, so a second back swipe closes a result card
+  // anyway: acknowledge it like Esc once the dice have landed, otherwise put the same card back. No card is dropped.
+  if ($('roll').dataset.mode === 'result') { if (cardReady) queue.next(); else $('roll').showModal(); return; }
   $('roll').dataset.mode = '';
   showOutcome();
   if (!$('outcome').open) release();
