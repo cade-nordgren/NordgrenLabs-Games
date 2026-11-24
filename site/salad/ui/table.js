@@ -4,7 +4,7 @@
 import * as net from './net.js';
 import { color, avatar } from './colors.js';
 import { prefs, setPref, tableOf, dur, still } from './prefs.js';
-import { cardEl, backEl, cardName, short, sortHand, SUIT, SUIT_WORD, isRed } from './cards.js';
+import { cardEl, tableBackEl as backEl, cardName, short, sortHand, SUIT, SUIT_WORD, isRed } from './cards.js';
 import { trickWinner } from '../engine/reducer.js';
 import { ROUNDS, scores as scoresIn } from '../engine/score.js';
 import { suitOf, isHeart, isQueen, isKingOfSpades } from '../engine/cards.js';

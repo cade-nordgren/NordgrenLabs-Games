@@ -77,7 +77,7 @@ body::before {
 .circle.add { background-color: var(--add); color: #fff; }
 .pick { width: 44px; height: 54px; flex: none; display: grid; place-items: center; border-radius: 10px; }
 .pick .card { --w: 30px; }
-.pick.empty span { display: block; width: 30px; height: 42px; border-radius: 6px; border: 2px dashed var(--hair); }
+.pick.empty span { display: block; width: 30px; height: 30px; border-radius: 50%; border: 2px dashed var(--hair); }
 #savedGroup .count { display: inline-block; width: 2.2em; height: .9em; vertical-align: -1px; margin-left: 6px; }
 #saves li.loading { min-height: 59px; }
 .resume { flex: 1; min-width: 0; min-height: 58px; padding: 9px 0; text-align: left; }
@@ -252,6 +252,7 @@ button.card[aria-disabled="true"] { cursor: default; }
 .tray { --w: var(--hw, 60px); --step: calc(var(--w) + 6px); display: flex; overflow-x: auto; overscroll-behavior-x: contain; padding: 16px 16px 6px; margin: 0 -16px; }
 .tray > .card { --w: inherit; transition: transform .18s ease, box-shadow .18s ease; }
 .tray > .card + .card { margin-left: calc(var(--step) - var(--w)); }
+.tray > .card.aside { margin-left: calc(var(--step) - var(--w) + 22px); } /* 2s and 10s set apart */
 .tray > .card[aria-pressed="true"] { transform: translateY(-14px); box-shadow: 0 0 0 3px var(--accent), 0 12px 24px rgba(0, 0, 0, .22); }
 .tray > .card.new::after, .mslot .card.new::after { content: ""; position: absolute; top: -4px; right: -4px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 2px var(--canvas); }
 .locked .card { filter: saturate(.7); opacity: .75; }
@@ -277,7 +278,7 @@ button.card[aria-disabled="true"] { cursor: default; }
 #lobbySeats .card { --w: 28px; }
 #lobbySeats strong { flex: 1; min-width: 0; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #lobbySeats strong span { font-weight: 400; color: var(--ink2); }
-.open-seat { width: 28px; height: 40px; border-radius: 6px; border: 2px dashed var(--hair); flex: none; }
+.open-seat { width: 30px; height: 30px; border-radius: 50%; border: 2px dashed var(--hair); flex: none; }
 .off { opacity: .55; }
 
 /* ---- Results (Crossix's finish rows: winner glows, the rest step back; numbers tick up) */
@@ -490,7 +491,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
             <input id="newName" maxlength="20" placeholder="Add a player" aria-label="New player name" autocomplete="off" enterkeyhint="done">
             <button class="circle add" aria-label="Add player">+</button>
           </form>
-          <p class="note">Tap a card to pick its style. The colour on the back is that player's colour.</p>
+          <p class="note">Tap a player's circle to change their colour.</p>
         </section>
         <section class="glass group">
           <div class="decks">
@@ -674,7 +675,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
 
 <dialog class="sheet glass" id="styleSheet" aria-labelledby="styleTitle">
   <div>
-    <h2 id="styleTitle">Card style</h2>
+    <h2 id="styleTitle">Player colour</h2>
     <p id="styleNote"></p>
     <div class="styles" id="styleGrid"></div>
     <button class="btn" id="styleDone">Done</button>
@@ -777,6 +778,9 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
         <path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9Z" fill="currentColor" stroke="none"/>
       </svg>
     </div>
+    <h3 id="sideTitle">2s and 10s</h3>
+    <div class="segmented" id="sideSeg" role="group" aria-labelledby="sideTitle"><button value="off">In order</button><button value="on">To the side</button></div>
+    <p>To the side keeps your 2s and 10s apart at the end of your hand, so the special cards are easy to spot.</p>
     <p>Game saves on this phone stay in this browser's storage. Anyone with the phone and developer tools could read them, hidden cards included.</p>
     <div class="account" id="account" hidden><h3>Account</h3></div>
     <button class="btn" id="settingsDone">Done</button>

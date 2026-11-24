@@ -7,7 +7,7 @@ import { STYLES, style, styleLabel, freeStyle } from './styles.js';
 import { toggle, keepPlayable, canPlaySel, readGame, cleanArt, decksFor, listOf, plural, minutes, MAX_NAME,
   choosingSeat, leavers, firstLine } from './logic.js';
 import { $, el, still, say, back, toast, handoffScreen, chooseScreen, waitScreen, tableScreen,
-  snapshot, animate, clearFlyers, resultsScreen, stopResults, DECKS, deckPreview } from './screens.js';
+  snapshot, animate, clearFlyers, resultsScreen, stopResults, DECKS, deckPreview, avatar } from './screens.js';
 import { createNet, browserAuth, reasonText } from './net.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -220,14 +220,14 @@ function renderSetup() {
   S.mode === 'local' ? renderLocalSetup() : renderOnlineSetup();
 }
 function styleButton(btn, person, label) {
-  btn.replaceChildren(back(person.style));
+  btn.replaceChildren(avatar(el('span', 'av'), person));
   btn.setAttribute('aria-label', `${label}: ${styleLabel(style(person.style))}. Change`);
 }
 function renderLocalSetup() {
   const n = S.roster.length;
   $('roster').replaceChildren(...S.roster.map((p, i) => {
     const li = el('li'), pick = el('button', 'pick'), input = el('input'), rm = el('button', 'circle remove');
-    styleButton(pick, p, `${p.name || `Player ${i + 1}`}'s card style`);
+    styleButton(pick, p, `${p.name || `Player ${i + 1}`}'s colour`);
     pick.dataset.k = `style${i}`;
     pick.onclick = () => openStyles(p.style, S.roster.filter((_, j) => j !== i), id => { p.style = id; render(); }, p.name || `Player ${i + 1}`);
     input.value = p.name; input.maxLength = MAX_NAME;
@@ -287,7 +287,7 @@ function renderOnlineSetup() {
   $('onlineNote').classList.toggle('err', !!O.error);
   $('rejoinBox').hidden = !mem;
   if (mem) $('rejoinNote').textContent = `You were in room ${mem.code}. Your seat is kept while the game lasts.`;
-  styleButton($('mePick'), S.me, 'Your card style');
+  styleButton($('mePick'), S.me, 'Your colour');
   if (document.activeElement !== $('meName')) $('meName').value = S.me.name;
   const d = S.oDecks || 1;
   $('oDecksOut').textContent = d;
@@ -312,7 +312,7 @@ $('forget').onclick = () => { forgetRoom(); render(); };
 let onStyle = null;
 function openStyles(current, others, pick, who) {
   onStyle = pick;
-  $('styleNote').textContent = `${who}. The colour on the back is that player's colour.`;
+  $('styleNote').textContent = `${who}. Standard decks show this colour on that player's face-down cards.`;
   $('styleGrid').replaceChildren(...STYLES.map(s => {
     const by = others.find(o => o.style === s.id);
     const b = el('button', 'opt'), c = back(s.id);
@@ -340,12 +340,12 @@ function renderLobby() {
     if (i === v.you) {
       name.append(el('span', '', ' (you)'));
       pick = el('button', 'pick');
-      styleButton(pick, s, 'Your card style');
+      styleButton(pick, s, 'Your colour');
       pick.dataset.k = 'myStyle';
       pick.onclick = () => openStyles(s.style, r.seats.filter((_, j) => j !== i), id => onlineSend({ type: 'SET_PLAYER', name: s.name, style: id }), 'You');
     } else {
       pick = el('span', 'pick');
-      pick.append(back(s.style));
+      pick.append(avatar(el('span', 'av'), s));
       if (!s.connected) li.classList.add('off');
     }
     li.append(pick, name, el('span', 'pill', i === r.host ? 'Host' : s.connected ? 'Ready' : 'Away'));
@@ -460,7 +460,7 @@ function renderTable(scr, snap) {
   const info = inRoom() ? `Room ${O.view.room.code} · ${plural(scr.ps.length, 'player')} · ${plural(view.decks, 'deck')}`
     : `${plural(scr.ps.length, 'player')} · ${plural(view.decks, 'deck')} · turn ${view.turns + 1}`;
   tableScreen({
-    view, people: scr.ps, me, online: inRoom(), sel, info, desc: handDesc(me), art: curArt(), onSort: () => flipOrder(me),
+    view, people: scr.ps, me, online: inRoom(), sel, info, desc: handDesc(me), art: curArt(), side: sideOn(), onSort: () => flipOrder(me),
     onCard: (c, ok) => {
       if (!ok) { if (view.you.source === 'hand' || view.you.source === 'up') say(`${c.rank === 2 || c.rank === 10 ? '' : 'Too low. '}That card can't be played now.`); return; }
       sel = toggle(sel, c, view.you.playable);
@@ -654,7 +654,10 @@ $('leaveYes').onclick = async () => {
 };
 $('leaveNo').onclick = () => $('leaveSheet').close();
 $('rulesBtn').onclick = () => $('rulesSheet').showModal();
-$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); $('settingsSheet').showModal(); };
+const SIDE_KEY = 'nl-bomb-specials';
+const sideOn = () => { try { return localStorage.getItem(SIDE_KEY) === 'on'; } catch { return false; } };
+const showSide = NL.segmented($('sideSeg'), v => { try { localStorage.setItem(SIDE_KEY, v); } catch {} showSide(v); render(); });
+$('settingsBtn').onclick = () => { showTheme(NL.theme.get()); showSide(sideOn() ? 'on' : 'off'); $('settingsSheet').showModal(); };
 
 // ---- Deck art: one choice per deck in the game. The decks are shuffled together and each card keeps its own deck's
 // back and face. The picker and the setup row show each deck's back or its ace of spades (a toggle kept per device).

@@ -143,11 +143,18 @@ input.text:focus-visible { outline: 3px solid color-mix(in srgb, var(--accent) 6
 .c .art { position: absolute; right: calc(var(--w) * .07); bottom: calc(var(--w) * .07); width: 60%; height: 70%; }
 .c .art .frame { stroke-opacity: .35; }
 .c.back { background-color: var(--pc); background-image: var(--pat); background-size: var(--pat-size, auto); background-position: center;
-  box-shadow: inset 0 0 0 calc(var(--w) * var(--fr1)) var(--pc), inset 0 0 0 calc(var(--w) * var(--fr2)) var(--ring, rgba(255, 255, 255, .75)), 0 3px 10px rgba(0, 0, 0, .22); }
-:root, [data-back] { --fr1: .06; --fr2: .085; }
+  box-shadow: inset 0 0 0 calc(var(--w) * .06) var(--pc), inset 0 0 0 calc(var(--w) * .085) var(--ring, rgba(255, 255, 255, .75)), 0 3px 10px rgba(0, 0, 0, .22); }
 [data-back="image"] { --pat: var(--back-img); --pat-size: cover; }
 /* A picture deck's own back (site/decks) is a whole printed card: no colour frame. */
-[data-back="deck"] { --pat: var(--back-img); --pat-size: 100% 100%; --fr1: 0; --fr2: 0; }
+.c.back.pic-back { background: var(--img) center / 100% 100%; box-shadow: 0 3px 10px rgba(0, 0, 0, .22); }
+/* The host's deck choices: one slot per deck, and the picker. */
+.art-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.art-opt { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px; border-radius: 14px; text-align: center; min-width: 0; font-size: 13px; }
+.art-opt .c { --w: 52px; }
+.art-opt small { color: var(--ink2, inherit); opacity: .75; font-size: 12px; }
+.art-opt[aria-pressed="true"] { box-shadow: inset 0 0 0 2px currentColor; }
+.art-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; margin: 12px 0; }
+#deckView { margin-top: 10px; }
 /* Back colours and patterns (canvas: CardBacks). */
 :root, [data-back-color="felt"] { --pc: #1d5a39; }
 [data-back-color="cobalt"] { --pc: #1f6fd6; } [data-back-color="tangerine"] { --pc: #cf6900; } [data-back-color="forest"] { --pc: #1c7f3e; }
@@ -701,6 +708,14 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
   <p id="leaveNote"></p>
   <button class="btn danger" id="leaveGo"></button>
   <button class="btn" data-close>Stay</button>
+</div></dialog>
+
+<dialog class="sheet glass" id="deckSheet" aria-labelledby="deckTitle"><div>
+  <h2 id="deckTitle">Deck</h2>
+  <p class="cap soft">Every card keeps its own deck's face. Standard uses each player's own card look from Settings.</p>
+  <div id="deckView"></div>
+  <div class="art-grid" id="deckGrid"></div>
+  <button class="btn" id="deckDone" type="button">Done</button>
 </div></dialog>
 
 <dialog class="sheet glass" id="settingsSheet" aria-labelledby="settingsTitle"><div id="settingsBody">

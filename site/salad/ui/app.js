@@ -6,7 +6,8 @@ import { TABLES, tableOf } from './prefs.js';
 import { describeConfig } from '../engine/score.js';
 import { defaultDecks } from '../engine/cards.js';
 import { qrSvg } from './qr.js';
-import { cardEl, backEl } from './cards.js';
+import { cardEl, deckBackEl, deckPreview, setTableArt } from './cards.js';
+import { DECKS } from '../../decks/decks.js';
 import { $, el, toast, seg, svgUse, listOf, plural, ERR, errText } from './dom.js';
 import { renderTable, tableBusy, onIdle } from './table.js';
 import { renderResults, renderFinal, openScores, openScorecard, stopReveals, finalShown } from './results.js';
@@ -36,6 +37,7 @@ function show(id) {
 
 let current = null;
 export function render() {
+  setTableArt(net.state.view?.room?.config?.art);
   const v = net.state.view;
   if (!v) { stopReveals(); current = screen === 'home' ? 'home' : 'form'; show(current); if (current === 'home') renderHome(); return; }
   if (v.room.phase === 'lobby') { current = 'lobby'; show('lobby'); renderLobby(v); return; }
@@ -58,10 +60,10 @@ addEventListener('salad-prefs', () => { if (net.state.view?.game) render(); });
 function renderHome() {
   const fan = $('fan');
   if (!fan.childElementCount) {
-    const b = backEl(), q = cardEl('d1-QH'), k = cardEl('d1-KS');
-    b.style.cssText = 'left: 0; top: 16px; transform: rotate(-14deg)';
-    q.style.cssText = 'left: 56px; top: 4px; transform: rotate(-2deg)';
-    k.style.cssText = 'left: 112px; top: 14px; transform: rotate(12deg)';
+    const b = deckBackEl('luxury'), q = cardEl('d1-QH', 'span', 'luxury'), k = cardEl('d1-KS', 'span', 'luxury');
+    b.style.cssText += ';left: 0; top: 16px; transform: rotate(-14deg)';
+    q.style.cssText += ';left: 56px; top: 4px; transform: rotate(-2deg)';
+    k.style.cssText += ';left: 112px; top: 14px; transform: rotate(12deg)';
     fan.append(b, q, k);
   }
   const saved = net.savedRoom();
@@ -81,7 +83,7 @@ $('howBtn').onclick = () => openHow();
 $('setBtn').onclick = () => openSettings(net.state.view);
 
 // ---- Create and join forms
-let form = { capacity: 4, decks: 1, decksTouched: false, tableTheme: 'felt', scoreDisplay: 'live', color: me.color };
+let form = { capacity: 4, decks: 1, decksTouched: false, tableTheme: 'felt', scoreDisplay: 'live', art: ['', '', ''], color: me.color };
 export function openForm(kind, code = '') {
   screen = kind;
   homeNote('');
@@ -142,6 +144,19 @@ function drawSetup(box, cfg, seated, onSet) {
     const dT = el('h3', 'cap', 'Decks'); dT.id = 'dT' + box.id;
     kids.push(dT, seg(dT.id, [1, 2, 3].map(n => ({ value: n, label: plural(n, 'deck') })), cfg.decks, v => onSet({ decks: +v })));
   }
+  // Cards: one slot per deck, the host's choice of picture deck (or Standard), shown as backs or aces of spades.
+  const art = Array.isArray(cfg.art) && cfg.art.length === 3 ? cfg.art : ['', '', ''];
+  const aT = el('h3', 'cap', 'Cards'); aT.id = 'aT' + box.id;
+  const row = el('div', 'art-row');
+  row.setAttribute('role', 'group'); row.setAttribute('aria-labelledby', aT.id);
+  for (let i = 0; i < cfg.decks; i++) {
+    const b = el(onSet ? 'button' : 'div', 'art-opt');
+    if (onSet) { b.type = 'button'; b.onclick = () => openDecks(i, art[i], id => onSet({ art: art.map((a, k) => k === i ? id : a) })); }
+    b.setAttribute('aria-label', `Deck ${i + 1}: ${artName(art[i])}${onSet ? '. Change' : ''}`);
+    b.append(deckPreview(art[i], artShow), el('b', '', `Deck ${i + 1}`), el('small', '', artName(art[i])));
+    row.append(b);
+  }
+  kids.push(aT, row);
   const kv = el('div', 'kv');
   const cell = (b, s) => { const c = el('div'); c.append(el('b', '', b), el('span', 'cap', s)); return c; };
   kv.append(cell(plural(cfg.decks, 'deck'), `${52 * cfg.decks} cards`), cell(String(d.cardsEach), 'cards each'), cell(d.kitty ? String(d.kitty) : 'No', d.kitty ? 'in the kitty' : 'kitty'),
@@ -174,6 +189,34 @@ function drawSetup(box, cfg, seated, onSet) {
   box.replaceChildren(...kids);
 }
 
+// ---- The host's deck picker. The Backs / Ace of spades choice is kept per device.
+const ART_CHOICES = [{ id: '', name: 'Standard' }, ...DECKS];
+const artName = id => ART_CHOICES.find(d => d.id === id)?.name || 'Standard';
+const VIEW_KEY = 'nl-salad-deck-view';
+let artShow = (() => { try { return localStorage.getItem(VIEW_KEY) === 'ace' ? 'ace' : 'back'; } catch { return 'back'; } })();
+let onArt = null, artCur = '';
+function openDecks(i, current, pick) {
+  onArt = pick; artCur = current;
+  $('deckTitle').textContent = `Deck ${i + 1}`;
+  drawDeckSheet();
+  $('deckSheet').showModal();
+}
+function drawDeckSheet() {
+  $('deckView').replaceChildren(seg('deckTitle', [{ value: 'back', label: 'Backs' }, { value: 'ace', label: 'Ace of spades' }], artShow, v => {
+    artShow = v; try { localStorage.setItem(VIEW_KEY, v); } catch {}
+    drawDeckSheet(); render();
+  }));
+  $('deckGrid').replaceChildren(...ART_CHOICES.map(d => {
+    const b = el('button', 'art-opt');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', d.id === artCur);
+    b.append(deckPreview(d.id, artShow), el('span', '', d.name.replace(' Deck', '')));
+    b.onclick = () => { $('deckSheet').close(); onArt?.(d.id); };
+    return b;
+  }));
+}
+$('deckDone').onclick = () => $('deckSheet').close();
+
 $('code').addEventListener('input', () => {
   const v = $('code').value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 6);
   if ($('code').value !== v) $('code').value = v;
@@ -188,7 +231,7 @@ $('form').onsubmit = async e => {
   saveMe(me);
   $('formGo').disabled = true;
   const r = screen === 'create'
-    ? await net.create(name, form.color, { capacity: form.capacity, decks: form.decks, tableTheme: form.tableTheme, scoreDisplay: form.scoreDisplay })
+    ? await net.create(name, form.color, { capacity: form.capacity, decks: form.decks, tableTheme: form.tableTheme, scoreDisplay: form.scoreDisplay, art: form.art })
     : await net.join(code, name, form.color);
   $('formGo').disabled = false;
   if (!r.ok) { $('formErr').textContent = errText(r.error); return; }

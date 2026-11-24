@@ -1,7 +1,7 @@
 // Card rendering: original CSS cards (index top left, a large suit or a line-drawn court figure), themed by CSS on
 // <html data-face>. Backs are a colour and a CSS pattern, or the player's own image (kept on this device only).
 import { cardOf, label } from '../engine/cards.js';
-import { faceUrl } from '../../decks/decks.js';
+import { deckOf, faceUrl, backUrl } from '../../decks/decks.js';
 
 export const SUIT = { S: '♠︎', H: '♥︎', D: '♦︎', C: '♣︎' };
 export const SUIT_NAME = { S: 'spades', H: 'hearts', D: 'diamonds', C: 'clubs' };
@@ -17,9 +17,13 @@ export function cardName(id) {
 export const short = id => { const c = cardOf(id); return c ? label(c.rank) + SUIT[c.suit] : ''; };
 
 const svgNS = 'http://www.w3.org/2000/svg';
-// face: a face theme or a picture deck id (site/decks), by default the one prefs.js put on <html>; a deck lays its
-// picture over the drawn card.
-export function cardEl(id, tag = 'span', face = document.documentElement.dataset.face) {
+// The picture deck each deck in the room wears (the host's config `art`, '' for drawn cards); app.js sets it on render.
+let tableArt = [];
+export const setTableArt = a => { tableArt = Array.isArray(a) ? a : []; };
+const artFor = deck => deckOf(tableArt[deck - 1]) ? tableArt[deck - 1] : '';
+// face: a picture deck id (site/decks) or a face theme to show instead; by default the card's own deck's art, else the
+// face theme prefs.js put on <html>. A picture deck lays its picture over the drawn card.
+export function cardEl(id, tag = 'span', face) {
   const c = cardOf(id), e = document.createElement(tag);
   e.className = 'c' + (isRed(c.suit) ? ' r' : '');
   e.dataset.id = id;
@@ -44,12 +48,24 @@ export function cardEl(id, tag = 'span', face = document.documentElement.dataset
     m.textContent = SUIT[c.suit];
     e.append(m);
   }
-  const pic = faceUrl(face, label(c.rank), c.suit);
+  const pic = faceUrl(face !== undefined ? face : artFor(c.deck), label(c.rank), c.suit);
   if (pic) { const img = document.createElement('img'); img.className = 'pic'; img.alt = ''; img.src = pic; e.append(img); }
   if (tag === 'span') { e.setAttribute('role', 'img'); e.setAttribute('aria-label', cardName(id)); }
   return e;
 }
 
+// A picture deck's own back, a whole printed card.
+export function deckBackEl(id) {
+  const e = document.createElement('span');
+  e.className = 'c back pic-back';
+  e.style.setProperty('--img', `url("${backUrl(id)}")`);
+  e.setAttribute('aria-hidden', 'true');
+  return e;
+}
+// Hidden cards at the table: deck 1's back when it is a picture deck, else this player's own back.
+export const tableBackEl = () => artFor(1) ? deckBackEl(artFor(1)) : backEl();
+// A deck choice as the host's picker shows it: its back, or its ace of spades.
+export const deckPreview = (id, show) => show === 'ace' ? cardEl('d1-AS', 'span', id || 'none') : id ? deckBackEl(id) : backEl();
 export function backEl() {
   const e = document.createElement('span');
   e.className = 'c back';
