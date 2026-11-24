@@ -346,6 +346,8 @@ test('spec v12 fix 1: a result card closed by a back swipe is acknowledged or pu
   const guard = close.indexOf("if ($('roll').dataset.mode === 'result') { if (cardReady) queue.next(); else $('roll').showModal(); return; }");
   assert.ok(guard > 0, 'a closed result card advances the queue once the dice land, else reopens');
   assert.ok(guard < close.indexOf("$('roll').dataset.mode = '';"), 'before the voluntary-roll back-out clears the mode');
+  const forced = close.indexOf("if ($('roll').dataset.mode === 'ask-only' && !document.hidden) { $('roll').showModal(); return; }");
+  assert.ok(forced > 0 && forced < close.indexOf("$('roll').dataset.mode = '';"), 'a forced roll (no Back) is reopened, not backed out of');
 });
 
 test('spec v12 fix 5: the UI never gates state on frames or animation events; Continue releases the table in its own handler', () => {

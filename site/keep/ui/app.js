@@ -2231,6 +2231,8 @@ $('roll').addEventListener('close', () => {
   // Android Chrome honours the cancel's preventDefault only once per tap, so a second back swipe closes a result card
   // anyway: acknowledge it like Esc once the dice have landed, otherwise put the same card back. No card is dropped.
   if ($('roll').dataset.mode === 'result') { if (cardReady) queue.next(); else $('roll').showModal(); return; }
+  // A forced roll (no Back) must still be made; going away in multiplayer closes it on purpose (the cover), so not then.
+  if ($('roll').dataset.mode === 'ask-only' && !document.hidden) { $('roll').showModal(); return; }
   $('roll').dataset.mode = '';
   showOutcome();
   if (!$('outcome').open) release();
