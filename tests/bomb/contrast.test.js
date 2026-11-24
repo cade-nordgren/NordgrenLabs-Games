@@ -3,7 +3,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { STYLES, THEME, contrast } from '../../site/bomb/ui/styles.js';
+import { STYLES, DECK_STYLES, THEME, contrast } from '../../site/bomb/ui/styles.js';
+import { STYLES as SERVER_STYLES } from '../../server/rooms.js';
 
 const at = (a, b, min, what) => {
   const r = contrast(a, b);
@@ -14,11 +15,12 @@ test('twelve styles, distinct colours and patterns', () => {
   assert.equal(STYLES.length, 12);
   assert.equal(new Set(STYLES.map(s => s.hex)).size, 12);
   assert.equal(new Set(STYLES.map(s => s.pattern)).size, 12);
-  // Same ids and order as the server's list (server/rooms.js STYLES).
   assert.deepEqual(STYLES.map(s => s.id), ['cobalt', 'scarlet', 'forest', 'tangerine', 'violet', 'teal', 'rose', 'gold', 'indigo', 'slate', 'sky', 'lime']);
+  assert.deepEqual(SERVER_STYLES, STYLES.map(s => s.id), 'same ids and order as the server');
 });
 
-for (const s of STYLES) {
+// Deck looks still colour a player from an older save or room, so they are held to the same contrast.
+for (const s of [...STYLES, ...DECK_STYLES]) {
   test(`${s.name} ${s.pattern}: names in its ink, and the back against both grounds`, () => {
     at(s.ink, s.hex, 4.5, `${s.id} ink`);
     // The other ink must not be the better one: we picked the stronger of white and dark.

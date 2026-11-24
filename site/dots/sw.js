@@ -1,6 +1,6 @@
 // Dots and Boxes offline: precache the game, serve from the cache at once and refresh the copy in the background.
 // Bump VERSION whenever FILES changes; old caches are deleted on activate.
-const VERSION = 'dots-v6';
+const VERSION = 'dots-v7';
 const FILES = [
   './', 'manifest.webmanifest',
   'ui/app.js', 'ui/board.js', 'ui/colors.js', 'ui/dice.js',

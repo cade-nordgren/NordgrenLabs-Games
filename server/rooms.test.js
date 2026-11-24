@@ -192,6 +192,7 @@ async function secretsFor(id, seat) {
   const s = (await rawState(id)).game;
   const ids = [];
   s.deck.forEach(c => ids.push(c.id));
+  s.players.forEach(p => p.draw?.forEach(c => ids.push(c.id))); // every own draw pile, the viewer's too
   s.players.forEach((p, i) => {
     p.down.forEach(c => c && ids.push(c.id));
     if (i !== seat) p.hand.forEach(c => ids.push(c.id));

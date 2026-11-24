@@ -226,8 +226,8 @@ button.card[aria-disabled="true"] { cursor: default; }
 .beat.pulse b { animation: pulse .6s ease-out; }
 @keyframes pulse { 40% { transform: scale(1.3); color: var(--accent); } }
 .boom { position: absolute; inset: 0; border-radius: inherit; display: grid; place-items: center; overflow: hidden; z-index: 3; pointer-events: none; }
-.boom::before { content: ""; position: absolute; width: 320px; height: 320px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 214, 120, .95) 0 18%, rgba(240, 124, 27, .75) 34%, rgba(226, 53, 59, .35) 52%, transparent 68%); animation: boom .9s ease-out forwards; }
-.boom b { position: relative; font: 900 56px/1 var(--num); letter-spacing: -.03em; color: #fff; text-shadow: 0 2px 0 #b3261e, 0 4px 18px rgba(179, 38, 30, .6); animation: boomText .9s ease-out forwards; }
+.boom::before { content: ""; position: absolute; width: 320px; height: 320px; border-radius: 50%; background: radial-gradient(circle, rgba(255, 214, 120, .95) 0 18%, rgba(240, 124, 27, .75) 34%, rgba(226, 53, 59, .35) 52%, transparent 68%); animation: boom 1.5s ease-out forwards; }
+.boom b { position: relative; font: 900 56px/1 var(--num); letter-spacing: -.03em; color: #fff; text-shadow: 0 2px 0 #b3261e, 0 4px 18px rgba(179, 38, 30, .6); animation: boomText 1.5s ease-out forwards; }
 @keyframes boom { from { transform: scale(.2); opacity: 1; } 70% { opacity: 1; } to { transform: scale(1.4); opacity: 0; } }
 @keyframes boomText { from { transform: scale(.4); } 25% { transform: scale(1.1); } 75% { opacity: 1; } to { transform: scale(1); opacity: 0; } }
 .toolow { position: absolute; left: 50%; bottom: -10px; translate: -50% 0; padding: 3px 9px; border-radius: 999px; background: var(--tag); color: #fff;
@@ -248,6 +248,8 @@ button.card[aria-disabled="true"] { cursor: default; }
 .mslot > .back { top: 0; }
 .mslot > .up { top: 9px; }
 .mslot > .slot-empty { top: 9px; }
+.mslot > .up { transition: transform .18s ease, box-shadow .18s ease; }
+.mslot > .up[aria-pressed="true"] { transform: translateY(-10px); box-shadow: 0 0 0 3px var(--accent), 0 10px 20px rgba(0, 0, 0, .22); z-index: 1; }
 .mslot > .tap { box-shadow: inset 0 0 0 calc(var(--w) * .06) var(--pc), inset 0 0 0 calc(var(--w) * .085) rgba(255, 255, 255, .75), 0 0 0 3px var(--accent), 0 8px 18px rgba(0, 0, 0, .2); }
 .tray { --w: var(--hw, 60px); --step: calc(var(--w) + 6px); display: flex; overflow-x: auto; overscroll-behavior-x: contain; padding: 16px 16px 6px; margin: 0 -16px; }
 .tray > .card { --w: inherit; transition: transform .18s ease, box-shadow .18s ease; }
@@ -259,6 +261,8 @@ button.card[aria-disabled="true"] { cursor: default; }
 .tray .card.no { opacity: .55; }
 .empty-hand { margin: 18px 0; color: var(--ink2); font-size: 15px; }
 .actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 8px; }
+/* A tall table (big text, a short screen) scrolls under Play and Pick up instead of pushing them off the bottom. */
+@media (orientation: portrait) { #tablePage .actions { position: sticky; bottom: 0; z-index: 4; margin: 0 -16px calc(-1 * max(16px, env(safe-area-inset-bottom))); padding: 8px 16px max(16px, env(safe-area-inset-bottom)); background: linear-gradient(to bottom, transparent, var(--canvas) 10px); } }
 .actions #next { grid-column: 1 / -1; min-height: 52px; }
 .actions .btn { min-width: 0; padding: 0 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wait { min-height: 50px; padding: 8px 16px; border-radius: 999px; display: flex; align-items: center; justify-content: center; gap: 10px; grid-column: 1 / -1; font-weight: 700; }
@@ -719,19 +723,21 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
     <ul>
       <li>Everyone gets four cards face down that nobody sees, and nine more.</li>
       <li>Pick four of the nine to lie face up on top of your face-down cards. The other five are your hand.</li>
-      <li>The rest of the cards are the deck.</li>
+      <li>The rest are shared out evenly: each player gets their own face-down deck to draw from.</li>
+      <li>Cards that don't share out evenly are the kitty. They start the pile face up, but don't count as the card to beat: they just go with the pile when it's picked up or bombed.</li>
     </ul>
     <h3>Who goes first</h3>
     <ul>
       <li>Once everyone has chosen, look at the five cards in each hand. Whoever has the most 3s goes first.</li>
       <li>Tied? Of those players, whoever has more 4s, then more 5s, and so on up to Aces, then 2s.</li>
       <li>Exactly the same cards (possible with several decks): the game picks one of them at random.</li>
+      <li>The first player must open with the cards that decided it, at least one of them: one or more 3s if they had the most 3s.</li>
     </ul>
     <h3>A turn</h3>
     <ul>
       <li>Play a card that matches or beats the top of the pile. On an empty pile, anything goes.</li>
       <li>You may play several cards of the same rank at once, like two Queens.</li>
-      <li>While the deck lasts, draw back up to five cards after you play.</li>
+      <li>While your deck lasts, draw back up to five cards from it after you play.</li>
       <li>After a 2, a 10 or a bomb, you play again at once, with the cards you just drew.</li>
       <li>Can't play, or don't want to? Pick up the whole pile instead. The next player then starts a fresh pile.</li>
     </ul>
@@ -745,7 +751,7 @@ dialog.sheet > div::before { content: ""; justify-self: center; width: 36px; hei
     <h3>The three phases</h3>
     <ol>
       <li><strong>Hand.</strong> Play from your hand while you hold cards.</li>
-      <li><strong>Face up.</strong> When the deck is gone and your hand is empty, play your face-up cards.</li>
+      <li><strong>Face up.</strong> When your deck is gone and your hand is empty, play your face-up cards.</li>
       <li><strong>Face down.</strong> When those are gone too, turn over one face-down card at a time without looking. If it can't beat the pile, it goes on the pile and you pick the whole pile up.</li>
     </ol>
     <p>Picking up puts you back on your hand. Your table cards wait until your hand is empty again.</p>
