@@ -332,7 +332,7 @@ test('face-down: one blind card at a time; legal cards play, a failed card goes 
   const bad = down(g, 1);
   assert.deepEqual([bad.pile, bad.players[0].hand.map(c => c.id).sort(), bad.players[0].down[1], bad.pending, bad.players[0].pickups],
     [[], ['3S0', '9H0', 'JD0'], null, { next: 1 }, 1]);
-  assert.deepEqual(bad.last, { seat: 0, type: 'failed', card: { rank: 3, suit: 'S' }, count: 3 });
+  assert.deepEqual(bad.last, { seat: 0, type: 'failed', card: { rank: 3, suit: 'S', deck: 0 }, count: 3 });
   assert.equal(viewFor(next(bad), 0).you.source, 'hand', 'back to the hand phase');
   const reset = down(g, 2);
   assert.deepEqual([required(reset.pile), reset.pending, reset.turn], [null, null, 0], 'a blind 2 resets and goes again');

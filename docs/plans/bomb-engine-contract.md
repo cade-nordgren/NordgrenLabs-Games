@@ -98,7 +98,7 @@ Names, colours and card styles are not in the engine. Keep them beside the state
 ```js
 { seat, type: 'play', from: 'hand' | 'up' | 'down', cards: [card], bomb: bool, drew: int } // drew: cards taken from the deck after
 { seat, type: 'pickUp', count: int }
-{ seat, type: 'failed', card: { rank, suit }, count: int }   // blind card too low: it and the pile (count includes it) went to the hand
+{ seat, type: 'failed', card: { rank, suit, deck }, count: int }   // blind card too low: it and the pile (count includes it) went to the hand
 ```
 
 `last` survives Next Turn, so the next player can see what just happened.

@@ -164,8 +164,9 @@ const ACTIONS = {
     if (canPlay(c.rank, livePile(g))) land(g, seat, [c], 'down');
     else {
       g.pile.push(c);
-      // Only rank and suit: the card is now in a hand, and views must never carry hand card ids of other players.
-      g.last = { seat, type: 'failed', card: { rank: c.rank, suit: c.suit }, count: takePile(g, seat) };
+      // No id: the card is now in a hand, and views must never carry hand card ids of other players. The deck number
+      // is there so the reveal wears that deck's art; everyone saw the card and its back already.
+      g.last = { seat, type: 'failed', card: { rank: c.rank, suit: c.suit, deck: c.deck }, count: takePile(g, seat) };
     }
     return true;
   },
