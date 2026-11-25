@@ -1026,3 +1026,7 @@ If you play a 2 or 10 or bomb the pile by playing the 4th card in a row, you get
 Have a setting for each player where they can change the order of cards in their hand, low to high or high to low. Cards should always be organized in your hand.
 
 When the next turn is the player's again, do not make them press a button to keep going. For example, a 2 or 10 or bomb.
+
+## Part 4 (verbatim, 2026-11-25)
+
+For the player who goes first, they MUST play their lowest card value even if the tie was broken on a higher card. Disregarding 2s and 10s.

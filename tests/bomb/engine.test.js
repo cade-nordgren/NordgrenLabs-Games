@@ -398,13 +398,19 @@ test('the kitty starts the pile: it never sets the card to beat, and goes with a
   assert.deepEqual([bombed.kitty, bombed.pile.length, bombed.removed.length - g.removed.length], [0, 0, 3], 'and with a bomb');
 });
 
-test('the opening play must include the rank that decided who goes first', () => {
+test('the opening play must be the lowest rank the first player holds, 2s and 10s aside', () => {
   const b = { hand: ['5C', '6D', '7C', '8D', '9H'], up: ['4C', '4D', '4S', '4H'], down: ['5D', '5S', '5H', '6C'] };
   let g = two({ hand: ['3S', '3H', '9S', 'KS', 'AS'] }, b, { pile: ['QH'], kitty: 1 });
   g.firstWhy = { rank: 3, count: 2, tied: false };
   checkState(g);
   assert.deepEqual(playable(g, 0).sort(), ['3H0', '3S0']);
   assert.deepEqual([viewFor(g, 0).opening, viewFor(g, 0).you.canPickUp], [3, false], 'and no picking up the kitty instead');
+  const tie = two({ hand: ['2S', '10H', '6S', '6H', 'KS'] }, b, { pile: ['QH'], kitty: 1 });
+  tie.firstWhy = { rank: 13, count: 1, tied: true };
+  assert.deepEqual([viewFor(tie, 0).opening, playable(tie, 0).sort()], [6, ['6H0', '6S0']], 'lowest card, not the tie-break rank, not a 2 or 10');
+  const wild = two({ hand: ['2S', '10H', '2H', '10S', '2D'] }, b, { pile: ['QH'], kitty: 1 });
+  wild.firstWhy = { rank: 2, count: 3, tied: false };
+  assert.equal(viewFor(wild, 0).opening, null, 'only 2s and 10s: any play');
   no(g, { type: 'play', seat: 0, ids: ['KS0'] });
   no(g, { type: 'pickUp', seat: 0 });
   const one = play(g, '3S');
@@ -413,7 +419,7 @@ test('the opening play must include the rank that decided who goes first', () =>
   const both = play(g, '3S', '3H');
   assert.deepEqual(ranks(both.pile), [12, 3, 3]);
   g.firstWhy = { rank: null, count: 0, tied: true };
-  assert.equal(playable(g, 0).length, 5, 'picked at random: any card opens');
+  assert.deepEqual(playable(g, 0).sort(), ['3H0', '3S0'], 'picked at random: still the lowest rank');
   no(g, { type: 'pickUp', seat: 0 }); // nothing to pick up while the pile is only the kitty
 });
 
