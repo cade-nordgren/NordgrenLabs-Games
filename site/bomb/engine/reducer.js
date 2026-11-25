@@ -76,10 +76,12 @@ const cardsLeft = p => p.hand.length + p.up.filter(Boolean).length + p.down.filt
 export const livePile = g => g.kitty ? g.pile.slice(g.kitty) : g.pile;
 // Version 1 games (from before own draw piles) refill every hand from one shared deck.
 const drawPile = (g, p) => p.draw ?? g.deck;
-// The first play of the game must include the rank that decided who goes first; null when any legal play will do.
+// The first play of the game must be the first player's lowest rank, 2s and 10s aside, whatever rank broke the tie
+// for first (owner, 2026-11-25); null when any legal play will do (later turns, a hand of only 2s and 10s, old games).
 export function opening(g) {
-  const r = g.phase === 'play' && g.turns === 0 ? g.firstWhy?.rank ?? null : null;
-  return r !== null && g.players[g.turn].hand.some(c => c.rank === r) ? r : null;
+  if (g.phase !== 'play' || g.turns !== 0 || g.firstWhy == null) return null;
+  const low = Math.min(...g.players[g.turn].hand.map(c => c.rank).filter(r => r !== 2 && r !== 10));
+  return Number.isFinite(low) ? low : null;
 }
 
 // Ids of the seat's cards that may be played now (hand or face-up); [] when it is not their turn or they play blind.
